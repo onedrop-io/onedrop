@@ -1,0 +1,12 @@
+{
+    "$schema": "https://opencode.ai/config.json",
+    "instructions": ["/opt/zap/instructions.md"],
+    "autoupdate": false,
+    "share": "disabled",
+    "permission": {
+        "edit": "allow",
+        "bash": "allow",
+        "webfetch": "allow",
+        "external_directory": "allow"
+    }
+}

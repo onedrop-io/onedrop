@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Restart the preview server (picks up /workspace/.zap/dev if it now exists).
+set -euo pipefail
+
+if [ -f /tmp/zap-server.pid ]; then
+    kill -TERM -- "-$(cat /tmp/zap-server.pid)" 2>/dev/null || true
+fi
+
+echo "Preview server restarting. Logs: /tmp/zap-server.log"
