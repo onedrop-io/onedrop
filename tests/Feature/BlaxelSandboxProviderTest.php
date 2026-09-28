@@ -177,7 +177,7 @@ test('the ssh port gets no https preview', function () {
     Http::assertNothingSent();
 })->group('SBX-004');
 
-test('pausing freezes the app\'s processes and starting lets them carry on', function () {
+test('pausing freezes the app\'s processes, with a watchdog that thaws them if nobody does, and starting lets them carry on', function () {
     Http::fake([
         BL_API.'/sandboxes/zap-project-1-x' => Http::response(blaxelSandbox()),
         BL_SBX.'/process' => Http::response(blaxelProcess()),
@@ -190,9 +190,10 @@ test('pausing freezes the app\'s processes and starting lets them carry on', fun
         ->filter(fn (Request $request) => $request->url() === BL_SBX.'/process')
         ->map(fn (Request $request) => $request['command'])->values();
 
-    expect($commands)->toHaveCount(2)
+    expect($commands)->toHaveCount(3)
         ->and($commands[0])->toContain('kill -STOP')->toContain('pgrep -u sandbox')
-        ->and($commands[1])->toBe("'pkill' '-CONT' '-u' 'sandbox'");
+        ->and($commands[1])->toBe('sleep '.BlaxelSandboxProvider::THAW_AFTER_SECONDS.'; pkill -CONT -u sandbox')
+        ->and($commands[2])->toBe("'pkill' '-CONT' '-u' 'sandbox'");
 })->group('SBX-004');
 
 test('a sandbox whose processes cannot be frozen is not copied', function () {

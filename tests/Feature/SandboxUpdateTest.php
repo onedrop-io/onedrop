@@ -48,6 +48,7 @@ test('an outdated sandbox moves to the current image with its files, agent histo
         ->and($copies->where(0, 'in')->pluck(2)->all())->toBe(SandboxUpdater::KEPT_PATHS)
         ->and($copies->where(0, 'in')->pluck(1)->unique()->all())->toBe([$sandbox->external_id])
         ->and(collect($this->provider->executed)->pluck('command')->all())->toContain(['/opt/zap/restart'])
+        ->toContain(['bash', '-c', SandboxUpdater::LOAD_IMAGE_BASHRC]) // an old ~/.bashrc gives way to the image's shell setup
         ->and($this->project->fresh()->agent_session_id)->toBe('ses_1')
         ->and($this->project->fresh()->publish_status)->toBe(PublishStatus::Live)
         ->and(SandboxUpdater::isUpdating($this->project))->toBeFalse();
@@ -71,6 +72,24 @@ test('when copying files out fails, the old sandbox starts again and stays', fun
         ->and($provider->started)->toBe(['old-ctr'])
         ->and($this->sandbox->fresh()->external_id)->toBe('old-ctr')
         ->and($this->sandbox->fresh()->status)->toBe(SandboxStatus::Running)
+        ->and(glob(storage_path('framework/sandbox-backup-*')))->toBe([]);
+})->group('SBX-002');
+
+test('any failure while copying files out starts the old sandbox again', function () {
+    $provider = new class extends FakeSandboxProvider
+    {
+        public function copyOut(string $id, string $path, string $directory): void
+        {
+            throw new RuntimeException('Connection reset by peer');
+        }
+    };
+    $provider->outdated = ['old-ctr'];
+    app()->instance(SandboxProvider::class, $provider);
+
+    expect(fn () => app(SandboxUpdater::class)->updateIfOutdated($this->project))->toThrow(RuntimeException::class, 'Connection reset');
+
+    expect($provider->started)->toBe(['old-ctr'])
+        ->and($this->sandbox->fresh()->external_id)->toBe('old-ctr')
         ->and(glob(storage_path('framework/sandbox-backup-*')))->toBe([]);
 })->group('SBX-002');
 

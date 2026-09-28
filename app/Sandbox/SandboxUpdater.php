@@ -12,6 +12,7 @@ use App\Sandbox\Publishing\Publisher;
 use Closure;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
+use Throwable;
 
 /**
  * Replaces a project's sandbox with a fresh one from the current image, optionally keeping its files,
@@ -24,6 +25,9 @@ class SandboxUpdater
      * OpenCode's sessions (so the agent remembers) and anything the agent installed there (e.g. a local database).
      */
     public const KEPT_PATHS = ['/workspace', '/data/storage', '/home/sandbox'];
+
+    /** Replaces a carried-over ~/.bashrc that doesn't load /opt/zap/bashrc (sandboxes from before it existed). */
+    public const LOAD_IMAGE_BASHRC = 'grep -qF /opt/zap/bashrc ~/.bashrc 2>/dev/null || cp /opt/zap/home-bashrc ~/.bashrc';
 
     /** Longest an update may hold its lock, in seconds (copying a large workspace takes a while). */
     protected const LOCK_SECONDS = 900;
@@ -149,6 +153,9 @@ class SandboxUpdater
                     $this->provider->copyIn($sandbox->external_id, "{$backup}/{$index}", $path);
                 }
 
+                // The old home folder brought its ~/.bashrc; older ones held the whole shell setup, so swap them for the stub that loads the image's.
+                $this->provider->exec($sandbox->external_id, ['bash', '-c', self::LOAD_IMAGE_BASHRC]);
+
                 // The app's dev server (.zap/dev) arrived with the files; start it.
                 $this->provider->exec($sandbox->external_id, ['/opt/zap/restart']);
                 $report('Copied files into the new sandbox.');
@@ -173,6 +180,7 @@ class SandboxUpdater
      * into a temporary directory. If copying fails, the old sandbox starts again, untouched.
      *
      * @throws SandboxException
+     * @throws Throwable
      */
     protected function backup(string $id): string
     {
@@ -184,7 +192,8 @@ class SandboxUpdater
                 File::ensureDirectoryExists("{$directory}/{$index}");
                 $this->provider->copyOut($id, $path, "{$directory}/{$index}");
             }
-        } catch (SandboxException $e) {
+        } catch (Throwable $e) {
+            // Any failure (a lost connection, a full disk), not just the provider's own errors.
             File::deleteDirectory($directory);
             $this->provider->start($id);
 

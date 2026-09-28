@@ -28,6 +28,9 @@ class BlaxelSandboxProvider implements SandboxProvider
     /** How long a private preview token lasts; ProjectController renews the links daily. */
     public const PREVIEW_TOKEN_DAYS = 7;
 
+    /** How long pause() may leave the app frozen if start() is never called: the longest an update may run. */
+    public const THAW_AFTER_SECONDS = 900;
+
     /** Upload part size for copyIn(). */
     protected const PART_BYTES = 50 * 1024 * 1024;
 
@@ -103,6 +106,14 @@ class BlaxelSandboxProvider implements SandboxProvider
         if (! $frozen->successful()) {
             throw new SandboxException("Couldn't pause the sandbox's processes: ".(strtok(trim($frozen->errorOutput), "\n") ?: 'unknown error'));
         }
+
+        // If whoever paused it dies before calling start() (e.g. a deploy replaced the worker), the app still
+        // carries on by itself once an update could no longer be running.
+        $this->sandboxSend($id, 'post', 'process', [
+            'command' => 'sleep '.self::THAW_AFTER_SECONDS.'; pkill -CONT -u sandbox',
+            'workingDir' => '/workspace',
+            'waitForCompletion' => false,
+        ]);
     }
 
     public function exec(string $id, array $command, array $env = [], bool $detach = false): ExecResult

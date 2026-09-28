@@ -138,7 +138,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see the preview and the Shell tab through private Blaxel preview links, handed out only to people allowed to see the project; the links should be renewed before their tokens expire.
 - An agent run should keep its sandbox awake until it ends, even with nobody watching; idle sandboxes should go to standby by themselves.
 - Updating (files kept) and deleting a sandbox should work as they do with Docker, and a sandbox made from an older image build should be reported as outdated.
-- While an update copies a Blaxel sandbox's files, the app's processes should be frozen, so a database the agent set up is copied in a consistent state; if copying fails, they should carry on where they were.
+- While an update copies a Blaxel sandbox's files, the app's processes should be frozen, so a database the agent set up is copied in a consistent state; if copying fails, or the update is cut off (e.g. by a deploy), they should carry on where they were.
 - Blaxel's errors (such as account limits) should reach the user in Blaxel's words.
 
 ## AGT-001: Real coding agent
