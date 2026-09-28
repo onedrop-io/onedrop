@@ -357,3 +357,8 @@
         color: #61afef;
     }
 }
+
+/* Follow the pointer while the sidebar is dragged wider or narrower. */
+[data-slot='sidebar-wrapper']:has(> [data-dragging]) [data-slot='sidebar'] * {
+    transition: none;
+}

@@ -13,6 +13,7 @@ declare module '@inertiajs/core' {
             name: string;
             auth: Auth;
             sidebarOpen: boolean;
+            sidebarWidth: number | null;
             recentProjects: ProjectSummary[];
             [key: string]: unknown;
         };

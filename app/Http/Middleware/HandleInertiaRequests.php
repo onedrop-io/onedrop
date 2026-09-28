@@ -46,6 +46,7 @@ class HandleInertiaRequests extends Middleware
                 ->limit(10)
                 ->get(['id', 'name']) ?? [],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
+            'sidebarWidth' => ((int) $request->cookie('sidebar_width')) ?: null,
         ];
     }
 }

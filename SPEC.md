@@ -100,6 +100,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 ## PRJ-002: Project workspace
 
 - User should see the chat on the left and the app preview on the right.
+- User should be able to drag the divider between the chat and the workspace, the files panel's edge, and the left sidebar's edge to resize them (arrow keys work too; double-click resets). The widths are remembered in their browser.
 - User should see the agent's replies appear while it works, without reloading.
 - User should be able to send follow-up messages to the agent.
 - User should see the live app in the preview once it has a preview URL, and a placeholder until then.

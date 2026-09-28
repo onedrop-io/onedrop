@@ -13,6 +13,7 @@ import {
     X,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
 import ProjectAgentController from '@/actions/App/Http/Controllers/ProjectAgentController';
 import ProjectMessageController from '@/actions/App/Http/Controllers/ProjectMessageController';
 import AgentModelPicker from '@/components/agent-model-picker';
@@ -35,7 +36,9 @@ import FilesMenu from '@/components/workspace/files-menu';
 import PublishMenu from '@/components/workspace/publish-menu';
 import ToolsPanel from '@/components/workspace/tools-panel';
 import FileViewer from '@/components/workspace/file-viewer';
+import ResizeHandle from '@/components/workspace/resize-handle';
 import { isLocalHostname, useIsRemote } from '@/hooks/use-is-remote';
+import { useResizableWidth } from '@/hooks/use-resizable-width';
 import {
     fetchWorkspaceFile,
     useWorkspaceFiles,
@@ -74,6 +77,11 @@ export default function ShowProject({
         sandbox?.status === 'creating' ||
         sandbox?.updating ||
         publication.status === 'publishing';
+
+    const [chatWidth, setChatWidth] = useResizableWidth(
+        CHAT_WIDTH_KEY,
+        CHAT_WIDTH,
+    );
 
     setLayoutProps({
         breadcrumbs: [{ title: project.name, href: show(project.id) }],
@@ -118,6 +126,16 @@ export default function ShowProject({
                     queued={queued}
                     messages={messages}
                     working={working}
+                    width={chatWidth}
+                />
+                <ResizeHandle
+                    label="Resize chat"
+                    side="left"
+                    width={chatWidth}
+                    limits={CHAT_WIDTH}
+                    onResize={setChatWidth}
+                    className="hidden lg:block"
+                    data-test="chat-resize"
                 />
                 <WorkspacePanel
                     project={project}
@@ -137,12 +155,14 @@ function ChatPanel({
     queued,
     messages,
     working,
+    width,
 }: {
     project: Project;
     agent: AgentSelection | null;
     queued: QueuedMessage[];
     messages: ChatMessage[];
     working: boolean;
+    width: number;
 }) {
     const bottom = useRef<HTMLDivElement>(null);
     const [draft, setDraft] = useState<string | undefined>(undefined);
@@ -173,7 +193,8 @@ function ChatPanel({
     return (
         <section
             aria-label="Chat"
-            className="flex min-h-0 flex-1 flex-col border-sidebar-border/70 lg:max-w-md lg:border-r dark:border-sidebar-border"
+            className="flex min-h-0 flex-1 flex-col lg:w-(--chat-width) lg:max-w-[calc(100%-20rem)] lg:flex-none"
+            style={{ '--chat-width': `${width}px` } as CSSProperties}
         >
             <div className="flex-1 space-y-5 overflow-y-auto p-4">
                 {messages.map((message) => (
@@ -376,6 +397,10 @@ function WorkspacePanel({
     const [fileError, setFileError] = useState<string | null>(null);
     const [fileDirty, setFileDirty] = useState(false);
     const files = useWorkspaceFiles(project.id);
+    const [filesWidth, setFilesWidth] = useResizableWidth(
+        FILES_WIDTH_KEY,
+        FILES_WIDTH,
+    );
 
     // Use the last choice saved in this browser; otherwise open by default
     // only where there's room for chat, preview and files. Decided after
@@ -703,9 +728,21 @@ function WorkspacePanel({
             </section>
 
             {filesOpen && (
+                <ResizeHandle
+                    label="Resize files"
+                    side="right"
+                    width={filesWidth}
+                    limits={FILES_WIDTH}
+                    onResize={setFilesWidth}
+                    className="hidden md:block"
+                    data-test="files-resize"
+                />
+            )}
+            {filesOpen && (
                 <aside
                     aria-label="Files"
-                    className="hidden w-56 shrink-0 flex-col border-l border-sidebar-border/70 md:flex dark:border-sidebar-border"
+                    className="hidden shrink-0 flex-col md:flex"
+                    style={{ width: filesWidth }}
                     data-test="files-panel"
                 >
                     <div className="flex items-center justify-between border-b border-sidebar-border/70 px-3 py-2 text-sm dark:border-sidebar-border">
@@ -769,6 +806,12 @@ type ActiveTab = 'tools' | 'preview' | 'file' | ToolTab;
 
 /** localStorage key for whether the files panel was last left open. */
 const FILES_OPEN_KEY = 'zap.files-open';
+
+/** localStorage keys and limits for the chat and files panel widths, in px. */
+const CHAT_WIDTH_KEY = 'zap.chat-width';
+const CHAT_WIDTH = { initial: 448, min: 280, max: 960 };
+const FILES_WIDTH_KEY = 'zap.files-width';
+const FILES_WIDTH = { initial: 224, min: 160, max: 480 };
 
 /** localStorage key for whether dotfiles are hidden in the files panel. */
 const HIDE_HIDDEN_KEY = 'zap.files-hide-hidden';
