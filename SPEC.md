@@ -107,6 +107,21 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see their recent projects in the sidebar.
 - User should not be able to see or message another user's project (admins can see all).
 
+## PRJ-003: Project menu in the sidebar
+
+- User should be able to open a "⋮" menu on any project in the sidebar, and press the letter shown next to an action to run it while the menu is open.
+- User should be able to pin and unpin a project (P); pinned projects are listed under "Pinned" above "Recent".
+- User should see a project as unread (dot, bold name) when the agent has replied since they last opened it, and be able to mark it unread or read (U). Marking the open project unread takes them to the new-project page.
+- User should be able to rename a project (R) in a dialog with the name focused; an empty name shows an error.
+- User should be able to regenerate a project's title: the project's AI reads the chat and suggests a short title, in the background, with a spinner in the sidebar until it's ready. If the AI can't be asked (sandbox not running, no usable AI), the name stays as it was.
+- User should be able to share a project: see and copy the published app's link, or be told to publish it first.
+- User should be able to copy the project's link (C).
+- User should be able to archive a project (A), which moves it to a collapsed "Archived" section, and unarchive it from there.
+- User should be able to delete a project (D) after confirming; this takes the app offline and removes its chat, attachments, and sandbox. Deleting the open project takes them to the new-project page.
+- Renaming, regenerating the title, pinning, marking, and archiving should not change a project's place in "Recent".
+- Admins opening someone's project should not mark it read for its owner.
+- User should not be able to change or delete someone else's project.
+
 ## SBX-001: A sandbox per project
 
 - Each new project should get its own sandbox, started automatically.

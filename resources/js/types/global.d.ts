@@ -1,5 +1,5 @@
 import type { Auth } from '@/types/auth';
-import type { ProjectSummary } from '@/types/projects';
+import type { SidebarProjects } from '@/types/projects';
 
 declare module 'react' {
     interface InputHTMLAttributes<T> {
@@ -14,7 +14,7 @@ declare module '@inertiajs/core' {
             auth: Auth;
             sidebarOpen: boolean;
             sidebarWidth: number | null;
-            recentProjects: ProjectSummary[];
+            sidebarProjects: SidebarProjects | null;
             [key: string]: unknown;
         };
     }

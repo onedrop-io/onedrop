@@ -34,10 +34,13 @@ use Illuminate\Support\Str;
  * @property int|null $published_by
  * @property string|null $publish_error
  * @property string|null $publish_login_url
+ * @property Carbon|null $pinned_at
+ * @property Carbon|null $read_at
+ * @property Carbon|null $archived_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['name', 'prompt', 'status', 'agent_session_id', 'agent_provider', 'agent_model', 'agent_variant', 'publish_status', 'publish_visibility', 'published_url', 'published_at', 'published_by', 'publish_error', 'publish_login_url', 'onedrop_enabled', 'onedrop_client_id', 'onedrop_client_secret', 'onedrop_callback_path', 'onedrop_group_ids'])]
+#[Fillable(['name', 'prompt', 'status', 'agent_session_id', 'agent_provider', 'agent_model', 'agent_variant', 'publish_status', 'publish_visibility', 'published_url', 'published_at', 'published_by', 'publish_error', 'publish_login_url', 'onedrop_enabled', 'onedrop_client_id', 'onedrop_client_secret', 'onedrop_callback_path', 'onedrop_group_ids', 'pinned_at', 'read_at', 'archived_at'])]
 #[Hidden(['onedrop_client_secret'])]
 class Project extends Model
 {
@@ -60,6 +63,9 @@ class Project extends Model
             'onedrop_enabled' => 'boolean',
             'onedrop_client_secret' => 'hashed',
             'onedrop_group_ids' => 'array',
+            'pinned_at' => 'datetime',
+            'read_at' => 'datetime',
+            'archived_at' => 'datetime',
         ];
     }
 

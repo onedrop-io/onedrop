@@ -30,4 +30,12 @@ class ProjectPolicy
     {
         return $project->user_id === $user->id;
     }
+
+    /**
+     * Determine whether the user can delete the project.
+     */
+    public function delete(User $user, Project $project): bool
+    {
+        return $project->user_id === $user->id;
+    }
 }

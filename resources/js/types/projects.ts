@@ -8,6 +8,24 @@ export type Project = {
 
 export type ProjectSummary = Pick<Project, "id" | "name">;
 
+/** A project as listed in the sidebar, with what its menu needs. */
+export type SidebarProject = ProjectSummary & {
+    pinned: boolean;
+    archived: boolean;
+    /** The agent replied since the owner last opened it, or it was marked unread. */
+    unread: boolean;
+    /** Its AI is coming up with a new title. */
+    naming: boolean;
+    /** The live app's address, when it's published. */
+    published_url: string | null;
+};
+
+export type SidebarProjects = {
+    pinned: SidebarProject[];
+    recent: SidebarProject[];
+    archived: SidebarProject[];
+};
+
 export type MessageAttachment = {
     id: number;
     name: string;

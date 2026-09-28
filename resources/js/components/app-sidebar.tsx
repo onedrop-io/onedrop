@@ -68,7 +68,7 @@ const footerNavItems: NavItem[] = [
 ];
 
 export function AppSidebar() {
-    const { auth, recentProjects } = usePage().props;
+    const { auth, sidebarProjects } = usePage().props;
 
     return (
         <Sidebar collapsible="icon" variant="inset">
@@ -92,7 +92,7 @@ export function AppSidebar() {
                             : mainNavItems
                     }
                 />
-                <NavProjects projects={recentProjects} />
+                {sidebarProjects && <NavProjects projects={sidebarProjects} />}
             </SidebarContent>
 
             <SidebarFooter>

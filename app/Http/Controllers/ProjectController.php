@@ -8,15 +8,20 @@ use App\Enums\ProjectStatus;
 use App\Enums\PublishStatus;
 use App\Enums\SandboxStatus;
 use App\Http\Requests\StoreProjectRequest;
+use App\Http\Requests\UpdateProjectRequest;
 use App\Jobs\CreateSandbox;
+use App\Jobs\DestroySandbox;
+use App\Jobs\RegenerateProjectName;
 use App\Jobs\RunAgentTask;
 use App\Jobs\UpdateSandbox;
 use App\Models\Attachment;
 use App\Models\Message;
 use App\Models\Project;
 use App\Sandbox\Agents\ModelCatalog;
+use App\Sandbox\Agents\ProjectNamer;
 use App\Sandbox\Gateway;
 use App\Sandbox\Publishing\Publisher;
+use App\Sandbox\Publishing\PublishException;
 use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxProvider;
 use App\Sandbox\SandboxUpdater;
@@ -25,6 +30,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -92,9 +99,13 @@ class ProjectController extends Controller
     /**
      * Show the chat + preview workspace.
      */
-    public function show(Project $project, Publisher $publisher, Gateway $gateway, ModelCatalog $catalog, SandboxUpdater $updater, SandboxProvider $provider): Response
+    public function show(Request $request, Project $project, Publisher $publisher, Gateway $gateway, ModelCatalog $catalog, SandboxUpdater $updater, SandboxProvider $provider): Response
     {
         Gate::authorize('view', $project);
+
+        if ($project->user_id === $request->user()->id) {
+            Project::withoutTimestamps(fn () => $project->update(['read_at' => now()]));
+        }
 
         $this->updateOutdatedSandbox($project, $updater);
         $this->renewSandboxAddresses($project, $provider);
@@ -132,6 +143,89 @@ class ProjectController extends Controller
                 'created_at' => $message->created_at?->toIso8601String(),
             ]),
         ]);
+    }
+
+    /**
+     * Rename, pin, mark unread, or archive the project from its sidebar menu. None of these move it in "Recent".
+     */
+    public function update(UpdateProjectRequest $request, Project $project): RedirectResponse
+    {
+        Gate::authorize('update', $project);
+
+        $changes = [];
+
+        if ($request->has('name')) {
+            $changes['name'] = Str::squish((string) $request->validated('name'));
+        }
+
+        foreach (['pinned' => 'pinned_at', 'archived' => 'archived_at'] as $input => $column) {
+            if ($request->has($input)) {
+                $changes[$column] = $request->boolean($input) ? ($project->{$column} ?? now()) : null;
+            }
+        }
+
+        if ($request->has('unread')) {
+            $changes['read_at'] = $request->boolean('unread') ? null : now();
+        }
+
+        Project::withoutTimestamps(fn () => $project->update($changes));
+
+        // Opening the project marks it read again, so leave it for the new-project page.
+        if ($request->boolean('unread') && $this->cameFrom($project)) {
+            return to_route('dashboard');
+        }
+
+        return back();
+    }
+
+    /**
+     * Have the project's AI title it from the chat. The sidebar shows it's being named until the job is done.
+     */
+    public function regenerateName(Project $project): RedirectResponse
+    {
+        Gate::authorize('update', $project);
+
+        ProjectNamer::markNaming($project);
+        RegenerateProjectName::dispatch($project);
+
+        return back();
+    }
+
+    /**
+     * Delete the project: take its app offline, then remove its chat, attachments, and sandbox.
+     */
+    public function destroy(Project $project, Publisher $publisher): RedirectResponse
+    {
+        Gate::authorize('delete', $project);
+
+        if ($project->publish_status) {
+            try {
+                $publisher->stop($project);
+            } catch (PublishException $e) {
+                report($e);
+            }
+        }
+
+        $sandboxId = $project->sandbox?->external_id;
+
+        $project->delete();
+        Storage::disk(Attachment::DISK)->deleteDirectory("attachments/{$project->id}");
+
+        if ($sandboxId) {
+            DestroySandbox::dispatch($sandboxId);
+        }
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Deleted “:name”.', ['name' => $project->name])]);
+
+        return $this->cameFrom($project) ? to_route('dashboard') : back();
+    }
+
+    /**
+     * Whether the request was made from the project's own workspace.
+     */
+    protected function cameFrom(Project $project): bool
+    {
+        return Str::before(url()->previous(), '?') === route('projects.show', $project);
     }
 
     /**

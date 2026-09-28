@@ -166,6 +166,6 @@ test('recent projects are shared with the sidebar', function () {
     $this->actingAs($this->user)
         ->get(route('dashboard'))
         ->assertInertia(fn ($page) => $page
-            ->has('recentProjects', 1)
-            ->where('recentProjects.0.name', 'Mine'));
+            ->has('sidebarProjects.recent', 1)
+            ->where('sidebarProjects.recent.0.name', 'Mine'));
 })->group('PRJ-002');
