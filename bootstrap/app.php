@@ -31,8 +31,11 @@ return Application::configure(basePath: dirname(__DIR__))
             fn (Request $request) => $request->is('projects/*/database/*'),
         ]);
 
-        // A local reverse proxy (e.g. `tailscale funnel`) forwards the real scheme and host.
-        $middleware->trustProxies(at: ['127.0.0.1', '::1']);
+        // A local reverse proxy (Caddy, `tailscale funnel`) forwards the real scheme and host.
+        // On Laravel Cloud, leave it to Laravel, which trusts Cloud's load balancer.
+        if (! laravel_cloud()) {
+            $middleware->trustProxies(at: ['127.0.0.1', '::1']);
+        }
 
         $middleware->alias([
             'agent.connected' => EnsureAgentConnected::class,

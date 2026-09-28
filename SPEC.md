@@ -27,6 +27,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User with two-factor authentication on should still be asked for a code after signing in with a provider.
 - User signing up with a provider from an invite link should accept that invite.
 - User should see an error when the provider sign-in is cancelled or fails.
+- Provider callback URLs should use the site's real `https://` address behind a trusted proxy (a local proxy, or Laravel Cloud's load balancer).
 - User should be able to connect and disconnect providers on the security settings page, but not disconnect their last way to log in.
 - User without a password should be able to open security settings without confirming a password, set a password, and delete their account without one.
 
