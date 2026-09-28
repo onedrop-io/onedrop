@@ -9,9 +9,9 @@ return [
     | Sandbox Provider
     |--------------------------------------------------------------------------
     |
-    | Where each project's sandbox runs: "docker" (local development) or a
-    | managed provider in production ("e2b", "daytona" — not built yet; pick
-    | one with the M0 measurements). "fake" is used by the test suite.
+    | Where each project's sandbox runs: "docker" (local development), or
+    | microVMs in production: "blaxel" (Blaxel) or "runtime" (Runtime Cloud).
+    | "fake" is used by the test suite.
     |
     */
 
@@ -29,6 +29,36 @@ return [
             // Host folder holding each project's App Storage buckets (<path>/project-<id>/storage), mounted
             // into its sandbox at /data/storage so they survive the container. Empty keeps them in the container.
             'storage_path' => env('SANDBOX_DOCKER_STORAGE_PATH', storage_path('app/sandboxes')),
+        ],
+
+        // Runtime Cloud (withruntime.com). The image is docker/sandbox, built there by `php artisan sandbox:build-image`.
+        'runtime' => [
+            'api_key' => env('RUNTIME_API_KEY'),
+            'url' => env('RUNTIME_API_URL', 'https://api.withruntime.com'),
+            'image' => env('RUNTIME_IMAGE', 'zap-sandbox:latest'),
+            // "trial" (the free hours) until the account has credit and you choose "paid".
+            'funding' => env('RUNTIME_FUNDING', 'trial'),
+            'vcpu' => (int) env('RUNTIME_VCPU', 2),
+            'memory_mib' => (int) env('RUNTIME_MEMORY_MIB', 4096),
+            'disk_mib' => (int) env('RUNTIME_DISK_MIB', 8192),
+            // Each lease runs up to an hour, then the sandbox pauses (memory kept) until the next request wakes it.
+            'timeout_seconds' => (int) env('RUNTIME_TIMEOUT_SECONDS', 3600),
+            // Paid only: renew the lease while credit lasts, so long agent runs are never paused mid-way.
+            'persistent' => (bool) env('RUNTIME_PERSISTENT', false),
+        ],
+
+        // Blaxel (blaxel.ai). The image is docker/sandbox plus docker/sandbox/blaxel, pushed by `php artisan sandbox:build-image`.
+        'blaxel' => [
+            'api_key' => env('BL_API_KEY'),
+            'workspace' => env('BL_WORKSPACE'),
+            'url' => env('BL_API_URL', 'https://api.blaxel.ai'),
+            'image' => env('BLAXEL_IMAGE', 'zap-sandbox'),
+            // Also sets CPUs (one per 2048 MB). About half backs the sandbox's in-memory filesystem. New accounts allow 4096 at most.
+            'memory_mib' => (int) env('BLAXEL_MEMORY_MIB', 4096),
+            // Empty picks the region closest to this app.
+            'region' => env('BLAXEL_REGION'),
+            // The Blaxel CLI, used by `php artisan sandbox:build-image` to push the image.
+            'cli' => env('BLAXEL_CLI', 'bl'),
         ],
     ],
 

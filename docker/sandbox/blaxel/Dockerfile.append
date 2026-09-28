@@ -1,0 +1,8 @@
+
+# --- Blaxel only: appended to the Dockerfile above by `php artisan sandbox:build-image` (SANDBOX_PROVIDER=blaxel). ---
+# Blaxel's sandbox API (commands, files) must be in the image. It runs as root and runs everything as the sandbox user.
+USER root
+COPY --from=ghcr.io/blaxel-ai/sandbox:latest /sandbox-api /usr/local/bin/sandbox-api
+COPY blaxel/entrypoint.sh /opt/zap/blaxel-entrypoint.sh
+ENTRYPOINT ["/opt/zap/blaxel-entrypoint.sh"]
+CMD []

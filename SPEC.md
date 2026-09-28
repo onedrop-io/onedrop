@@ -111,7 +111,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Each new project should get its own sandbox, started automatically.
 - User should see the sandbox starting, then the live app in the preview once it's running.
 - User should see an error in the preview if the sandbox fails to start.
-- Sandboxes should run in local Docker in development and a managed provider (E2B/Daytona) in production, chosen by config.
+- Sandboxes should run in local Docker in development and on a managed provider (Blaxel or Runtime Cloud) in production, chosen by config.
 - The user's default AI credential should be injected into the sandbox as an environment variable, not stored in the image.
 
 ## SBX-002: Sandboxes stay up to date
@@ -122,6 +122,22 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see the sandbox updating in the preview, then the app again.
 - Two updates of the same sandbox should never run at once.
 - An admin should be able to update outdated sandboxes with `php artisan sandbox:update` (all, or one project).
+
+## SBX-003: Sandboxes on Runtime Cloud
+- With `SANDBOX_PROVIDER=runtime`, each project's sandbox should run on Runtime Cloud, from the sandbox image built there with `php artisan sandbox:build-image`.
+- The sandbox's settings and the user's AI credential should reach it at start without appearing in any command line.
+- User should see the preview and the Shell tab through private Runtime preview links, handed out only to people allowed to see the project; the links should be renewed before their tokens expire.
+- Pausing, resuming, updating (files kept) and deleting a sandbox should work as they do with Docker.
+- A sandbox made from an older image should be reported as outdated, so SBX-002 updates it.
+- Sandboxes should use the free trial unless `RUNTIME_FUNDING=paid` is set; Runtime errors should reach the user with Runtime's hint.
+
+## SBX-004: Sandboxes on Blaxel
+- With `SANDBOX_PROVIDER=blaxel`, each project's sandbox should run on Blaxel, from the sandbox image pushed there with `php artisan sandbox:build-image` (docker/sandbox plus Blaxel's sandbox API).
+- The user's AI credential should reach the sandbox as a secret setting, never in a command line.
+- User should see the preview and the Shell tab through private Blaxel preview links, handed out only to people allowed to see the project; the links should be renewed before their tokens expire.
+- An agent run should keep its sandbox awake until it ends, even with nobody watching; idle sandboxes should go to standby by themselves.
+- Updating (files kept) and deleting a sandbox should work as they do with Docker, and a sandbox made from an older image build should be reported as outdated.
+- Blaxel's errors (such as account limits) should reach the user in Blaxel's words.
 
 ## AGT-001: Real coding agent
 
@@ -251,13 +267,14 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Visitor should see how it works in four steps and the main features in plain language.
 - Visitor should see answers to common questions (coding knowledge, which AI, whether it's ready for production, where apps run, who can see them, cost).
 - Visitor should be able to open a Product menu in the top bar (on hover or click) that lists each feature with a one-line summary, plus links to the demo, how it works, the tools it works with, and the self-hosting comparison; picking an item should close the menu and jump to that part of the page.
+- Visitor should find a Docs link in the top bar and footer that opens the docs site (docs.onedrop.io).
 - Logged-out visitor should be able to go to sign up or log in; logged-in user should see a button to open their dashboard instead.
 
 ## BRAND-001: OneDrop name and links in the app
 
 - User should see the OneDrop name and droplet logo in the app's sidebar and header, not the starter kit's.
 - User should see OneDrop in the browser tab title.
-- User should find Repository and Documentation links that go to OneDrop's GitHub repository and its docs.
+- User should find Repository and Documentation links that go to OneDrop's GitHub repository (github.com/onedrop-io/onedrop) and its docs site (docs.onedrop.io).
 
 ## HOME-002: Link previews when sharing
 

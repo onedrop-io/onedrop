@@ -44,6 +44,9 @@ if [ -x /usr/sbin/sshd ]; then
 fi
 
 while true; do
+    # Settings written after start by providers that can't set env at create (RuntimeSandboxProvider).
+    [ -f ~/.zap-env ] && set -a && . ~/.zap-env && set +a
+
     if [ -x /workspace/.zap/dev ]; then
         setsid bash -c 'cd /workspace && exec /workspace/.zap/dev' >>/tmp/zap-server.log 2>&1 &
     else

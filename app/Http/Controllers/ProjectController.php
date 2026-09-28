@@ -18,6 +18,7 @@ use App\Sandbox\Agents\ModelCatalog;
 use App\Sandbox\Gateway;
 use App\Sandbox\Publishing\Publisher;
 use App\Sandbox\SandboxException;
+use App\Sandbox\SandboxProvider;
 use App\Sandbox\SandboxUpdater;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -91,11 +92,12 @@ class ProjectController extends Controller
     /**
      * Show the chat + preview workspace.
      */
-    public function show(Project $project, Publisher $publisher, Gateway $gateway, ModelCatalog $catalog, SandboxUpdater $updater): Response
+    public function show(Project $project, Publisher $publisher, Gateway $gateway, ModelCatalog $catalog, SandboxUpdater $updater, SandboxProvider $provider): Response
     {
         Gate::authorize('view', $project);
 
         $this->updateOutdatedSandbox($project, $updater);
+        $this->renewSandboxAddresses($project, $provider);
         $project->load(['messages.attachments', 'queuedMessages.attachments']);
 
         return Inertia::render('projects/show', [
@@ -161,6 +163,26 @@ class ProjectController extends Controller
             }
         } catch (SandboxException) {
             // The workspace shows the sandbox as it is.
+        }
+    }
+
+    /**
+     * Private preview links on Blaxel and Runtime carry tokens that last 7 days: fetch fresh ones at most once a day.
+     */
+    protected function renewSandboxAddresses(Project $project, SandboxProvider $provider): void
+    {
+        $sandbox = $project->sandbox;
+
+        if (! in_array(config('sandbox.provider'), ['blaxel', 'runtime'], true) || $sandbox?->status !== SandboxStatus::Running || ! $sandbox->external_id
+            || ! Cache::add("sandbox-addresses:{$sandbox->id}", true, now()->addDay())) {
+            return;
+        }
+
+        try {
+            $sandbox->update(CreateSandbox::addresses($provider, $sandbox->external_id));
+        } catch (SandboxException) {
+            // Try again on the next visit.
+            Cache::forget("sandbox-addresses:{$sandbox->id}");
         }
     }
 }

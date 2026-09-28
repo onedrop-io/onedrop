@@ -52,10 +52,7 @@ class CreateSandbox implements ShouldQueue
             $sandbox->update([
                 'external_id' => $id,
                 'status' => SandboxStatus::Running,
-                // Through the host-rewriting proxy, so any framework accepts the request as localhost.
-                'preview_url' => $provider->previewUrl($id, config('sandbox.proxy_port')) ?? $provider->previewUrl($id, $port),
-                'shell_url' => $provider->previewUrl($id, config('sandbox.shell_port')),
-                'ssh_address' => $this->address($provider->previewUrl($id, config('sandbox.ssh_port'))),
+                ...self::addresses($provider, $id),
                 'error' => null,
             ]);
         } catch (SandboxException $e) {
@@ -75,9 +72,26 @@ class CreateSandbox implements ShouldQueue
     }
 
     /**
+     * Where the browser reaches a sandbox's preview and shell, and SSH clients its SSH server.
+     *
+     * @return array{preview_url: ?string, shell_url: ?string, ssh_address: ?string}
+     *
+     * @throws SandboxException
+     */
+    public static function addresses(SandboxProvider $provider, string $id): array
+    {
+        return [
+            // Through the host-rewriting proxy, so any framework accepts the request as localhost.
+            'preview_url' => $provider->previewUrl($id, config('sandbox.proxy_port')) ?? $provider->previewUrl($id, config('sandbox.port')),
+            'shell_url' => $provider->previewUrl($id, config('sandbox.shell_port')),
+            'ssh_address' => self::address($provider->previewUrl($id, config('sandbox.ssh_port'))),
+        ];
+    }
+
+    /**
      * "host:port" from a published port's URL.
      */
-    protected function address(?string $url): ?string
+    protected static function address(?string $url): ?string
     {
         $host = $url ? parse_url($url, PHP_URL_HOST) : null;
         $port = $url ? parse_url($url, PHP_URL_PORT) : null;

@@ -1,6 +1,9 @@
 # Shell tab and SSH sessions.
 cd /workspace 2>/dev/null || true
 
+# Settings from sandbox start on providers that can't set env at create (see RuntimeSandboxProvider).
+[ -f ~/.zap-env ] && set -a && . ~/.zap-env && set +a
+
 [[ $- == *i* ]] || return
 
 HISTSIZE=10000

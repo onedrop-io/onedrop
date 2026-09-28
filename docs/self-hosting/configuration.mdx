@@ -9,7 +9,7 @@ OneDrop is a Laravel application, so the usual Laravel settings (`APP_URL`, `DB_
 
 | Variable                | Default                            | Description                                                                                         |
 | ----------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `SANDBOX_PROVIDER`      | `docker`                           | Where project sandboxes run. `docker` locally. Managed providers (E2B, Daytona) are not built yet.  |
+| `SANDBOX_PROVIDER`      | `docker`                           | Where project sandboxes run: `docker` locally; in production, `blaxel` for [Blaxel](/self-hosting/sandboxes#run-sandboxes-on-blaxel) or `runtime` for [Runtime Cloud](/self-hosting/sandboxes#run-sandboxes-on-runtime-cloud). |
 | `SANDBOX_DOCKER_IMAGE`  | `zap-sandbox:latest`               | Image built by `php artisan sandbox:build-image`.                                                   |
 | `SANDBOX_DOCKER_MEMORY` | `2g`                               | Memory limit per sandbox container.                                                                 |
 | `SANDBOX_DOCKER_CPUS`   | `2`                                | CPU limit per sandbox container.                                                                    |
@@ -20,6 +20,18 @@ OneDrop is a Laravel application, so the usual Laravel settings (`APP_URL`, `DB_
 | `SANDBOX_SHELL_PORT`    | `7681`                             | Port of the web terminal behind the Shell tab.                                                      |
 | `SANDBOX_SSH_PORT`      | `2222`                             | Port of the SSH server behind Tools → Developer → SSH.                                              |
 | `SANDBOX_CALLBACK_URL`  | `http://host.docker.internal:8000` | How code inside a sandbox reaches OneDrop to report agent events. In production, your public `APP_URL`. |
+| `BL_API_KEY`            | empty                              | Blaxel API key, from the Blaxel console. Keep it in your secret manager.                            |
+| `BL_WORKSPACE`          | empty                              | Your Blaxel workspace name.                                                                         |
+| `BLAXEL_IMAGE`          | `zap-sandbox`                      | Blaxel image pushed by `php artisan sandbox:build-image`.                                           |
+| `BLAXEL_MEMORY_MIB`     | `4096`                             | Memory per Blaxel sandbox; also sets CPUs (one per 2048 MB). New accounts allow 4096 at most.       |
+| `BLAXEL_REGION`         | empty                              | Region for new sandboxes, such as `us-pdx-1`. Empty picks the closest one.                          |
+| `BLAXEL_CLI`            | `bl`                               | Path to the Blaxel CLI, used to push the image.                                                     |
+| `RUNTIME_API_KEY`       | empty                              | Runtime Cloud API key, from [API keys](https://withruntime.com/account/keys). Keep it in your secret manager. |
+| `RUNTIME_IMAGE`         | `zap-sandbox:latest`               | Runtime image built by `php artisan sandbox:build-image`.                                           |
+| `RUNTIME_FUNDING`       | `trial`                            | `trial` uses the free hours only. Set `paid` once the account has credit.                          |
+| `RUNTIME_VCPU`, `RUNTIME_MEMORY_MIB`, `RUNTIME_DISK_MIB` | `2`, `4096`, `8192` | Size of each Runtime sandbox. The trial allows 2 vCPUs and 4096 MiB at most.         |
+| `RUNTIME_TIMEOUT_SECONDS` | `3600`                           | Lease length, at most an hour. When it ends the sandbox pauses with its memory kept, and the next request wakes it. |
+| `RUNTIME_PERSISTENT`    | `false`                            | Paid only. Renews the lease while credit lasts, so a long agent run is never paused partway through. |
 
 ## Agent
 
