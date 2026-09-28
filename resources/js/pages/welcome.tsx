@@ -132,7 +132,7 @@ const COMPARISON = [
     },
     {
         topic: "What it costs",
-        us: "Free and open source",
+        us: "Free to self-host",
         them: "Another monthly plan",
     },
     {
@@ -165,7 +165,7 @@ const FAQS = [
     },
     {
         question: "What does it cost?",
-        answer: `Self-hosting ${BRAND} is free and open source: you pay your AI provider directly and for your own servers. Want us to host it? Cloud plans start at $16 a month, with no markup on your own AI and credits included if you don’t have any. See the pricing page for details.`,
+        answer: `Self-hosting ${BRAND} is free: the code is source available, so you only pay your AI provider directly and for your own servers. Want us to host it? Cloud plans start at $16 a month, with no markup on your own AI and credits included if you don’t have any. See the pricing page for details.`,
     },
     {
         question: "What if the AI gets something wrong?",
@@ -767,8 +767,9 @@ export default function Welcome() {
                                     </a>
                                 </div>
                                 <p className="mt-4 text-sm text-[#B3A69C]">
-                                    Free and open source. Bring your own
-                                    subscription. Deploy anywhere.
+                                    Free to self-host. Source available.
+                                    Bring your own subscription. Deploy
+                                    anywhere.
                                 </p>
                             </div>
 

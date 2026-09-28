@@ -28,7 +28,7 @@ const PLANS: Plan[] = [
         name: 'Self-hosted',
         tagline: 'Run it yourself, free forever.',
         price: null,
-        priceNote: 'Open source, no limits',
+        priceNote: 'Source available, no limits',
         credits: null,
         features: [
             'Unlimited builders, projects, and apps',
@@ -153,7 +153,7 @@ const FAQS = [
     },
     {
         question: 'Is self-hosting really free?',
-        answer: 'Yes. OneDrop is open source. Run it on your laptop, any Ubuntu server, or AWS with every feature and no limits. You only pay for your servers and your AI.',
+        answer: 'Yes. OneDrop is source available and free to self-host. Run it on your laptop, any Ubuntu server, or AWS with every feature and no limits. You only pay for your servers and your AI.',
     },
     {
         question: 'Can I leave whenever I want?',

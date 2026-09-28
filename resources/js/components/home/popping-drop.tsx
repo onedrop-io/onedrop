@@ -1,17 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { universe } from '@/components/home/particle-universe';
 
 /** How long the drop stays gone before it bounces back, and the wait before it can pop again. */
 const GONE_MS = 1000;
 const COOLDOWN_MS = 2500;
 
-/** It also pops on its own every so often (milliseconds). */
-const AUTO_POP_MIN_MS = 20000;
-const AUTO_POP_MAX_MS = 40000;
-
 /**
- * The header logo's droplet. Hovering it, or waiting a while, pops it into a
- * small burst of particles like the hero's drop, then it bounces back. Only
+ * The header logo's droplet. Hovering it pops it into a small burst of
+ * particles like the hero's drop, then it bounces back. Only
  * once the hero's drop has landed, and never with reduced motion.
  */
 export function PoppingDrop() {
@@ -41,31 +37,6 @@ export function PoppingDrop() {
         setIsGone(true);
         window.setTimeout(() => setIsGone(false), GONE_MS);
     };
-
-    const popRef = useRef(pop);
-
-    useEffect(() => {
-        popRef.current = pop;
-    });
-
-    useEffect(() => {
-        let timer = 0;
-
-        const schedule = () => {
-            timer = window.setTimeout(
-                () => {
-                    popRef.current();
-                    schedule();
-                },
-                AUTO_POP_MIN_MS +
-                    Math.random() * (AUTO_POP_MAX_MS - AUTO_POP_MIN_MS),
-            );
-        };
-
-        schedule();
-
-        return () => window.clearTimeout(timer);
-    }, []);
 
     return (
         <svg

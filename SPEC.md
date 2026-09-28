@@ -276,7 +276,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Visitor should be able to spot our solar system, labeled Sol, orbiting the galaxy along with its other stars: the Sun and all eight planets orbiting it (not to scale), with a blue-green Earth and rings around Jupiter, Saturn, Uranus, and Neptune, plus Voyager 1 and Voyager 2 spiraling out from Earth and heading off across the galaxy, each labeled.
 - Visitor might spot two easter eggs among the stars: the Endurance from Interstellar spinning its ring as it orbits the black hole, and the Enterprise-D cruising the galaxy and now and then jumping to warp.
 - Visitor should see small stars twinkle over the headline.
-- Visitor should see the droplet in the header logo pop into a small burst of particles when hovering over it (and now and then on its own), then bounce back, once the hero's drop has landed.
+- Visitor should see the droplet in the header logo pop into a small burst of particles when hovering over it (never on its own), then bounce back, once the hero's drop has landed.
 - None of the drop, particle, black hole, or twinkle motion should play when reduced motion is on.
 - Visitor should see the tools it works with: Claude, OpenAI, OpenRouter, OpenCode, Docker, Blaxel, E2B, Daytona, Vercel, Tailscale, macOS and Linux laptops, and servers on AWS, Google Cloud, Hetzner, DigitalOcean, Vultr, or any Ubuntu machine.
 - Visitor should see how it works in four steps and the main features in plain language.
@@ -462,7 +462,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 ## PRICE-001: Pricing page
 
 - Visitor should be able to open a Pricing page from the home page's top bar and footer.
-- Visitor should see four plans: Self-hosted (free, open source, no limits), Solo, Team, and Business, with Team highlighted.
+- Visitor should see four plans: Self-hosted (free, source available, no limits), Solo, Team, and Business, with Team highlighted.
 - Visitor should see that every plan works with their own AI (a ChatGPT plan or an API key) with no markup, and that paid plans include monthly AI credits for people who haven't connected their own.
 - Visitor should be able to switch between monthly and yearly prices; yearly is the default and saves 20%.
 - Visitor should see the pricing promises (no markup on your AI, hosting never uses credits, published apps never pause, flat prices instead of per seat), a comparison with hosted builders, and pricing questions.

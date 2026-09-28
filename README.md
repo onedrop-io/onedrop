@@ -1,8 +1,8 @@
 # OneDrop
 
-**Vibe-code apps for production.** Bring your own subscription. Deploy anywhere. Free and open source.
+**Vibe-code apps for production.** Bring your own subscription. Deploy anywhere. Free to self-host, source available.
 
-An open-source, self-hostable, Replit-style app builder. A person describes an app in chat, an AI coding agent builds it inside an isolated cloud sandbox, and the running app is live at a URL while they work. Every feature becomes a requirement with tests you can watch run.
+A source-available, self-hostable, Replit-style app builder. A person describes an app in chat, an AI coding agent builds it inside an isolated cloud sandbox, and the running app is live at a URL while they work. Every feature becomes a requirement with tests you can watch run.
 
 The control plane is a Laravel application (Inertia + React). Sandboxes come from managed providers (E2B, Daytona) behind a small provider interface, so backends can be swapped without changing the platform. The reference deployment is Laravel Cloud; self-hosters run the same app with Docker Compose.
 
@@ -285,4 +285,6 @@ docs/                      architecture, decision records, M0 findings
 
 ## License
 
-TBD (MIT or Apache-2.0 suggested for the core).
+[Elastic License 2.0](LICENSE) (ELv2).
+
+Use, change, and self-host OneDrop for your own team or company. You may not offer it to others as a hosted or managed service, circumvent any license key features, or remove the licensing notices. See [elastic.co/licensing/elastic-license](https://www.elastic.co/licensing/elastic-license).
