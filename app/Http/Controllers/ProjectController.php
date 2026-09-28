@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\DeleteProject;
 use App\Concerns\ValidatesAgentSelection;
 use App\Enums\MessageRole;
 use App\Enums\ProjectStatus;
@@ -10,7 +11,6 @@ use App\Enums\SandboxStatus;
 use App\Http\Requests\StoreProjectRequest;
 use App\Http\Requests\UpdateProjectRequest;
 use App\Jobs\CreateSandbox;
-use App\Jobs\DestroySandbox;
 use App\Jobs\RegenerateProjectName;
 use App\Jobs\RunAgentTask;
 use App\Jobs\UpdateSandbox;
@@ -21,7 +21,6 @@ use App\Sandbox\Agents\ModelCatalog;
 use App\Sandbox\Agents\ProjectNamer;
 use App\Sandbox\Gateway;
 use App\Sandbox\Publishing\Publisher;
-use App\Sandbox\Publishing\PublishException;
 use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxProvider;
 use App\Sandbox\SandboxUpdater;
@@ -30,7 +29,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -194,26 +192,11 @@ class ProjectController extends Controller
     /**
      * Delete the project: take its app offline, then remove its chat, attachments, and sandbox.
      */
-    public function destroy(Project $project, Publisher $publisher): RedirectResponse
+    public function destroy(Project $project, DeleteProject $deleteProject): RedirectResponse
     {
         Gate::authorize('delete', $project);
 
-        if ($project->publish_status) {
-            try {
-                $publisher->stop($project);
-            } catch (PublishException $e) {
-                report($e);
-            }
-        }
-
-        $sandboxId = $project->sandbox?->external_id;
-
-        $project->delete();
-        Storage::disk(Attachment::DISK)->deleteDirectory("attachments/{$project->id}");
-
-        if ($sandboxId) {
-            DestroySandbox::dispatch($sandboxId);
-        }
+        $deleteProject->handle($project);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Deleted “:name”.', ['name' => $project->name])]);
 

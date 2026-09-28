@@ -88,3 +88,15 @@ test('a sandbox already on the configured provider is not moved', function () {
 
     expect(app(SandboxUpdater::class)->isOutdated($this->project))->toBeFalse();
 })->group('SBX-005');
+
+test('deleting a project removes its sandbox on the provider it was created on, not the configured one', function () {
+    Sandbox::factory()->for($this->project)->create(['provider' => 'blaxel', 'external_id' => 'bl-1']);
+    $this->blaxel->created['bl-1'] = new SandboxSpec('zap-project-old');
+    $this->runtime->created['bl-1'] = new SandboxSpec('zap-project-other');
+    app()->instance(SandboxProvider::class, ($this->route)('runtime'));
+
+    $this->actingAs($this->user)->delete(route('projects.destroy', $this->project));
+
+    expect($this->blaxel->created)->not->toHaveKey('bl-1')
+        ->and($this->runtime->created)->toHaveKey('bl-1');
+})->group('PRJ-003');

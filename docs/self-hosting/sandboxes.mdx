@@ -107,6 +107,7 @@ After a switch:
 
 - New projects get sandboxes on the new provider.
 - An existing project counts as outdated while its sandbox is on another provider, so it moves the next time someone opens it, or before the agent's next run. A move works like an update: the files, App Storage and home folder are copied to the new provider, and the old sandbox is removed only once the new one has them.
+- Deleting a project, or the account that owns it, removes its sandbox from the provider it's on, even if that's no longer the configured one. On Runtime Cloud, which has no delete, the sandbox is stopped.
 - To move every project now, or one:
 
   ```bash

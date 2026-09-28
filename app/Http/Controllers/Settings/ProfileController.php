@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Settings;
 
+use App\Actions\DeleteProject;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Settings\ProfileDeleteRequest;
 use App\Http\Requests\Settings\ProfileUpdateRequest;
@@ -45,14 +46,15 @@ class ProfileController extends Controller
     }
 
     /**
-     * Delete the user's profile.
+     * Delete the user's profile, and each of their projects with its app, sandbox, and attachments.
      */
-    public function destroy(ProfileDeleteRequest $request): RedirectResponse
+    public function destroy(ProfileDeleteRequest $request, DeleteProject $deleteProject): RedirectResponse
     {
         $user = $request->user();
 
         Auth::logout();
 
+        $user->projects()->with('sandbox')->get()->each($deleteProject->handle(...));
         $user->delete();
 
         $request->session()->invalidate();

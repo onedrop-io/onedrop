@@ -14,6 +14,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be able to reset a forgotten password.
 - User should be able to verify their email address.
 - User should be able to update their name, email, and password, and delete their account.
+- Deleting an account deletes every one of its projects the same way deleting a project does: apps go offline, and chats, attachments, and sandboxes are removed.
 - User should be able to set up two-factor authentication and passkeys.
 
 ## AUTH-003: Log in with Google, Microsoft, GitHub, GitLab, or single sign-on (OIDC)
@@ -118,6 +119,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be able to copy the project's link (C).
 - User should be able to archive a project (A), which moves it to a collapsed "Archived" section, and unarchive it from there.
 - User should be able to delete a project (D) after confirming; this takes the app offline and removes its chat, attachments, and sandbox. Deleting the open project takes them to the new-project page.
+- A deleted project's sandbox is removed from the provider it was created on, even if the configured provider has changed since.
 - Renaming, regenerating the title, pinning, marking, and archiving should not change a project's place in "Recent".
 - Admins opening someone's project should not mark it read for its owner.
 - User should not be able to change or delete someone else's project.

@@ -159,7 +159,7 @@ test('deleting a project takes its app offline and removes its chat, attachments
         ->and(Message::find($message->id))->toBeNull()
         ->and($publisher->published)->toBe([]);
     Storage::disk(Attachment::DISK)->assertMissing($attachment->path);
-    Queue::assertPushed(DestroySandbox::class, fn (DestroySandbox $job) => $job->externalId === 'sbx-1');
+    Queue::assertPushed(DestroySandbox::class, fn (DestroySandbox $job) => $job->externalId === 'sbx-1' && $job->provider === 'fake');
 })->group('PRJ-003');
 
 test('deleting a project from another page stays there', function () {
