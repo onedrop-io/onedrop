@@ -113,6 +113,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see an error in the preview if the sandbox fails to start.
 - Sandboxes should run in local Docker in development and on a managed provider (Blaxel or Runtime Cloud) in production, chosen by config.
 - The user's default AI credential should be injected into the sandbox as an environment variable, not stored in the image.
+- User should see the app's styles and scripts in the preview and at its published address even when the app writes its own links as `localhost` (e.g. a Laravel app that doesn't trust proxies); the sandbox's proxy points those links, redirects included, at the address the visitor used.
 
 ## SBX-002: Sandboxes stay up to date
 - When the sandbox image is rebuilt (new guides, tools or proxy), existing sandboxes should move to it without anyone running a command.

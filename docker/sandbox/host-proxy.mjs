@@ -3,6 +3,8 @@
 // dev server (Vite, Next, Rails, Django, ...) accepts requests for hostnames it
 // has never heard of (*.ts.net etc.), without per-framework configuration.
 // The original host is passed on as X-Forwarded-Host. WebSockets (hot reload) pass through.
+// Apps that ignore X-Forwarded-Host write their own address as localhost into pages (asset URLs,
+// redirects); text responses get those links pointed back at the address the visitor used.
 import {
     appendFile,
     mkdirSync,
@@ -38,15 +40,33 @@ function localize(value, originalHost) {
     }
 }
 
+/** The scheme the visitor used: from the proxy in front (Tailscale, Blaxel, Caddy), else http. */
+function visitorProto(req) {
+    const host = String(req.headers.host ?? '');
+
+    return (
+        String(req.headers['x-forwarded-proto'] ?? '').split(',')[0].trim() ||
+        (host.endsWith('.ts.net') ? 'https' : 'http')
+    );
+}
+
+/** Whether the visitor used an address other than the app's own (a preview, published or published-port URL). */
+function isForeignHost(host) {
+    return host !== '' && host !== appHost && host !== `127.0.0.1:${appPort}`;
+}
+
 function rewrite(req) {
     const headers = { ...req.headers };
     const originalHost = req.headers.host ?? '';
 
     headers['x-forwarded-host'] = originalHost;
-    headers['x-forwarded-proto'] =
-        req.headers['x-forwarded-proto'] ??
-        (originalHost.endsWith('.ts.net') ? 'https' : 'http');
+    headers['x-forwarded-proto'] = visitorProto(req);
     headers.host = appHost;
+
+    // Uncompressed answers, so links to localhost in them can be pointed at the visitor's address.
+    if (isForeignHost(originalHost)) {
+        headers['accept-encoding'] = 'identity';
+    }
 
     // Dev servers (Next.js, Vite, ...) refuse their own dev resources and HMR
     // sockets when the page's Origin isn't localhost.
@@ -59,6 +79,85 @@ function rewrite(req) {
     }
 
     return headers;
+}
+
+// Text answers whose localhost links are rewritten. Event streams stay streamed.
+const REWRITABLE =
+    /^(text\/(html|css|javascript|plain|xml)|application\/(javascript|json|xml|xhtml\+xml|manifest\+json)|image\/svg\+xml)/i;
+const MAX_REWRITE_BYTES = 20_000_000;
+
+/** Every way a page may spell the app's localhost address, plain and JSON-escaped. */
+function localAddresses() {
+    return ['localhost', '127.0.0.1', '0.0.0.0'].flatMap((name) => [
+        [`http://${name}:${appPort}`, 'http'],
+        [`http:\\/\\/${name}:${appPort}`, 'http-escaped'],
+        [`ws://${name}:${appPort}`, 'ws'],
+        [`ws:\\/\\/${name}:${appPort}`, 'ws-escaped'],
+    ]);
+}
+
+const LOCAL_ADDRESSES = localAddresses();
+
+/** Point links at the app's localhost address at the address the visitor used instead. */
+function toVisitor(text, req) {
+    const host = String(req.headers.host ?? '');
+    const proto = visitorProto(req);
+    const secure = proto === 'https';
+    const targets = {
+        http: `${proto}://${host}`,
+        'http-escaped': `${proto}:\\/\\/${host}`,
+        ws: `${secure ? 'wss' : 'ws'}://${host}`,
+        'ws-escaped': `${secure ? 'wss' : 'ws'}:\\/\\/${host}`,
+    };
+
+    return LOCAL_ADDRESSES.reduce(
+        (result, [local, kind]) => result.split(local).join(targets[kind]),
+        text,
+    );
+}
+
+/** Send the app's answer on, with localhost links rewritten for visitors from other addresses. */
+function relay(req, res, response) {
+    const headers = { ...response.headers };
+    const host = String(req.headers.host ?? '');
+    const foreign = isForeignHost(host);
+
+    if (foreign && headers.location) {
+        headers.location = toVisitor(String(headers.location), req);
+    }
+
+    const rewritable =
+        foreign &&
+        REWRITABLE.test(String(headers['content-type'] ?? '')) &&
+        !headers['content-encoding'] &&
+        Number(headers['content-length'] ?? 0) <= MAX_REWRITE_BYTES;
+
+    if (!rewritable) {
+        res.writeHead(response.statusCode ?? 502, headers);
+        response.pipe(res);
+
+        return;
+    }
+
+    const chunks = [];
+    let size = 0;
+
+    response.on('data', (chunk) => {
+        size += chunk.length;
+        chunks.push(chunk);
+    });
+    response.on('end', () => {
+        const body =
+            size > MAX_REWRITE_BYTES
+                ? Buffer.concat(chunks)
+                : Buffer.from(toVisitor(Buffer.concat(chunks).toString('utf8'), req), 'utf8');
+
+        delete headers['transfer-encoding'];
+        headers['content-length'] = String(body.length);
+        res.writeHead(response.statusCode ?? 502, headers);
+        res.end(body);
+    });
+    response.on('error', () => res.destroy());
 }
 
 const starting = `<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="3">
@@ -96,6 +195,7 @@ function isInternal(url) {
 function isPreview(host) {
     return (
         /^preview-\d+\./.test(host) ||
+        /\.(preview\.bl\.run|runtimehost\.com)$/.test(host) ||
         /^(127\.0\.0\.1|localhost)(:\d+)?$/.test(host)
     );
 }
@@ -303,10 +403,7 @@ const server = http.createServer((req, res) => {
             path: req.url,
             headers: rewrite(req),
         },
-        (response) => {
-            res.writeHead(response.statusCode ?? 502, response.headers);
-            response.pipe(res);
-        },
+        (response) => relay(req, res, response),
     );
 
     upstream.on('error', () => {

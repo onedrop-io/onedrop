@@ -108,13 +108,41 @@ test('the host proxy rewrites unknown hostnames to localhost', function () {
     }
 })->group('PUB-001');
 
+test('the host proxy points localhost links in pages and redirects at the visitor\'s address', function () {
+    $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
+    $id = $docker->create(new SandboxSpec('zap-test-'.bin2hex(random_bytes(3))));
+
+    try {
+        $script = 'mkdir -p /workspace/.zap /workspace/public'
+            .' && echo \'<?php if ($_SERVER["REQUEST_URI"] === "/") { header("Location: http://localhost:8000/contacts"); exit; } echo "<link href=\\"http://localhost:8000/build/app.css\\">";\' > /workspace/public/index.php'
+            .' && printf "#!/usr/bin/env bash\nexec php -S 0.0.0.0:\$PORT /workspace/public/index.php\n" > /workspace/.zap/dev'
+            .' && chmod +x /workspace/.zap/dev && /opt/zap/restart';
+        expect($docker->exec($id, ['bash', '-c', $script])->successful())->toBeTrue();
+
+        $headers = ['-H', 'Host: abc.preview.bl.run', '-H', 'X-Forwarded-Proto: https'];
+        $page = retry(40, function () use ($docker, $id, $headers) {
+            $out = trim($docker->exec($id, ['curl', '-sf', ...$headers, 'http://127.0.0.1:8081/contacts'])->output);
+            throw_unless(str_contains($out, '<link'), new RuntimeException("not ready: {$out}"));
+
+            return $out;
+        }, 250);
+        $redirect = trim($docker->exec($id, ['curl', '-s', '-o', '/dev/null', '-w', '%{redirect_url}', ...$headers, 'http://127.0.0.1:8081/'])->output);
+
+        expect($page)->toBe('<link href="https://abc.preview.bl.run/build/app.css">')
+            ->and($redirect)->toBe('https://abc.preview.bl.run/contacts');
+    } finally {
+        $docker->destroy($id);
+    }
+})->group('SBX-001');
+
 test('the host proxy presents same-site Origin and Referer as localhost', function () {
     $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
     $id = $docker->create(new SandboxSpec('zap-test-'.bin2hex(random_bytes(3))));
 
     try {
         $script = 'mkdir -p /workspace/.zap /workspace/public'
-            .' && echo \'<?php echo $_SERVER["HTTP_ORIGIN"] ?? "-", "|", $_SERVER["HTTP_REFERER"] ?? "-";\' > /workspace/public/index.php'
+            // Binary, so the proxy's localhost-link rewriting leaves the echoed headers as the app saw them.
+            .' && echo \'<?php header("Content-Type: application/octet-stream"); echo $_SERVER["HTTP_ORIGIN"] ?? "-", "|", $_SERVER["HTTP_REFERER"] ?? "-";\' > /workspace/public/index.php'
             .' && printf "#!/usr/bin/env bash\nexec php -S 0.0.0.0:\$PORT -t /workspace/public\n" > /workspace/.zap/dev'
             .' && chmod +x /workspace/.zap/dev && /opt/zap/restart';
         expect($docker->exec($id, ['bash', '-c', $script])->successful())->toBeTrue();
