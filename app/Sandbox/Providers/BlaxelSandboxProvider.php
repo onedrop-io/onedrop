@@ -51,7 +51,7 @@ class BlaxelSandboxProvider implements SandboxProvider
             'shell' => $spec->shellPort,
         ]);
 
-        $sandbox = $this->send('post', 'sandboxes', [
+        $sandbox = $this->createOrCleanUp($spec->name, [
             'metadata' => [
                 'name' => $spec->name,
                 'labels' => [self::IMAGE_LABEL => $image],
@@ -93,6 +93,29 @@ class BlaxelSandboxProvider implements SandboxProvider
     public function start(string $id): void
     {
         $this->exec($id, ['pkill', '-CONT', '-u', 'sandbox']);
+    }
+
+    /**
+     * Ask Blaxel for the sandbox. A refused or lost answer may still have made one, so delete it by name then.
+     *
+     * @param  array<string, mixed>  $body
+     * @return array<string, mixed>
+     *
+     * @throws SandboxException
+     */
+    protected function createOrCleanUp(string $name, array $body): array
+    {
+        try {
+            return $this->send('post', 'sandboxes', $body);
+        } catch (SandboxException $e) {
+            try {
+                $this->destroy($name);
+            } catch (SandboxException) {
+                // Nothing more to do; report the original error.
+            }
+
+            throw $e;
+        }
     }
 
     /**

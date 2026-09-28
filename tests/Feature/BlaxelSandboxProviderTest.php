@@ -96,14 +96,18 @@ test('a sandbox that fails to start is deleted and the reason shown', function (
     Http::assertSent(fn (Request $request) => $request->method() === 'DELETE');
 })->group('SBX-004');
 
-test('account limits reach the user in blaxel\'s words', function () {
+test('account limits reach the user in blaxel\'s words, and nothing is left behind', function () {
     Http::fake([
         BL_API.'/images/sandbox/zap-sandbox' => Http::response(blaxelImage()),
         BL_API.'/sandboxes' => Http::response(['error' => 'You have reached the maximum memory (4096) for your account. Requested: 8192'], 400),
+        BL_API.'/sandboxes/zap-project-1-x' => Http::response(['error' => 'not found'], 404),
     ]);
 
     expect(fn () => $this->blaxel->create(new SandboxSpec('zap-project-1-x')))
         ->toThrow(SandboxException::class, 'Blaxel: You have reached the maximum memory (4096)');
+
+    // A refused create may still have made the sandbox.
+    Http::assertSent(fn (Request $request) => $request->method() === 'DELETE' && str_ends_with($request->url(), '/sandboxes/zap-project-1-x'));
 })->group('SBX-004');
 
 test('exec quotes the command, passes secrets in the body, and puts the app port back', function () {

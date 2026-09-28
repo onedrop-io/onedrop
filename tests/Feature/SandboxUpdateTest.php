@@ -17,6 +17,7 @@ use App\Sandbox\Publishing\FakePublisher;
 use App\Sandbox\Publishing\Publisher;
 use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxProvider;
+use App\Sandbox\SandboxSpec;
 use App\Sandbox\SandboxUpdater;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Queue;
@@ -91,6 +92,84 @@ test('any failure while copying files out starts the old sandbox again', functio
     expect($provider->started)->toBe(['old-ctr'])
         ->and($this->sandbox->fresh()->external_id)->toBe('old-ctr')
         ->and(glob(storage_path('framework/sandbox-backup-*')))->toBe([]);
+})->group('SBX-002');
+
+/**
+ * A fake that records the order of copies and deletions, and can fail copying into the new sandbox.
+ */
+function orderedProvider(bool $failCopyIn = false): FakeSandboxProvider
+{
+    $provider = new class($failCopyIn) extends FakeSandboxProvider
+    {
+        /** @var list<string> */
+        public array $events = [];
+
+        public function __construct(public bool $failCopyIn) {}
+
+        public function copyIn(string $id, string $directory, string $path): void
+        {
+            if ($this->failCopyIn) {
+                throw new RuntimeException('Worker killed');
+            }
+
+            $this->events[] = "in:{$id}";
+        }
+
+        public function destroy(string $id): void
+        {
+            $this->events[] = "destroy:{$id}";
+            parent::destroy($id);
+        }
+    };
+    $provider->outdated = ['old-ctr'];
+    app()->instance(SandboxProvider::class, $provider);
+
+    return $provider;
+}
+
+test('the old sandbox is deleted only once the new one has every file', function () {
+    $provider = orderedProvider();
+
+    expect(app(SandboxUpdater::class)->updateIfOutdated($this->project))->toBeTrue();
+
+    $new = $this->sandbox->fresh()->external_id;
+
+    expect($provider->events)->toBe([...array_fill(0, count(SandboxUpdater::KEPT_PATHS), "in:{$new}"), 'destroy:old-ctr']);
+})->group('SBX-002');
+
+test('an update cut off while copying files in goes back to the old sandbox with its files', function () {
+    $this->sandbox->update(['preview_url' => 'https://old.preview.test']);
+    $provider = orderedProvider(failCopyIn: true);
+
+    expect(fn () => app(SandboxUpdater::class)->updateIfOutdated($this->project))->toThrow(RuntimeException::class, 'Worker killed');
+
+    $sandbox = $this->sandbox->fresh();
+
+    expect($sandbox->external_id)->toBe('old-ctr')
+        ->and($sandbox->status)->toBe(SandboxStatus::Running)
+        ->and($sandbox->preview_url)->toBe('https://old.preview.test')
+        ->and($provider->events)->not->toContain('destroy:old-ctr')
+        ->and($provider->events)->toHaveCount(1) // the new sandbox, removed
+        ->and($provider->started)->toBe(['old-ctr'])
+        ->and(glob(storage_path('framework/sandbox-backup-*')))->toBe([]);
+})->group('SBX-002');
+
+test('a new sandbox that fails to start leaves the project on the old one', function () {
+    $provider = new class extends FakeSandboxProvider
+    {
+        public function create(SandboxSpec $spec): string
+        {
+            throw new SandboxException('Blaxel: no capacity');
+        }
+    };
+    $provider->outdated = ['old-ctr'];
+    app()->instance(SandboxProvider::class, $provider);
+
+    expect(fn () => app(SandboxUpdater::class)->updateIfOutdated($this->project))->toThrow(SandboxException::class, 'no capacity');
+
+    expect($this->sandbox->fresh()->external_id)->toBe('old-ctr')
+        ->and($this->sandbox->fresh()->status)->toBe(SandboxStatus::Running)
+        ->and($provider->started)->toBe(['old-ctr']);
 })->group('SBX-002');
 
 test('an up-to-date or stopped sandbox is left alone', function () {

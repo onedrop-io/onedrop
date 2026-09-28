@@ -3,6 +3,7 @@
 namespace App\Sandbox;
 
 use App\Enums\PublishStatus;
+use App\Enums\PublishVisibility;
 use App\Enums\SandboxStatus;
 use App\Jobs\CreateSandbox;
 use App\Jobs\PublishProject;
@@ -111,21 +112,24 @@ class SandboxUpdater
     {
         $report ??= fn (string $message) => null;
         $project->refresh();
-        $old = $project->sandbox?->external_id;
+        $previous = $project->sandbox?->only(['provider', 'external_id', 'status', 'preview_url', 'shell_url', 'ssh_address', 'error']);
+        $old = $previous['external_id'] ?? null;
         $backup = $keepFiles && $old ? $this->backup($old) : null;
+        $republishAs = $project->publish_status === PublishStatus::Live ? $project->publish_visibility : null;
+        $sandbox = null;
 
         if ($backup) {
             $report('Copied files out of the old sandbox.');
         }
 
         try {
-            if ($old) {
+            // With nothing to keep the old sandbox can go now. Otherwise it stays until the new one has every file,
+            // so an update that fails or is cut off (a deploy, a queue timeout) never loses them.
+            if ($old && ! $backup) {
                 $this->provider->destroy($old);
             }
 
             // The publish sidecar shares the old sandbox's network, so it goes too; republished below.
-            $republishAs = $project->publish_status === PublishStatus::Live ? $project->publish_visibility : null;
-
             if ($project->publish_status) {
                 $this->publisher->stop($project);
                 $project->update(['publish_status' => null, 'published_url' => null]);
@@ -148,7 +152,11 @@ class SandboxUpdater
             CreateSandbox::dispatchSync($project);
             $sandbox = $project->sandbox()->firstOrFail();
 
-            if ($backup && $sandbox->status === SandboxStatus::Running) {
+            if ($backup) {
+                if ($sandbox->status !== SandboxStatus::Running) {
+                    throw new SandboxException($sandbox->error ?: "The new sandbox didn't start.");
+                }
+
                 foreach (self::KEPT_PATHS as $index => $path) {
                     $this->provider->copyIn($sandbox->external_id, "{$backup}/{$index}", $path);
                 }
@@ -159,19 +167,60 @@ class SandboxUpdater
                 // The app's dev server (.zap/dev) arrived with the files; start it.
                 $this->provider->exec($sandbox->external_id, ['/opt/zap/restart']);
                 $report('Copied files into the new sandbox.');
+
+                $this->provider->destroy($old);
             }
 
-            if ($republishAs && $sandbox->status === SandboxStatus::Running) {
-                $project->update(['publish_status' => PublishStatus::Publishing, 'publish_visibility' => $republishAs, 'publish_error' => null]);
-                PublishProject::dispatch($project);
-                $report('Publishing it again.');
-            }
+            $this->republish($project, $republishAs, $sandbox, $report);
 
             return $sandbox;
+        } catch (Throwable $e) {
+            if ($backup) {
+                $this->keepOld($project, $previous, $sandbox);
+                $this->republish($project, $republishAs, $project->sandbox()->firstOrFail(), $report);
+            }
+
+            throw $e;
         } finally {
             if ($backup) {
                 File::deleteDirectory($backup);
             }
+        }
+    }
+
+    /**
+     * An update that didn't finish: drop the new sandbox and go back to the old one, which still has every file.
+     *
+     * @param  array<string, mixed>  $previous  the old sandbox's record
+     */
+    protected function keepOld(Project $project, array $previous, ?Sandbox $new): void
+    {
+        if ($new?->external_id && $new->external_id !== $previous['external_id']) {
+            try {
+                $this->provider->destroy($new->external_id);
+            } catch (SandboxException $e) {
+                report($e);
+            }
+        }
+
+        $project->sandbox()->updateOrCreate([], $previous);
+
+        try {
+            $this->provider->start($previous['external_id']);
+        } catch (SandboxException $e) {
+            report($e);
+        }
+    }
+
+    /**
+     * @param  (Closure(string): void)  $report
+     */
+    protected function republish(Project $project, ?PublishVisibility $visibility, Sandbox $sandbox, Closure $report): void
+    {
+        if ($visibility && $sandbox->status === SandboxStatus::Running) {
+            $project->update(['publish_status' => PublishStatus::Publishing, 'publish_visibility' => $visibility, 'publish_error' => null]);
+            PublishProject::dispatch($project);
+            $report('Publishing it again.');
         }
     }
 

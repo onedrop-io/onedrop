@@ -122,6 +122,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Updating keeps the app's files, App Storage, the agent's history, and everything in the sandbox user's home folder (such as a database or tools the agent installed there); the app restarts, and a published project is published again.
 - User should see the sandbox updating in the preview, then the app again.
 - Two updates of the same sandbox should never run at once.
+- An update that fails or is cut off partway (a deploy, a queue timeout) should leave the project on its old sandbox with every file; the old sandbox is only removed once the new one has them all.
 - An admin should be able to update outdated sandboxes with `php artisan sandbox:update` (all, or one project).
 
 ## SBX-003: Sandboxes on Runtime Cloud
