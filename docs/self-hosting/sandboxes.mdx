@@ -110,7 +110,7 @@ The guides the agent follows, the tools behind panels like Database and Growth, 
 - **When someone opens the project.** The update runs in the background and the preview shows **Updating sandbox…** until the app is back. It waits if the agent is working.
 - **Before the agent's next run**, so the agent always has the current guides and tools.
 
-An update keeps the app's files (`/workspace`), App Storage buckets and the agent's conversation history. The app restarts, and published projects are published again. Only one update runs per project at a time.
+An update keeps the app's files (`/workspace`), App Storage buckets, and the sandbox user's home folder (`/home/sandbox`), which holds the agent's conversation history and anything the agent installed there, such as a local database. Shell settings in the home folder stay as they were rather than taking the image's. The app's processes are paused while the files are copied, so a database is copied in a consistent state. The app restarts, and published projects are published again. Only one update runs per project at a time.
 
 To update every outdated sandbox now, or just one project:
 
@@ -129,7 +129,7 @@ To replace a sandbox even when it's up to date (for example, one that's broken):
 php artisan sandbox:recreate 12 --keep-files
 ```
 
-`--keep-files` copies the app (`/workspace`), App Storage and the agent's conversation history into the new container. Without it, the project starts from an empty workspace. Published projects are published again automatically.
+`--keep-files` copies the app (`/workspace`), App Storage and the sandbox user's home folder (with the agent's conversation history) into the new sandbox. Without it, the project starts from an empty workspace. Published projects are published again automatically.
 
 ## Clean up
 

@@ -119,7 +119,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - When the sandbox image is rebuilt (new guides, tools or proxy), existing sandboxes should move to it without anyone running a command.
 - Opening a project whose sandbox is older than the image should update it in the background, unless the agent is working.
 - Before the agent starts a run, an outdated sandbox should be updated first, so the agent always has the current guides and tools.
-- Updating keeps the app's files, App Storage, and the agent's history; the app restarts, and a published project is published again.
+- Updating keeps the app's files, App Storage, the agent's history, and everything in the sandbox user's home folder (such as a database or tools the agent installed there); the app restarts, and a published project is published again.
 - User should see the sandbox updating in the preview, then the app again.
 - Two updates of the same sandbox should never run at once.
 - An admin should be able to update outdated sandboxes with `php artisan sandbox:update` (all, or one project).
@@ -138,6 +138,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see the preview and the Shell tab through private Blaxel preview links, handed out only to people allowed to see the project; the links should be renewed before their tokens expire.
 - An agent run should keep its sandbox awake until it ends, even with nobody watching; idle sandboxes should go to standby by themselves.
 - Updating (files kept) and deleting a sandbox should work as they do with Docker, and a sandbox made from an older image build should be reported as outdated.
+- While an update copies a Blaxel sandbox's files, the app's processes should be frozen, so a database the agent set up is copied in a consistent state; if copying fails, they should carry on where they were.
 - Blaxel's errors (such as account limits) should reach the user in Blaxel's words.
 
 ## AGT-001: Real coding agent

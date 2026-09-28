@@ -177,11 +177,31 @@ test('the ssh port gets no https preview', function () {
     Http::assertNothingSent();
 })->group('SBX-004');
 
-test('pausing and starting leave standby to blaxel', function () {
+test('pausing freezes the app\'s processes and starting lets them carry on', function () {
+    Http::fake([
+        BL_API.'/sandboxes/zap-project-1-x' => Http::response(blaxelSandbox()),
+        BL_SBX.'/process' => Http::response(blaxelProcess()),
+    ]);
+
     $this->blaxel->pause('zap-project-1-x');
     $this->blaxel->start('zap-project-1-x');
 
-    Http::assertNothingSent();
+    $commands = Http::recorded()->map(fn (array $pair) => $pair[0])
+        ->filter(fn (Request $request) => $request->url() === BL_SBX.'/process')
+        ->map(fn (Request $request) => $request['command'])->values();
+
+    expect($commands)->toHaveCount(2)
+        ->and($commands[0])->toContain('kill -STOP')->toContain('pgrep -u sandbox')
+        ->and($commands[1])->toBe("'pkill' '-CONT' '-u' 'sandbox'");
+})->group('SBX-004');
+
+test('a sandbox whose processes cannot be frozen is not copied', function () {
+    Http::fake([
+        BL_API.'/sandboxes/zap-project-1-x' => Http::response(blaxelSandbox()),
+        BL_SBX.'/process' => Http::response(blaxelProcess(1, '', 'pgrep: not found')),
+    ]);
+
+    expect(fn () => $this->blaxel->pause('zap-project-1-x'))->toThrow(SandboxException::class, 'pgrep: not found');
 })->group('SBX-004');
 
 test('deleting a sandbox that is already gone is not an error', function () {

@@ -85,14 +85,25 @@ class BlaxelSandboxProvider implements SandboxProvider
     }
 
     /**
-     * Blaxel puts idle sandboxes on standby and wakes them on the next request by itself.
+     * Let processes frozen by pause() carry on. Blaxel wakes sandboxes from standby by itself.
      */
-    public function start(string $id): void {}
+    public function start(string $id): void
+    {
+        $this->exec($id, ['pkill', '-CONT', '-u', 'sandbox']);
+    }
 
     /**
-     * Blaxel puts idle sandboxes on standby by itself (memory and files kept).
+     * Blaxel puts idle sandboxes on standby by itself, so pausing freezes the app's processes instead: files are
+     * then at rest while an update copies them (a database is copied as after a power cut, which it recovers from).
      */
-    public function pause(string $id): void {}
+    public function pause(string $id): void
+    {
+        $frozen = $this->exec($id, ['bash', '-c', 'for pid in $(pgrep -u sandbox); do [ "$pid" = $$ ] || [ "$pid" = "$PPID" ] || kill -STOP "$pid" 2>/dev/null; done; exit 0']);
+
+        if (! $frozen->successful()) {
+            throw new SandboxException("Couldn't pause the sandbox's processes: ".(strtok(trim($frozen->errorOutput), "\n") ?: 'unknown error'));
+        }
+    }
 
     public function exec(string $id, array $command, array $env = [], bool $detach = false): ExecResult
     {

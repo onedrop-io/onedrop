@@ -20,9 +20,10 @@ use Illuminate\Support\Facades\File;
 class SandboxUpdater
 {
     /**
-     * Paths kept across an update: the app, its App Storage buckets, and OpenCode's sessions (so the agent remembers).
+     * Paths kept across an update: the app, its App Storage buckets, and the sandbox user's home, which holds
+     * OpenCode's sessions (so the agent remembers) and anything the agent installed there (e.g. a local database).
      */
-    public const KEPT_PATHS = ['/workspace', '/data/storage', '/home/sandbox/.local/share/opencode'];
+    public const KEPT_PATHS = ['/workspace', '/data/storage', '/home/sandbox'];
 
     /** Longest an update may hold its lock, in seconds (copying a large workspace takes a while). */
     protected const LOCK_SECONDS = 900;
