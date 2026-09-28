@@ -48,7 +48,8 @@ test('opening a runtime project renews its preview and shell links once a day', 
 })->group('SBX-003');
 
 test('docker projects keep their published addresses', function () {
-    config(['sandbox.provider' => 'fake']);
+    config(['sandbox.provider' => 'docker']);
+    $this->sandbox->update(['provider' => 'docker']);
 
     $this->actingAs($this->user)->get(route('projects.show', $this->project))->assertOk();
 
@@ -84,6 +85,7 @@ test('building on runtime without a key says what to set', function () {
 
 test('opening a blaxel project renews its private preview links too', function () {
     config(['sandbox.provider' => 'blaxel']);
+    $this->sandbox->update(['provider' => 'blaxel']);
 
     $this->actingAs($this->user)->get(route('projects.show', $this->project))->assertOk();
 

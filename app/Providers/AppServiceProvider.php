@@ -8,6 +8,7 @@ use App\Sandbox\Gateway;
 use App\Sandbox\Providers\BlaxelSandboxProvider;
 use App\Sandbox\Providers\DockerSandboxProvider;
 use App\Sandbox\Providers\FakeSandboxProvider;
+use App\Sandbox\Providers\RoutingSandboxProvider;
 use App\Sandbox\Providers\RuntimeSandboxProvider;
 use App\Sandbox\Publishing\FakePublisher;
 use App\Sandbox\Publishing\Publisher;
@@ -35,12 +36,20 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->bind(Gateway::class, fn () => new Gateway(config('sandbox.gateway_domain')));
 
-        $this->app->singleton(SandboxProvider::class, fn () => match ($provider = config('sandbox.provider')) {
-            'docker' => new DockerSandboxProvider(config('sandbox.providers.docker')),
-            'runtime' => new RuntimeSandboxProvider(config('sandbox.providers.runtime')),
-            'blaxel' => new BlaxelSandboxProvider(config('sandbox.providers.blaxel')),
-            'fake' => new FakeSandboxProvider,
-            default => throw new InvalidArgumentException("Sandbox provider [{$provider}] isn't implemented yet. Use \"docker\", \"blaxel\", \"runtime\" or add a provider in app/Sandbox/Providers."),
+        // New sandboxes go to the configured provider; each existing one keeps its own (see RoutingSandboxProvider).
+        $this->app->singleton(SandboxProvider::class, function () {
+            $providers = [
+                'docker' => fn () => new DockerSandboxProvider(config('sandbox.providers.docker')),
+                'blaxel' => fn () => new BlaxelSandboxProvider(config('sandbox.providers.blaxel')),
+                'runtime' => fn () => new RuntimeSandboxProvider(config('sandbox.providers.runtime')),
+            ];
+            $provider = config('sandbox.provider');
+
+            return match (true) {
+                $provider === 'fake' => new FakeSandboxProvider,
+                isset($providers[$provider]) => new RoutingSandboxProvider($providers, $provider),
+                default => throw new InvalidArgumentException("Sandbox provider [{$provider}] isn't implemented yet. Use \"docker\", \"blaxel\", \"runtime\" or add a provider in app/Sandbox/Providers."),
+            };
         });
 
         $this->app->singleton(Publisher::class, fn () => match ($publisher = config('sandbox.publisher')) {

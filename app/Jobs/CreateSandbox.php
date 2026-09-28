@@ -50,6 +50,8 @@ class CreateSandbox implements ShouldQueue
             $id = $provider->create($spec);
 
             $sandbox->update([
+                // The provider it was made on, even when this reuses a record from another one.
+                'provider' => config('sandbox.provider'),
                 'external_id' => $id,
                 'status' => SandboxStatus::Running,
                 ...self::addresses($provider, $id),

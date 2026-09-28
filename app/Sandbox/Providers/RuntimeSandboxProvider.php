@@ -24,8 +24,11 @@ class RuntimeSandboxProvider implements SandboxProvider
     /** Label holding the id of the image version a sandbox was made from (for isOutdated()). */
     public const IMAGE_LABEL = 'zap.image';
 
+    /** The sandbox user's home (Runtime itself starts commands in /workspace with HOME set to it). */
+    public const HOME = '/home/sandbox';
+
     /** Settings file start.sh and the shell source: Runtime can't set a sandbox's env at create. */
-    public const ENV_FILE = '/home/sandbox/.zap-env';
+    public const ENV_FILE = self::HOME.'/.zap-env';
 
     /** Longest a preview token lasts (7 days); ProjectController renews the links daily. */
     public const PREVIEW_TTL_SECONDS = 604800;
@@ -92,8 +95,9 @@ class RuntimeSandboxProvider implements SandboxProvider
 
     public function exec(string $id, array $command, array $env = [], bool $detach = false): ExecResult
     {
-        // Env goes in the body, never the command line: Runtime never echoes it back.
-        $body = array_filter(['argv' => $command, 'env' => $env ?: null]);
+        // Env goes in the body, never the command line: Runtime never echoes it back. Runtime runs commands
+        // with HOME=/workspace; give them the sandbox user's home so the agent's data stays out of the project.
+        $body = ['argv' => $command, 'env' => ['HOME' => self::HOME, ...$env]];
 
         if ($detach) {
             $this->send('post', "sandboxes/{$id}/processes", $body);

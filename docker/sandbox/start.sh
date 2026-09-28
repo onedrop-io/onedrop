@@ -5,6 +5,11 @@
 # Also keeps a web terminal (ttyd) running on $SHELL_PORT for the Shell tab, and sshd on $SSH_PORT.
 set -uo pipefail
 
+# The sandbox user's real home, whatever the platform started us with (Runtime uses HOME=/workspace), so
+# ~/.zap-env, ~/.ssh and the Shell tab's ~/.bashrc are found where the image put them, not in the project.
+HOME="$(getent passwd "$(id -un)" | cut -d: -f6)"
+export HOME
+
 touch /tmp/zap-server.log
 
 # Host-rewriting proxy in front of the app, used by published URLs.

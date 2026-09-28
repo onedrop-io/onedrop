@@ -99,6 +99,23 @@ npx withruntime sandbox ls
 npx withruntime sandbox stop <id>
 ```
 
+## Switch providers
+
+Each sandbox keeps running on the provider it was created on, so you can change `SANDBOX_PROVIDER` at any time without breaking existing projects. Sandboxes on Docker, Blaxel and Runtime Cloud can run side by side, as long as each provider's settings stay in place.
+
+After a switch:
+
+- New projects get sandboxes on the new provider.
+- An existing project counts as outdated while its sandbox is on another provider, so it moves the next time someone opens it, or before the agent's next run. A move works like an update: the files, App Storage and home folder are copied to the new provider, and the old sandbox is removed only once the new one has them.
+- To move every project now, or one:
+
+  ```bash
+  php artisan sandbox:update
+  php artisan sandbox:update 12
+  ```
+
+Build the image on the new provider first (`php artisan sandbox:build-image` with the new `SANDBOX_PROVIDER`). Moves copy files through your queue workers, so give them enough time: a timeout of 900 seconds, and on Laravel Cloud managed queues a visibility timeout above that.
+
 ## How the app's dev server runs
 
 The agent creates an executable `/workspace/.zap/dev` script that starts the app's dev server on `$PORT`, then runs `/opt/zap/restart`. The container's loop starts that script instead of the placeholder. Output goes to `/tmp/zap-server.log`, which the Console tab shows.

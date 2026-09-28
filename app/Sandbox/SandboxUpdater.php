@@ -36,7 +36,7 @@ class SandboxUpdater
     public function __construct(protected SandboxProvider $provider, protected Publisher $publisher) {}
 
     /**
-     * Whether the project's running sandbox was made from an older image.
+     * Whether the project's running sandbox was made from an older image, or lives on another provider than the configured one.
      *
      * @throws SandboxException
      */
@@ -44,9 +44,10 @@ class SandboxUpdater
     {
         $sandbox = $project->sandbox()->first();
 
+        // On another provider than the configured one (SANDBOX_PROVIDER changed): move it there.
         return $sandbox?->status === SandboxStatus::Running
             && $sandbox->external_id !== null
-            && $this->provider->isOutdated($sandbox->external_id);
+            && ($sandbox->provider !== config('sandbox.provider') || $this->provider->isOutdated($sandbox->external_id));
     }
 
     /**

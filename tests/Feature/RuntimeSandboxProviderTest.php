@@ -107,7 +107,7 @@ test('exec passes secrets in the body, never the command line, and maps the resu
         ->and($result->errorOutput)->toBe('err');
 
     Http::assertSent(fn (Request $request) => $request['argv'] === ['node', '/opt/zap/forwarder.mjs']
-        && $request['env'] === ['OPENAI_API_KEY' => 'sk-secret']);
+        && $request['env'] === ['HOME' => RuntimeSandboxProvider::HOME, 'OPENAI_API_KEY' => 'sk-secret']);
 })->group('SBX-003');
 
 test('a detached exec starts a background process', function () {

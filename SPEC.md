@@ -158,6 +158,13 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see the project's files in a panel on the right of the workspace, as a folder tree.
 - User should see a colored icon for each file and folder that shows its type (JavaScript, JSON, images, config, etc.).
 - User should be able to open a file and read its contents in a tab next to the preview.
+## SBX-005: Switch sandbox providers
+- An admin should be able to switch where new sandboxes run by changing `SANDBOX_PROVIDER`, without breaking existing projects: each sandbox keeps being driven by the provider it was created on.
+- Sandboxes on several providers should work side by side.
+- A project whose sandbox is on another provider than the configured one should count as outdated, so it moves to the configured provider the way SBX-002 updates do (files, App Storage and home folder kept; the old sandbox removed only once the new one has them).
+- An admin should be able to move every project now with `php artisan sandbox:update`, or one with `php artisan sandbox:update {project}`.
+- Provider-specific behavior (renewing private preview links, the SSH notice) should follow each sandbox's own provider.
+
 - User should see new files appear while the agent works, and be able to refresh the list.
 - User should be able to hide and show the files panel; it starts open only on wide screens.
 - User's choice to hide or show the files panel should be remembered in their browser across reloads.
