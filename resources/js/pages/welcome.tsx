@@ -1,4 +1,4 @@
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, Link, usePage } from "@inertiajs/react";
 import {
     ArrowUp,
     Check,
@@ -10,35 +10,35 @@ import {
     Plus,
     Send,
     Server,
-} from 'lucide-react';
-import type { RefObject } from 'react';
-import { useEffect, useRef, useState } from 'react';
-import { BlackHole } from '@/components/home/black-hole';
-import { Galaxy } from '@/components/home/galaxy';
+} from "lucide-react";
+import type { RefObject } from "react";
+import { useEffect, useRef, useState } from "react";
+import { BlackHole } from "@/components/home/black-hole";
+import { Galaxy } from "@/components/home/galaxy";
 import {
     DROP_START_MS,
     GravityField,
     IMPACT_DELAY_MS,
     ParticleUniverse,
-} from '@/components/home/particle-universe';
-import { DropMark } from '@/components/home/drop-mark';
-import { FEATURES } from '@/components/home/features';
-import { SiteFooter } from '@/components/home/site-footer';
-import { SiteHeader } from '@/components/home/site-header';
-import { SparklesText } from '@/components/home/sparkles-text';
-import { dashboard, register } from '@/routes';
+} from "@/components/home/particle-universe";
+import { DropMark } from "@/components/home/drop-mark";
+import { FEATURES } from "@/components/home/features";
+import { SiteFooter } from "@/components/home/site-footer";
+import { SiteHeader } from "@/components/home/site-header";
+import { SparklesText } from "@/components/home/sparkles-text";
+import { dashboard, register } from "@/routes";
 
-const BRAND = 'OneDrop';
+const BRAND = "OneDrop";
 
-const DEMO_PROMPT = 'A time-off tracker for my team';
+const DEMO_PROMPT = "A time-off tracker for my team";
 const TYPE_SPEED_MS = 45;
 const TYPED_AT_MS = DEMO_PROMPT.length * TYPE_SPEED_MS;
 const SENT_AT_MS = TYPED_AT_MS + 350;
 const DEMO_STEPS = [
-    { label: 'Setting up a database for time-off requests', at: 2600 },
-    { label: 'Building the request form', at: 3800 },
-    { label: 'Adding a who’s-out calendar', at: 5000 },
-    { label: 'Running the tests: 12 passed', at: 6200 },
+    { label: "Setting up a database for time-off requests", at: 2600 },
+    { label: "Building the request form", at: 3800 },
+    { label: "Adding a who’s-out calendar", at: 5000 },
+    { label: "Running the tests: 12 passed", at: 6200 },
 ];
 const REPLY_AT_MS = 7300;
 const CURSOR_AT_MS = 8300;
@@ -46,129 +46,130 @@ const PUBLISH_AT_MS = 9100;
 const PUBLISHED_AT_MS = 10100;
 const DEMO_END_MS = 11000;
 const DEMO_LOOP_MS = 16000;
-const DEMO_URL = 'timeoff.yourteam.ts.net';
+const DEMO_URL = "timeoff.yourteam.ts.net";
 
 const INTEGRATIONS = [
     {
-        role: 'Your AI',
+        role: "Your AI",
         tools: [
-            { name: 'Claude', logo: '/images/logos/claude.svg' },
-            { name: 'OpenAI', logo: '/images/logos/openai.svg' },
-            { name: 'OpenRouter', logo: '/images/logos/openrouter.svg' },
+            { name: "Claude", logo: "/images/logos/claude.svg" },
+            { name: "OpenAI", logo: "/images/logos/openai.svg" },
+            { name: "OpenRouter", logo: "/images/logos/openrouter.svg" },
         ],
     },
     {
-        role: 'The builder',
-        tools: [{ name: 'OpenCode', logo: '/images/logos/opencode.svg' }],
+        role: "The builder",
+        tools: [{ name: "OpenCode", logo: "/images/logos/opencode.svg" }],
     },
     {
-        role: 'Sandboxes',
+        role: "Sandboxes",
         tools: [
-            { name: 'Docker', logo: '/images/logos/docker.svg' },
-            { name: 'E2B', logo: '/images/logos/e2b.png' },
-            { name: 'Daytona', logo: '/images/logos/daytona.svg' },
-            { name: 'Vercel', logo: '/images/logos/vercel.svg' },
+            { name: "Docker", logo: "/images/logos/docker.svg" },
+            { name: "Blaxel", logo: "/images/logos/blaxel.svg" },
+            { name: "E2B", logo: "/images/logos/e2b.png" },
+            { name: "Daytona", logo: "/images/logos/daytona.svg" },
+            { name: "Vercel", logo: "/images/logos/vercel.svg" },
         ],
     },
     {
-        role: 'Instant links',
-        tools: [{ name: 'Tailscale', logo: '/images/logos/tailscale.svg' }],
+        role: "Instant links",
+        tools: [{ name: "Tailscale", logo: "/images/logos/tailscale.svg" }],
     },
     {
-        role: 'Your laptop',
+        role: "Your laptop",
         tools: [
-            { name: 'macOS', logo: '/images/logos/apple.svg' },
-            { name: 'Linux', logo: '/images/logos/linux.svg' },
+            { name: "macOS", logo: "/images/logos/apple.svg" },
+            { name: "Linux", logo: "/images/logos/linux.svg" },
         ],
     },
     {
-        role: 'Your servers',
+        role: "Your servers",
         tools: [
-            { name: 'AWS', logo: '/images/logos/aws.svg' },
-            { name: 'Google Cloud', logo: '/images/logos/googlecloud.svg' },
-            { name: 'Hetzner', logo: '/images/logos/hetzner.svg' },
-            { name: 'DigitalOcean', logo: '/images/logos/digitalocean.svg' },
-            { name: 'Vultr', logo: '/images/logos/vultr.svg' },
-            { name: 'Ubuntu', logo: '/images/logos/ubuntu.svg' },
+            { name: "AWS", logo: "/images/logos/aws.svg" },
+            { name: "Google Cloud", logo: "/images/logos/googlecloud.svg" },
+            { name: "Hetzner", logo: "/images/logos/hetzner.svg" },
+            { name: "DigitalOcean", logo: "/images/logos/digitalocean.svg" },
+            { name: "Vultr", logo: "/images/logos/vultr.svg" },
+            { name: "Ubuntu", logo: "/images/logos/ubuntu.svg" },
         ],
     },
 ];
 
 const STEPS = [
     {
-        title: 'Connect your AI',
-        body: 'Sign in with your ChatGPT Plus or Pro plan, or paste a key from Anthropic, OpenAI, or OpenRouter. It takes a minute, and you only do it once.',
+        title: "Connect your AI",
+        body: "Sign in with your ChatGPT Plus or Pro plan, or paste a key from Anthropic, OpenAI, or OpenRouter. It takes a minute, and you only do it once.",
     },
     {
-        title: 'Say what you need',
-        body: '“A booking form for the meeting rooms.” “A tracker for our client renewals.” Plain English is all it takes.',
+        title: "Say what you need",
+        body: "“A booking form for the meeting rooms.” “A tracker for our client renewals.” Plain English is all it takes.",
     },
     {
-        title: 'Watch it get built',
-        body: 'The AI writes the code and runs the tests while you watch. The real app runs next to the chat, so you can click around and ask for changes.',
+        title: "Watch it get built",
+        body: "The AI writes the code and runs the tests while you watch. The real app runs next to the chat, so you can click around and ask for changes.",
     },
     {
-        title: 'Share it',
-        body: 'Click Publish for an instant link on your team’s private Tailscale network. Flip it public when you’re ready.',
+        title: "Share it",
+        body: "Click Publish for an instant link on your team’s private Tailscale network. Flip it public when you’re ready.",
     },
 ];
 
 const COMPARISON = [
     {
-        topic: 'Where your apps and data live',
-        us: 'Your laptop or your servers',
-        them: 'Their cloud',
+        topic: "Where your apps and data live",
+        us: "Your laptop or your servers",
+        them: "Their cloud",
     },
     {
-        topic: 'How you pay for AI',
-        us: 'Your own plan or key, at cost',
-        them: 'Their credits, with a markup',
+        topic: "How you pay for AI",
+        us: "Your own plan or key, at cost",
+        them: "Their credits, with a markup",
     },
     {
-        topic: 'What you can build',
-        us: 'Real code, any framework',
-        them: 'Usually one stack',
+        topic: "What you can build",
+        us: "Real code, any framework",
+        them: "Usually one stack",
     },
     {
-        topic: 'What it costs',
-        us: 'Free and open source',
-        them: 'Another monthly plan',
+        topic: "What it costs",
+        us: "Free and open source",
+        them: "Another monthly plan",
     },
     {
-        topic: 'Leaving',
-        us: 'Keep everything. It’s your code.',
-        them: 'Export and hope',
+        topic: "Leaving",
+        us: "Keep everything. It’s your code.",
+        them: "Export and hope",
     },
 ];
 
 const FAQS = [
     {
-        question: 'Do I need to know how to code?',
-        answer: 'No. If you can describe what you want to a coworker, you can build it here. Developers can still open the files and terminal whenever they like.',
+        question: "Do I need to know how to code?",
+        answer: "No. If you can describe what you want to a coworker, you can build it here. Developers can still open the files and terminal whenever they like.",
     },
     {
-        question: 'Which AI does it use?',
-        answer: 'Yours. Sign in with your ChatGPT Plus or Pro plan, paste an Anthropic or OpenAI API key, or sign in with OpenRouter for hundreds of other models. You pay your provider directly, with no markup.',
+        question: "Which AI does it use?",
+        answer: "Yours. Sign in with your ChatGPT Plus or Pro plan, paste an Anthropic or OpenAI API key, or sign in with OpenRouter for hundreds of other models. You pay your provider directly, with no markup.",
     },
     {
-        question: 'Is it really ready for production?',
+        question: "Is it really ready for production?",
         answer: `${BRAND} writes standard code (React, or Laravel when the app needs accounts and a database) and tests it as it goes. Sign-in, secrets, analytics, and feature flags are built in, and every app runs on infrastructure you control. It’s the same code a developer would write, so your team can review it, extend it, and ship it.`,
     },
     {
-        question: 'Where do my apps run?',
+        question: "Where do my apps run?",
         answer: `Wherever you run ${BRAND}: your own computer, or a server you control. One script installs it on any Ubuntu server, and there’s a ready-made setup for AWS.`,
     },
     {
-        question: 'Who can see what I build?',
-        answer: 'Only you, until you share. Publishing gives the app a Tailscale link that only people on your team’s network can open. Switch it to public when you want anyone with the link to get in.',
+        question: "Who can see what I build?",
+        answer: "Only you, until you share. Publishing gives the app a Tailscale link that only people on your team’s network can open. Switch it to public when you want anyone with the link to get in.",
     },
     {
-        question: 'What does it cost?',
+        question: "What does it cost?",
         answer: `Self-hosting ${BRAND} is free and open source: you pay your AI provider directly and for your own servers. Want us to host it? Cloud plans start at $16 a month, with no markup on your own AI and credits included if you don’t have any. See the pricing page for details.`,
     },
     {
-        question: 'What if the AI gets something wrong?',
-        answer: 'Tell it, the same way you’d tell a person. “The total is off by one day” is enough.',
+        question: "What if the AI gets something wrong?",
+        answer: "Tell it, the same way you’d tell a person. “The total is off by one day” is enough.",
     },
 ];
 
@@ -176,14 +177,14 @@ function usePrefersReducedMotion(): boolean {
     const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
 
     useEffect(() => {
-        const query = window.matchMedia('(prefers-reduced-motion: reduce)');
+        const query = window.matchMedia("(prefers-reduced-motion: reduce)");
         setPrefersReducedMotion(query.matches);
 
         const onChange = (event: MediaQueryListEvent) =>
             setPrefersReducedMotion(event.matches);
-        query.addEventListener('change', onChange);
+        query.addEventListener("change", onChange);
 
-        return () => query.removeEventListener('change', onChange);
+        return () => query.removeEventListener("change", onChange);
     }, []);
 
     return prefersReducedMotion;
@@ -261,15 +262,15 @@ function BuildDemo() {
                     </div>
                     <div className="relative">
                         <span
-                            className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold text-white transition-colors ${isPublishing ? 'bg-[#E8341C]' : 'bg-[#FF4D1C]'}`}
+                            className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold text-white transition-colors ${isPublishing ? "bg-[#E8341C]" : "bg-[#FF4D1C]"}`}
                         >
                             {isPublishing && (
                                 <Loader2 className="size-3 animate-spin" />
                             )}
-                            {isPublished ? 'Republish' : 'Publish'}
+                            {isPublished ? "Republish" : "Publish"}
                         </span>
                         <MousePointer2
-                            className={`absolute top-3 left-8 size-5 fill-white text-[#0A0807] drop-shadow transition-all duration-700 ease-out ${showsCursor && !isPublished ? 'translate-x-0 translate-y-0 opacity-100' : '-translate-x-24 translate-y-24 opacity-0'} ${isPublishing ? 'scale-90' : ''}`}
+                            className={`absolute top-3 left-8 size-5 fill-white text-[#0A0807] drop-shadow transition-all duration-700 ease-out ${showsCursor && !isPublished ? "translate-x-0 translate-y-0 opacity-100" : "-translate-x-24 translate-y-24 opacity-0"} ${isPublishing ? "scale-90" : ""}`}
                         />
                         {isPublished && (
                             <div className="absolute top-full right-0 z-10 mt-2 w-72 animate-in rounded-xl bg-[#151110] p-4 text-left shadow-[0_20px_40px_-12px_rgba(0,0,0,0.6)] ring-1 ring-[#3A302B] duration-300 fade-in slide-in-from-top-1">
@@ -349,12 +350,12 @@ function BuildDemo() {
                             <span
                                 className={
                                     isSent || typedPrompt.length === 0
-                                        ? 'flex-1 text-[#7D7068]'
-                                        : 'flex-1 text-[#F5EFEA]'
+                                        ? "flex-1 text-[#7D7068]"
+                                        : "flex-1 text-[#F5EFEA]"
                                 }
                             >
                                 {isSent || typedPrompt.length === 0 ? (
-                                    'Ask for a change…'
+                                    "Ask for a change…"
                                 ) : (
                                     <>
                                         {typedPrompt}
@@ -374,12 +375,12 @@ function BuildDemo() {
                                 Preview
                             </span>
                             <span
-                                className={`truncate text-[#B3A69C] transition-opacity duration-500 ${isPublished ? 'opacity-100' : 'opacity-0'}`}
+                                className={`truncate text-[#B3A69C] transition-opacity duration-500 ${isPublished ? "opacity-100" : "opacity-0"}`}
                             >
                                 {DEMO_URL}
                             </span>
                             <span
-                                className={`ml-auto flex items-center gap-1.5 font-medium transition-opacity duration-500 ${isPublished ? 'text-[#3DDC97] opacity-100' : 'opacity-0'}`}
+                                className={`ml-auto flex items-center gap-1.5 font-medium transition-opacity duration-500 ${isPublished ? "text-[#3DDC97] opacity-100" : "opacity-0"}`}
                             >
                                 <span className="size-1.5 rounded-full bg-[#12B76A]" />
                                 Live
@@ -463,11 +464,11 @@ function BuildDemo() {
                                             </div>
                                             <div className="mt-1.5 flex gap-2 text-center text-[10px] text-[#7D7068]">
                                                 {[
-                                                    'Mon',
-                                                    'Tue',
-                                                    'Wed',
-                                                    'Thu',
-                                                    'Fri',
+                                                    "Mon",
+                                                    "Tue",
+                                                    "Wed",
+                                                    "Thu",
+                                                    "Fri",
                                                 ].map((day) => (
                                                     <span
                                                         key={day}
@@ -497,7 +498,7 @@ function BuildDemo() {
                     ) : (
                         <Pause className="size-3.5" />
                     )}
-                    {isPaused ? 'Play demo' : 'Pause demo'}
+                    {isPaused ? "Play demo" : "Pause demo"}
                 </button>
             )}
         </div>
@@ -555,7 +556,7 @@ function ImpactTracks() {
                         d={track}
                         pathLength={1}
                         fill="none"
-                        stroke={index % 3 === 0 ? '#FFE1D1' : '#FF9A5C'}
+                        stroke={index % 3 === 0 ? "#FFE1D1" : "#FF9A5C"}
                         strokeWidth={index % 3 === 0 ? 1.5 : 1}
                         strokeLinecap="round"
                         strokeDasharray="1"
@@ -570,7 +571,7 @@ function ImpactTracks() {
     );
 }
 
-const HERO_PROMPT = 'A booking app for our meeting rooms';
+const HERO_PROMPT = "A booking app for our meeting rooms";
 const HERO_PROMPT_TYPING_AT_MS = 450;
 const HERO_PROMPT_TYPE_SPEED_MS = 48;
 const HERO_PROMPT_SENT_AT_MS = DROP_START_MS - 120;
@@ -615,7 +616,7 @@ function HeroPrompt() {
 
     return (
         <div
-            className={`absolute bottom-[calc(50%+150px)] left-1/2 hidden w-80 -translate-x-1/2 animate-in items-center gap-2 rounded-full bg-[#151110]/90 py-1.5 pr-1.5 pl-4 text-sm shadow-[0_20px_50px_-15px_rgba(255,77,28,0.5)] ring-1 ring-[#3A302B] backdrop-blur transition-all duration-500 fade-in motion-reduce:hidden sm:flex ${isSent ? '-translate-y-4 scale-95 opacity-0' : ''}`}
+            className={`absolute bottom-[calc(50%+150px)] left-1/2 hidden w-80 -translate-x-1/2 animate-in items-center gap-2 rounded-full bg-[#151110]/90 py-1.5 pr-1.5 pl-4 text-sm shadow-[0_20px_50px_-15px_rgba(255,77,28,0.5)] ring-1 ring-[#3A302B] backdrop-blur transition-all duration-500 fade-in motion-reduce:hidden sm:flex ${isSent ? "-translate-y-4 scale-95 opacity-0" : ""}`}
         >
             <span className="min-w-0 flex-1 truncate">
                 {typedPrompt.length === 0 ? (
@@ -628,7 +629,7 @@ function HeroPrompt() {
                 )}
             </span>
             <span
-                className={`grid size-7 shrink-0 place-items-center rounded-full bg-[#FF4D1C] text-white transition duration-200 ${isPressing ? 'scale-90 shadow-[0_0_20px_rgba(255,77,28,0.9)] brightness-125' : ''}`}
+                className={`grid size-7 shrink-0 place-items-center rounded-full bg-[#FF4D1C] text-white transition duration-200 ${isPressing ? "scale-90 shadow-[0_0_20px_rgba(255,77,28,0.9)] brightness-125" : ""}`}
             >
                 <ArrowUp className="size-4" />
             </span>
@@ -653,7 +654,7 @@ function HeroRipple({
                 ref={centerRef}
                 className="absolute top-[230px] left-[78%] size-[1000px] -translate-x-1/2 -translate-y-1/2"
             >
-                <div className="absolute inset-[30%] rounded-full bg-[#FF4D1C]/25 blur-[90px]" />
+                <div className="absolute inset-[12%] rounded-full bg-[radial-gradient(closest-side,rgba(255,77,28,0.25)_35%,transparent)]" />
                 <svg viewBox="0 0 1000 1000" className="absolute inset-0">
                     <defs>
                         <radialGradient id="ripple-stroke">
@@ -709,7 +710,7 @@ function PrimaryCta({ isLoggedIn }: { isLoggedIn: boolean }) {
             data-test="primary-cta"
             className={`inline-flex items-center justify-center rounded-xl bg-gradient-to-b from-[#FF6A2B] to-[#E8341C] px-6 py-3.5 text-base font-semibold text-white shadow-[0_12px_32px_-10px_rgba(255,77,28,0.9),inset_0_1px_0_rgba(255,255,255,0.3)] transition hover:brightness-110 focus-visible:ring-2 focus-visible:ring-[#FF9A5C] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0807] focus-visible:outline-none`}
         >
-            {isLoggedIn ? 'Open your dashboard' : 'Build your first app'}
+            {isLoggedIn ? "Open your dashboard" : "Build your first app"}
         </Link>
     );
 }
@@ -722,7 +723,7 @@ export default function Welcome() {
     useEffect(() => {
         const previousBackground =
             document.documentElement.style.backgroundColor;
-        document.documentElement.style.backgroundColor = '#0A0807';
+        document.documentElement.style.backgroundColor = "#0A0807";
 
         return () => {
             document.documentElement.style.backgroundColor = previousBackground;
@@ -777,7 +778,7 @@ export default function Welcome() {
                             >
                                 <div
                                     aria-hidden="true"
-                                    className="pointer-events-none absolute -inset-x-16 -top-24 bottom-1/3 bg-[radial-gradient(50%_60%_at_50%_40%,rgba(255,77,28,0.45),transparent)] blur-2xl"
+                                    className="pointer-events-none absolute -inset-x-16 -top-24 bottom-1/3 bg-[radial-gradient(50%_60%_at_50%_40%,rgba(255,77,28,0.45),transparent)]"
                                 />
                                 <BuildDemo />
                             </div>
@@ -828,15 +829,15 @@ export default function Welcome() {
                             <div className="mt-12 grid gap-10 md:grid-cols-3">
                                 {[
                                     {
-                                        quote: '“It’s on the IT roadmap. For next year.”',
-                                        body: 'Small internal tools never make the cut, so the work gets done the slow way.',
+                                        quote: "“It’s on the IT roadmap. For next year.”",
+                                        body: "Small internal tools never make the cut, so the work gets done the slow way.",
                                     },
                                     {
-                                        quote: '“The whole process runs on a spreadsheet only Dana understands.”',
-                                        body: 'It works until Dana goes on vacation, or someone sorts one column.',
+                                        quote: "“The whole process runs on a spreadsheet only Dana understands.”",
+                                        body: "It works until Dana goes on vacation, or someone sorts one column.",
                                     },
                                     {
-                                        quote: '“The AI prototype looked great. Then IT asked where it would run.”',
+                                        quote: "“The AI prototype looked great. Then IT asked where it would run.”",
                                         body: `Prototype builders stop at the demo. ${BRAND} writes real, tested code and runs it on your own servers, so there’s no wall between the demo and done.`,
                                     },
                                 ].map((pain) => (
@@ -948,7 +949,7 @@ export default function Welcome() {
                                 </h2>
                                 <p className="mt-5 text-lg leading-relaxed text-[#B3A69C]">
                                     Hosted builders rent you a workspace on
-                                    their cloud and resell you AI credits.{' '}
+                                    their cloud and resell you AI credits.{" "}
                                     {BRAND} runs on your laptop or your own
                                     server and builds on your own AI plan or
                                     key, so your apps, your data, and your bill
@@ -1057,8 +1058,8 @@ export default function Welcome() {
                                     className="mt-9 inline-flex items-center justify-center rounded-xl bg-white px-7 py-4 text-base font-semibold text-[#0A0807] transition-colors hover:bg-[#F5EFEA] focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#FF4D1C] focus-visible:outline-none"
                                 >
                                     {isLoggedIn
-                                        ? 'Open your dashboard'
-                                        : 'Build your first app'}
+                                        ? "Open your dashboard"
+                                        : "Build your first app"}
                                 </Link>
                             </div>
                         </div>

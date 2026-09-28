@@ -263,7 +263,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Visitor should see small stars twinkle over the headline.
 - Visitor should see the droplet in the header logo pop into a small burst of particles when hovering over it (and now and then on its own), then bounce back, once the hero's drop has landed.
 - None of the drop, particle, black hole, or twinkle motion should play when reduced motion is on.
-- Visitor should see the tools it works with: Claude, OpenAI, OpenRouter, OpenCode, Docker, E2B, Daytona, Vercel, Tailscale, macOS and Linux laptops, and servers on AWS, Google Cloud, Hetzner, DigitalOcean, Vultr, or any Ubuntu machine.
+- Visitor should see the tools it works with: Claude, OpenAI, OpenRouter, OpenCode, Docker, Blaxel, E2B, Daytona, Vercel, Tailscale, macOS and Linux laptops, and servers on AWS, Google Cloud, Hetzner, DigitalOcean, Vultr, or any Ubuntu machine.
 - Visitor should see how it works in four steps and the main features in plain language.
 - Visitor should see answers to common questions (coding knowledge, which AI, whether it's ready for production, where apps run, who can see them, cost).
 - Visitor should be able to open a Product menu in the top bar (on hover or click) that lists each feature with a one-line summary, plus links to the demo, how it works, the tools it works with, and the self-hosting comparison; picking an item should close the menu and jump to that part of the page.

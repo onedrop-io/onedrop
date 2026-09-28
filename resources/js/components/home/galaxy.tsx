@@ -1,17 +1,17 @@
-import { useEffect, useRef } from 'react';
-import type { ReactNode } from 'react';
-import { universe } from '@/components/home/particle-universe';
+import { useEffect, useRef } from "react";
+import type { ReactNode } from "react";
+import { universe } from "@/components/home/particle-universe";
 import {
     drawSolSystem,
     SOL_FIELD_SIZE,
     SOL_SCREEN_OFFSET,
     voyagerTrails,
-} from '@/components/home/sol-system';
+} from "@/components/home/sol-system";
 import {
     drawEndurance,
     drawEnterprise,
     SHIP_FIELD_SIZE,
-} from '@/components/home/starships';
+} from "@/components/home/starships";
 
 /** Canvas size in CSS pixels, centered on the black hole. */
 const FIELD_SIZE = 1700;
@@ -47,6 +47,10 @@ const ENTERPRISE_ORBIT = {
 /** Seconds for the galaxy to fade in once the black hole is full size. */
 const FADE_IN_SECONDS = 2.5;
 
+/** The galaxy is hidden left of this fraction of its canvas, then fades in until EDGE_FADE_END. */
+const EDGE_FADE_START = 0.12;
+const EDGE_FADE_END = 0.42;
+
 type Dust = {
     radius: number;
     angle: number;
@@ -76,29 +80,29 @@ type Planet = {
 
 /** Star colors by spectral class, from hot blue giants to cool red dwarfs, and how common each is. */
 const STAR_CLASSES = [
-    { color: '#8FB0FF', weight: 1, size: [2.2, 3.4] },
-    { color: '#AFC5FF', weight: 4, size: [1.5, 2.7] },
-    { color: '#D6E0FF', weight: 7, size: [1.1, 2.2] },
-    { color: '#F6F4FF', weight: 10, size: [0.9, 1.8] },
-    { color: '#FFF0D2', weight: 18, size: [0.8, 1.6] },
-    { color: '#FFC58E', weight: 25, size: [0.7, 1.4] },
-    { color: '#FF8E66', weight: 33, size: [0.6, 1.2] },
-    { color: '#FF5A3C', weight: 2, size: [2.4, 3.4] },
+    { color: "#8FB0FF", weight: 1, size: [2.2, 3.4] },
+    { color: "#AFC5FF", weight: 4, size: [1.5, 2.7] },
+    { color: "#D6E0FF", weight: 7, size: [1.1, 2.2] },
+    { color: "#F6F4FF", weight: 10, size: [0.9, 1.8] },
+    { color: "#FFF0D2", weight: 18, size: [0.8, 1.6] },
+    { color: "#FFC58E", weight: 25, size: [0.7, 1.4] },
+    { color: "#FF8E66", weight: 33, size: [0.6, 1.2] },
+    { color: "#FF5A3C", weight: 2, size: [2.4, 3.4] },
 ];
 
 const PLANET_COLORS = [
-    '#6FA8DC',
-    '#C9A66B',
-    '#8FBF7F',
-    '#D96C4F',
-    '#B7A3E0',
-    '#E8D6A8',
+    "#6FA8DC",
+    "#C9A66B",
+    "#8FBF7F",
+    "#D96C4F",
+    "#B7A3E0",
+    "#E8D6A8",
 ];
 
 const DUST_COLORS = {
-    inner: ['#FFB070', '#FF8A3D', '#FFC89A'],
-    middle: ['#FF6A2B', '#E8431C', '#FF7F50'],
-    outer: ['#B8321E', '#8E2A3A', '#6B2C5A'],
+    inner: ["#FFB070", "#FF8A3D", "#FFC89A"],
+    middle: ["#FF6A2B", "#E8431C", "#FF7F50"],
+    outer: ["#B8321E", "#8E2A3A", "#6B2C5A"],
 };
 
 function random(min: number, max: number): number {
@@ -141,10 +145,10 @@ function glowSprite(color: string): HTMLCanvasElement {
         return cached;
     }
 
-    const sprite = document.createElement('canvas');
+    const sprite = document.createElement("canvas");
     sprite.width = 64;
     sprite.height = 64;
-    const context = sprite.getContext('2d')!;
+    const context = sprite.getContext("2d")!;
     const gradient = context.createRadialGradient(32, 32, 0, 32, 32, 32);
     gradient.addColorStop(0, color);
     gradient.addColorStop(0.35, `${color}66`);
@@ -192,7 +196,7 @@ function makeDust(): Dust[] {
             angle: armAngle(radius, index % 2) + gaussian() * 0.1,
             size: random(6, 13),
             alpha: random(0.25, 0.5),
-            sprite: glowSprite(pick(['#FFD2B0', '#AFC5FF', '#FFB3C7'])),
+            sprite: glowSprite(pick(["#FFD2B0", "#AFC5FF", "#FFB3C7"])),
         });
     }
 
@@ -252,7 +256,7 @@ function makeStars(): Star[] {
             angle: armAngle(radius, index % 2) + gaussian() * 0.13,
             speed: PATTERN_SPEED,
             size: random(0.4, 1),
-            color: pick(['#FFE3C8', '#FFC58E', '#FFF6EC', '#FFB3A0']),
+            color: pick(["#FFE3C8", "#FFC58E", "#FFF6EC", "#FFB3A0"]),
             twinkle: random(0.4, 1.6),
             phase: random(0, Math.PI * 2),
             planets: [],
@@ -278,7 +282,7 @@ function makeStars(): Star[] {
             angle: armAngle(radius, index % 2) + gaussian() * 0.3,
             speed: orbitSpeed(radius),
             size: random(2, 2.8),
-            color: pick(['#FFF0D2', '#FFC58E', '#F6F4FF']),
+            color: pick(["#FFF0D2", "#FFC58E", "#F6F4FF"]),
             twinkle: 0.8,
             phase: random(0, Math.PI * 2),
             planets,
@@ -303,11 +307,11 @@ export function Galaxy({ children }: { children: ReactNode }) {
     const enterpriseRef = useRef<HTMLCanvasElement>(null);
 
     useEffect(() => {
-        const back = backRef.current?.getContext('2d');
-        const front = frontRef.current?.getContext('2d');
-        const sol = solRef.current?.getContext('2d');
-        const endurance = enduranceRef.current?.getContext('2d');
-        const enterprise = enterpriseRef.current?.getContext('2d');
+        const back = backRef.current?.getContext("2d");
+        const front = frontRef.current?.getContext("2d");
+        const sol = solRef.current?.getContext("2d");
+        const endurance = enduranceRef.current?.getContext("2d");
+        const enterprise = enterpriseRef.current?.getContext("2d");
 
         if (
             !back ||
@@ -315,7 +319,7 @@ export function Galaxy({ children }: { children: ReactNode }) {
             !sol ||
             !endurance ||
             !enterprise ||
-            window.matchMedia('(prefers-reduced-motion: reduce)').matches
+            window.matchMedia("(prefers-reduced-motion: reduce)").matches
         ) {
             return;
         }
@@ -338,6 +342,18 @@ export function Galaxy({ children }: { children: ReactNode }) {
         }
 
         const layers = [back, front, sol, endurance, enterprise];
+
+        const edgeFade = back.createLinearGradient(
+            0,
+            0,
+            FIELD_SIZE * EDGE_FADE_END,
+            0,
+        );
+        edgeFade.addColorStop(
+            EDGE_FADE_START / EDGE_FADE_END,
+            "rgba(0, 0, 0, 1)",
+        );
+        edgeFade.addColorStop(1, "rgba(0, 0, 0, 0)");
 
         const dust = makeDust();
         const stars = makeStars();
@@ -362,7 +378,7 @@ export function Galaxy({ children }: { children: ReactNode }) {
 
             if (!universe.rendersHoleInWebgl || universe.hole.size < 0.9) {
                 for (const layer of layers) {
-                    layer.canvas.style.opacity = '0';
+                    layer.canvas.style.opacity = "0";
                 }
 
                 appearedAt = null;
@@ -430,7 +446,7 @@ export function Galaxy({ children }: { children: ReactNode }) {
             for (const context of [back, front]) {
                 context.setTransform(scale, 0, 0, scale, 0, 0);
                 context.clearRect(0, 0, FIELD_SIZE, FIELD_SIZE);
-                context.globalCompositeOperation = 'lighter';
+                context.globalCompositeOperation = "lighter";
             }
 
             // The galaxy's warm core, flattened by the tilt.
@@ -439,9 +455,9 @@ export function Galaxy({ children }: { children: ReactNode }) {
             back.rotate(-roll);
             back.scale(1, 0.35 + tiltSin * 0.65);
             const core = back.createRadialGradient(0, 0, 0, 0, 0, 330 * zoom);
-            core.addColorStop(0, 'rgba(255, 150, 80, 0.22)');
-            core.addColorStop(0.5, 'rgba(255, 90, 40, 0.07)');
-            core.addColorStop(1, 'rgba(255, 60, 30, 0)');
+            core.addColorStop(0, "rgba(255, 150, 80, 0.22)");
+            core.addColorStop(0.5, "rgba(255, 90, 40, 0.07)");
+            core.addColorStop(1, "rgba(255, 60, 30, 0)");
             back.fillStyle = core;
             back.fillRect(-330 * zoom, -330 * zoom, 660 * zoom, 660 * zoom);
             back.restore();
@@ -513,7 +529,7 @@ export function Galaxy({ children }: { children: ReactNode }) {
 
                 if (star.planets.length > 0) {
                     context.globalAlpha = 0.18;
-                    context.strokeStyle = '#FFD7BD';
+                    context.strokeStyle = "#FFD7BD";
                     context.lineWidth = 0.6;
 
                     for (const planet of star.planets) {
@@ -562,6 +578,16 @@ export function Galaxy({ children }: { children: ReactNode }) {
                 }
             }
 
+            // Fade the galaxy out toward the headline. Drawn here rather than
+            // with a CSS mask, which Safari recomposites on every frame.
+            for (const context of [back, front]) {
+                context.globalAlpha = 1;
+                context.globalCompositeOperation = "destination-out";
+                context.fillStyle = edgeFade;
+                context.fillRect(0, 0, FIELD_SIZE * EDGE_FADE_END, FIELD_SIZE);
+                context.globalCompositeOperation = "source-over";
+            }
+
             // Our solar system orbits the galaxy like every other star,
             // starting just below and left of the black hole.
             if (!solOrbit) {
@@ -591,7 +617,7 @@ export function Galaxy({ children }: { children: ReactNode }) {
             sol.clearRect(0, 0, SOL_FIELD_SIZE, SOL_FIELD_SIZE);
             sol.canvas.style.transform = `translate(${solOffset.x - SOL_FIELD_SIZE / 2}px, ${solOffset.y - SOL_FIELD_SIZE / 2}px)`;
             // On the far side of the galaxy it passes behind the black hole.
-            sol.canvas.style.zIndex = solOffset.depth > 0 ? '' : '-1';
+            sol.canvas.style.zIndex = solOffset.depth > 0 ? "" : "-1";
             drawSolSystem(sol, projectOffset, zoom, roll, seconds);
 
             // The Voyagers leave Earth and head out across the galaxy.
@@ -607,7 +633,7 @@ export function Galaxy({ children }: { children: ReactNode }) {
                 const context = head.depth > 0 ? front : back;
 
                 context.lineWidth = 0.9;
-                context.strokeStyle = '#CFE6FF';
+                context.strokeStyle = "#CFE6FF";
 
                 for (let index = 1; index < points.length; index++) {
                     context.globalAlpha =
@@ -622,21 +648,21 @@ export function Galaxy({ children }: { children: ReactNode }) {
 
                 context.globalAlpha = 0.8 * voyager.visibility;
                 context.drawImage(
-                    glowSprite('#BFE0FF'),
+                    glowSprite("#BFE0FF"),
                     head.x - 6,
                     head.y - 6,
                     12,
                     12,
                 );
                 context.globalAlpha = voyager.visibility;
-                context.fillStyle = '#FFFFFF';
+                context.fillStyle = "#FFFFFF";
                 context.beginPath();
                 context.arc(head.x, head.y, 1.3, 0, Math.PI * 2);
                 context.fill();
 
                 context.globalAlpha = 0.7 * voyager.visibility;
                 context.font = '500 9px "Instrument Sans", sans-serif';
-                context.fillStyle = '#DCEBFF';
+                context.fillStyle = "#DCEBFF";
                 context.fillText(voyager.name, head.x + 6, head.y - 5);
             }
 
@@ -651,7 +677,7 @@ export function Galaxy({ children }: { children: ReactNode }) {
                 ship.setTransform(solScale, 0, 0, solScale, 0, 0);
                 ship.clearRect(0, 0, SHIP_FIELD_SIZE, SHIP_FIELD_SIZE);
                 ship.canvas.style.transform = `translate(${offset.x - SHIP_FIELD_SIZE / 2}px, ${offset.y - SHIP_FIELD_SIZE / 2}px)`;
-                ship.canvas.style.zIndex = offset.depth > 0 ? '' : '-1';
+                ship.canvas.style.zIndex = offset.depth > 0 ? "" : "-1";
 
                 return offset;
             };
@@ -732,10 +758,10 @@ export function Galaxy({ children }: { children: ReactNode }) {
     }, []);
 
     const canvasClassName =
-        'absolute top-1/2 left-1/2 size-[1700px] -translate-1/2 opacity-0 [mask-image:linear-gradient(to_right,transparent_12%,black_42%)] motion-reduce:hidden';
+        "absolute top-1/2 left-1/2 size-[1700px] -translate-1/2 opacity-0 motion-reduce:hidden";
 
     const shipClassName =
-        'absolute top-1/2 left-1/2 size-[240px] opacity-0 motion-reduce:hidden';
+        "absolute top-1/2 left-1/2 size-[240px] opacity-0 motion-reduce:hidden";
 
     return (
         <>

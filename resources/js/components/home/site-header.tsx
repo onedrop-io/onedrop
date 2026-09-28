@@ -2,10 +2,11 @@ import { Link } from '@inertiajs/react';
 import { FEATURES } from '@/components/home/features';
 import { PoppingDrop } from '@/components/home/popping-drop';
 import { ProductMenu } from '@/components/home/product-menu';
+import { DOCUMENTATION_URL } from '@/lib/links';
 import { dashboard, login, pricing, register } from '@/routes';
 
 /**
- * The marketing pages' sticky top bar: logo, Product menu, page links, and
+ * The marketing pages' sticky top bar: logo, Product menu, page links, Docs, and
  * log in / sign up (or Dashboard when logged in).
  */
 export function SiteHeader({ isLoggedIn }: { isLoggedIn: boolean }) {
@@ -29,6 +30,9 @@ export function SiteHeader({ isLoggedIn }: { isLoggedIn: boolean }) {
                     </Link>
                     <a href="/#faq" className="hover:text-white">
                         FAQ
+                    </a>
+                    <a href={DOCUMENTATION_URL} className="hover:text-white">
+                        Docs
                     </a>
                 </nav>
                 <div className="ml-auto flex items-center gap-2 text-sm">

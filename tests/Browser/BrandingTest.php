@@ -16,7 +16,7 @@ test('the dev user sees the OneDrop name and links after logging in', function (
         ->assertTitleContains('OneDrop')
         ->assertSee('OneDrop')
         ->assertDontSee('Laravel')
-        ->assertAttribute('a[href="https://github.com/phishy/zap"]', 'target', '_blank')
-        ->assertPresent('a[href="https://github.com/phishy/zap/tree/main/docs"]')
+        ->assertAttribute('a[href="https://github.com/onedrop-io/onedrop"]', 'target', '_blank')
+        ->assertPresent('a[href="https://docs.onedrop.io/introduction"]')
         ->assertNoJavaScriptErrors();
 })->group('BRAND-001');

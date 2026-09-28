@@ -1,5 +1,6 @@
 import { Link } from '@inertiajs/react';
 import { DropMark } from '@/components/home/drop-mark';
+import { DOCUMENTATION_URL, REPOSITORY_URL } from '@/lib/links';
 import { pricing } from '@/routes';
 
 /** The marketing pages' footer. */
@@ -15,10 +16,10 @@ export function SiteFooter() {
                 <Link href={pricing()} className="hover:text-white sm:ml-auto">
                     Pricing
                 </Link>
-                <a
-                    href="https://github.com/phishy/zap"
-                    className="hover:text-white"
-                >
+                <a href={DOCUMENTATION_URL} className="hover:text-white">
+                    Docs
+                </a>
+                <a href={REPOSITORY_URL} className="hover:text-white">
                     Source on GitHub
                 </a>
             </div>
