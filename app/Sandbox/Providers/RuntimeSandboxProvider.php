@@ -174,7 +174,8 @@ class RuntimeSandboxProvider implements SandboxProvider
     public function copyIn(string $id, string $directory, string $path): void
     {
         $local = tempnam(sys_get_temp_dir(), 'zap-copy-');
-        $archive = '/tmp/zap-copy-'.Str::random(8).'.tgz';
+        // Large uploads may only go under /workspace; the unpack below removes it again.
+        $archive = '/workspace/.zap-copy-'.Str::random(8).'.tgz';
 
         try {
             $result = Process::forever()->run(['tar', '-czf', $local, '-C', $directory, '.']);
@@ -183,9 +184,7 @@ class RuntimeSandboxProvider implements SandboxProvider
                 throw new SandboxException("Couldn't pack {$directory}: ".strtok(trim($result->errorOutput()), "\n"));
             }
 
-            $this->throwUnlessOk($this->client()->timeout(600)
-                ->withBody(fopen($local, 'r'), 'application/octet-stream')
-                ->put('sandboxes/'.$id.'/files/content?'.http_build_query(['path' => $archive])));
+            $this->upload($id, $local, $archive);
         } finally {
             @unlink($local);
         }
@@ -197,6 +196,34 @@ class RuntimeSandboxProvider implements SandboxProvider
         if (! $unpacked->successful()) {
             throw new SandboxException("Couldn't copy files into {$path} in the sandbox: ".(strtok(trim($unpacked->errorOutput), "\n") ?: 'tar failed'));
         }
+    }
+
+    /**
+     * Upload a local file in the chunks Runtime asks for (a single request refuses large files with 413),
+     * checked against its SHA-256 when committed.
+     *
+     * @throws SandboxException
+     */
+    protected function upload(string $id, string $local, string $path): void
+    {
+        $size = filesize($local);
+        $upload = $this->send('post', "sandboxes/{$id}/uploads", ['path' => $path, 'size' => $size, 'sha256' => hash_file('sha256', $local), 'mode' => '600']);
+        $chunk = max(1, (int) $upload['chunkBytes']);
+        $handle = fopen($local, 'r');
+
+        try {
+            for ($offset = 0; $offset < $size; $offset += $chunk) {
+                $bytes = stream_get_contents($handle, $chunk, $offset);
+
+                $this->throwUnlessOk($this->client()->timeout(600)
+                    ->withBody($bytes, 'application/octet-stream')
+                    ->put("sandboxes/{$id}/uploads/{$upload['uploadId']}?offset={$offset}"));
+            }
+        } finally {
+            fclose($handle);
+        }
+
+        $this->send('post', "sandboxes/{$id}/uploads/{$upload['uploadId']}:commit", [], timeout: 120);
     }
 
     public function destroy(string $id): void

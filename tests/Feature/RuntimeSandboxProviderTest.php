@@ -225,7 +225,8 @@ test('copying out a path the sandbox never created copies nothing', function () 
 test('copying in uploads an archive, unpacks it as root, and hands it to the sandbox user', function () {
     Process::fake(['*' => Process::result()]);
     Http::fake([
-        RT_API.'/sandboxes/'.RT_ID.'/files/content*' => Http::response([]),
+        RT_API.'/sandboxes/'.RT_ID.'/uploads' => Http::response(['uploadId' => 'up-1', 'chunkBytes' => 8_388_608]),
+        RT_API.'/sandboxes/'.RT_ID.'/uploads/up-1:commit' => Http::response(['size' => 0, 'sha256' => 'x']),
         RT_API.'/sandboxes/'.RT_ID.':exec' => Http::response(['exitCode' => 0, 'stdout' => '', 'stderr' => '', 'timedOut' => false]),
     ]);
 
@@ -236,4 +237,31 @@ test('copying in uploads an archive, unpacks it as root, and hands it to the san
         && $request['argv'][0] === 'sudo'
         && in_array('/home/sandbox/.local/share/opencode', $request['argv'], true)
         && end($request->data()['argv']) === '/home/sandbox');
+})->group('SBX-003');
+
+test('large archives are uploaded in the chunks runtime asks for, checked by their digest', function () {
+    // tar writes 25 bytes; Runtime asks for 10-byte chunks.
+    Process::fake(function ($process) {
+        file_put_contents($process->command[2], str_repeat('x', 25));
+
+        return Process::result();
+    });
+    Http::fake([
+        RT_API.'/sandboxes/'.RT_ID.'/uploads' => Http::response(['uploadId' => 'up-1', 'chunkBytes' => 10]),
+        RT_API.'/sandboxes/'.RT_ID.'/uploads/up-1?*' => Http::response(['received' => 10]),
+        RT_API.'/sandboxes/'.RT_ID.'/uploads/up-1:commit' => Http::response(['size' => 25, 'sha256' => hash('sha256', str_repeat('x', 25))]),
+        RT_API.'/sandboxes/'.RT_ID.':exec' => Http::response(['exitCode' => 0, 'stdout' => '', 'stderr' => '', 'timedOut' => false]),
+    ]);
+
+    $this->runtime->copyIn(RT_ID, sys_get_temp_dir(), '/workspace');
+
+    Http::assertSent(fn (Request $request) => str_ends_with($request->url(), '/uploads')
+        && $request['size'] === 25 && $request['sha256'] === hash('sha256', str_repeat('x', 25)));
+
+    $chunks = Http::recorded()->map(fn (array $pair) => $pair[0])
+        ->filter(fn (Request $request) => $request->method() === 'PUT')
+        ->map(fn (Request $request) => [parse_url($request->url(), PHP_URL_QUERY), strlen($request->body())])->values()->all();
+
+    expect($chunks)->toBe([['offset=0', 10], ['offset=10', 10], ['offset=20', 5]]);
+    Http::assertSent(fn (Request $request) => str_ends_with($request->url(), ':commit'));
 })->group('SBX-003');
