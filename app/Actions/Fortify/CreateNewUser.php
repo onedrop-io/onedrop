@@ -32,6 +32,10 @@ class CreateNewUser implements CreatesNewUsers
             'password' => $input['password'],
         ]);
 
+        if (! config('auth.verify_email')) {
+            $user->forceFill(['email_verified_at' => now()])->save();
+        }
+
         $this->acceptInvitation($user);
 
         return $user;

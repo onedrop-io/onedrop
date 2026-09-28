@@ -104,7 +104,7 @@ class OpenCodeEvents
             $this->say($project, MessageRole::Assistant, $this->explainExit($stderr));
         }
 
-        $project->update(['status' => ProjectStatus::Idle]);
+        app(AgentQueue::class)->finished($project);
     }
 
     /**

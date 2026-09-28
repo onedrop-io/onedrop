@@ -5,8 +5,10 @@ import TextLink from '@/components/text-link';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
+import SocialLoginButtons from '@/components/social-login-buttons';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
+import type { SocialProviderOption } from '@/types/auth';
 import { register } from '@/routes';
 import { store } from '@/routes/login';
 import { request } from '@/routes/password';
@@ -15,14 +17,21 @@ import PasskeyVerify from '@/components/passkey-verify';
 type Props = {
     status?: string;
     canResetPassword: boolean;
+    socialProviders: SocialProviderOption[];
 };
 
-export default function Login({ status, canResetPassword }: Props) {
+export default function Login({
+    status,
+    canResetPassword,
+    socialProviders,
+}: Props) {
     return (
         <>
             <Head title="Log in" />
 
             <PasskeyVerify />
+
+            <SocialLoginButtons providers={socialProviders} />
 
             <Form
                 {...store.form()}

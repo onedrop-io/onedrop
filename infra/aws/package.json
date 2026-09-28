@@ -1,0 +1,15 @@
+{
+    "name": "zap-aws",
+    "private": true,
+    "main": "index.ts",
+    "scripts": {
+        "release": "bash scripts/release.sh"
+    },
+    "dependencies": {
+        "@pulumi/aws": "^7",
+        "@pulumi/pulumi": "^3"
+    },
+    "devDependencies": {
+        "@types/node": "^22"
+    }
+}

@@ -2,45 +2,51 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\MessageRole;
-use App\Enums\ProjectStatus;
-use App\Jobs\RunAgentTask;
+use App\Models\Attachment;
+use App\Models\Message;
 use App\Models\Project;
+use App\Sandbox\Agents\AgentQueue;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Validation\Rule;
 
 class ProjectMessageController extends Controller
 {
     /**
-     * Send a follow-up message to the project's agent.
+     * Send a message to the project's agent. While it's working the message is queued,
+     * unless mode is "now", which stops the current run and sends this one instead.
+     * Files can come along (AGT-006), with or without text.
      */
-    public function store(Request $request, Project $project): RedirectResponse
+    public function store(Request $request, Project $project, AgentQueue $queue): RedirectResponse
     {
         Gate::authorize('update', $project);
 
         $validated = $request->validate([
-            'content' => ['required', 'string', 'max:5000'],
+            ...Attachment::rules('content'),
+            'mode' => ['nullable', Rule::in(['queue', 'now'])],
         ]);
 
-        // One run at a time: a second run on the same agent session corrupts it.
-        if ($project->status === ProjectStatus::Working) {
-            throw ValidationException::withMessages([
-                'content' => __('The agent is still working. Send your message when it finishes.'),
-            ]);
-        }
+        $queue->send(
+            $project,
+            $validated['content'] ?? '',
+            now: ($validated['mode'] ?? 'queue') === 'now',
+            attachments: $request->file('attachments', []),
+        );
 
-        // Show "Thinking…" right away: the page only polls for updates while the agent is working,
-        // and the queued run may take a moment to start.
-        $project->update(['status' => ProjectStatus::Working]);
+        return to_route('projects.show', $project);
+    }
 
-        $message = $project->messages()->create([
-            'role' => MessageRole::User,
-            'content' => $validated['content'],
-        ]);
+    /**
+     * Remove a queued message before it runs.
+     */
+    public function destroy(Project $project, Message $message): RedirectResponse
+    {
+        Gate::authorize('update', $project);
 
-        RunAgentTask::dispatch($project, $message);
+        abort_unless($message->project_id === $project->id && $message->queued, 404);
+
+        $message->delete();
 
         return to_route('projects.show', $project);
     }

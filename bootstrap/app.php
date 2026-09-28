@@ -20,6 +20,17 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
         $middleware->validateCsrfTokens(except: ['sandbox-events/*']);
 
+        // Saved file contents must reach the sandbox byte for byte (trailing newlines included).
+        $middleware->trimStrings(except: [
+            fn (Request $request) => $request->isMethod('PUT') && $request->is('projects/*/files'),
+            fn (Request $request) => $request->is('projects/*/database/*'),
+        ]);
+
+        // Database cells keep the difference between an empty string and NULL.
+        $middleware->convertEmptyStringsToNull(except: [
+            fn (Request $request) => $request->is('projects/*/database/*'),
+        ]);
+
         // A local reverse proxy (e.g. `tailscale funnel`) forwards the real scheme and host.
         $middleware->trustProxies(at: ['127.0.0.1', '::1']);
 

@@ -22,10 +22,10 @@ export default function OnboardingAi({
                             Set up your AI
                         </h1>
                         <p className="text-muted-foreground">
-                            The agent that builds your apps runs on your own AI
-                            account. Connect at least one to start building.
-                            Keys are encrypted and only used inside your
-                            sandboxes.
+                            Your apps get built on your own AI plan or key: no
+                            credits, no markup. Connect at least one to start
+                            building. Credentials are encrypted and only used
+                            inside your sandboxes.
                         </p>
                     </div>
 

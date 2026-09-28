@@ -1,0 +1,5 @@
+encryptionsalt: v1:7Z2e7o4gOs8=:v1:JuY5bT2mVJIqdi8x:hSBs73L4jSqjjMZEghYLP5hiOT+12A==
+config:
+    aws:region: us-east-1
+    aws:profile: jeff
+    zap:domain: onedrop.io

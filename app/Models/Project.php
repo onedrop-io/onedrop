@@ -2,11 +2,13 @@
 
 namespace App\Models;
 
+use App\Enums\AgentProvider;
 use App\Enums\ProjectStatus;
 use App\Enums\PublishStatus;
 use App\Enums\PublishVisibility;
 use Database\Factories\ProjectFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -22,6 +24,9 @@ use Illuminate\Support\Str;
  * @property string $prompt
  * @property ProjectStatus $status
  * @property string|null $agent_session_id
+ * @property AgentProvider|null $agent_provider
+ * @property string|null $agent_model
+ * @property string|null $agent_variant
  * @property PublishStatus|null $publish_status
  * @property PublishVisibility|null $publish_visibility
  * @property string|null $published_url
@@ -32,7 +37,8 @@ use Illuminate\Support\Str;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['name', 'prompt', 'status', 'agent_session_id', 'publish_status', 'publish_visibility', 'published_url', 'published_at', 'published_by', 'publish_error', 'publish_login_url'])]
+#[Fillable(['name', 'prompt', 'status', 'agent_session_id', 'agent_provider', 'agent_model', 'agent_variant', 'publish_status', 'publish_visibility', 'published_url', 'published_at', 'published_by', 'publish_error', 'publish_login_url', 'onedrop_enabled', 'onedrop_client_id', 'onedrop_client_secret', 'onedrop_callback_path', 'onedrop_group_ids'])]
+#[Hidden(['onedrop_client_secret'])]
 class Project extends Model
 {
     /** @use HasFactory<ProjectFactory> */
@@ -47,9 +53,13 @@ class Project extends Model
     {
         return [
             'status' => ProjectStatus::class,
+            'agent_provider' => AgentProvider::class,
             'publish_status' => PublishStatus::class,
             'publish_visibility' => PublishVisibility::class,
             'published_at' => 'datetime',
+            'onedrop_enabled' => 'boolean',
+            'onedrop_client_secret' => 'hashed',
+            'onedrop_group_ids' => 'array',
         ];
     }
 
@@ -74,13 +84,23 @@ class Project extends Model
     }
 
     /**
-     * The chat messages in the project, oldest first.
+     * The chat messages in the project, oldest first (not counting queued ones).
      *
      * @return HasMany<Message, $this>
      */
     public function messages(): HasMany
     {
-        return $this->hasMany(Message::class)->orderBy('id');
+        return $this->hasMany(Message::class)->where('queued', false)->orderBy('id');
+    }
+
+    /**
+     * Messages waiting for the current agent run to finish, in the order they'll run.
+     *
+     * @return HasMany<Message, $this>
+     */
+    public function queuedMessages(): HasMany
+    {
+        return $this->hasMany(Message::class)->where('queued', true)->orderBy('id');
     }
 
     /**

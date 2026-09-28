@@ -1,0 +1,8 @@
+name: zap-aws
+description: A single-server Zap deployment on AWS (EC2 + S3 releases).
+runtime:
+    name: nodejs
+    options:
+        packagemanager: npm
+config:
+    aws:region: us-east-1

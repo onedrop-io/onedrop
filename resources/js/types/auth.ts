@@ -31,3 +31,14 @@ export type TwoFactorSetupData = {
 export type TwoFactorSecretKey = {
     secretKey: string;
 };
+
+export type SocialProviderOption = {
+    id: string;
+    label: string;
+};
+
+export type SocialAccountRow = {
+    provider: string;
+    label: string;
+    account: { id: number; email: string | null } | null;
+};

@@ -1,4 +1,4 @@
-export type ProjectStatus = 'idle' | 'working';
+export type ProjectStatus = "idle" | "working";
 
 export type Project = {
     id: number;
@@ -6,25 +6,38 @@ export type Project = {
     status: ProjectStatus;
 };
 
-export type ProjectSummary = Pick<Project, 'id' | 'name'>;
+export type ProjectSummary = Pick<Project, "id" | "name">;
+
+export type MessageAttachment = {
+    id: number;
+    name: string;
+    mime_type: string;
+    size: number;
+    /** A PNG, JPEG, GIF or WebP the browser (and a vision model) can show. */
+    image: boolean;
+    url: string;
+};
 
 export type ChatMessage = {
     id: number;
-    role: 'user' | 'assistant' | 'activity';
+    role: "user" | "assistant" | "activity";
     content: string;
+    attachments: MessageAttachment[];
     created_at: string | null;
 };
 
 export type SandboxState = {
-    status: 'creating' | 'running' | 'paused' | 'failed';
+    status: "creating" | "running" | "paused" | "failed";
     preview_url: string | null;
     shell_url: string | null;
     error: string | null;
+    /** Moving to the current sandbox image (files kept). */
+    updating: boolean;
 };
 
 export type WorkspaceEntry = {
     path: string;
-    type: 'file' | 'dir';
+    type: "file" | "dir";
 };
 
 export type WorkspaceFile = {
@@ -34,8 +47,8 @@ export type WorkspaceFile = {
 };
 
 export type Publication = {
-    status: 'publishing' | 'live' | 'failed' | null;
-    visibility: 'private' | 'public' | null;
+    status: "publishing" | "live" | "failed" | null;
+    visibility: "private" | "public" | null;
     url: string | null;
     published_at: string | null;
     published_by: string | null;
@@ -44,4 +57,10 @@ export type Publication = {
     login_url: string | null;
     /** Why publishing can't be used here (e.g. Tailscale not set up). */
     unavailable: string | null;
+};
+
+export type QueuedMessage = {
+    id: number;
+    content: string;
+    attachments: MessageAttachment[];
 };

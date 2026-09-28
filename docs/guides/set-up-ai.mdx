@@ -1,0 +1,77 @@
+---
+title: 'Set up your AI'
+description: 'Connect Anthropic, OpenAI, or OpenRouter so the agent can build with your own account.'
+---
+
+The agent that builds your apps uses your own AI account: your ChatGPT Plus or Pro plan, or your own API key. You pay your provider directly, with no credits and no markup. You connect at least one provider after signing up, and you can change it later in **Settings → AI**.
+
+## Providers
+
+<Tabs>
+  <Tab title="Claude (Anthropic)">
+    Paste an Anthropic API key from [console.anthropic.com](https://console.anthropic.com/settings/keys). OneDrop checks the key with Anthropic before saving it.
+
+    A small link lets you paste a Claude Code token from `claude setup-token` instead. The current agent can't use subscription tokens, so use an API key or OpenRouter to build apps today.
+
+  </Tab>
+  <Tab title="OpenAI">
+    Sign in with your ChatGPT account to use your ChatGPT Plus or Pro plan instead of paying for API usage:
+
+    <Steps>
+      <Step title="Start sign-in">
+        On the Codex card, click **Sign in with ChatGPT**. OneDrop shows a one-time code.
+      </Step>
+      <Step title="Approve on OpenAI">
+        Open [auth.openai.com/codex/device](https://auth.openai.com/codex/device), sign in to ChatGPT, and enter the code. The code expires after 15 minutes.
+      </Step>
+      <Step title="Wait for OneDrop">
+        Keep the OneDrop tab open. It connects Codex as soon as you approve.
+      </Step>
+    </Steps>
+
+    If OpenAI says to enable device code sign-in, turn it on in ChatGPT under **Settings → Security**, then click **Get a new code** in OneDrop. A code issued before you changed the setting keeps failing. On a ChatGPT Business or Enterprise workspace, an admin may need to allow device code sign-in first.
+
+    OneDrop keeps your ChatGPT sign-in and refreshes it for you. Sandboxes only get a short-lived access token, never the refresh token. If OpenAI ends the sign-in (for example, after you sign out of all devices), the chat asks you to sign in with ChatGPT again.
+
+    <Note>
+      On a ChatGPT plan, the agent can only use the models OpenAI includes with Codex (currently recent GPT models, such as `gpt-5.5`). The model picker only lists those, and projects start on the first one if the default OpenAI model isn't included.
+    </Note>
+
+    To pay per use instead, click **Paste an OpenAI API key instead** and paste a key from [platform.openai.com](https://platform.openai.com/api-keys). OneDrop checks it with OpenAI before saving it.
+  </Tab>
+  <Tab title="OpenRouter">
+    Click **Sign in with OpenRouter** and approve access. OpenRouter creates a key you control and can revoke. A small link lets you paste an existing OpenRouter key instead.
+  </Tab>
+</Tabs>
+
+## Manage connections
+
+In **Settings → AI** you can:
+
+- See each connected provider, showing only the last four characters of its key (or of your ChatGPT account ID)
+- Reconnect with a new key
+- Choose which provider is the default when you have more than one
+- Disconnect a provider
+
+Keys are encrypted in the database, never sent back to your browser, and only passed to the agent inside your project sandboxes.
+
+## Choose a model
+
+Each project runs on the model you pick. The picker sits under the chat box, in both the new-project prompt and the project chat.
+
+- **Providers:** the rail on the left shows the providers you've connected. The star tab shows your favorites.
+- **Search:** type to filter by name. Featured models are listed first; every other model that can use tools is under **More models**. OpenRouter alone offers a few hundred.
+- **Recent:** the models you picked last are listed first under each provider.
+- **Favorites:** hover a model and click its star.
+- **Reasoning:** the button next to the model sets how hard it thinks, from the levels that model supports (for example Low, Medium, High, Extra high, Max). **Default** uses the model's own default.
+
+Changing the model takes effect on your next message; the agent keeps the conversation. Each model shows its context size and price per million tokens (input/output).
+
+New projects start on your default provider's default model, set by whoever runs OneDrop (`SANDBOX_MODEL_*` in [Configuration](/self-hosting/configuration#agent)).
+
+<Warning>
+    OpenRouter reserves the maximum possible cost of each request before running
+    it. If your OpenRouter balance is low, requests can be refused even though
+    the final cost would be small. The chat tells you when this happens; add
+    credits and try again.
+</Warning>

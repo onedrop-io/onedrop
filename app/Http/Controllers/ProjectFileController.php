@@ -9,7 +9,11 @@ use App\Sandbox\SandboxException;
 use App\Sandbox\WorkspaceFiles;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\HeaderUtils;
 
 class ProjectFileController extends Controller
 {
@@ -40,11 +44,95 @@ class ProjectFileController extends Controller
     }
 
     /**
-     * Run a read against a running sandbox, turning failures into JSON errors.
-     *
-     * @param  callable(Sandbox): array<string, mixed>  $read
+     * Save a file's contents.
      */
-    protected function fromSandbox(Project $project, callable $read): JsonResponse
+    public function update(Request $request, Project $project, WorkspaceFiles $files): JsonResponse
+    {
+        Gate::authorize('update', $project);
+
+        $validated = $request->validate([
+            'path' => ['required', 'string', 'max:1000'],
+            'content' => ['present', 'nullable', 'string', 'max:'.WorkspaceFiles::MAX_BYTES],
+        ]);
+        $path = (string) $validated['path'];
+
+        abort_unless(WorkspaceFiles::isSafePath($path), 422, __('That path is outside the project.'));
+
+        return $this->fromSandbox($project, function ($sandbox) use ($files, $path, $validated) {
+            $files->write($sandbox, $path, (string) $validated['content']);
+
+            return ['path' => $path, 'saved' => true];
+        });
+    }
+
+    /**
+     * Create an empty file or folder.
+     */
+    public function store(Request $request, Project $project, WorkspaceFiles $files): JsonResponse
+    {
+        Gate::authorize('update', $project);
+
+        $validated = $request->validate([
+            'path' => ['required', 'string', 'max:1000'],
+            'type' => ['required', Rule::in(['file', 'dir'])],
+        ]);
+        $path = trim((string) $validated['path'], '/');
+
+        abort_unless(WorkspaceFiles::isSafePath($path), 422, __('That path is outside the project.'));
+
+        return $this->fromSandbox($project, function ($sandbox) use ($files, $path, $validated) {
+            if (! $files->create($sandbox, $path, $validated['type'])) {
+                return response()->json(['message' => __(':path already exists.', ['path' => $path])], 422);
+            }
+
+            return ['path' => $path, 'type' => $validated['type']];
+        });
+    }
+
+    /**
+     * Upload one file (e.g. from a folder the user picked) into the workspace.
+     */
+    public function upload(Request $request, Project $project, WorkspaceFiles $files): JsonResponse
+    {
+        Gate::authorize('update', $project);
+
+        $validated = $request->validate([
+            'path' => ['required', 'string', 'max:1000'],
+            'file' => ['required', 'file', 'max:'.WorkspaceFiles::MAX_UPLOAD_KILOBYTES],
+        ]);
+        $path = (string) $validated['path'];
+
+        abort_unless(WorkspaceFiles::isSafePath($path), 422, __('That path is outside the project.'));
+
+        return $this->fromSandbox($project, function ($sandbox) use ($files, $path, $request) {
+            $files->upload($sandbox, $path, (string) $request->file('file')->get());
+
+            return ['path' => $path, 'uploaded' => true];
+        });
+    }
+
+    /**
+     * Download the workspace as a zip.
+     */
+    public function download(Project $project, WorkspaceFiles $files): Response|JsonResponse
+    {
+        Gate::authorize('view', $project);
+
+        return $this->fromSandbox($project, fn ($sandbox) => response($files->zip($sandbox), 200, [
+            'Content-Type' => 'application/zip',
+            'Content-Disposition' => HeaderUtils::makeDisposition(
+                HeaderUtils::DISPOSITION_ATTACHMENT,
+                (Str::slug($project->name) ?: 'project').'.zip',
+            ),
+        ]));
+    }
+
+    /**
+     * Run a call against a running sandbox, turning failures into JSON errors.
+     *
+     * @param  callable(Sandbox): (array<string, mixed>|JsonResponse|Response)  $call
+     */
+    protected function fromSandbox(Project $project, callable $call): JsonResponse|Response
     {
         $sandbox = $project->sandbox;
 
@@ -53,7 +141,9 @@ class ProjectFileController extends Controller
         }
 
         try {
-            return response()->json($read($sandbox));
+            $result = $call($sandbox);
+
+            return is_array($result) ? response()->json($result) : $result;
         } catch (SandboxException $e) {
             return response()->json(['message' => $e->getMessage()], 502);
         }

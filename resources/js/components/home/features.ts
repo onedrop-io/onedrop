@@ -1,0 +1,78 @@
+import {
+    Eye,
+    FolderTree,
+    KeyRound,
+    Loader2,
+    MessagesSquare,
+    Share2,
+    ShieldCheck,
+    Users,
+} from 'lucide-react';
+
+/** The product's main features, shown on the home page and in the top bar's Product menu. */
+export const FEATURES = [
+    {
+        icon: KeyRound,
+        id: 'feature-your-ai',
+        title: 'Bring your own subscription',
+        name: 'Bring your AI',
+        summary: 'Use the plan you have',
+        body: 'Build on the ChatGPT Plus or Pro plan you already pay for, or bring your own key for Claude, OpenAI, or hundreds of models through OpenRouter. No credits to buy and no markup.',
+    },
+    {
+        icon: Eye,
+        id: 'feature-live-preview',
+        title: 'A real app, not a mockup',
+        name: 'Live preview',
+        summary: 'The real app, running',
+        body: 'Sign-in, a database, secrets, analytics, and feature flags come built in. The preview is the actual app, running: click the buttons, fill in the forms, break it on purpose.',
+    },
+    {
+        icon: MessagesSquare,
+        id: 'feature-change-by-asking',
+        title: 'Change it by asking',
+        name: 'Chat to edit',
+        summary: 'Just ask for changes',
+        body: '“Make the button green.” “Add a CSV export.” It remembers the whole conversation, so you never start over.',
+    },
+    {
+        icon: Share2,
+        id: 'feature-share',
+        title: 'One click to share',
+        name: 'Instant links',
+        summary: 'Share via Tailscale',
+        body: 'Publish and get a link your whole team can open, with no DNS, servers, or deploy pipeline to set up. It stays private to your team until you flip it public.',
+    },
+    {
+        icon: ShieldCheck,
+        id: 'feature-sandbox',
+        title: 'Every app in its own sandbox',
+        name: 'Sandboxes',
+        summary: 'Every app isolated',
+        body: 'Each project runs in a sealed-off workspace, so one experiment can never touch another app or your data.',
+    },
+    {
+        icon: Loader2,
+        id: 'feature-no-black-box',
+        title: 'No black box',
+        name: 'Live activity',
+        summary: 'Watch every step',
+        body: 'Watch every file it reads, every change it makes, and every command it runs, as it happens.',
+    },
+    {
+        icon: FolderTree,
+        id: 'feature-under-the-hood',
+        title: 'Look under the hood',
+        name: 'Code & terminal',
+        summary: 'Full access, anytime',
+        body: 'Browse every file, watch the server output, or open a terminal. Handy for developers, invisible to everyone else. It’s plain, standard code you can take anywhere.',
+    },
+    {
+        icon: Users,
+        id: 'feature-teams',
+        title: 'Built for teams',
+        name: 'Teams',
+        summary: 'Invites, groups, roles',
+        body: 'Invite people with a link, organize them into groups, and decide who runs the place.',
+    },
+];

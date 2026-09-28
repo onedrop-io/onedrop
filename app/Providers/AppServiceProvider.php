@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Models\User;
 use App\Sandbox\Agents\AgentRunner;
+use App\Sandbox\Gateway;
 use App\Sandbox\Providers\DockerSandboxProvider;
 use App\Sandbox\Providers\FakeSandboxProvider;
 use App\Sandbox\Publishing\FakePublisher;
@@ -13,10 +14,13 @@ use App\Sandbox\SandboxProvider;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 use InvalidArgumentException;
+use SocialiteProviders\Manager\SocialiteWasCalled;
+use SocialiteProviders\Microsoft\Provider as MicrosoftProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -26,6 +30,8 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(AgentRunner::class, fn ($app) => $app->make(config('sandbox.agent')));
+
+        $this->app->bind(Gateway::class, fn () => new Gateway(config('sandbox.gateway_domain')));
 
         $this->app->singleton(SandboxProvider::class, fn () => match ($provider = config('sandbox.provider')) {
             'docker' => new DockerSandboxProvider(config('sandbox.providers.docker')),
@@ -48,6 +54,8 @@ class AppServiceProvider extends ServiceProvider
         $this->configureDefaults();
 
         Gate::define('manage-users', fn (User $user): bool => $user->is_admin);
+
+        Event::listen(fn (SocialiteWasCalled $event) => $event->extendSocialite('microsoft', MicrosoftProvider::class));
     }
 
     /**

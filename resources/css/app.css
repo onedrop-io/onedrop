@@ -13,6 +13,110 @@
         'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
         'Noto Color Emoji';
 
+    --font-display:
+        'Schibsted Grotesk', 'Instrument Sans', ui-sans-serif, system-ui,
+        sans-serif;
+
+    --animate-drop-fall: drop-fall 1.1s cubic-bezier(0.55, 0, 0.8, 0.4) both;
+    --animate-ripple-in: ripple-in 1.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+    --animate-ripple-splash: ripple-splash 2.4s cubic-bezier(0.16, 1, 0.3, 1)
+        both;
+
+    @keyframes drop-fall {
+        0% {
+            transform: translateY(-140px);
+            opacity: 0;
+        }
+        20% {
+            opacity: 1;
+        }
+        80% {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        100% {
+            transform: translateY(0) scale(1.6, 0.2);
+            opacity: 0;
+        }
+    }
+
+    @keyframes ripple-in {
+        from {
+            transform: scale(0.05);
+            opacity: 0;
+        }
+        to {
+            transform: scale(1);
+            opacity: 1;
+        }
+    }
+
+    @keyframes ripple-splash {
+        0% {
+            transform: scale(0.05);
+            opacity: 0;
+        }
+        5% {
+            opacity: 0.9;
+        }
+        100% {
+            transform: scale(1.35);
+            opacity: 0;
+        }
+    }
+
+    --animate-track-draw: track-draw 1.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    --animate-impact-flash: impact-flash 0.7s ease-out both;
+
+    @keyframes track-draw {
+        0% {
+            stroke-dashoffset: 1;
+            opacity: 0;
+        }
+        5% {
+            opacity: 1;
+        }
+        55% {
+            stroke-dashoffset: 0;
+            opacity: 0.9;
+        }
+        100% {
+            stroke-dashoffset: 0;
+            opacity: 0;
+        }
+    }
+
+    --animate-sparkle: sparkle 0.8s ease-in-out both;
+
+    @keyframes sparkle {
+        0% {
+            transform: scale(0) rotate(75deg);
+            opacity: 0;
+        }
+        50% {
+            transform: scale(var(--sparkle-scale, 1)) rotate(120deg);
+            opacity: 1;
+        }
+        100% {
+            transform: scale(0) rotate(150deg);
+            opacity: 0;
+        }
+    }
+
+    @keyframes impact-flash {
+        0% {
+            transform: scale(0.1);
+            opacity: 0;
+        }
+        10% {
+            opacity: 1;
+        }
+        100% {
+            transform: scale(1);
+            opacity: 0;
+        }
+    }
+
     --radius-lg: var(--radius);
     --radius-md: calc(var(--radius) - 2px);
     --radius-sm: calc(var(--radius) - 4px);
@@ -62,6 +166,14 @@
 }
 
 :root {
+    /* Data-viz palette (validated with the dataviz skill's checker; light surface). */
+    --viz-1: #2a78d6;
+    --viz-2: #eb6834;
+    --viz-3: #1baf7a;
+    --viz-4: #eda100;
+    --viz-grid: #e1e0d9;
+    --viz-axis: #c3c2b7;
+    --viz-muted: #898781;
     --background: oklch(1 0 0);
     --foreground: oklch(0.145 0 0);
     --card: oklch(1 0 0);
@@ -98,6 +210,13 @@
 }
 
 .dark {
+    --viz-1: #3987e5;
+    --viz-2: #d95926;
+    --viz-3: #199e70;
+    --viz-4: #c98500;
+    --viz-grid: #2c2c2a;
+    --viz-axis: #383835;
+    --viz-muted: #898781;
     --background: oklch(0.145 0 0);
     --foreground: oklch(0.985 0 0);
     --card: oklch(0.145 0 0);
@@ -139,5 +258,94 @@
 
     body {
         @apply bg-background text-foreground;
+    }
+}
+
+/* Syntax colors for highlighted code in chat replies (components/code-highlight.tsx). */
+@layer components {
+    .tok-keyword,
+    .tok-operator,
+    .tok-bool,
+    .tok-atom {
+        color: #a626a4;
+    }
+    .tok-string,
+    .tok-inserted {
+        color: #50a14f;
+    }
+    .tok-string2,
+    .tok-deleted,
+    .tok-invalid {
+        color: #e45649;
+    }
+    .tok-number,
+    .tok-literal,
+    .tok-className,
+    .tok-typeName,
+    .tok-attributeName {
+        color: #c18401;
+    }
+    .tok-comment,
+    .tok-meta {
+        color: #a0a1a7;
+        font-style: italic;
+    }
+    .tok-definition,
+    .tok-propertyName,
+    .tok-macroName {
+        color: #4078f2;
+    }
+    .tok-variableName2,
+    .tok-tagName,
+    .tok-namespace,
+    .tok-labelName {
+        color: #e45649;
+    }
+    .tok-heading,
+    .tok-strong {
+        font-weight: 600;
+    }
+    .tok-emphasis {
+        font-style: italic;
+    }
+    .tok-link,
+    .tok-url {
+        text-decoration: underline;
+    }
+
+    .dark .tok-keyword,
+    .dark .tok-operator,
+    .dark .tok-bool,
+    .dark .tok-atom {
+        color: #c678dd;
+    }
+    .dark .tok-string,
+    .dark .tok-inserted {
+        color: #98c379;
+    }
+    .dark .tok-string2,
+    .dark .tok-deleted,
+    .dark .tok-invalid,
+    .dark .tok-variableName2,
+    .dark .tok-tagName,
+    .dark .tok-namespace,
+    .dark .tok-labelName {
+        color: #e06c75;
+    }
+    .dark .tok-number,
+    .dark .tok-literal,
+    .dark .tok-className,
+    .dark .tok-typeName,
+    .dark .tok-attributeName {
+        color: #e5c07b;
+    }
+    .dark .tok-comment,
+    .dark .tok-meta {
+        color: #7f848e;
+    }
+    .dark .tok-definition,
+    .dark .tok-propertyName,
+    .dark .tok-macroName {
+        color: #61afef;
     }
 }

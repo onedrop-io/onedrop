@@ -1,0 +1,113 @@
+{
+    "$schema": "https://mintlify.com/docs.json",
+    "theme": "mint",
+    "name": "OneDrop",
+    "colors": {
+        "primary": "#FF4D1C",
+        "light": "#FF9A5C",
+        "dark": "#E8341C"
+    },
+    "logo": {
+        "light": "/logo/light.svg",
+        "dark": "/logo/dark.svg",
+        "href": "https://onedrop.io"
+    },
+    "favicon": "/favicon.svg",
+    "appearance": {
+        "default": "dark"
+    },
+    "background": {
+        "color": {
+            "light": "#FFFCFA",
+            "dark": "#0A0807"
+        }
+    },
+    "fonts": {
+        "heading": {
+            "family": "Schibsted Grotesk",
+            "weight": 700
+        },
+        "body": {
+            "family": "Instrument Sans"
+        }
+    },
+    "icons": {
+        "library": "lucide"
+    },
+    "navigation": {
+        "tabs": [
+            {
+                "tab": "Guides",
+                "icon": "book-open",
+                "groups": [
+                    {
+                        "group": "Get started",
+                        "icon": "rocket",
+                        "pages": [
+                            "introduction",
+                            "quickstart",
+                            "pricing"
+                        ]
+                    },
+                    {
+                        "group": "Build apps",
+                        "icon": "hammer",
+                        "pages": [
+                            "guides/set-up-ai",
+                            "guides/build-a-project",
+                            "guides/workspace",
+                            "guides/users-and-auth",
+                            "guides/secrets",
+                            "guides/feature-flags",
+                            "guides/app-storage",
+                            "guides/developer-tools",
+                            "guides/publish"
+                        ]
+                    },
+                    {
+                        "group": "Your team",
+                        "icon": "users",
+                        "pages": [
+                            "guides/invite-people",
+                            "guides/groups-and-users",
+                            "guides/remote-access"
+                        ]
+                    }
+                ]
+            },
+            {
+                "tab": "Self-hosting & development",
+                "icon": "server",
+                "groups": [
+                    {
+                        "group": "Self-hosting",
+                        "icon": "cloud",
+                        "pages": [
+                            "self-hosting/deploy-aws",
+                            "self-hosting/install-anywhere",
+                            "self-hosting/server-mode",
+                            "self-hosting/configuration",
+                            "self-hosting/social-login",
+                            "self-hosting/sandboxes",
+                            "self-hosting/tailscale"
+                        ]
+                    },
+                    {
+                        "group": "Development",
+                        "icon": "code",
+                        "pages": [
+                            "development/architecture",
+                            "development/contributing",
+                            "development/troubleshooting"
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+    "footer": {
+        "socials": {
+            "github": "https://github.com/phishy/zap"
+        }
+    }
+}

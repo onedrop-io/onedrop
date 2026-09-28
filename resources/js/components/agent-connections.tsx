@@ -1,6 +1,7 @@
-import { Form, Link } from '@inertiajs/react';
+import { Form, Link, router } from '@inertiajs/react';
 import { Check, Copy } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import ChatGptAuthController from '@/actions/App/Http/Controllers/ChatGptAuthController';
 import AgentConnectionController from '@/actions/App/Http/Controllers/Settings/AgentConnectionController';
 import InputError from '@/components/input-error';
 import { Badge } from '@/components/ui/badge';
@@ -8,10 +9,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useClipboard } from '@/hooks/use-clipboard';
+import { jsonRequest } from '@/lib/json-request';
+import { dashboard } from '@/routes';
 import { redirect as openRouterRedirect } from '@/routes/openrouter';
 import type { AgentConnection, AgentProvider } from '@/types';
 
-/** A way to connect: paste a credential, or sign in on the provider's site. */
+/** A way to connect: paste a credential, sign in on the provider's site, or sign in with ChatGPT (a one-time code). */
 type Method =
     | {
           kind: 'paste';
@@ -19,7 +22,8 @@ type Method =
           placeholder: string;
           help: React.ReactNode;
       }
-    | { kind: 'signin'; label: string; href: string };
+    | { kind: 'signin'; label: string; href: string }
+    | { kind: 'chatgpt'; label: string; help: React.ReactNode };
 
 type ProviderInfo = {
     id: AgentProvider;
@@ -68,16 +72,23 @@ const providers: ProviderInfo[] = [
         name: 'Codex',
         tagline: "OpenAI's models, used by the agent in your sandboxes.",
         primary: {
+            kind: 'chatgpt',
+            label: 'Sign in with ChatGPT',
+            help: 'Uses your ChatGPT Plus or Pro plan instead of API billing.',
+        },
+        alternate: {
             kind: 'paste',
+            switchLabel: 'Paste an OpenAI API key instead',
+            backLabel: 'Sign in with ChatGPT instead',
             label: 'OpenAI API key',
             placeholder: 'sk-…',
             help: (
                 <>
-                    Create one at{' '}
+                    Billed to your OpenAI Platform account. Create one at{' '}
                     <ExternalLink href="https://platform.openai.com/api-keys">
                         platform.openai.com
                     </ExternalLink>
-                    . ChatGPT sign-in will come with sandboxes.
+                    .
                 </>
             ),
         },
@@ -109,6 +120,12 @@ const providers: ProviderInfo[] = [
         },
     },
 ];
+
+const credentialLabels: Record<AgentConnection['credential_type'], string> = {
+    api_key: 'API key',
+    oauth_token: 'subscription token',
+    chatgpt: 'ChatGPT sign-in',
+};
 
 export default function AgentConnections({
     connections,
@@ -148,6 +165,8 @@ function ProviderCard({
 }) {
     const [replacing, setReplacing] = useState(false);
     const [useAlternate, setUseAlternate] = useState(false);
+    /** The form was revealed by a click (not on page load), so focus it. */
+    const [focusForm, setFocusForm] = useState(false);
     const method =
         useAlternate && provider.alternate
             ? provider.alternate
@@ -169,10 +188,8 @@ function ProviderCard({
                     <div className="flex items-center gap-2">
                         {connection.is_default && <Badge>default</Badge>}
                         <Badge variant="secondary">
-                            {connection.credential_type === 'oauth_token'
-                                ? 'subscription token'
-                                : 'API key'}{' '}
-                            ••••{connection.hint}
+                            {credentialLabels[connection.credential_type]} ••••
+                            {connection.hint}
                         </Badge>
                         {!connection.verified && (
                             <Badge variant="outline">not verified</Badge>
@@ -185,7 +202,10 @@ function ProviderCard({
                 <div className="flex flex-wrap items-center gap-4 text-sm">
                     <button
                         type="button"
-                        onClick={() => setReplacing(true)}
+                        onClick={() => {
+                            setReplacing(true);
+                            setFocusForm(true);
+                        }}
                         className="text-muted-foreground underline-offset-4 hover:underline"
                     >
                         Reconnect
@@ -222,11 +242,18 @@ function ProviderCard({
                                 {method.label}
                             </a>
                         </Button>
+                    ) : method.kind === 'chatgpt' ? (
+                        <ChatGptSignIn
+                            method={method}
+                            onboarding={onboarding}
+                        />
                     ) : (
                         <PasteForm
+                            key={method.label}
                             provider={provider.id}
                             method={method}
                             onboarding={onboarding}
+                            autoFocus={focusForm}
                             onConnected={() => {
                                 setReplacing(false);
                                 setUseAlternate(false);
@@ -238,7 +265,10 @@ function ProviderCard({
                         {provider.alternate && (
                             <button
                                 type="button"
-                                onClick={() => setUseAlternate(!useAlternate)}
+                                onClick={() => {
+                                    setUseAlternate(!useAlternate);
+                                    setFocusForm(true);
+                                }}
                                 className="text-muted-foreground underline-offset-4 hover:underline"
                                 data-test={`switch-method-${provider.id}`}
                             >
@@ -267,11 +297,13 @@ function PasteForm({
     provider,
     method,
     onboarding,
+    autoFocus,
     onConnected,
 }: {
     provider: AgentProvider;
     method: Extract<Method, { kind: 'paste' }>;
     onboarding: boolean;
+    autoFocus: boolean;
     onConnected: () => void;
 }) {
     return (
@@ -300,6 +332,7 @@ function PasteForm({
                             required
                             placeholder={method.placeholder}
                             className="min-w-64 flex-1"
+                            autoFocus={autoFocus}
                         />
                         <Button
                             disabled={processing}
@@ -318,7 +351,166 @@ function PasteForm({
     );
 }
 
-function CopyCommand({ command }: { command: string }) {
+type DeviceCode = {
+    user_code: string;
+    verification_url: string;
+    interval: number;
+};
+
+/**
+ * Sign in with ChatGPT: show OpenAI's one-time code and poll until the user approves it.
+ */
+function ChatGptSignIn({
+    method,
+    onboarding,
+}: {
+    method: Extract<Method, { kind: 'chatgpt' }>;
+    onboarding: boolean;
+}) {
+    const [device, setDevice] = useState<DeviceCode | null>(null);
+    const [starting, setStarting] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const start = async () => {
+        setStarting(true);
+        setError(null);
+
+        try {
+            setDevice(
+                await jsonRequest<DeviceCode>(
+                    ChatGptAuthController.store().url,
+                    {},
+                ),
+            );
+        } catch (e) {
+            setError((e as Error).message);
+        } finally {
+            setStarting(false);
+        }
+    };
+
+    useEffect(() => {
+        if (!device) {
+            return;
+        }
+
+        let timer: ReturnType<typeof setTimeout>;
+        let cancelled = false;
+
+        const poll = async () => {
+            try {
+                const result = await jsonRequest<{
+                    status: 'pending' | 'connected';
+                }>(ChatGptAuthController.poll().url, {});
+
+                if (cancelled) {
+                    return;
+                }
+
+                if (result.status === 'connected') {
+                    if (onboarding) {
+                        router.visit(dashboard());
+                    } else {
+                        router.reload();
+                    }
+
+                    return;
+                }
+
+                timer = setTimeout(poll, device.interval * 1000);
+            } catch (e) {
+                if (!cancelled) {
+                    setDevice(null);
+                    setError((e as Error).message);
+                }
+            }
+        };
+
+        timer = setTimeout(poll, device.interval * 1000);
+
+        return () => {
+            cancelled = true;
+            clearTimeout(timer);
+        };
+    }, [device, onboarding]);
+
+    if (!device) {
+        return (
+            <div className="grid gap-2">
+                <div>
+                    <Button
+                        type="button"
+                        onClick={() => void start()}
+                        disabled={starting}
+                        data-test="signin-codex"
+                    >
+                        {starting ? 'Starting…' : method.label}
+                    </Button>
+                </div>
+                <p className="text-sm text-muted-foreground">{method.help}</p>
+                <InputError message={error ?? undefined} />
+            </div>
+        );
+    }
+
+    return (
+        <div className="grid gap-3" data-test="chatgpt-device-code">
+            <ol className="list-decimal space-y-2 pl-5 text-sm">
+                <li>
+                    Open{' '}
+                    <ExternalLink href={device.verification_url}>
+                        {device.verification_url.replace(/^https:\/\//, '')}
+                    </ExternalLink>{' '}
+                    and sign in to ChatGPT.
+                </li>
+                <li>
+                    Enter this code:{' '}
+                    <CopyCommand
+                        command={device.user_code}
+                        test="copy-chatgpt-code"
+                    />
+                </li>
+            </ol>
+            <div className="flex flex-wrap items-center gap-4 text-sm">
+                <span className="text-muted-foreground">
+                    Waiting for you to approve… The code expires in 15 minutes.
+                </span>
+                <button
+                    type="button"
+                    onClick={() => void start()}
+                    disabled={starting}
+                    className="text-muted-foreground underline-offset-4 hover:underline"
+                    data-test="chatgpt-new-code"
+                >
+                    Get a new code
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setDevice(null)}
+                    className="text-muted-foreground underline-offset-4 hover:underline"
+                >
+                    Cancel
+                </button>
+            </div>
+            <p className="text-sm text-muted-foreground">
+                If OpenAI asks you to enable device code sign-in, turn it on in{' '}
+                <ExternalLink href="https://chatgpt.com/#settings/Security">
+                    ChatGPT → Settings → Security
+                </ExternalLink>
+                , then get a new code here. On a ChatGPT Business or Enterprise
+                workspace, an admin may need to allow it first.
+            </p>
+        </div>
+    );
+}
+
+function CopyCommand({
+    command,
+    test = 'copy-setup-token',
+}: {
+    command: string;
+    test?: string;
+}) {
     const [copiedText, copy] = useClipboard();
     const copied = copiedText === command;
 
@@ -327,8 +519,8 @@ function CopyCommand({ command }: { command: string }) {
             type="button"
             onClick={() => void copy(command)}
             className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground hover:bg-muted/70"
-            title="Copy command"
-            data-test="copy-setup-token"
+            title="Copy"
+            data-test={test}
         >
             {command}
             {copied ? (

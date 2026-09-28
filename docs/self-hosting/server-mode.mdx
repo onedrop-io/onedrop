@@ -1,0 +1,48 @@
+---
+title: 'Previews and shells on a server'
+description: 'How project previews and shells are served securely when OneDrop runs on a server.'
+---
+
+On a laptop, the browser reaches each sandbox directly on `127.0.0.1`. On a server, sandboxes still listen only on `127.0.0.1`, and Caddy serves them at public HTTPS addresses:
+
+| Address                         | Goes to                                             |
+| ------------------------------- | --------------------------------------------------- |
+| `preview-<sandbox id>.<domain>` | The project's app, through the sandbox's host proxy |
+| `shell-<sandbox id>.<domain>`   | The project's web terminal                          |
+
+Turn this on by setting `SANDBOX_GATEWAY_DOMAIN` to your domain. The install script does this for you.
+
+## How each request is checked
+
+```mermaid
+sequenceDiagram
+    participant B as Browser
+    participant C as Caddy
+    participant L as Laravel
+    participant S as Sandbox
+    B->>L: GET zap.example.com/projects/12/open/preview (app login)
+    L-->>B: redirect to preview-12…/__zap/enter?token=… (valid 60 s)
+    B->>C: GET /__zap/enter
+    C->>L: proxy
+    L-->>B: set zap_gateway cookie (this address only), redirect to /
+    B->>C: GET preview-12.zap.example.com (zap_gateway cookie)
+    C->>L: forward_auth /sandbox-gateway/authorize
+    L-->>C: 200 + X-Zap-Upstream: 127.0.0.1:32800 (or 401/403)
+    C->>S: proxy to 127.0.0.1:32800, without the zap_gateway cookie
+```
+
+- The app's login cookie stays on the app's own host. Code in a sandbox never sees it, and a sandboxed app's own cookies (a Laravel app's `laravel-session`, say) can't clash with it
+- The workspace opens previews and shells through `/projects/<id>/open/<kind>`, which hands the browser a short-lived token for that one address. The address trades it for its own `zap_gateway` cookie, valid for 12 hours
+- Laravel checks that cookie and only allows users who can see the project
+- Caddy strips any `X-Zap-Upstream` header sent by the browser, so a client can't choose where requests go
+- Certificates are only issued for `preview-<id>` and `shell-<id>` hosts of sandboxes that exist
+- The `/sandbox-gateway/*` endpoints are blocked on the public site; only Caddy calls them
+
+## Settings
+
+| Variable                 | Description                                                                        |
+| ------------------------ | ---------------------------------------------------------------------------------- |
+| `SANDBOX_GATEWAY_DOMAIN` | Domain for preview and shell addresses. Empty on a laptop.                         |
+| `SANDBOX_CALLBACK_URL`   | How sandboxes report agent events. On a server, the public `APP_URL`.              |
+| `SANDBOX_DOCKER_RUNTIME` | Optional container runtime, such as `runsc` for gVisor isolation.                  |
+| `AUTH_VERIFY_EMAIL`      | Set to `false` when the server can't send email; new accounts are marked verified. |

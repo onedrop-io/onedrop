@@ -21,6 +21,7 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
+import { DOCUMENTATION_URL, REPOSITORY_URL } from '@/lib/links';
 import { dashboard } from '@/routes';
 import { index as groupsIndex } from '@/routes/groups';
 import { index as invitationsIndex } from '@/routes/invitations';
@@ -56,12 +57,12 @@ const adminNavItems: NavItem[] = [
 const footerNavItems: NavItem[] = [
     {
         title: 'Repository',
-        href: 'https://github.com/laravel/react-starter-kit',
+        href: REPOSITORY_URL,
         icon: FolderGit2,
     },
     {
         title: 'Documentation',
-        href: 'https://laravel.com/docs/starter-kits#react',
+        href: DOCUMENTATION_URL,
         icon: BookOpen,
     },
 ];

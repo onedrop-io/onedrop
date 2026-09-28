@@ -1,0 +1,58 @@
+---
+title: 'Install on any server'
+description: 'Run the install script on any Ubuntu 24.04 server, on any provider.'
+---
+
+`infra/server/bootstrap.sh` installs OneDrop on a fresh Ubuntu 24.04 server, x86_64 or Arm. It works on any provider (Hetzner, DigitalOcean, Google Cloud, a machine in your office) and is what the [AWS setup](/self-hosting/deploy-aws) runs on first boot.
+
+## Requirements
+
+- Ubuntu 24.04 with root access
+- Ports 80 and 443 open to the internet
+- A domain name pointing at the server, including a wildcard record (`*.zap.example.com`) for previews and shells. Or use `<ip>.sslip.io`, which needs no DNS.
+- At least 4 GB of RAM; 8 GB or more for several people building at once
+
+## Install
+
+<Steps>
+  <Step title="Make a release tarball">
+    From a checkout of the repository:
+
+    ```bash
+    git ls-files -co --exclude-standard -z | tar --null -czf zap.tar.gz -T -
+    scp zap.tar.gz root@your-server:/tmp/
+    ```
+
+  </Step>
+  <Step title="Run the install script">
+    ```bash
+    mkdir -p /tmp/zap && tar -xzf /tmp/zap.tar.gz -C /tmp/zap infra/server
+    APP_DOMAIN=zap.example.com APP_RELEASE=/tmp/zap.tar.gz bash /tmp/zap/infra/server/bootstrap.sh
+    ```
+    `APP_RELEASE` can also be an `https://` or `s3://` URL.
+  </Step>
+  <Step title="Create your admin account">
+    Open `https://zap.example.com`, sign up, then run:
+
+    ```bash
+    sudo -u zap php /opt/zap/current/artisan zap:admin you@example.com
+    ```
+
+  </Step>
+</Steps>
+
+## What the script sets up
+
+| Component                 | Details                                                                      |
+| ------------------------- | ---------------------------------------------------------------------------- |
+| Packages                  | PHP 8.4 (FPM), Composer, Node.js 22, Docker, Caddy, Tailscale                |
+| `zap` user                | Owns the app and belongs to the `docker` group                               |
+| PHP-FPM pool              | Runs as `zap` so the app can manage sandboxes                                |
+| `zap-queue` service       | The queue worker that creates sandboxes and runs agents                      |
+| Caddy                     | HTTPS for the app and for `preview-<id>` / `shell-<id>` addresses            |
+| `/opt/zap/bin/deploy`     | Deploys a new release: `sudo /opt/zap/bin/deploy /path/to/zap.tar.gz`        |
+| `/opt/zap/bin/set-domain` | Moves the server to a new domain: `sudo /opt/zap/bin/set-domain example.com` |
+
+The first deploy writes `/opt/zap/shared/.env` with production settings: SQLite database, email verification off (no outgoing email is configured), and the sandbox gateway on your domain. Edit it and run a deploy to change settings.
+
+The script is safe to run again; it skips steps that are already done.

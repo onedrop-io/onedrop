@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Attachment;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -14,9 +15,7 @@ class StoreProjectRequest extends FormRequest
      */
     public function rules(): array
     {
-        return [
-            'prompt' => ['required', 'string', 'max:5000'],
-        ];
+        return Attachment::rules('prompt');
     }
 
     /**
@@ -27,7 +26,7 @@ class StoreProjectRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'prompt.required' => __('Describe what you want to build.'),
+            'prompt.required_without' => __('Describe what you want to build.'),
         ];
     }
 }

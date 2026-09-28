@@ -1,0 +1,133 @@
+---
+title: 'The workspace'
+description: 'Tools, preview, files, console, and shell: everything next to the chat.'
+---
+
+The right side of a project holds tabs and a files panel.
+
+## Tabs
+
+| Tab         | What it's for                                             | Can close |
+| ----------- | --------------------------------------------------------- | --------- |
+| **Tools**   | Project tools such as Publishing, Database, and Secrets   | No        |
+| **Preview** | Your running app, with reload and open-in-new-tab buttons | No        |
+| **Console** | The app's dev server output as it happens                 | Yes       |
+| **Shell**   | An interactive terminal in the project's workspace        | Yes       |
+| File tabs   | An editor for a file you opened                           | Yes       |
+
+Add Console or Shell from the **+** button. The shell keeps its session while you switch tabs.
+
+## Tools
+
+Tools groups project settings like Replit's tools menu:
+
+- **Cloud:** Publishing, Domains, Monitoring, Database, Users & Auth, Growth, Feature Flags, Security, App Storage
+- **Setup:** Secrets, Integrations, Git, Agent Skills, Developer
+
+Publishing shows the project's current status and URL. Monitoring, Growth and Database are described below, and [Users & Auth](/guides/users-and-auth), [Feature Flags](/guides/feature-flags), [App Storage](/guides/app-storage), [Secrets](/guides/secrets) and [Developer](/guides/developer-tools) have their own pages. The other sections are placeholders for upcoming features.
+
+## Monitoring
+
+**Tools → Monitoring** shows how your app is doing. It has two panels, each with its own time range (past hour, day, or week).
+
+| Panel | What it shows |
+| --- | --- |
+| **Application** | Total requests, unique visitors, and the share of server errors (5xx); requests over time; HTTP status classes (2xx, 3xx, 4xx, 5xx) over time; a histogram of response times |
+| **Infrastructure** | CPU use as a share of the sandbox's CPU limit, and memory use against its memory limit |
+
+Choose **Published only** to leave out your own preview traffic. Hover a chart for exact values, or open **Show data table** under it.
+
+Numbers are collected inside the sandbox: its proxy logs each request and samples CPU and memory once a minute, into `/workspace/.zap/access.log` and `metrics.log`. Requests for development-server internals (hot reload, module loading) aren't counted. The data survives sandbox recreation.
+
+## Growth
+
+**Tools → Growth** helps you get your app found and shows who visits it.
+
+**SEO rating.** Click **Run scan with agent** and the agent checks what search engines and link previews see: page titles, descriptions, headings, Open Graph tags, `robots.txt`, the sitemap, image alt text, canonical URLs and more. It rates the app from 0 to 100 and lists each check as passed, needs work, or failed. To have it fix the problems too, open the arrow next to the button and choose **Scan and fix issues**. Either way, the request shows up in the chat; if the agent is busy, it runs next. The agent saves the result in `/workspace/.zap/seo.json`.
+
+**Analytics.** Choose a time range (past day, week, or 30 days), and **Published only** to leave out your own preview traffic.
+
+| Shows | What it counts |
+| --- | --- |
+| **Visitors** | Unique IP addresses, and the change against the previous period of the same length |
+| **Page views** | Successful page loads (not scripts, styles, images, or form posts) |
+| **Signed-in users** | Your app's users who signed in during the period. Needs sign-in from [Users & Auth](/guides/users-and-auth) |
+| **Visitors over time** | Visitors per hour (per day for 30 days) |
+| **Top pages, referrers, countries, browsers, devices** | The ten biggest of each. Referrers are other sites that linked to yours |
+
+<Note>
+Countries come from the country header a CDN such as Cloudflare adds in front of the published app. Without one, the Countries list stays empty.
+</Note>
+
+The numbers come from the same request log as Monitoring (`/workspace/.zap/access.log`), so there's nothing extra to install and nothing leaves the sandbox. Requests logged before Growth existed count as visitors, but they have no page, browser or referrer.
+
+**Custom events.** Page views don't tell you whether people actually sign up, create things or finish a flow. Click **Set up with agent** and the agent finds your app's key moments and records an event for each, like `signed_up` or `project_created`. The request shows up in the chat as "Add custom analytics events to my project"; if the agent is busy, it runs next. The agent uses the model you picked for the project.
+
+Once events are set up, Growth lists each one with its description, how many times it happened, and how many visitors triggered it, for the same time range and traffic filter as Analytics. Click an event to see it over time, the change against the previous period, and its most common property values (for example, which template people chose). To track something else, describe it in the box under the list and click **Add with agent**.
+
+<Note>
+Events never carry personal data. The agent uses fixed event names and a few fixed-value properties. It never sends emails, names, anything a person typed, or IDs of people.
+</Note>
+
+How it works: the app sends each event to its own address (`POST /__zap/event`). The sandbox's proxy records it in `/workspace/.zap/events.log` and doesn't pass it on to the app. Invalid or oversized events are dropped, and a failed event never breaks the app. The agent describes the events in `/workspace/.zap/analytics.json`, following the platform's analytics guide, so every app tracks events the same way.
+
+## Database
+
+**Tools → Database** lets you browse and edit your app's data, similar to Drizzle Studio. It works with SQLite, PostgreSQL and MySQL/MariaDB.
+
+It finds your app's databases on its own:
+
+- SQLite files anywhere in the project (`.sqlite`, `.sqlite3`, `.db`), except in folders like `node_modules` and `vendor`
+- `DATABASE_URL`, `DB_URL`, `POSTGRES_URL` or `MYSQL_URL` in a `.env` or `.env.local` file
+- Laravel's `DB_CONNECTION` settings (`DB_HOST`, `DB_DATABASE`, and so on)
+
+`.env` files are read from the project folder and its direct subfolders. If the app uses more than one database, pick one from the menu at the top left.
+
+| Task | How |
+| --- | --- |
+| Open a table | Click it in the table list, or search for it by name |
+| Sort | Click a column header. Click again to reverse the order, and a third time to clear it |
+| Filter | **Filters**: choose a column, a condition (equals, contains, greater than, is NULL, …) and a value, then **Apply** |
+| Edit a cell | Double-click it, or select it and press <kbd>Enter</kbd>. Press <kbd>Enter</kbd> to keep the edit or <kbd>Esc</kbd> to cancel it. **NULL** sets the cell to NULL |
+| Add a row | **Add row**, then fill in its cells. Cells you leave empty get the column's default value |
+| Delete rows | Tick the rows, then **Delete** |
+| Run SQL | **SQL runner**: write one statement and press **Run** (or <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>Enter</kbd>). SQL is highlighted as you type, with suggestions for keywords, tables and the columns of tables in your query; press <kbd>Enter</kbd> to accept one |
+
+Edits, new rows and deletions are held until you press **Save changes**, and they're saved in a single transaction: all of them or none. You're asked before leaving a table with unsaved changes. Statements in the SQL runner take effect right away.
+
+Views can't be edited. Nor can existing rows of a table without a primary key; change those with the SQL runner instead. Binary values and values over 10 KB show as a read-only preview.
+
+<Note>
+The database is reached from inside the sandbox, so connection details and passwords never leave it. Sandboxes created before this feature need a rebuilt image; they then [update themselves](/self-hosting/sandboxes#sandboxes-update-themselves).
+</Note>
+
+## Files
+
+The files panel on the right shows the project's folder tree, with a colored icon for each file type. Click a file to open it next to the preview. The tree and any open file refresh as the agent works.
+
+- Folders like `node_modules`, `vendor`, and `.git` are listed but not expanded
+- Binary files and files over 200 KB show a notice instead of their contents
+- Hide or show the panel with the button in the tab bar; it opens by default on wide screens, and your browser remembers whether you last left it open or closed
+
+### The files menu
+
+Click **⋮** at the top of the files panel for more actions:
+
+| Action | What it does |
+| --- | --- |
+| **New file** | Creates an empty file and opens it in the editor. Type a name, or a path like `src/utils.ts`; missing folders are created. |
+| **New folder** | Creates a folder, including any missing parent folders. |
+| **Upload folder** | Copies a folder from your computer into the project, keeping its structure. `node_modules`, `.git`, `vendor`, and `.cache` inside it are skipped, and each file can be up to 10 MB. Files with the same path are replaced. |
+| **Download as zip** | Downloads the project as a zip, without `node_modules`, `.git`, `vendor`, and `.cache`. |
+| **Hide hidden files** | Hides files and folders whose names start with a dot, like `.env`. Choose **Show hidden files** to bring them back. Your browser remembers the choice. |
+| **Close files** | Closes the files panel. |
+
+New files and folders never overwrite anything: if the name is taken, you'll see an error instead.
+
+## Editing files
+
+Open files are editable, with syntax highlighting for most languages.
+
+- Save with the **Save** button or <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>S</kbd>. The file is written straight into the sandbox, so a running dev server picks it up.
+- A dot on the file's tab means it has unsaved changes. You're asked before closing it or opening another file.
+- If the agent changes a file you haven't edited, the editor shows the new version. Your unsaved edits are never overwritten.

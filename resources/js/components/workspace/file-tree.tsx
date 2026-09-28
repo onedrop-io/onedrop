@@ -1,5 +1,6 @@
-import { ChevronRight, File, Folder, FolderOpen } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import FileIcon from '@/components/workspace/file-icon';
 import { cn } from '@/lib/utils';
 import type { WorkspaceEntry } from '@/types';
 
@@ -79,7 +80,6 @@ export default function FileTree({
             const isDir = node.type === 'dir';
             const isOpen = open.has(node.path);
             const collapsed = isDir && COLLAPSED.has(node.name);
-            const Icon = isDir ? (isOpen ? FolderOpen : Folder) : File;
 
             return (
                 <li key={node.path}>
@@ -106,7 +106,12 @@ export default function FileTree({
                                 isOpen && 'rotate-90',
                             )}
                         />
-                        <Icon className="size-4 shrink-0 text-muted-foreground" />
+                        <FileIcon
+                            name={node.name}
+                            isDir={isDir}
+                            isOpen={isOpen}
+                            className={cn(collapsed && 'opacity-60')}
+                        />
                         <span className="truncate">{node.name}</span>
                     </button>
                     {isDir && isOpen && node.children.length > 0 && (

@@ -47,6 +47,27 @@ interface SandboxProvider
     public function previewUrl(string $id, int $port): ?string;
 
     /**
+     * Whether the sandbox was made from an older image than new sandboxes get (e.g. before new guides or tools).
+     *
+     * @throws SandboxException
+     */
+    public function isOutdated(string $id): bool;
+
+    /**
+     * Copy a directory's contents out of a sandbox into a local directory.
+     *
+     * @throws SandboxException
+     */
+    public function copyOut(string $id, string $path, string $directory): void;
+
+    /**
+     * Copy a local directory's contents into a sandbox, owned by the sandbox user.
+     *
+     * @throws SandboxException
+     */
+    public function copyIn(string $id, string $directory, string $path): void;
+
+    /**
      * Permanently delete a sandbox. Deleting one that doesn't exist is not an error.
      *
      * @throws SandboxException

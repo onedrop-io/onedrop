@@ -4,17 +4,24 @@ import PasswordInput from '@/components/password-input';
 import TextLink from '@/components/text-link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import SocialLoginButtons from '@/components/social-login-buttons';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
+import type { SocialProviderOption } from '@/types/auth';
 import { login } from '@/routes';
 import { store } from '@/routes/register';
 
 type Props = {
     passwordRules: string;
     invitation: { email: string | null; invited_by: string | null } | null;
+    socialProviders: SocialProviderOption[];
 };
 
-export default function Register({ passwordRules, invitation }: Props) {
+export default function Register({
+    passwordRules,
+    invitation,
+    socialProviders,
+}: Props) {
     return (
         <>
             <Head title="Register" />
@@ -27,6 +34,8 @@ export default function Register({ passwordRules, invitation }: Props) {
                     your account to get started.
                 </p>
             )}
+            <SocialLoginButtons providers={socialProviders} />
+
             <Form
                 {...store.form()}
                 resetOnSuccess={['password', 'password_confirmation']}
@@ -127,5 +136,5 @@ export default function Register({ passwordRules, invitation }: Props) {
 
 Register.layout = {
     title: 'Create an account',
-    description: 'Enter your details below to create your account',
+    description: 'Then build your first app on your own AI plan or key',
 };

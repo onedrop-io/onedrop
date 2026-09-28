@@ -4,3 +4,6 @@ export type * from './ui';
 export type * from './groups';
 export type * from './agents';
 export type * from './projects';
+export type * from './database';
+export type * from './app-auth';
+export type * from './storage';

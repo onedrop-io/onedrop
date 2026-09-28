@@ -1,0 +1,14 @@
+[Unit]
+Description=Zap queue worker (sandboxes, agent runs, publishing)
+After=network.target docker.service
+
+[Service]
+User=zap
+Group=zap
+WorkingDirectory=/opt/zap/current
+ExecStart=/usr/bin/php artisan queue:work --tries=1 --timeout=0 --sleep=1
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

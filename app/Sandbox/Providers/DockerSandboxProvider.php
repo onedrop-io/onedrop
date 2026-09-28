@@ -19,8 +19,11 @@ class DockerSandboxProvider implements SandboxProvider
      */
     public const LABEL = 'zap.sandbox';
 
+    /** Where App Storage lives inside the sandbox; backed by a host folder when storage_path is set. */
+    public const STORAGE_MOUNT = '/data/storage';
+
     /**
-     * @param  array{image: string, memory: string, cpus: string, host: string}  $config
+     * @param  array{image: string, memory: string, cpus: string, host: string, runtime?: ?string, storage_path?: ?string}  $config
      */
     public function __construct(protected array $config) {}
 
@@ -34,7 +37,13 @@ class DockerSandboxProvider implements SandboxProvider
             '--cpus', $this->config['cpus'],
             '--publish', "127.0.0.1::{$spec->port}",
             '--env', "PORT={$spec->port}",
+            // Linux Docker doesn't define host.docker.internal; sandboxes use it to report agent events.
+            '--add-host', 'host.docker.internal:host-gateway',
         ];
+
+        if (filled($this->config['runtime'] ?? null)) {
+            array_push($command, '--runtime', $this->config['runtime']);
+        }
 
         if ($spec->proxyPort) {
             array_push($command, '--publish', "127.0.0.1::{$spec->proxyPort}", '--env', "PROXY_PORT={$spec->proxyPort}");
@@ -42,6 +51,16 @@ class DockerSandboxProvider implements SandboxProvider
 
         if ($spec->shellPort) {
             array_push($command, '--publish', "127.0.0.1::{$spec->shellPort}", '--env', "SHELL_PORT={$spec->shellPort}");
+        }
+
+        if ($spec->sshPort) {
+            array_push($command, '--publish', "127.0.0.1::{$spec->sshPort}", '--env', "SSH_PORT={$spec->sshPort}");
+        }
+
+        $storage = $this->storageFolder($spec);
+
+        if ($storage !== null) {
+            array_push($command, '--mount', "type=bind,source={$storage},target=".self::STORAGE_MOUNT);
         }
 
         // Pass names only; docker reads the values from its own environment so
@@ -58,7 +77,15 @@ class DockerSandboxProvider implements SandboxProvider
             throw new SandboxException($this->explain($result));
         }
 
-        return trim($result->output());
+        $id = trim($result->output());
+
+        // A new host folder is owned by the platform's user; let the sandbox user write to it. Best effort:
+        // if this fails the sandbox still runs, and App Storage reports that it can't write.
+        if ($storage !== null) {
+            Process::timeout(30)->run(['docker', 'exec', '-u', 'root', $id, 'chown', 'sandbox:sandbox', self::STORAGE_MOUNT]);
+        }
+
+        return $id;
     }
 
     public function start(string $id): void
@@ -103,6 +130,50 @@ class DockerSandboxProvider implements SandboxProvider
         return ctype_digit($hostPort) ? "http://{$this->config['host']}:{$hostPort}" : null;
     }
 
+    public function isOutdated(string $id): bool
+    {
+        $current = Process::timeout(15)->run(['docker', 'image', 'inspect', '--format', '{{.Id}}', $this->config['image']]);
+        $used = Process::timeout(15)->run(['docker', 'inspect', '--format', '{{.Image}}', $id]);
+
+        // No image or no container: nothing to update to (or from).
+        if ($current->failed() || $used->failed()) {
+            return false;
+        }
+
+        // Made before App Storage moved to a host folder: recreate it so its buckets move there.
+        return trim($current->output()) !== trim($used->output())
+            || (filled($this->config['storage_path'] ?? null) && ! $this->mounts($id, self::STORAGE_MOUNT));
+    }
+
+    public function copyOut(string $id, string $path, string $directory): void
+    {
+        // A host folder mounted at this path outlives the container: nothing to carry over.
+        if ($this->mounts($id, $path)) {
+            return;
+        }
+
+        $result = Process::forever()->run(['docker', 'cp', "{$id}:{$path}/.", $directory]);
+
+        // A path the sandbox never created (e.g. no App Storage yet) has nothing to copy.
+        if ($result->failed() && ! str_contains($result->errorOutput(), 'Could not find the file')) {
+            throw new SandboxException($this->explain($result));
+        }
+    }
+
+    public function copyIn(string $id, string $directory, string $path): void
+    {
+        $this->docker(['exec', '-u', 'root', $id, 'mkdir', '-p', $path]);
+        $result = Process::forever()->run(['docker', 'cp', "{$directory}/.", "{$id}:{$path}"]);
+
+        if ($result->failed()) {
+            throw new SandboxException($this->explain($result));
+        }
+
+        // mkdir -p runs as root, so hand back the path and any parents it created under the sandbox user's folders.
+        $owned = array_values(array_filter(['/workspace', '/data/storage', '/home/sandbox'], fn (string $root) => str_starts_with($path, $root)));
+        $this->docker(['exec', '-u', 'root', $id, 'chown', '-R', 'sandbox:sandbox', ...($owned ?: [$path])]);
+    }
+
     public function destroy(string $id): void
     {
         $result = Process::timeout(30)->run(['docker', 'rm', '--force', $id]);
@@ -110,6 +181,38 @@ class DockerSandboxProvider implements SandboxProvider
         if ($result->failed() && ! str_contains($result->errorOutput(), 'No such container')) {
             throw new SandboxException($this->explain($result));
         }
+    }
+
+    /**
+     * The host folder for a sandbox's App Storage, created if needed; null when buckets stay in the container.
+     *
+     * @throws SandboxException
+     */
+    protected function storageFolder(SandboxSpec $spec): ?string
+    {
+        $root = $this->config['storage_path'] ?? null;
+
+        if (blank($root) || blank($spec->storageKey)) {
+            return null;
+        }
+
+        $folder = rtrim($root, '/').'/'.$spec->storageKey.'/storage';
+
+        if (! is_dir($folder) && ! @mkdir($folder, 0755, true)) {
+            throw new SandboxException("Couldn't create the App Storage folder {$folder}. Check that the app can write to it.");
+        }
+
+        return $folder;
+    }
+
+    /**
+     * Whether a host folder is mounted at a path in the container.
+     */
+    protected function mounts(string $id, string $path): bool
+    {
+        $result = Process::timeout(15)->run(['docker', 'inspect', '--format', '{{range .Mounts}}{{println .Destination}}{{end}}', $id]);
+
+        return $result->successful() && in_array($path, explode("\n", trim($result->output())), true);
     }
 
     /**

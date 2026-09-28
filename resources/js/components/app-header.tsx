@@ -31,6 +31,7 @@ import {
 import { UserMenuContent } from '@/components/user-menu-content';
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import { useInitials } from '@/hooks/use-initials';
+import { DOCUMENTATION_URL, REPOSITORY_URL } from '@/lib/links';
 import { cn, toUrl } from '@/lib/utils';
 import { dashboard } from '@/routes';
 import type { BreadcrumbItem, NavItem } from '@/types';
@@ -50,12 +51,12 @@ const mainNavItems: NavItem[] = [
 const rightNavItems: NavItem[] = [
     {
         title: 'Repository',
-        href: 'https://github.com/laravel/react-starter-kit',
+        href: REPOSITORY_URL,
         icon: Folder,
     },
     {
         title: 'Documentation',
-        href: 'https://laravel.com/docs/starter-kits#react',
+        href: DOCUMENTATION_URL,
         icon: BookOpen,
     },
 ];

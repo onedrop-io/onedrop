@@ -1,0 +1,65 @@
+---
+title: 'Quickstart'
+description: 'Run OneDrop locally with Docker, log in as the dev user, and build your first app.'
+---
+
+## Prerequisites
+
+- PHP 8.4 and Composer
+- Node.js 22 and npm
+- Docker (Docker Desktop or OrbStack)
+- An API key for Anthropic, OpenAI, or OpenRouter, or a ChatGPT Plus or Pro plan
+
+## Install and run
+
+<Steps>
+  <Step title="Install dependencies">
+    ```bash
+    composer install
+    npm install
+    cp .env.example .env
+    php artisan key:generate
+    ```
+  </Step>
+  <Step title="Create the database with a dev user">
+    ```bash
+    php artisan migrate --seed
+    ```
+    This creates a local SQLite database and a login you can use right away.
+  </Step>
+  <Step title="Build the sandbox image">
+    ```bash
+    php artisan sandbox:build-image
+    ```
+    Every project runs in a container made from this image. The first build takes a few minutes.
+  </Step>
+  <Step title="Start everything">
+    ```bash
+    composer run dev
+    ```
+    This starts the web server, the queue worker that runs sandboxes and agents, the log viewer, and Vite.
+  </Step>
+  <Step title="Log in">
+    Open `http://localhost:8000` and log in with:
+
+    | Email | Password |
+    | --- | --- |
+    | `dev@example.com` | `password` |
+
+  </Step>
+</Steps>
+
+After logging in you're asked to [connect an AI](/guides/set-up-ai). Then describe an app and OneDrop builds it.
+
+<Tip>
+    To skip AI setup every time you reset the database, set
+    `DEV_CLAUDE_CREDENTIAL` in `.env` to an Anthropic API key before seeding.
+</Tip>
+
+## Reset
+
+```bash
+php artisan migrate:fresh --seed
+```
+
+This deletes all local data and recreates the dev user. It does not remove project containers; see [Sandboxes](/self-hosting/sandboxes#clean-up).

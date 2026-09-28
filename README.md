@@ -1,4 +1,6 @@
-# App Builder (working name)
+# OneDrop
+
+**Vibe-code apps for production.** Bring your own subscription. Deploy anywhere. Free and open source.
 
 An open-source, self-hostable, Replit-style app builder. A person describes an app in chat, an AI coding agent builds it inside an isolated cloud sandbox, and the running app is live at a URL while they work. Every feature becomes a requirement with tests you can watch run.
 

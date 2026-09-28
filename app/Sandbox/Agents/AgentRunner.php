@@ -15,4 +15,9 @@ interface AgentRunner
      * Start working on the given user message.
      */
     public function start(Project $project, Message $message): void;
+
+    /**
+     * Stop the current run, if any. Anything the stopped run reports afterwards must be ignored.
+     */
+    public function stop(Project $project): void;
 }

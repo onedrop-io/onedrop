@@ -1,0 +1,105 @@
+---
+title: 'Log in with Google, GitHub, and more'
+sidebarTitle: 'Social login'
+description: 'Let people log in with Google, Microsoft, GitHub, GitLab, or your own single sign-on (OIDC) provider.'
+---
+
+OneDrop can show **Continue with …** buttons on the log-in and sign-up pages. Each provider appears once you add its OAuth client ID and secret to `.env`. With none set, the pages look as they do out of the box.
+
+## How it works
+
+- **New people** can sign up with a provider when sign-up is open. Their account uses the provider's name and email and has no password. They can add one later under **Settings → Security**.
+- **Returning people** are logged in to the account connected to that provider.
+- **Existing accounts** are connected automatically when the provider confirms it verified the email and the OneDrop account's email is verified too. Otherwise the person sees a message asking them to log in first and connect the provider from security settings. This stops anyone from taking over an account by adding its email address at a provider.
+- **One account, many providers.** Someone can connect Google, GitHub and the rest to one account and log in with any of them, or with a password.
+- **Profile pictures** come from the provider. The first provider with a picture sets the avatar, and signing in with it again keeps it current. Connecting another provider doesn't replace it; disconnecting the provider switches to another connected provider's picture.
+- **Two-factor authentication** is still asked for after the provider sign-in.
+- **Invite links** work: signing up with a provider from an invite accepts it.
+- **Security settings** list each provider, with **Connect** and **Disconnect** buttons. People can't disconnect their last way to log in.
+
+| Provider         | Email treated as verified when…                             |
+| ---------------- | ----------------------------------------------------------- |
+| Google           | Google reports `email_verified`                             |
+| GitHub           | Always. OneDrop only reads the account's primary, verified email |
+| GitLab           | The account's email is confirmed (`confirmed_at`)           |
+| OIDC             | The issuer reports `email_verified`                         |
+| Microsoft        | Never. People confirm the email by link, like a normal sign-up |
+
+## Callback URLs
+
+When you create the OAuth app at each provider, use this redirect (callback) URL, with your `APP_URL`:
+
+```text
+https://zap.example.com/login/{provider}/callback
+```
+
+where `{provider}` is `google`, `microsoft`, `github`, `gitlab`, or `oidc`.
+
+## Set up a provider
+
+<Tabs>
+    <Tab title="Google">
+        1. In the [Google Cloud console](https://console.cloud.google.com/apis/credentials), create an **OAuth client ID** of type **Web application**.
+        2. Add `https://zap.example.com/login/google/callback` as an authorized redirect URI.
+        3. Add the credentials to `.env`:
+
+        ```bash
+        GOOGLE_CLIENT_ID=...
+        GOOGLE_CLIENT_SECRET=...
+        ```
+    </Tab>
+    <Tab title="Microsoft">
+        1. In the [Microsoft Entra admin center](https://entra.microsoft.com), go to **App registrations → New registration**.
+        2. Choose who can sign in, and add a **Web** redirect URI of `https://zap.example.com/login/microsoft/callback`.
+        3. Under **Certificates & secrets**, create a client secret.
+        4. Add the credentials to `.env`:
+
+        ```bash
+        MICROSOFT_CLIENT_ID=...
+        MICROSOFT_CLIENT_SECRET=...
+        # common (work and personal accounts), organizations, consumers, or your tenant ID
+        MICROSOFT_TENANT=common
+        ```
+    </Tab>
+    <Tab title="GitHub">
+        1. In GitHub, go to **Settings → Developer settings → OAuth Apps → New OAuth App**.
+        2. Set the authorization callback URL to `https://zap.example.com/login/github/callback`.
+        3. Generate a client secret and add the credentials to `.env`:
+
+        ```bash
+        GITHUB_CLIENT_ID=...
+        GITHUB_CLIENT_SECRET=...
+        ```
+    </Tab>
+    <Tab title="GitLab">
+        1. In GitLab, go to **Preferences → Applications → Add new application**.
+        2. Set the redirect URI to `https://zap.example.com/login/gitlab/callback` and select the `read_user` scope.
+        3. Add the credentials to `.env`. For a self-managed GitLab, also set its URL:
+
+        ```bash
+        GITLAB_CLIENT_ID=...
+        GITLAB_CLIENT_SECRET=...
+        GITLAB_HOST=https://gitlab.com
+        ```
+    </Tab>
+    <Tab title="OIDC (Okta, Keycloak, …)">
+        Any issuer that publishes `/.well-known/openid-configuration` works: Okta, Keycloak, Authentik, Auth0, Zitadel, and others.
+
+        1. Create an OIDC web application at your identity provider with the redirect URI `https://zap.example.com/login/oidc/callback` and the `openid email profile` scopes.
+        2. Add it to `.env`. `OIDC_LABEL` is the name on the button:
+
+        ```bash
+        OIDC_LABEL=Okta
+        OIDC_BASE_URL=https://your-org.okta.com
+        OIDC_CLIENT_ID=...
+        OIDC_CLIENT_SECRET=...
+        ```
+    </Tab>
+</Tabs>
+
+After changing `.env` on a server, run `php artisan config:cache` (the deploy script does this for you).
+
+<Note>
+    Sign-up rules still apply. If you turn off registration, providers only log
+    in people who already have an account.
+</Note>

@@ -59,12 +59,16 @@ class AgentConnection extends Model
 
     /**
      * Environment variables that give an agent CLI in a sandbox this credential
-     * (the names OpenCode, Claude Code and Codex read).
+     * (the names OpenCode, Claude Code and Codex read; a ChatGPT sign-in is OpenCode-only).
      *
      * @return array<string, string>
      */
     public function sandboxEnvironment(): array
     {
+        if ($this->credential_type === CredentialType::ChatGpt) {
+            return ['OPENCODE_AUTH_CONTENT' => json_encode($this->opencodeAuth())];
+        }
+
         $variable = match ($this->provider) {
             AgentProvider::Claude => $this->credential_type === CredentialType::OAuthToken
                 ? 'CLAUDE_CODE_OAUTH_TOKEN'
@@ -74,6 +78,35 @@ class AgentConnection extends Model
         };
 
         return [$variable => $this->credential];
+    }
+
+    /**
+     * The stored ChatGPT sign-in tokens.
+     *
+     * @return array{access: string, refresh: string, expires: int, account_id: string|null, email: string|null}
+     */
+    public function chatGptTokens(): array
+    {
+        return json_decode($this->credential, true);
+    }
+
+    /**
+     * OpenCode's auth.json entry for a ChatGPT sign-in, without the refresh token:
+     * the platform refreshes it (ChatGptAuth), so a sandbox can't rotate it away.
+     *
+     * @return array{openai: array{type: string, refresh: string, access: string, expires: int, accountId?: string}}
+     */
+    protected function opencodeAuth(): array
+    {
+        $tokens = $this->chatGptTokens();
+
+        return ['openai' => array_filter([
+            'type' => 'oauth',
+            'refresh' => '',
+            'access' => $tokens['access'],
+            'expires' => $tokens['expires'] * 1000,
+            'accountId' => $tokens['account_id'],
+        ], fn ($value) => $value !== null)];
     }
 
     /**

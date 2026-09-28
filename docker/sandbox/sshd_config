@@ -1,0 +1,16 @@
+# SSH server for Tools → Developer → SSH. Runs as the sandbox user (start.sh), so it can only
+# log that user in; keys only. authorized_keys is written by the app builder (the project owner's keys).
+Port 2222
+HostKey /home/sandbox/.ssh/host_ed25519
+PidFile /tmp/sshd.pid
+AuthorizedKeysFile .ssh/authorized_keys
+PubkeyAuthentication yes
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitRootLogin no
+UsePAM no
+PrintMotd no
+AllowTcpForwarding yes
+X11Forwarding no
+AcceptEnv LANG LC_*
+Subsystem sftp internal-sftp

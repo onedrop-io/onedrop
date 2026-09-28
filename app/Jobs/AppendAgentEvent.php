@@ -3,8 +3,8 @@
 namespace App\Jobs;
 
 use App\Enums\MessageRole;
-use App\Enums\ProjectStatus;
 use App\Models\Project;
+use App\Sandbox\Agents\AgentQueue;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
@@ -33,7 +33,7 @@ class AppendAgentEvent implements ShouldQueue
         ]);
 
         if ($this->finished) {
-            $this->project->update(['status' => ProjectStatus::Idle]);
+            app(AgentQueue::class)->finished($this->project);
         }
     }
 }

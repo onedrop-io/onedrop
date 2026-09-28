@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Stop the running agent task (see forwarder.mjs), including anything it started.
+set -uo pipefail
+
+if [ -f /tmp/zap-agent.pid ]; then
+    kill -TERM "$(cat /tmp/zap-agent.pid)" 2>/dev/null || true
+fi
+
+# Fallback for a forwarder that died without cleaning up.
+pkill -TERM -f 'opencode run' 2>/dev/null || true
+
+echo "Agent stopped."

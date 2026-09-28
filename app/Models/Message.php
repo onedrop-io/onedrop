@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
 /**
@@ -15,10 +16,11 @@ use Illuminate\Support\Carbon;
  * @property int $project_id
  * @property MessageRole $role
  * @property string $content
+ * @property bool $queued
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['role', 'content'])]
+#[Fillable(['role', 'content', 'queued'])]
 class Message extends Model
 {
     /** @use HasFactory<MessageFactory> */
@@ -33,7 +35,26 @@ class Message extends Model
     {
         return [
             'role' => MessageRole::class,
+            'queued' => 'boolean',
         ];
+    }
+
+    /**
+     * Remove the attachments' files too (the database cascade alone would leave them on disk).
+     */
+    protected static function booted(): void
+    {
+        static::deleting(fn (self $message) => $message->attachments->each->delete());
+    }
+
+    /**
+     * Files the user attached to the message.
+     *
+     * @return HasMany<Attachment, $this>
+     */
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(Attachment::class)->orderBy('id');
     }
 
     /**

@@ -24,8 +24,27 @@ return [
             'cpus' => env('SANDBOX_DOCKER_CPUS', '2'),
             // Host the browser uses to reach published container ports.
             'host' => env('SANDBOX_DOCKER_HOST', '127.0.0.1'),
+            // Optional container runtime, e.g. "runsc" for gVisor isolation on Linux servers.
+            'runtime' => env('SANDBOX_DOCKER_RUNTIME'),
+            // Host folder holding each project's App Storage buckets (<path>/project-<id>/storage), mounted
+            // into its sandbox at /data/storage so they survive the container. Empty keeps them in the container.
+            'storage_path' => env('SANDBOX_DOCKER_STORAGE_PATH', storage_path('app/sandboxes')),
         ],
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Gateway Domain
+    |--------------------------------------------------------------------------
+    |
+    | On a server, previews and shells are served at preview-<id>.<domain> and
+    | shell-<id>.<domain> through Caddy, which asks this app to authorize each
+    | request (SandboxGatewayController). Leave empty on a laptop, where the
+    | browser reaches sandboxes on 127.0.0.1 directly.
+    |
+    */
+
+    'gateway_domain' => env('SANDBOX_GATEWAY_DOMAIN'),
 
     /*
     |--------------------------------------------------------------------------
@@ -43,6 +62,9 @@ return [
 
     // The web terminal (ttyd) behind the workspace Shell tab.
     'shell_port' => (int) env('SANDBOX_SHELL_PORT', 7681),
+
+    // SSH server for Tools → Developer → SSH (key-only logins as the sandbox user).
+    'ssh_port' => (int) env('SANDBOX_SSH_PORT', 2222),
 
     /*
     |--------------------------------------------------------------------------
@@ -62,6 +84,19 @@ return [
         'codex' => env('SANDBOX_MODEL_CODEX', 'openai/gpt-5.6'),
         'openrouter' => env('SANDBOX_MODEL_OPENROUTER', 'openrouter/anthropic/claude-sonnet-5'),
     ],
+
+    // Shown first in the model picker (catalog ids; ones missing from the catalog are skipped).
+    'featured_models' => [
+        'claude' => ['claude-opus-5-5', 'claude-fable-5-1', 'claude-opus-5', 'claude-sonnet-5'],
+        'codex' => ['gpt-6-astra', 'gpt-6-sol', 'gpt-6-luna', 'gpt-5.6'],
+        'openrouter' => [
+            'anthropic/claude-opus-5.5', 'anthropic/claude-sonnet-5', 'openai/gpt-6-astra',
+            'google/gemini-3.8-flash', 'moonshotai/kimi-k3', 'z-ai/glm-5', 'deepseek/deepseek-v4-pro',
+        ],
+    ],
+
+    // Model catalog used by OpenCode (names, prices, context sizes, reasoning levels). Cached for a day.
+    'catalog_url' => env('SANDBOX_MODEL_CATALOG_URL', 'https://models.dev/api.json'),
 
     /*
     |--------------------------------------------------------------------------

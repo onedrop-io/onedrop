@@ -177,8 +177,8 @@ test('only the owner can publish or unpublish', function () {
 })->group('PUB-001');
 
 test('publish hostnames are dns-safe and unique per project', function () {
-    $project = Project::factory()->create(['name' => 'A Time Tracker Like Toggl!!']);
+    $project = Project::factory()->create(['name' => 'A Time-Off Tracker For My Team!!']);
 
-    expect($project->publishHostname())->toBe("a-time-tracker-like-toggl-{$project->id}")
+    expect($project->publishHostname())->toBe("a-time-off-tracker-for-my-team-{$project->id}")
         ->and(Project::factory()->create(['name' => '!!!'])->publishHostname())->toStartWith('project-');
 })->group('PUB-001');

@@ -1,0 +1,13 @@
+# Shell tab prompt (starship). The browser terminal has no Nerd Font, so every symbol here is plain Unicode.
+"$schema" = 'https://starship.rs/config-schema.json'
+
+add_newline = false
+
+[nodejs]
+symbol = "[⬢](bold green) "
+
+[git_branch]
+symbol = ""
+
+[container]
+disabled = true

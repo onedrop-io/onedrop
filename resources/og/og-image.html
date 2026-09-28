@@ -1,0 +1,149 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <link rel="preconnect" href="https://fonts.bunny.net" />
+        <link
+            href="https://fonts.bunny.net/css?family=instrument-sans:500|schibsted-grotesk:800"
+            rel="stylesheet"
+        />
+        <style>
+            * {
+                margin: 0;
+                box-sizing: border-box;
+            }
+            body {
+                width: 1200px;
+                height: 630px;
+                overflow: hidden;
+                background: #0a0807;
+                color: #f5efea;
+                font-family: 'Instrument Sans', sans-serif;
+            }
+            .card {
+                position: relative;
+                width: 100%;
+                height: 100%;
+                padding: 72px 80px;
+                display: flex;
+                flex-direction: column;
+            }
+            .grid {
+                position: absolute;
+                inset: 0;
+                background-image: radial-gradient(
+                    rgba(255, 255, 255, 0.09) 1.2px,
+                    transparent 1.2px
+                );
+                background-size: 28px 28px;
+                mask-image: radial-gradient(
+                    ellipse at 82% 25%,
+                    black 10%,
+                    transparent 70%
+                );
+            }
+            .glow {
+                position: absolute;
+                right: -150px;
+                top: -150px;
+                width: 640px;
+                height: 640px;
+                border-radius: 50%;
+                background: radial-gradient(
+                    circle,
+                    rgba(255, 154, 92, 0.3),
+                    rgba(255, 154, 92, 0.06) 45%,
+                    transparent 70%
+                );
+            }
+            .drop {
+                position: absolute;
+                right: 90px;
+                top: 40px;
+                width: 250px;
+                height: 250px;
+                filter: drop-shadow(0 0 60px rgba(255, 154, 92, 0.45));
+            }
+            .brand {
+                position: relative;
+                display: flex;
+                align-items: center;
+                gap: 14px;
+                font-family: 'Schibsted Grotesk', sans-serif;
+                font-weight: 800;
+                font-size: 40px;
+                letter-spacing: -0.02em;
+            }
+            .brand svg {
+                width: 44px;
+                height: 44px;
+                color: #ff9a5c;
+            }
+            h1 {
+                position: relative;
+                margin-top: auto;
+                font-family: 'Schibsted Grotesk', sans-serif;
+                font-weight: 800;
+                font-size: 96px;
+                line-height: 0.95;
+                letter-spacing: -0.035em;
+                background: linear-gradient(to bottom, #fff, #fff 55%, #ffc7a8);
+                -webkit-background-clip: text;
+                color: transparent;
+                padding-bottom: 8px;
+            }
+            p {
+                position: relative;
+                margin-top: 28px;
+                font-size: 30px;
+                font-weight: 500;
+                color: #b3a69c;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <div class="grid"></div>
+            <div class="glow"></div>
+            <svg class="drop" viewBox="0 0 24 24">
+                <defs>
+                    <linearGradient id="d" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0" stop-color="#FFC7A8" />
+                        <stop offset="1" stop-color="#FF7A3D" />
+                    </linearGradient>
+                </defs>
+                <path
+                    d="M12 2.5c-.4.5-7 8.3-7 13a7 7 0 0 0 14 0c0-4.7-6.6-12.5-7-13Z"
+                    fill="url(#d)"
+                />
+                <path
+                    d="M9.2 15.6a3 3 0 0 0 2.6 2.9"
+                    stroke="white"
+                    stroke-width="1.2"
+                    stroke-linecap="round"
+                    fill="none"
+                    opacity="0.85"
+                />
+            </svg>
+            <div class="brand">
+                <svg viewBox="0 0 24 24">
+                    <path
+                        d="M12 2.5c-.4.5-7 8.3-7 13a7 7 0 0 0 14 0c0-4.7-6.6-12.5-7-13Z"
+                        fill="currentColor"
+                    />
+                    <path
+                        d="M9.2 15.6a3 3 0 0 0 2.6 2.9"
+                        stroke="white"
+                        stroke-width="1.6"
+                        stroke-linecap="round"
+                        fill="none"
+                        opacity="0.85"
+                    />
+                </svg>
+                OneDrop
+            </div>
+            <h1>Vibe-code apps<br />for production.</h1>
+            <p>Bring your own subscription. Deploy anywhere.</p>
+        </div>
+    </body>
+</html>

@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
+use App\Enums\SocialProvider;
 use App\Http\Controllers\AcceptInvitationController;
 use App\Models\Invitation;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -53,6 +54,7 @@ class FortifyServiceProvider extends ServiceProvider
         Fortify::loginView(fn (Request $request) => Inertia::render('auth/login', [
             'canResetPassword' => Features::enabled(Features::resetPasswords()),
             'status' => $request->session()->get('status'),
+            'socialProviders' => SocialProvider::options(),
         ]));
 
         Fortify::resetPasswordView(fn (Request $request) => Inertia::render('auth/reset-password', [
@@ -74,6 +76,7 @@ class FortifyServiceProvider extends ServiceProvider
 
             return Inertia::render('auth/register', [
                 'passwordRules' => Password::defaults()->toPasswordRulesString(),
+                'socialProviders' => SocialProvider::options(),
                 'invitation' => $invitation?->isUsable() ? [
                     'email' => $invitation->email,
                     'invited_by' => $invitation->inviter?->name,

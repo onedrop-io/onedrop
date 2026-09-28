@@ -13,6 +13,8 @@ use App\Sandbox\Agents\OpenCodeRunner;
 use App\Sandbox\ExecResult;
 use App\Sandbox\Providers\FakeSandboxProvider;
 use App\Sandbox\SandboxProvider;
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Http;
 
 beforeEach(function () {
     $this->provider = new class extends FakeSandboxProvider
@@ -46,12 +48,12 @@ test('starts the forwarder detached with the prompt, model, key and a callback',
     expect($call['id'])->toBe('ctr-1')
         ->and($call['command'])->toBe(['node', '/opt/zap/forwarder.mjs'])
         ->and($call['detach'])->toBeTrue()
-        ->and($env['ZAP_PROMPT'])->toBe('build a timer')
-        ->and($env['ZAP_MODEL'])->toBe('openrouter/anthropic/claude-sonnet-5')
+        ->and($env['APP_PROMPT'])->toBe('build a timer')
+        ->and($env['APP_MODEL'])->toBe('openrouter/anthropic/claude-sonnet-5')
         ->and($env['OPENROUTER_API_KEY'])->toBe('sk-or-key')
-        ->and($env['ZAP_EVENTS_URL'])->toBe("http://host.docker.internal:8000/sandbox-events/{$this->sandbox->id}")
-        ->and($env['ZAP_SESSION_ID'])->toBe('')
-        ->and($this->sandbox->fresh()->acceptsEventsToken($env['ZAP_EVENTS_TOKEN']))->toBeTrue();
+        ->and($env['APP_EVENTS_URL'])->toBe("http://host.docker.internal:8000/sandbox-events/{$this->sandbox->id}")
+        ->and($env['APP_SESSION_ID'])->toBe('')
+        ->and($this->sandbox->fresh()->acceptsEventsToken($env['APP_EVENTS_TOKEN']))->toBeTrue();
 })->group('AGT-001');
 
 test('resumes the previous agent session', function () {
@@ -60,7 +62,7 @@ test('resumes the previous agent session', function () {
 
     app(OpenCodeRunner::class)->start($this->project, $message);
 
-    expect($this->provider->envs[0]['ZAP_SESSION_ID'])->toBe('ses_abc');
+    expect($this->provider->envs[0]['APP_SESSION_ID'])->toBe('ses_abc');
 })->group('AGT-001');
 
 test('explains instead of running when the agent cannot start', function (Closure $setup, string $reason) {
@@ -77,3 +79,51 @@ test('explains instead of running when the agent cannot start', function (Closur
     'claude subscription token' => [fn ($test) => $test->user->agentConnections()->update(['provider' => 'claude', 'credential_type' => CredentialType::OAuthToken]), "can't use a Claude subscription token"],
     'no AI' => [fn ($test) => $test->user->agentConnections()->delete(), 'Connect an AI'],
 ])->group('AGT-001');
+
+test('runs on a ChatGPT sign-in with only the access token in the sandbox', function () {
+    $this->freezeTime();
+    $this->user->agentConnections()->delete();
+    AgentConnection::factory()->for($this->user)->chatGpt(['expires' => now()->addDays(5)->getTimestamp()])->create();
+    $message = $this->project->messages()->create(['role' => MessageRole::User, 'content' => 'build a timer']);
+
+    app(OpenCodeRunner::class)->start($this->project->fresh(), $message);
+
+    $auth = json_decode($this->provider->envs[0]['OPENCODE_AUTH_CONTENT'], true);
+    expect($this->provider->envs[0]['APP_MODEL'])->toStartWith('openai/')
+        ->and($auth['openai'])->toBe([
+            'type' => 'oauth',
+            'refresh' => '',
+            'access' => 'chatgpt-access-token',
+            'expires' => now()->addDays(5)->getTimestamp() * 1000,
+            'accountId' => 'acct-1234',
+        ]);
+    Http::assertNotSent(fn (Request $request) => str_contains($request->url(), 'auth.openai.com'));
+})->group('AI-003');
+
+test('refreshes a ChatGPT sign-in that is about to expire before running', function () {
+    Http::fake(['auth.openai.com/oauth/token' => Http::response(['access_token' => 'access-2', 'refresh_token' => 'refresh-2', 'expires_in' => 864000])]);
+    $this->user->agentConnections()->delete();
+    $connection = AgentConnection::factory()->for($this->user)->chatGpt(['expires' => now()->addMinutes(30)->getTimestamp()])->create();
+    $message = $this->project->messages()->create(['role' => MessageRole::User, 'content' => 'build a timer']);
+
+    app(OpenCodeRunner::class)->start($this->project->fresh(), $message);
+
+    $tokens = $connection->fresh()->chatGptTokens();
+    expect(json_decode($this->provider->envs[0]['OPENCODE_AUTH_CONTENT'], true)['openai']['access'])->toBe('access-2')
+        ->and($tokens)->toMatchArray(['access' => 'access-2', 'refresh' => 'refresh-2', 'account_id' => 'acct-1234', 'email' => 'dev@example.com']);
+    Http::assertSent(fn (Request $request) => $request->url() === 'https://auth.openai.com/oauth/token' && $request['grant_type'] === 'refresh_token' && $request['refresh_token'] === 'chatgpt-refresh-token');
+})->group('AI-003');
+
+test('asks the user to sign in again when a ChatGPT sign-in can no longer be refreshed', function () {
+    Http::fake(['auth.openai.com/oauth/token' => Http::response(['error' => 'invalid_grant'], 401)]);
+    $this->user->agentConnections()->delete();
+    $connection = AgentConnection::factory()->for($this->user)->chatGpt(['expires' => now()->subMinute()->getTimestamp()])->create();
+    $message = $this->project->messages()->create(['role' => MessageRole::User, 'content' => 'build a timer']);
+
+    app(OpenCodeRunner::class)->start($this->project->fresh(), $message);
+
+    expect($this->provider->executed)->toBe([])
+        ->and($this->project->messages()->reorder()->latest('id')->first()->content)->toContain('Sign in with ChatGPT again')
+        ->and($connection->fresh()->verified_at)->toBeNull()
+        ->and($this->project->fresh()->status)->toBe(ProjectStatus::Idle);
+})->group('AI-003');

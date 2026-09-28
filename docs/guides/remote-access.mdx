@@ -1,0 +1,21 @@
+---
+title: 'Use OneDrop remotely'
+description: 'Open OneDrop from your phone or another computer through a Tailscale Funnel.'
+---
+
+You can reach a OneDrop instance running on your laptop from anywhere by funneling its web port with Tailscale, for example `https://macbook.your-tailnet.ts.net`.
+
+```bash
+tailscale funnel --bg 8000
+```
+
+Everything works remotely, with two differences:
+
+- **Preview**: the sandbox preview only listens on the machine running OneDrop. Remotely, the preview shows the project's published URL. Publish the project to see it from elsewhere.
+- **Shell**: the Shell tab only works on the machine running OneDrop.
+
+<Note>
+    Remote visitors get the built front end (`public/build`), not the Vite dev
+    server. After changing front-end code, run `npm run build` to see the change
+    remotely.
+</Note>

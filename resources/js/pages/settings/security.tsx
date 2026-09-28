@@ -10,17 +10,25 @@ import { edit } from '@/routes/security';
 import type { Props as ManagePasskeysProps } from '@/components/manage-passkeys';
 import ManagePasskeys from '@/components/manage-passkeys';
 import type { Props as ManageTwoFactorProps } from '@/components/manage-two-factor';
+import ManageSocialAccounts from '@/components/manage-social-accounts';
 import ManageTwoFactor from '@/components/manage-two-factor';
+import type { SocialAccountRow } from '@/types/auth';
 
 // oxfmt-ignore
 type Props = {
     passwordRules: string;
+    hasPassword: boolean;
+    socialAccounts: SocialAccountRow[];
 } & ManagePasskeysProps &
     ManageTwoFactorProps;
 
 export default function Security(props: Props) {
     const passwordInput = useRef<HTMLInputElement>(null);
     const currentPasswordInput = useRef<HTMLInputElement>(null);
+    const loginMethodCount =
+        Number(props.hasPassword) +
+        props.socialAccounts.filter(({ account }) => account).length +
+        (props.passkeys?.length ?? 0);
 
     return (
         <>
@@ -31,8 +39,14 @@ export default function Security(props: Props) {
             <div className="space-y-6">
                 <Heading
                     variant="small"
-                    title="Update password"
-                    description="Ensure your account is using a long, random password to stay secure"
+                    title={
+                        props.hasPassword ? 'Update password' : 'Set a password'
+                    }
+                    description={
+                        props.hasPassword
+                            ? 'Ensure your account is using a long, random password to stay secure'
+                            : 'You log in with a connected account. Add a password to log in with your email too'
+                    }
                 />
 
                 <Form
@@ -59,22 +73,26 @@ export default function Security(props: Props) {
                 >
                     {({ errors, processing }) => (
                         <>
-                            <div className="grid gap-2">
-                                <Label htmlFor="current_password">
-                                    Current password
-                                </Label>
+                            {props.hasPassword && (
+                                <div className="grid gap-2">
+                                    <Label htmlFor="current_password">
+                                        Current password
+                                    </Label>
 
-                                <PasswordInput
-                                    id="current_password"
-                                    ref={currentPasswordInput}
-                                    name="current_password"
-                                    className="mt-1 block w-full"
-                                    autoComplete="current-password"
-                                    placeholder="Current password"
-                                />
+                                    <PasswordInput
+                                        id="current_password"
+                                        ref={currentPasswordInput}
+                                        name="current_password"
+                                        className="mt-1 block w-full"
+                                        autoComplete="current-password"
+                                        placeholder="Current password"
+                                    />
 
-                                <InputError message={errors.current_password} />
-                            </div>
+                                    <InputError
+                                        message={errors.current_password}
+                                    />
+                                </div>
+                            )}
 
                             <div className="grid gap-2">
                                 <Label htmlFor="password">New password</Label>
@@ -124,16 +142,33 @@ export default function Security(props: Props) {
                 </Form>
             </div>
 
-            <ManageTwoFactor
-                canManageTwoFactor={props.canManageTwoFactor}
-                requiresConfirmation={props.requiresConfirmation}
-                twoFactorEnabled={props.twoFactorEnabled}
+            <ManageSocialAccounts
+                socialAccounts={props.socialAccounts}
+                loginMethodCount={loginMethodCount}
             />
 
-            <ManagePasskeys
-                canManagePasskeys={props.canManagePasskeys}
-                passkeys={props.passkeys}
-            />
+            {props.hasPassword ? (
+                <>
+                    <ManageTwoFactor
+                        canManageTwoFactor={props.canManageTwoFactor}
+                        requiresConfirmation={props.requiresConfirmation}
+                        twoFactorEnabled={props.twoFactorEnabled}
+                    />
+
+                    <ManagePasskeys
+                        canManagePasskeys={props.canManagePasskeys}
+                        passkeys={props.passkeys}
+                    />
+                </>
+            ) : (
+                <p
+                    className="text-sm text-muted-foreground"
+                    data-test="needs-password-note"
+                >
+                    Set a password to turn on two-factor authentication and
+                    passkeys.
+                </p>
+            )}
         </>
     );
 }

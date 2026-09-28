@@ -1,0 +1,53 @@
+---
+title: 'Feature Flags'
+description: 'Turn parts of your app on or off without changing its code.'
+---
+
+**Tools → Feature Flags** lets you hide a feature until it's ready, or switch it off again if something goes wrong. The agent puts the feature behind a flag, and you switch the flag on or off in the panel.
+
+Flags live in the app itself, in `.zap/flags.json`. The app reads that file each time it checks a flag, so a switch applies on the next page load, in the preview and the published app, without a restart or a new publish. No flag service is involved.
+
+## Add a flag
+
+<Steps>
+    <Step title="Describe the feature">
+        Open **Tools → Feature Flags** and describe what should go behind the
+        flag, for example "the new pricing page" or "dark mode".
+    </Step>
+    <Step title="Click Add with agent">
+        This sends a request to the agent in the chat. If the agent is busy, the
+        request is queued and runs next.
+    </Step>
+    <Step title="Switch it on">
+        When the agent finishes, the flag shows in the panel, switched off. Turn
+        it on to see the feature.
+    </Step>
+</Steps>
+
+## Switch flags on and off
+
+Each flag shows what it turns on, its key (the name the app's code uses), and a switch. Switching saves straight to `.zap/flags.json` in the sandbox; the agent isn't involved.
+
+A flag the app checks but that isn't in the file counts as off.
+
+## Remove a flag
+
+Once a feature is settled, open the flag's menu (⋮) and choose **Remove with agent**. The agent takes the flag out of the app and keeps the feature as it is now:
+
+- **On**: the feature stays, for everyone.
+- **Off**: the agent removes the feature's code.
+
+## For developers
+
+The file looks like this:
+
+```json .zap/flags.json
+{
+  "version": 1,
+  "flags": [
+    { "key": "new-checkout", "description": "The redesigned checkout page", "enabled": false }
+  ]
+}
+```
+
+The agent follows a guide (`/opt/zap/guides/flags.md` in the sandbox) that adds one small helper for the app's stack, for example `Features::enabled('new-checkout')` in Laravel, shared with React through an Inertia prop, or `isEnabled('new-checkout')` in a Vite app.

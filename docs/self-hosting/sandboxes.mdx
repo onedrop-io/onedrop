@@ -1,0 +1,82 @@
+---
+title: 'Sandboxes'
+description: "How project sandboxes run in Docker, what's inside them, and how to maintain them."
+---
+
+Each project runs in its own sandbox. Locally that's a Docker container made from the `zap-sandbox` image.
+
+## What's in the image
+
+The image is defined in `docker/sandbox/`:
+
+- PHP 8.4 (with SQLite, PostgreSQL and MySQL drivers), Composer, Node.js 22, SQLite
+- OpenCode (the agent, pinned version), plus the Claude Code and Codex CLIs
+- `ttyd`, the web terminal behind the Shell tab
+- `start.sh`, which keeps three processes running: the app's dev server (or a placeholder page), the host-rewriting proxy, and the terminal
+- `forwarder.mjs`, which runs an agent task and streams its events back to OneDrop
+- `db.php`, which finds the app's databases and runs the queries behind **Tools → Database**
+- `auth.php` and `guides/auth.md`, behind **Tools → Users & Auth**: the tool that lists the app's users and saves provider keys, and the guide the agent follows to add sign-in
+- `instructions.md`, the rules the agent follows (plain language, how to start a dev server, default stacks)
+
+Build or rebuild it with:
+
+```bash
+php artisan sandbox:build-image
+```
+
+## Container setup
+
+Each container gets:
+
+- A 2 GB memory and 2 CPU limit
+- Ports published on `127.0.0.1` only: the proxy (preview) and the terminal
+- The `zap.sandbox` label, so you can find all sandboxes
+- The owner's default AI key as an environment variable, passed by name so it never appears in the process list
+
+## How the app's dev server runs
+
+The agent creates an executable `/workspace/.zap/dev` script that starts the app's dev server on `$PORT`, then runs `/opt/zap/restart`. The container's loop starts that script instead of the placeholder. Output goes to `/tmp/zap-server.log`, which the Console tab shows.
+
+## Sandboxes update themselves
+
+The guides the agent follows, the tools behind panels like Database and Growth, and the proxy all ship in the sandbox image. After you change anything in `docker/sandbox/`, rebuild the image (`php artisan sandbox:build-image`; the server deploy script does this when those files change). Existing sandboxes then move to the new image on their own:
+
+- **When someone opens the project.** The update runs in the background and the preview shows **Updating sandbox…** until the app is back. It waits if the agent is working.
+- **Before the agent's next run**, so the agent always has the current guides and tools.
+
+An update keeps the app's files (`/workspace`), App Storage buckets and the agent's conversation history. The app restarts, and published projects are published again. Only one update runs per project at a time.
+
+To update every outdated sandbox now, or just one project:
+
+```bash
+php artisan sandbox:update
+php artisan sandbox:update 12
+```
+
+Projects the agent is working on are skipped; they update before their next run.
+
+## Recreate a sandbox
+
+To replace a sandbox even when it's up to date (for example, one that's broken):
+
+```bash
+php artisan sandbox:recreate 12 --keep-files
+```
+
+`--keep-files` copies the app (`/workspace`), App Storage and the agent's conversation history into the new container. Without it, the project starts from an empty workspace. Published projects are published again automatically.
+
+## Clean up
+
+Nothing removes old containers automatically yet. To remove every sandbox and publish container:
+
+```bash
+docker rm -f $(docker ps -aq --filter label=zap.sandbox) $(docker ps -aq --filter label=zap.sandbox.publisher)
+```
+
+## Real-Docker tests
+
+The normal test suite uses a fake provider. To test against real containers:
+
+```bash
+RUN_DOCKER_TESTS=1 vendor/bin/pest tests/Integration
+```

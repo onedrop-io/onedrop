@@ -28,14 +28,14 @@ test('submitting a description creates a named project and starts the agent', fu
     Queue::fake();
 
     $response = $this->actingAs($this->user)->post(route('projects.store'), [
-        'prompt' => 'time tracker like toggl, with projects and tags',
+        'prompt' => 'time-off tracker for my team, with approvals and a calendar',
     ]);
 
     $project = $this->user->projects()->sole();
 
     $response->assertRedirect(route('projects.show', $project));
-    expect($project->name)->toBe('Time Tracker Like Toggl, With Projects')
-        ->and($project->prompt)->toBe('time tracker like toggl, with projects and tags')
+    expect($project->name)->toBe('Time-Off Tracker For My Team, With')
+        ->and($project->prompt)->toBe('time-off tracker for my team, with approvals and a calendar')
         ->and($project->messages()->sole()->role)->toBe(MessageRole::User)
         ->and($project->status)->toBe(ProjectStatus::Working);
 
@@ -121,18 +121,6 @@ test('users can send follow-up messages', function () {
         ->and($project->fresh()->status)->toBe(ProjectStatus::Working);
     Queue::assertPushed(RunAgentTask::class);
 })->group('PRJ-002');
-
-test('follow-ups are refused while the agent is still working', function () {
-    Queue::fake();
-    $project = Project::factory()->for($this->user)->create(['status' => ProjectStatus::Working]);
-
-    $this->actingAs($this->user)
-        ->post(route('projects.messages.store', $project), ['content' => 'dsdsf'])
-        ->assertSessionHasErrors(['content' => 'The agent is still working. Send your message when it finishes.']);
-
-    expect($project->messages()->count())->toBe(0);
-    Queue::assertNothingPushed();
-})->group('AGT-001');
 
 test('a crashed agent job un-sticks the chat', function () {
     $project = Project::factory()->for($this->user)->create(['status' => ProjectStatus::Working]);

@@ -1,0 +1,157 @@
+---
+title: 'Deploy to AWS'
+description: 'Provision a single EC2 server with Pulumi and deploy OneDrop to it.'
+---
+
+The `infra/aws` Pulumi program creates one EC2 server that runs everything: the app, the queue worker, Caddy for HTTPS, and Docker sandboxes. It's sized for a small test launch.
+
+## What gets created
+
+| Resource       | Details                                                                  |
+| -------------- | ------------------------------------------------------------------------ |
+| EC2 instance   | `t4g.large` (2 vCPU, 8 GB, Arm), Ubuntu 24.04, 100 GB encrypted gp3 disk |
+| Elastic IP     | A fixed public address                                                   |
+| Security group | Ports 80 and 443 only. No SSH port.                                      |
+| IAM role       | Session Manager access, and read access to the release bucket            |
+| S3 bucket      | Private bucket for release tarballs                                      |
+
+Without a domain, OneDrop uses `<ip>.sslip.io` (for example `https://32-193-10-101.sslip.io`), which resolves to the server's IP with no DNS setup. Caddy gets HTTPS certificates for it automatically.
+
+Expect roughly $60 per month for the default size.
+
+## Prerequisites
+
+- An AWS account and a CLI profile with admin access
+- [Pulumi](https://www.pulumi.com/docs/install/) (`curl -fsSL https://get.pulumi.com | sh`)
+- Node.js 22
+
+## Provision
+
+<Steps>
+  <Step title="Store Pulumi state in S3">
+    Pulumi records what it created. Keep that record in a private, versioned bucket in your account:
+
+    ```bash
+    export AWS_PROFILE=jeff
+    aws s3api create-bucket --bucket zap-pulumi-state-<account-id> --region us-east-1
+    aws s3api put-bucket-versioning --bucket zap-pulumi-state-<account-id> \
+      --versioning-configuration Status=Enabled
+    pulumi login s3://zap-pulumi-state-<account-id>
+    ```
+
+  </Step>
+  <Step title="Create a stack">
+    ```bash
+    cd infra/aws
+    npm install
+    export PULUMI_CONFIG_PASSPHRASE=""   # the stack stores no secrets
+    pulumi stack init test
+    pulumi config set aws:region us-east-1
+    pulumi config set aws:profile jeff
+    ```
+
+    Optional settings:
+
+    ```bash
+    pulumi config set zap:instanceType t4g.medium   # smaller/cheaper
+    pulumi config set zap:diskGb 50
+    pulumi config set zap:domain zap.example.com    # point an A record at the Elastic IP first
+    ```
+
+  </Step>
+  <Step title="Create the server">
+    ```bash
+    pulumi up
+    ```
+    The outputs include the URL, the instance ID, and the release bucket. The server boots and waits for its first release.
+  </Step>
+  <Step title="Upload the first release">
+    ```bash
+    bash scripts/release.sh
+    ```
+    This packages the repository (committed and uncommitted files, minus anything in `.gitignore`), uploads it to the release bucket, and the server installs itself. The first install takes 10 to 20 minutes, mostly building the sandbox image.
+  </Step>
+  <Step title="Create your admin account">
+    Open the URL, sign up, then make yourself an admin:
+
+    ```bash
+    aws ssm start-session --target <instance-id>
+    sudo -u zap php /opt/zap/current/artisan zap:admin you@example.com
+    ```
+
+  </Step>
+</Steps>
+
+<Note>
+    On some Macs the AWS CLI only runs from zsh. If `bash scripts/release.sh`
+    fails with "Bad CPU type in executable", run `zsh scripts/release.sh`.
+</Note>
+
+## Use your own domain
+
+<Steps>
+  <Step title="Add two DNS records">
+    At your DNS provider, point the domain and a wildcard for previews and shells at the Elastic IP:
+
+    | Host | Type | Value |
+    | --- | --- | --- |
+    | `@` | A | Your Elastic IP |
+    | `*` | A | Your Elastic IP |
+
+    To use a subdomain such as `app.example.com` instead, add `app` and `*.app`.
+
+  </Step>
+  <Step title="Record it in Pulumi">
+    ```bash
+    pulumi config set zap:domain example.com
+    pulumi up
+    ```
+    This only updates the stack outputs; the server is not restarted.
+  </Step>
+  <Step title="Switch the server">
+    Once the records resolve (`dig +short example.com`), run in a Session Manager session:
+
+    ```bash
+    sudo /opt/zap/bin/set-domain example.com
+    ```
+    Caddy gets new certificates on the first visit. Everyone has to log in again.
+
+  </Step>
+</Steps>
+
+## Deploy updates
+
+```bash
+cd infra/aws
+bash scripts/release.sh
+```
+
+The script uploads a new release and runs the deploy on the server through Session Manager. It prints a command to follow the deploy's output. Releases are kept in `/opt/zap/releases`; the five newest are kept.
+
+## Access the server
+
+There is no SSH port. Use Session Manager:
+
+```bash
+aws ssm start-session --target <instance-id>
+```
+
+Useful places on the server:
+
+| Path                              | What it is                          |
+| --------------------------------- | ----------------------------------- |
+| `/var/log/zap-bootstrap.log`      | First-boot install log              |
+| `/opt/zap/current`                | The running release                 |
+| `/opt/zap/shared/.env`            | Configuration, kept across releases |
+| `/opt/zap/shared/database.sqlite` | The database                        |
+| `journalctl -u zap-queue`         | Queue worker logs                   |
+
+To join the server to your tailnet (for Tailscale publishing and private access), run `sudo tailscale up` in a session.
+
+## Tear down
+
+```bash
+pulumi destroy
+```
+
+This deletes the server, its disk, and the release bucket. Projects and the database are lost.

@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers\Settings;
 
+use App\Enums\SocialProvider;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Settings\PasswordUpdateRequest;
 use App\Http\Requests\Settings\TwoFactorAuthenticationRequest;
+use App\Models\SocialAccount;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
@@ -38,6 +41,8 @@ class SecurityController extends Controller
                     ->all()
                 : [],
             'passwordRules' => Password::defaults()->toPasswordRulesString(),
+            'hasPassword' => $request->user()->hasPassword(),
+            'socialAccounts' => $this->socialAccounts($request->user()),
         ];
 
         if (Features::canManageTwoFactorAuthentication()) {
@@ -48,6 +53,28 @@ class SecurityController extends Controller
         }
 
         return Inertia::render('settings/security', $props);
+    }
+
+    /**
+     * Each provider the user can connect or has connected.
+     *
+     * @return list<array{provider: string, label: string, account: array{id: int, email: string|null}|null}>
+     */
+    protected function socialAccounts(User $user): array
+    {
+        $accounts = $user->socialAccounts()->get()->keyBy(fn (SocialAccount $account) => $account->provider->value);
+
+        return collect(SocialProvider::cases())
+            ->filter(fn (SocialProvider $provider) => $provider->isConfigured() || $accounts->has($provider->value))
+            ->map(fn (SocialProvider $provider) => [
+                'provider' => $provider->value,
+                'label' => $provider->label(),
+                'account' => $accounts->has($provider->value)
+                    ? $accounts[$provider->value]->only(['id', 'email'])
+                    : null,
+            ])
+            ->values()
+            ->all();
     }
 
     /**

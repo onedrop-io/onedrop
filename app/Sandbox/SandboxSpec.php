@@ -13,6 +13,8 @@ final readonly class SandboxSpec
      * @param  int  $port  the port the app's dev server listens on
      * @param  int|null  $shellPort  the port the web terminal listens on, if any
      * @param  int|null  $proxyPort  the port of the host-rewriting proxy in front of the app, if any
+     * @param  int|null  $sshPort  the port the SSH server listens on, if any
+     * @param  string|null  $storageKey  stable per-project key for files kept outside the sandbox (App Storage), if any
      */
     public function __construct(
         public string $name,
@@ -20,5 +22,7 @@ final readonly class SandboxSpec
         public int $port = 8000,
         public ?int $shellPort = null,
         public ?int $proxyPort = null,
+        public ?int $sshPort = null,
+        public ?string $storageKey = null,
     ) {}
 }

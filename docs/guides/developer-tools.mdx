@@ -1,0 +1,62 @@
+---
+title: 'Developer tools'
+description: "See your app's addresses, open ports and resource use, and open it in VS Code or Cursor over SSH."
+---
+
+**Tools → Developer** has four pages. Each opens from the list and has a back arrow to return to it.
+
+## Networking
+
+**Addresses** shows the preview URL and, once the project is [published](/guides/publish), the published URL. Each has a copy button. The published URL also has a QR code for opening it on a phone.
+
+On a laptop, the preview address (`http://127.0.0.1:…`) only works in a browser on that machine, so it has no QR code. Publish the app to open it on other devices. On a server, the preview address works for anyone who can open the project, and it has a QR code too.
+
+**Ports** lists the programs listening inside the sandbox: address, process name, PID, and what each is used for.
+
+| Port   | Used for                                        |
+| ------ | ----------------------------------------------- |
+| `8000` | Your app. The preview shows the app on `$PORT`. |
+| `8081` | The proxy behind the preview and published URL. |
+| `7681` | The Shell tab.                                  |
+| `2222` | SSH.                                            |
+
+Any other port is **inside the sandbox only**. If your app listens somewhere else, ask the agent to serve it on `$PORT`. Click **Refresh** to read the list again.
+
+## Resources
+
+**Compute** shows the sandbox's CPU and memory limits and what it's using now, updated every few seconds with a small trend line for each value:
+
+- **CPU**: the share of the CPU limit in use, split into **User** (your app's code) and **System** (the kernel working for it).
+- **Memory**: the share of the memory limit in use, split into **Active** (memory the programs are using) and **Cache** (file cache the system can free when needed).
+
+**Storage** shows how much disk the app uses: the whole workspace, split into its code and its dependencies (`node_modules` and `vendor` folders), plus [App Storage](/guides/app-storage) files and how full the sandbox's disk is.
+
+## SSH
+
+SSH lets you work on the app from VS Code, Cursor or a terminal. Your edits land in the sandbox, where the agent and the preview see them.
+
+<Steps>
+  <Step title="Add a key">
+    Open **SSH → Keys** and click **Add SSH key**. Paste a public key, like the contents of `~/.ssh/id_ed25519.pub`. If you don't have one yet, run `ssh-keygen -t ed25519` in a terminal. The name is optional; it defaults to the key's comment.
+  </Step>
+  <Step title="Add the SSH config entry">
+    Open **SSH → Connect** and copy the entry into `~/.ssh/config`. It gives the project a host name like `onedrop-todo-app-12`.
+  </Step>
+  <Step title="Connect">
+    Click **Open in VS Code** or **Open in Cursor** (both need the Remote - SSH extension), or run the `ssh` command shown on the page. You land in `/workspace` as the `sandbox` user.
+  </Step>
+</Steps>
+
+Keys belong to your account, so one key works for all your projects. Adding or deleting a key applies to your running sandboxes right away. The Keys page shows each key's type and SHA256 fingerprint, the same one `ssh-keygen -lf` prints. Paste only the public key: the page refuses private keys.
+
+<Info>
+  A project's sandbox accepts only its owner's keys, never passwords. An admin opening someone else's project sees the owner's connection details, but has to use the Shell tab instead.
+</Info>
+
+The SSH port changes when a sandbox is recreated, and each sandbox makes its own host key. Come back to **Connect** to copy the new entry. The entry turns off host key checks because of this; the address only works on the machine running OneDrop.
+
+### When SSH isn't available
+
+- **From another machine**: the SSH address is on the machine running OneDrop (`127.0.0.1`), so Connect explains that it only works there.
+- **On a server**: SSH isn't offered yet. Use the Shell tab.
+- **Older sandboxes**: sandboxes created before SSH was added need the new image. After rebuilding it, they [update themselves](/self-hosting/sandboxes#sandboxes-update-themselves) when the project is opened.

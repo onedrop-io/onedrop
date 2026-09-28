@@ -29,7 +29,7 @@ class FakeAgentRunner implements AgentRunner
             [MessageRole::Activity, 'Planning app development'],
             [MessageRole::Assistant, "Got it. I'll work on: \"{$message->content}\" using {$ai}."],
             [MessageRole::Activity, 'Starting your project'],
-            [MessageRole::Assistant, "I'm a placeholder agent for now, so nothing was built yet. Your sandbox is running on the right; once the Claude Code adapter lands, I'll build the app there."],
+            [MessageRole::Assistant, "I'm a **placeholder agent** for now, so nothing was built yet. Your sandbox is running on the right; once the Claude Code adapter lands, I'll build the app there."],
         ];
 
         foreach ($events as $step => [$role, $content]) {
@@ -37,4 +37,9 @@ class FakeAgentRunner implements AgentRunner
                 ->delay(now()->addSeconds(($step + 1) * self::STEP_SECONDS));
         }
     }
+
+    /**
+     * Nothing runs outside the queue, so there's nothing to stop.
+     */
+    public function stop(Project $project): void {}
 }

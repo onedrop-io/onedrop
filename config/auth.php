@@ -6,6 +6,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Email Verification
+    |--------------------------------------------------------------------------
+    |
+    | Whether new accounts must verify their email address. Turn off on
+    | servers without outgoing email (e.g. a test launch); new accounts are
+    | then marked verified when they sign up.
+    |
+    */
+
+    'verify_email' => (bool) env('AUTH_VERIFY_EMAIL', true),
+
+    /*
+    |--------------------------------------------------------------------------
     | Authentication Defaults
     |--------------------------------------------------------------------------
     |

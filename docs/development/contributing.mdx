@@ -1,0 +1,35 @@
+---
+title: 'Contributing'
+description: 'Development rules, commands, and tests.'
+---
+
+The rules for working on OneDrop live in `AGENTS.md` at the repo root, and apply to people and coding agents alike.
+
+## For every feature
+
+1. Add it to `SPEC.md` first, as "User should be able to…" acceptance criteria with an ID like `AUTH-001`
+2. Write Pest unit or feature tests, tagged with the spec ID: `->group('AUTH-001')`
+3. Add a Pest browser test for big features
+4. Update these docs in `./docs`
+5. Run the tests before calling it done
+
+## Commands
+
+| Task                      | Command                                                |
+| ------------------------- | ------------------------------------------------------ |
+| Run everything locally    | `composer run dev`                                     |
+| Run the test suite        | `php artisan test`                                     |
+| Run browser tests         | `npm run build && vendor/bin/pest tests/Browser`       |
+| Run real-Docker tests     | `RUN_DOCKER_TESTS=1 vendor/bin/pest tests/Integration` |
+| Format PHP                | `vendor/bin/pint --dirty`                              |
+| Lint and format front end | `npx vp check --fix`                                   |
+| Type-check front end      | `npm run types:check`                                  |
+| Preview these docs        | `cd docs && npx mint dev`                              |
+
+## Dev user
+
+The database seeder creates `dev@example.com` / `password` (an admin), `sam@example.com` / `password`, and an "Engineering" group, in local and testing environments only.
+
+## Stack
+
+Laravel 13, Inertia v3 + React, Tailwind, Fortify, Wayfinder, Pest (with browser testing via Playwright). SQLite locally, Postgres in production.

@@ -1,3 +1,51 @@
-# Shell tab prompt: ~/workspace$
-export PS1='\[\e[1;34m\]\w\[\e[0m\]$ '
+# Shell tab and SSH sessions.
 cd /workspace 2>/dev/null || true
+
+[[ $- == *i* ]] || return
+
+HISTSIZE=10000
+HISTFILESIZE=20000
+HISTCONTROL=ignoreboth:erasedups
+shopt -s histappend checkwinsize
+
+[ -f /usr/share/bash-completion/bash_completion ] && . /usr/share/bash-completion/bash_completion
+
+alias ls='ls --color=auto --group-directories-first'
+alias grep='grep --color=auto'
+
+# ll/la/tree use eza when the image has it (with a git column); `ls` stays GNU ls so flags like -ltr keep working.
+if command -v eza >/dev/null 2>&1; then
+    alias ll='eza -l --git --group-directories-first'
+    alias la='eza -la --git --group-directories-first'
+    alias tree='eza --tree --git-ignore --group-directories-first'
+else
+    alias ll='ls -lh'
+    alias la='ls -lAh'
+fi
+
+# fzf: Ctrl-R history search, Ctrl-T file picker, Alt-C cd.
+if command -v fzf >/dev/null 2>&1; then
+    export FZF_DEFAULT_OPTS='--height=40% --layout=reverse --border'
+    eval "$(fzf --bash)"
+fi
+
+# Prompt: starship when the image has it; otherwise path, git branch (* unstaged, + staged changes)
+# and the exit code of a failed command, e.g. /workspace main* 1 $
+if command -v starship >/dev/null 2>&1; then
+    eval "$(starship init bash)"
+else
+    [ -f /usr/lib/git-core/git-sh-prompt ] && . /usr/lib/git-core/git-sh-prompt
+    GIT_PS1_SHOWDIRTYSTATE=1
+
+    __zap_prompt() {
+        local exit=$?
+        local start='\[\e[1;34m\]\w\[\e[0m\]' end=' \$ '
+        (( exit )) && end=" \[\e[31m\]${exit}\[\e[0m\]${end}"
+        if declare -F __git_ps1 >/dev/null; then
+            __git_ps1 "$start" "$end" ' \[\e[35m\]%s\[\e[0m\]'
+        else
+            PS1="${start}${end}"
+        fi
+    }
+    PROMPT_COMMAND=__zap_prompt
+fi

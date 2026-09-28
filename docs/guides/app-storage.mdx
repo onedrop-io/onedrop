@@ -1,0 +1,65 @@
+---
+title: 'App Storage'
+description: 'Host and save files your app keeps, like photos, videos and documents, in storage buckets.'
+---
+
+**Tools → App Storage** holds the files your app keeps: profile photos, attachments, invoices, exports. Files are grouped into **buckets** (like `photos` or `invoices`), and each file in a bucket is an **object**.
+
+Buckets live outside your app's code. They aren't in git, the Files panel or the project zip, and the preview and the published app use the same files.
+
+## Create a bucket
+
+<Steps>
+    <Step title="Open App Storage">
+        Open **Tools → App Storage** and click **Create bucket**.
+    </Step>
+    <Step title="Name it">
+        The dialog suggests a name like `swift-otter-42`; change it to something
+        that says what the bucket holds, like `photos`. Names use 3–63
+        lowercase letters, digits and dashes, and start and end with a letter
+        or digit.
+    </Step>
+</Steps>
+
+Switch buckets, create another, or delete one from the bucket menu next to the section title. Deleting a bucket removes everything in it, so the panel asks you to type its name first.
+
+## Browse and manage objects
+
+The **Objects** view shows one folder at a time, with each object's size and when it changed. The bucket menu line shows the bucket's total objects and size.
+
+- **Upload files** or **Upload folder**, or drag files and folders onto the list. Each file can be up to 10 MB, and an upload replaces any object with the same path.
+- **Create folder**: use slashes for nested folders, like `2026/invoices`.
+- **Search this bucket**: finds objects by name anywhere in the bucket.
+- Click an image to preview it; click any other file to download it.
+- The **⋮** menu on each row can preview, download, copy the path (what your app's code uses), or delete. Deleting a folder deletes everything in it.
+
+Downloads and previews work for files up to 25 MB. Only images are shown in the browser; other files, including HTML and SVG, always download.
+
+## Use a bucket in your app
+
+Switch the view from **Objects** to **Commands**. Describe what people should be able to upload, for example "profile photos on the account page", and click **Set up with agent**. The agent adds uploads to the app using that bucket. If it's busy, the request is queued and runs next.
+
+The Commands view also shows code for reading and writing the bucket in Node.js and in Laravel.
+
+## For developers
+
+Buckets are folders under `$APP_STORAGE_DIR` (`/data/storage` in the sandbox), so the app uses its stack's normal file tools, not an SDK.
+
+With Docker sandboxes, on a laptop or a server, `/data/storage` is a folder on the host mounted into the sandbox: `storage/app/sandboxes/project-<id>/storage` in the app builder's directory. Buckets survive the sandbox's container being deleted, and you can open them directly. Change the location with `SANDBOX_DOCKER_STORAGE_PATH` ([configuration](/self-hosting/configuration)). In Laravel, a bucket is a local disk:
+
+```php config/filesystems.php
+'photos' => [
+    'driver' => 'local',
+    'root' => rtrim(env('APP_STORAGE_DIR', storage_path('app/zap-storage')), '/').'/photos',
+    'throw' => true,
+],
+```
+
+The agent follows a guide (`/opt/zap/guides/storage.md` in the sandbox): it validates uploads on the server, names objects itself instead of trusting uploaded file names, stores object keys in the database, and serves files through app routes that check who can see them.
+
+<Note>
+    Sandboxes created before App Storage existed need the new sandbox image. After
+    `php artisan sandbox:build-image`, they
+    [update themselves](/self-hosting/sandboxes#sandboxes-update-themselves) and keep
+    their buckets; buckets that were inside the container move to the host folder.
+</Note>

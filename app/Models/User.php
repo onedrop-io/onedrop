@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AgentProvider;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -20,9 +21,12 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property int $id
  * @property string $name
  * @property string $email
+ * @property string|null $avatar
  * @property Carbon|null $email_verified_at
- * @property string $password
+ * @property string|null $password
  * @property bool $is_admin
+ * @property list<string>|null $favorite_models
+ * @property list<string>|null $recent_models
  * @property string|null $two_factor_secret
  * @property string|null $two_factor_recovery_codes
  * @property Carbon|null $two_factor_confirmed_at
@@ -48,8 +52,21 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_admin' => 'boolean',
+            'favorite_models' => 'array',
+            'recent_models' => 'array',
             'two_factor_confirmed_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Put a model ("provider:model") at the front of the user's recently chosen models.
+     */
+    public function rememberModel(AgentProvider $provider, string $model): void
+    {
+        $key = "{$provider->value}:{$model}";
+        $recent = collect($this->recent_models ?? [])->reject(fn ($item) => $item === $key)->prepend($key);
+
+        $this->forceFill(['recent_models' => $recent->take(10)->values()->all()])->save();
     }
 
     /**
@@ -72,6 +89,46 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     public function projects(): HasMany
     {
         return $this->hasMany(Project::class);
+    }
+
+    /**
+     * The identity provider accounts (Google, GitHub, ...) the user logs in with.
+     *
+     * @return HasMany<SocialAccount, $this>
+     */
+    public function socialAccounts(): HasMany
+    {
+        return $this->hasMany(SocialAccount::class);
+    }
+
+    /**
+     * The SSH public keys the user signs in to their projects' sandboxes with.
+     *
+     * @return HasMany<SshKey, $this>
+     */
+    public function sshKeys(): HasMany
+    {
+        return $this->hasMany(SshKey::class);
+    }
+
+    /**
+     * Whether the user has set a password (people who signed up with a
+     * provider start without one).
+     */
+    public function hasPassword(): bool
+    {
+        return $this->password !== null;
+    }
+
+    /**
+     * How many ways the user can log in: their password, connected
+     * providers, and passkeys.
+     */
+    public function loginMethodCount(): int
+    {
+        return (int) $this->hasPassword()
+            + $this->socialAccounts()->count()
+            + $this->passkeys()->count();
     }
 
     /**

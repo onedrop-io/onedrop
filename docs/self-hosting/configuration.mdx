@@ -1,0 +1,74 @@
+---
+title: 'Configuration'
+description: 'Environment variables that control sandboxes, the agent, and publishing.'
+---
+
+OneDrop is a Laravel application, so the usual Laravel settings (`APP_URL`, `DB_*`, `QUEUE_CONNECTION`, and so on) apply. This page covers the settings specific to OneDrop. They live in `config/sandbox.php` and are set in `.env`.
+
+## Sandboxes
+
+| Variable                | Default                            | Description                                                                                         |
+| ----------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `SANDBOX_PROVIDER`      | `docker`                           | Where project sandboxes run. `docker` locally. Managed providers (E2B, Daytona) are not built yet.  |
+| `SANDBOX_DOCKER_IMAGE`  | `zap-sandbox:latest`               | Image built by `php artisan sandbox:build-image`.                                                   |
+| `SANDBOX_DOCKER_MEMORY` | `2g`                               | Memory limit per sandbox container.                                                                 |
+| `SANDBOX_DOCKER_CPUS`   | `2`                                | CPU limit per sandbox container.                                                                    |
+| `SANDBOX_DOCKER_HOST`   | `127.0.0.1`                        | Host the browser uses to reach published container ports.                                           |
+| `SANDBOX_DOCKER_STORAGE_PATH` | `storage/app/sandboxes` | Host folder for App Storage buckets. Each project's are in `<path>/project-<id>/storage`, mounted into its sandbox. Empty keeps them inside the container. |
+| `SANDBOX_PORT`          | `8000`                             | Port the app's dev server listens on inside the sandbox.                                            |
+| `SANDBOX_PROXY_PORT`    | `8081`                             | Port of the host-rewriting proxy in front of the app, used by the preview and published URLs.       |
+| `SANDBOX_SHELL_PORT`    | `7681`                             | Port of the web terminal behind the Shell tab.                                                      |
+| `SANDBOX_SSH_PORT`      | `2222`                             | Port of the SSH server behind Tools → Developer → SSH.                                              |
+| `SANDBOX_CALLBACK_URL`  | `http://host.docker.internal:8000` | How code inside a sandbox reaches OneDrop to report agent events. In production, your public `APP_URL`. |
+
+## Agent
+
+| Variable                   | Default                                | Description                                                |
+| -------------------------- | -------------------------------------- | ---------------------------------------------------------- |
+| `SANDBOX_AGENT`            | `OpenCodeRunner`                       | Class that starts agent runs. Tests use `FakeAgentRunner`. |
+| `SANDBOX_MODEL_CLAUDE`     | `anthropic/claude-sonnet-5`            | Model used for Anthropic connections.                      |
+| `SANDBOX_MODEL_CODEX`      | `openai/gpt-5.6`                       | Model used for OpenAI connections.                         |
+| `SANDBOX_MODEL_OPENROUTER` | `openrouter/anthropic/claude-sonnet-5` | Model used for OpenRouter connections.                     |
+
+These are the defaults for new projects; users can pick any other model in the chat. Models use OpenCode's `provider/model` format.
+
+| Setting                     | Description                                                                                                              |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `SANDBOX_MODEL_CATALOG_URL` | Where the model list comes from. Defaults to `https://models.dev/api.json`, the catalog OpenCode uses. Cached for a day. |
+| `sandbox.featured_models`   | Models shown first in the picker, per provider, in `config/sandbox.php`.                                                 |
+
+## Publishing
+
+| Variable            | Default                      | Description                                                                                                                                              |
+| ------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SANDBOX_PUBLISHER` | `tailscale`                  | How projects get their own URL. Tests use `fake`.                                                                                                        |
+| `TAILSCALE_AUTHKEY` | empty                        | Optional. With a key, devices join unattended. Without one, the Publish panel shows a sign-in link. See [Tailscale publishing](/self-hosting/tailscale). |
+| `TAILSCALE_IMAGE`   | `tailscale/tailscale:stable` | Image for the per-project Tailscale container.                                                                                                           |
+
+## Accounts
+
+| Variable            | Default | Description                                                                                   |
+| ------------------- | ------- | --------------------------------------------------------------------------------------------- |
+| `AUTH_VERIFY_EMAIL` | `true`  | Require new accounts to verify their email. Set to `false` on servers without outgoing email. |
+
+Make a user an admin with `php artisan zap:admin you@example.com`.
+
+To let people log in with Google, Microsoft, GitHub, GitLab, or single sign-on, see [Social login](/self-hosting/social-login).
+
+## Link previews
+
+Links to your install show a preview card in Slack, Facebook, X, and other apps. The tags live in `resources/views/app.blade.php` and point to `public/images/og.png`. The image URL is built from the request, so serve the app over HTTPS behind a trusted proxy (the server install's Caddy setup already does this).
+
+To change the image, edit `resources/og/og-image.html` and re-render it:
+
+```bash
+node resources/og/render.mjs
+```
+
+Slack and Facebook cache previews. After changing the image, re-scrape with the [Facebook Sharing Debugger](https://developers.facebook.com/tools/debug/) or wait for the cache to expire.
+
+## Local development only
+
+| Variable                | Description                                                                                  |
+| ----------------------- | -------------------------------------------------------------------------------------------- |
+| `DEV_CLAUDE_CREDENTIAL` | An Anthropic API key connected to the seeded dev user, so you skip AI setup after reseeding. |

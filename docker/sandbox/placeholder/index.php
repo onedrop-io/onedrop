@@ -1,4 +1,4 @@
-<?php $name = htmlspecialchars(getenv('ZAP_PROJECT_NAME') ?: 'Your app'); ?>
+<?php $name = htmlspecialchars(getenv('APP_PROJECT_NAME') ?: 'Your app'); ?>
 <!doctype html>
 <html lang="en">
 <head>

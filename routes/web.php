@@ -1,23 +1,68 @@
 <?php
 
 use App\Http\Controllers\AcceptInvitationController;
+use App\Http\Controllers\AgentModelController;
+use App\Http\Controllers\ChatGptAuthController;
 use App\Http\Controllers\GroupController;
 use App\Http\Controllers\GroupMemberController;
 use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\OnboardingController;
+use App\Http\Controllers\OneDropOAuthController;
 use App\Http\Controllers\OpenRouterAuthController;
+use App\Http\Controllers\ProjectAgentController;
+use App\Http\Controllers\ProjectAttachmentController;
+use App\Http\Controllers\ProjectAuthController;
 use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\ProjectDatabaseController;
+use App\Http\Controllers\ProjectDeveloperController;
 use App\Http\Controllers\ProjectFileController;
+use App\Http\Controllers\ProjectFlagController;
+use App\Http\Controllers\ProjectGrowthController;
 use App\Http\Controllers\ProjectLogController;
 use App\Http\Controllers\ProjectMessageController;
+use App\Http\Controllers\ProjectMonitoringController;
 use App\Http\Controllers\ProjectPublicationController;
+use App\Http\Controllers\ProjectSecretController;
+use App\Http\Controllers\ProjectStorageController;
 use App\Http\Controllers\SandboxEventController;
+use App\Http\Controllers\SandboxGatewayController;
+use App\Http\Controllers\SocialLoginController;
+use App\Http\Controllers\SshKeyController;
 use App\Http\Controllers\UserController;
+use App\Http\Middleware\HandleInertiaRequests;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
+use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
+use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 Route::inertia('/', 'welcome')->name('home');
+Route::inertia('pricing', 'pricing')->name('pricing');
 
 Route::get('invite/{token}', AcceptInvitationController::class)->name('invitations.accept');
+
+// Log in with Google, GitHub, etc. Signed-in users use the same routes to connect a provider.
+Route::middleware('throttle:20,1')->group(function () {
+    Route::get('login/{provider}', [SocialLoginController::class, 'redirect'])->name('social.redirect');
+    Route::get('login/{provider}/callback', [SocialLoginController::class, 'callback'])->name('social.callback');
+});
+
+// Preview/shell addresses on servers. No session here: the app's login cookie never reaches these hosts.
+Route::withoutMiddleware([StartSession::class, ShareErrorsFromSession::class, PreventRequestForgery::class, HandleInertiaRequests::class])->group(function () {
+    // Used by Caddy to authorize preview/shell traffic and on-demand certificates.
+    Route::get('sandbox-gateway/authorize', [SandboxGatewayController::class, 'authorize'])->name('sandbox-gateway.authorize');
+    Route::get('sandbox-gateway/certificate', [SandboxGatewayController::class, 'certificate'])->name('sandbox-gateway.certificate');
+
+    // Served on each preview/shell address: trades the app's hand-off token for that address's cookie.
+    Route::get('__zap/enter', [SandboxGatewayController::class, 'enter'])->name('sandbox-gateway.enter');
+});
+
+// "Sign in with OneDrop" for apps built here: called by each app's server, authenticated by its client secret or access token.
+Route::withoutMiddleware([StartSession::class, ShareErrorsFromSession::class, PreventRequestForgery::class, HandleInertiaRequests::class])
+    ->middleware('throttle:60,1')
+    ->group(function () {
+        Route::post('oauth/token', [OneDropOAuthController::class, 'token'])->name('onedrop.token');
+        Route::get('oauth/userinfo', [OneDropOAuthController::class, 'userinfo'])->name('onedrop.userinfo');
+    });
 
 // Called by the agent forwarder inside a sandbox; authenticated by a per-sandbox bearer token.
 Route::post('sandbox-events/{sandbox}', [SandboxEventController::class, 'store'])
@@ -25,9 +70,12 @@ Route::post('sandbox-events/{sandbox}', [SandboxEventController::class, 'store']
     ->name('sandbox-events.store');
 
 Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('oauth/authorize', [OneDropOAuthController::class, 'authorize'])->middleware('throttle:60,1')->name('onedrop.authorize');
     Route::get('onboarding/ai', [OnboardingController::class, 'ai'])->name('onboarding.ai');
     Route::get('auth/openrouter', [OpenRouterAuthController::class, 'redirect'])->name('openrouter.redirect');
     Route::get('auth/openrouter/callback', [OpenRouterAuthController::class, 'callback'])->name('openrouter.callback');
+    Route::post('auth/chatgpt', [ChatGptAuthController::class, 'store'])->middleware('throttle:10,1')->name('chatgpt.store');
+    Route::post('auth/chatgpt/poll', [ChatGptAuthController::class, 'poll'])->middleware('throttle:60,1')->name('chatgpt.poll');
 
     Route::middleware('agent.connected')->group(function () {
         Route::get('dashboard', [ProjectController::class, 'create'])->name('dashboard');
@@ -35,9 +83,66 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('projects', [ProjectController::class, 'store'])->name('projects.store');
         Route::get('projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
         Route::post('projects/{project}/messages', [ProjectMessageController::class, 'store'])->name('projects.messages.store');
+        Route::get('projects/{project}/attachments/{attachment}', [ProjectAttachmentController::class, 'show'])->name('projects.attachments.show');
         Route::get('projects/{project}/files', [ProjectFileController::class, 'index'])->name('projects.files.index');
         Route::get('projects/{project}/files/show', [ProjectFileController::class, 'show'])->name('projects.files.show');
+        Route::put('projects/{project}/files', [ProjectFileController::class, 'update'])->name('projects.files.update');
+        Route::post('projects/{project}/files', [ProjectFileController::class, 'store'])->name('projects.files.store');
+        Route::post('projects/{project}/files/upload', [ProjectFileController::class, 'upload'])->name('projects.files.upload');
+        Route::get('projects/{project}/files/download', [ProjectFileController::class, 'download'])->name('projects.files.download');
         Route::get('projects/{project}/logs', [ProjectLogController::class, 'index'])->name('projects.logs.index');
+        Route::get('projects/{project}/monitoring', [ProjectMonitoringController::class, 'show'])->name('projects.monitoring.show');
+        Route::get('projects/{project}/database/connections', [ProjectDatabaseController::class, 'connections'])->name('projects.database.connections');
+        Route::get('projects/{project}/database/tables', [ProjectDatabaseController::class, 'tables'])->name('projects.database.tables');
+        Route::get('projects/{project}/database/rows', [ProjectDatabaseController::class, 'rows'])->name('projects.database.rows');
+        Route::post('projects/{project}/database/changes', [ProjectDatabaseController::class, 'change'])->name('projects.database.change');
+        Route::post('projects/{project}/database/query', [ProjectDatabaseController::class, 'query'])->name('projects.database.query');
+        Route::get('projects/{project}/auth', [ProjectAuthController::class, 'show'])->name('projects.auth.show');
+        Route::get('projects/{project}/auth/users', [ProjectAuthController::class, 'users'])->name('projects.auth.users');
+        Route::get('projects/{project}/auth/users/export', [ProjectAuthController::class, 'export'])->name('projects.auth.users.export');
+        Route::post('projects/{project}/auth/users/{user}/sign-in', [ProjectAuthController::class, 'signInAs'])->name('projects.auth.users.sign-in');
+        Route::put('projects/{project}/auth/onedrop', [ProjectAuthController::class, 'oneDropAccess'])->name('projects.auth.onedrop');
+        Route::post('projects/{project}/auth/users', [ProjectAuthController::class, 'storeUser'])->name('projects.auth.users.store');
+        Route::patch('projects/{project}/auth/users/{user}', [ProjectAuthController::class, 'updateUser'])->name('projects.auth.users.update');
+        Route::delete('projects/{project}/auth/users/{user}', [ProjectAuthController::class, 'destroyUser'])->name('projects.auth.users.destroy');
+        Route::post('projects/{project}/auth/users/{user}/sign-out', [ProjectAuthController::class, 'signOutUser'])->name('projects.auth.users.sign-out');
+        Route::post('projects/{project}/auth/helper', [ProjectAuthController::class, 'helper'])->name('projects.auth.helper');
+        Route::put('projects/{project}/auth/keys', [ProjectAuthController::class, 'keys'])->name('projects.auth.keys');
+        Route::post('projects/{project}/auth/setup', [ProjectAuthController::class, 'setup'])->name('projects.auth.setup');
+        Route::get('projects/{project}/growth', [ProjectGrowthController::class, 'show'])->name('projects.growth.show');
+        Route::post('projects/{project}/growth/seo-scan', [ProjectGrowthController::class, 'scan'])->name('projects.growth.scan');
+        Route::post('projects/{project}/growth/events', [ProjectGrowthController::class, 'addEvents'])->name('projects.growth.events');
+        Route::get('projects/{project}/flags', [ProjectFlagController::class, 'index'])->name('projects.flags.index');
+        Route::post('projects/{project}/flags', [ProjectFlagController::class, 'store'])->name('projects.flags.store');
+        Route::patch('projects/{project}/flags/{flag}', [ProjectFlagController::class, 'update'])->name('projects.flags.update');
+        Route::delete('projects/{project}/flags/{flag}', [ProjectFlagController::class, 'destroy'])->name('projects.flags.destroy');
+        Route::get('projects/{project}/secrets', [ProjectSecretController::class, 'index'])->name('projects.secrets.index');
+        Route::get('projects/{project}/secrets/value', [ProjectSecretController::class, 'show'])->name('projects.secrets.show');
+        Route::post('projects/{project}/secrets', [ProjectSecretController::class, 'store'])->name('projects.secrets.store');
+        Route::put('projects/{project}/secrets', [ProjectSecretController::class, 'update'])->name('projects.secrets.update');
+        Route::delete('projects/{project}/secrets', [ProjectSecretController::class, 'destroy'])->name('projects.secrets.destroy');
+        Route::get('projects/{project}/storage', [ProjectStorageController::class, 'index'])->name('projects.storage.index');
+        Route::post('projects/{project}/storage', [ProjectStorageController::class, 'store'])->name('projects.storage.store');
+        Route::delete('projects/{project}/storage/{bucket}', [ProjectStorageController::class, 'destroy'])->name('projects.storage.destroy');
+        Route::get('projects/{project}/storage/{bucket}/objects', [ProjectStorageController::class, 'objects'])->name('projects.storage.objects');
+        Route::post('projects/{project}/storage/{bucket}/objects', [ProjectStorageController::class, 'upload'])->name('projects.storage.upload');
+        Route::delete('projects/{project}/storage/{bucket}/objects', [ProjectStorageController::class, 'destroyObject'])->name('projects.storage.objects.destroy');
+        Route::get('projects/{project}/storage/{bucket}/download', [ProjectStorageController::class, 'download'])->name('projects.storage.download');
+        Route::post('projects/{project}/storage/{bucket}/folders', [ProjectStorageController::class, 'folder'])->name('projects.storage.folder');
+        Route::post('projects/{project}/storage/{bucket}/agent', [ProjectStorageController::class, 'agent'])->name('projects.storage.agent');
+        Route::get('projects/{project}/developer/networking', [ProjectDeveloperController::class, 'networking'])->name('projects.developer.networking');
+        Route::get('projects/{project}/developer/usage', [ProjectDeveloperController::class, 'usage'])->name('projects.developer.usage');
+        Route::get('projects/{project}/developer/storage', [ProjectDeveloperController::class, 'storage'])->name('projects.developer.storage');
+        Route::get('projects/{project}/developer/ssh', [ProjectDeveloperController::class, 'ssh'])->name('projects.developer.ssh');
+        Route::get('ssh-keys', [SshKeyController::class, 'index'])->name('ssh-keys.index');
+        Route::post('ssh-keys', [SshKeyController::class, 'store'])->name('ssh-keys.store');
+        Route::delete('ssh-keys/{sshKey}', [SshKeyController::class, 'destroy'])->name('ssh-keys.destroy');
+        Route::get('projects/{project}/open/{kind}', [SandboxGatewayController::class, 'open'])->name('projects.gateway.open');
+        Route::patch('projects/{project}/agent', [ProjectAgentController::class, 'update'])->name('projects.agent.update');
+        Route::post('projects/{project}/agent/stop', [ProjectAgentController::class, 'stop'])->name('projects.agent.stop');
+        Route::delete('projects/{project}/messages/{message}', [ProjectMessageController::class, 'destroy'])->name('projects.messages.destroy');
+        Route::get('agent-models', [AgentModelController::class, 'index'])->name('agent-models.index');
+        Route::put('agent-models/favorites', [AgentModelController::class, 'favorite'])->name('agent-models.favorite');
         Route::post('projects/{project}/publication', [ProjectPublicationController::class, 'store'])->name('projects.publication.store');
         Route::delete('projects/{project}/publication', [ProjectPublicationController::class, 'destroy'])->name('projects.publication.destroy');
     });

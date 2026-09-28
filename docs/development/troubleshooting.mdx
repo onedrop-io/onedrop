@@ -1,0 +1,38 @@
+---
+title: 'Troubleshooting'
+description: 'Common problems and how to fix them.'
+---
+
+<AccordionGroup>
+  <Accordion title="The chat shows nothing after I send a message">
+    The agent runs on the queue. Make sure `composer run dev` (or `php artisan queue:work`) is running. If a job crashes before starting, the chat says "The agent couldn't start".
+  </Accordion>
+  <Accordion title="&quot;Your AI provider says your balance is too low&quot;">
+    Providers like OpenRouter reserve the maximum possible cost of a request before running it, across every app using your account. Add credits, wait for other requests to finish, or choose a cheaper model with `SANDBOX_MODEL_*`.
+  </Accordion>
+  <Accordion title="The agent stopped unexpectedly">
+    The chat shows the error line from the agent. To see more, read the agent's log inside the sandbox:
+
+    ```bash
+    docker exec <container> cat /home/sandbox/.local/share/opencode/log/opencode.log
+    ```
+
+  </Accordion>
+  <Accordion title="The preview shows a loading skeleton and buttons don't work">
+    The app's JavaScript isn't loading. Sandboxes created before the preview went through the host proxy need the current image. Rebuild it with `php artisan sandbox:build-image`, then update them (they also update on their own when opened):
+
+    ```bash
+    php artisan sandbox:update
+    ```
+
+  </Accordion>
+  <Accordion title="The preview stays on the placeholder">
+    The agent's dev server didn't start. Check its output in the Console tab or `/tmp/zap-server.log` in the container.
+  </Accordion>
+  <Accordion title="&quot;The sandbox image is missing&quot;">
+    Run `php artisan sandbox:build-image`.
+  </Accordion>
+  <Accordion title="Buttons don't work when using OneDrop remotely">
+    Remote visitors get the built front end. Run `npm run build` after front-end changes.
+  </Accordion>
+</AccordionGroup>

@@ -1,0 +1,57 @@
+---
+title: 'Tailscale publishing'
+description: 'Set up your tailnet so projects can be published privately or publicly.'
+---
+
+Publishing runs a small Tailscale container next to each published project's sandbox. It shares the sandbox's network, joins your tailnet as its own device named after the project, and serves the app with `tailscale serve` (private) or `tailscale funnel` (public).
+
+## Choose how devices join
+
+<Tabs>
+  <Tab title="Sign-in link (no setup)">
+    Leave `TAILSCALE_AUTHKEY` empty. When someone publishes a project for the first time, the Publish panel shows **Approve in Tailscale**. They approve the device in their browser and it joins as their device.
+
+    - Approval is needed once per project; the identity is saved in a Docker volume named `zap-publish-<id>-state`
+    - Devices stay in your Machines list (offline) after unpublishing
+    - Devices belong to the person who approved them
+
+  </Tab>
+  <Tab title="Auth key (unattended)">
+    Create a key and set `TAILSCALE_AUTHKEY` in `.env`. Devices join without anyone approving them.
+
+    <Steps>
+      <Step title="Turn on MagicDNS and HTTPS">
+        In the Tailscale admin console, open **DNS** and enable MagicDNS and HTTPS certificates.
+      </Step>
+      <Step title="Add a tag and allow Funnel">
+        In **Access controls**, add:
+
+        ```json
+        "tagOwners": { "tag:zap-preview": ["autogroup:admin"] },
+        "nodeAttrs": [{ "target": ["tag:zap-preview"], "attr": ["funnel"] }]
+        ```
+      </Step>
+      <Step title="Generate the key">
+        In **Settings → Keys**, create an auth key that is reusable, ephemeral, and tagged `tag:zap-preview`.
+      </Step>
+      <Step title="Add it to .env">
+        ```bash
+        TAILSCALE_AUTHKEY=tskey-auth-...
+        ```
+      </Step>
+    </Steps>
+
+    Ephemeral devices remove themselves when their container stops, and they only get the tag's permissions.
+
+  </Tab>
+</Tabs>
+
+## Public vs private
+
+Private publishing uses Tailscale Serve and works on any tailnet with HTTPS enabled. Public publishing uses Funnel, which your access policy must allow. New tailnets allow it for members by default. If it's not allowed, the Publish panel says so.
+
+## Limits
+
+- Publishing only works with the Docker sandbox provider
+- The first visit to a new URL takes a few seconds while Tailscale issues the HTTPS certificate
+- Funnel traffic is rate-limited by Tailscale

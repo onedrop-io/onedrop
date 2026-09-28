@@ -2,27 +2,32 @@ import { Head, usePage } from '@inertiajs/react';
 import {
     CalendarDays,
     ClipboardCheck,
+    DoorOpen,
     Sparkles,
-    Timer,
     Users,
 } from 'lucide-react';
 import { useState } from 'react';
 import ProjectController from '@/actions/App/Http/Controllers/ProjectController';
+import AgentModelPicker from '@/components/agent-model-picker';
 import PromptComposer from '@/components/prompt-composer';
+import type { AgentSelection } from '@/types';
 import { dashboard } from '@/routes';
 
 const suggestions = [
-    { icon: Timer, text: 'A time tracker like Toggl' },
+    { icon: CalendarDays, text: 'A time-off tracker for my team' },
     { icon: ClipboardCheck, text: 'An expense report form with approvals' },
     { icon: Users, text: 'A lightweight CRM for our sales team' },
-    { icon: CalendarDays, text: 'A team vacation calendar' },
+    { icon: DoorOpen, text: 'A booking app for our meeting rooms' },
 ];
 
 export default function CreateProject({
     defaultAi,
+    agent,
 }: {
     defaultAi: string | null;
+    agent: AgentSelection | null;
 }) {
+    const [selection, setSelection] = useState(agent);
     const { auth } = usePage().props;
     const [prompt, setPrompt] = useState('');
     const firstName = auth.user.name.split(' ')[0];
@@ -63,13 +68,30 @@ export default function CreateProject({
                         value={prompt}
                         onValueChange={setPrompt}
                         autoFocus
+                        attachments
                         size="large"
+                        extraData={
+                            selection
+                                ? {
+                                      agent_provider: selection.provider,
+                                      agent_model: selection.model,
+                                      agent_variant: selection.variant,
+                                  }
+                                : undefined
+                        }
                         footer={
-                            defaultAi && (
-                                <span className="inline-flex items-center gap-1">
-                                    <Sparkles className="size-3" />
-                                    {defaultAi}
-                                </span>
+                            selection ? (
+                                <AgentModelPicker
+                                    selection={selection}
+                                    onChange={setSelection}
+                                />
+                            ) : (
+                                defaultAi && (
+                                    <span className="inline-flex items-center gap-1">
+                                        <Sparkles className="size-3" />
+                                        {defaultAi}
+                                    </span>
+                                )
                             )
                         }
                     />

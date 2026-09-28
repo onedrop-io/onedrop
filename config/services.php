@@ -35,4 +35,50 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Log in with...
+    |--------------------------------------------------------------------------
+    |
+    | OAuth apps for logging in with Google, Microsoft, GitHub, GitLab, or any
+    | OpenID Connect issuer (Okta, Keycloak, Authentik, ...). A provider's
+    | button only shows once its client ID and secret are set. The callback
+    | URL to register with each is https://your-domain/login/{provider}/callback.
+    |
+    */
+
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => '/login/google/callback',
+    ],
+
+    'microsoft' => [
+        'client_id' => env('MICROSOFT_CLIENT_ID'),
+        'client_secret' => env('MICROSOFT_CLIENT_SECRET'),
+        'redirect' => '/login/microsoft/callback',
+        'tenant' => env('MICROSOFT_TENANT', 'common'),
+    ],
+
+    'github' => [
+        'client_id' => env('GITHUB_CLIENT_ID'),
+        'client_secret' => env('GITHUB_CLIENT_SECRET'),
+        'redirect' => '/login/github/callback',
+    ],
+
+    'gitlab' => [
+        'client_id' => env('GITLAB_CLIENT_ID'),
+        'client_secret' => env('GITLAB_CLIENT_SECRET'),
+        'redirect' => '/login/gitlab/callback',
+        'host' => env('GITLAB_HOST', 'https://gitlab.com'),
+    ],
+
+    'openidconnect' => [
+        'label' => env('OIDC_LABEL', 'Single sign-on'),
+        'base_url' => env('OIDC_BASE_URL'),
+        'client_id' => env('OIDC_CLIENT_ID'),
+        'client_secret' => env('OIDC_CLIENT_SECRET'),
+        'redirect' => '/login/oidc/callback',
+    ],
+
 ];

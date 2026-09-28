@@ -1,11 +1,11 @@
-import { useCallback, useState } from 'react';
-import ProjectFileController from '@/actions/App/Http/Controllers/ProjectFileController';
-import type { WorkspaceEntry, WorkspaceFile } from '@/types';
+import { useCallback, useState } from "react";
+import ProjectFileController from "@/actions/App/Http/Controllers/ProjectFileController";
+import type { WorkspaceEntry, WorkspaceFile } from "@/types";
 
 async function getJson<T>(url: string): Promise<T> {
     const response = await fetch(url, {
-        headers: { Accept: 'application/json' },
-        credentials: 'same-origin',
+        headers: { Accept: "application/json" },
+        credentials: "same-origin",
     });
     const body = await response.json().catch(() => ({}));
 
@@ -53,4 +53,102 @@ export function fetchWorkspaceFile(
     return getJson<WorkspaceFile>(
         ProjectFileController.show.url(projectId, { query: { path } }),
     );
+}
+
+/**
+ * Save one file's contents into the sandbox.
+ */
+export async function saveWorkspaceFile(
+    projectId: number,
+    path: string,
+    content: string,
+): Promise<void> {
+    await send(ProjectFileController.update.url(projectId), "PUT", {
+        path,
+        content,
+    });
+}
+
+/**
+ * Create an empty file or folder in the sandbox.
+ */
+export async function createWorkspaceEntry(
+    projectId: number,
+    path: string,
+    type: WorkspaceEntry["type"],
+): Promise<void> {
+    await send(ProjectFileController.store.url(projectId), "POST", {
+        path,
+        type,
+    });
+}
+
+/**
+ * Upload one file from the user's computer to a path in the sandbox.
+ */
+export async function uploadWorkspaceFile(
+    projectId: number,
+    path: string,
+    file: File,
+): Promise<void> {
+    const body = new FormData();
+    body.append("path", path);
+    body.append("file", file);
+
+    await send(ProjectFileController.upload.url(projectId), "POST", body);
+}
+
+/**
+ * Download the workspace as a zip through the browser.
+ */
+export async function downloadWorkspaceZip(projectId: number): Promise<void> {
+    const response = await fetch(
+        ProjectFileController.download.url(projectId),
+        { credentials: "same-origin" },
+    );
+
+    if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+
+        throw new Error(body.message ?? `Download failed (${response.status})`);
+    }
+
+    const name =
+        /filename="?([^";]+)"?/.exec(
+            response.headers.get("Content-Disposition") ?? "",
+        )?.[1] ?? "project.zip";
+    const url = URL.createObjectURL(await response.blob());
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = name;
+    link.click();
+    URL.revokeObjectURL(url);
+}
+
+async function send(
+    url: string,
+    method: "POST" | "PUT",
+    body: Record<string, unknown> | FormData,
+): Promise<void> {
+    const token = document.cookie
+        .split("; ")
+        .find((cookie) => cookie.startsWith("XSRF-TOKEN="))
+        ?.slice("XSRF-TOKEN=".length);
+    const isForm = body instanceof FormData;
+    const response = await fetch(url, {
+        method,
+        headers: {
+            Accept: "application/json",
+            ...(isForm ? {} : { "Content-Type": "application/json" }),
+            "X-XSRF-TOKEN": decodeURIComponent(token ?? ""),
+        },
+        credentials: "same-origin",
+        body: isForm ? body : JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+        const json = await response.json().catch(() => ({}));
+
+        throw new Error(json.message ?? `Request failed (${response.status})`);
+    }
 }

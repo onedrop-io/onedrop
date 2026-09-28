@@ -1,20 +1,31 @@
 import {
     Activity,
+    CodeXml,
     Database,
     Globe,
     GitBranch,
     HardDrive,
     KeyRound,
+    TrendingUp,
     Plug,
     Rocket,
     ShieldCheck,
     Sparkles,
+    ToggleRight,
     UserCog,
-} from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
-import { useState } from 'react';
-import { cn } from '@/lib/utils';
-import type { Publication } from '@/types';
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { useState } from "react";
+import AuthPanel from "@/components/workspace/auth-panel";
+import DatabasePanel from "@/components/workspace/database-panel";
+import DeveloperPanel from "@/components/workspace/developer-panel";
+import FlagsPanel from "@/components/workspace/flags-panel";
+import GrowthPanel from "@/components/workspace/growth-panel";
+import MonitoringPanel from "@/components/workspace/monitoring-panel";
+import SecretsPanel from "@/components/workspace/secrets-panel";
+import StoragePanel from "@/components/workspace/storage-panel";
+import { cn } from "@/lib/utils";
+import type { Publication } from "@/types";
 
 type Section = {
     id: string;
@@ -23,85 +34,109 @@ type Section = {
     description: string;
 };
 
-/** Grouped like Replit's Tools menu. Only Publishing has real content so far. */
+/** Grouped like Replit's Tools menu. */
 const GROUPS: { label: string; sections: Section[] }[] = [
     {
-        label: 'Cloud',
+        label: "Cloud",
         sections: [
             {
-                id: 'publishing',
-                label: 'Publishing',
+                id: "publishing",
+                label: "Publishing",
                 icon: Rocket,
                 description:
-                    'Share your app at its own URL, privately with your team or publicly.',
+                    "Share your app at its own URL, privately with your team or publicly.",
             },
             {
-                id: 'domains',
-                label: 'Domains',
+                id: "domains",
+                label: "Domains",
                 icon: Globe,
-                description: 'Use your own domain name for the published app.',
+                description: "Use your own domain name for the published app.",
             },
             {
-                id: 'monitoring',
-                label: 'Monitoring',
+                id: "monitoring",
+                label: "Monitoring",
                 icon: Activity,
                 description:
-                    'See visits, errors and performance of the published app.',
+                    "Requests, errors, response times and resource use for your app.",
             },
             {
-                id: 'database',
-                label: 'Database',
+                id: "database",
+                label: "Database",
                 icon: Database,
-                description: "Browse and edit your app's data.",
+                description:
+                    "Browse and edit your app's data, or run SQL against it.",
             },
             {
-                id: 'auth',
-                label: 'Users & Auth',
+                id: "auth",
+                label: "Users & Auth",
                 icon: UserCog,
-                description: 'Manage who can sign in to your app.',
+                description:
+                    "Let people sign up and sign in to your app, and see who has.",
             },
             {
-                id: 'security',
-                label: 'Security',
+                id: "growth",
+                label: "Growth",
+                icon: TrendingUp,
+                description:
+                    "Review opportunities to grow your app and acquire new users.",
+            },
+            {
+                id: "flags",
+                label: "Feature Flags",
+                icon: ToggleRight,
+                description:
+                    "Turn parts of your app on or off without changing its code.",
+            },
+            {
+                id: "security",
+                label: "Security",
                 icon: ShieldCheck,
-                description: 'Check your app for common security problems.',
+                description: "Check your app for common security problems.",
             },
             {
-                id: 'storage',
-                label: 'App Storage',
+                id: "storage",
+                label: "App Storage",
                 icon: HardDrive,
-                description: 'Files and images your app stores.',
+                description:
+                    "Host and save uploads like images, videos, and documents.",
             },
         ],
     },
     {
-        label: 'Setup',
+        label: "Setup",
         sections: [
             {
-                id: 'secrets',
-                label: 'Secrets',
+                id: "secrets",
+                label: "Secrets",
                 icon: KeyRound,
                 description:
-                    'API keys and passwords your app uses, kept out of the code.',
+                    "API keys and passwords your app uses, kept out of the code.",
             },
             {
-                id: 'integrations',
-                label: 'Integrations',
+                id: "integrations",
+                label: "Integrations",
                 icon: Plug,
-                description: 'Connect services like email, payments and Slack.',
+                description: "Connect services like email, payments and Slack.",
             },
             {
-                id: 'git',
-                label: 'Git',
+                id: "git",
+                label: "Git",
                 icon: GitBranch,
                 description:
                     "Your app's change history and connection to GitHub.",
             },
             {
-                id: 'skills',
-                label: 'Agent Skills',
+                id: "skills",
+                label: "Agent Skills",
                 icon: Sparkles,
-                description: 'Teach the agent how your team likes things done.',
+                description: "Teach the agent how your team likes things done.",
+            },
+            {
+                id: "developer",
+                label: "Developer",
+                icon: CodeXml,
+                description:
+                    "Networking, resources and SSH access for your app's sandbox.",
             },
         ],
     },
@@ -110,11 +145,18 @@ const GROUPS: { label: string; sections: Section[] }[] = [
 const SECTIONS = GROUPS.flatMap((group) => group.sections);
 
 export default function ToolsPanel({
+    projectId,
+    running,
+    working,
     publication,
 }: {
+    projectId: number;
+    running: boolean;
+    /** The agent is running a task. */
+    working: boolean;
     publication: Publication;
 }) {
-    const [active, setActive] = useState('publishing');
+    const [active, setActive] = useState("publishing");
     const section = SECTIONS.find((s) => s.id === active) ?? SECTIONS[0];
 
     return (
@@ -135,13 +177,13 @@ export default function ToolsPanel({
                                         type="button"
                                         onClick={() => setActive(id)}
                                         aria-current={
-                                            active === id ? 'page' : undefined
+                                            active === id ? "page" : undefined
                                         }
                                         data-test={`tool-${id}`}
                                         className={cn(
-                                            'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted',
+                                            "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted",
                                             active === id &&
-                                                'bg-muted font-medium',
+                                                "bg-muted font-medium",
                                         )}
                                     >
                                         <Icon className="size-4 text-muted-foreground" />
@@ -167,8 +209,53 @@ export default function ToolsPanel({
                 </p>
 
                 <div className="mt-6">
-                    {section.id === 'publishing' ? (
+                    {section.id === "publishing" ? (
                         <PublishingOverview publication={publication} />
+                    ) : section.id === "monitoring" ? (
+                        <MonitoringPanel
+                            projectId={projectId}
+                            running={running}
+                        />
+                    ) : section.id === "auth" ? (
+                        <AuthPanel
+                            projectId={projectId}
+                            running={running}
+                            working={working}
+                        />
+                    ) : section.id === "growth" ? (
+                        <GrowthPanel
+                            projectId={projectId}
+                            running={running}
+                            working={working}
+                        />
+                    ) : section.id === "secrets" ? (
+                        <SecretsPanel
+                            projectId={projectId}
+                            running={running}
+                            working={working}
+                        />
+                    ) : section.id === "flags" ? (
+                        <FlagsPanel
+                            projectId={projectId}
+                            running={running}
+                            working={working}
+                        />
+                    ) : section.id === "storage" ? (
+                        <StoragePanel
+                            projectId={projectId}
+                            running={running}
+                            working={working}
+                        />
+                    ) : section.id === "developer" ? (
+                        <DeveloperPanel
+                            projectId={projectId}
+                            running={running}
+                        />
+                    ) : section.id === "database" ? (
+                        <DatabasePanel
+                            projectId={projectId}
+                            running={running}
+                        />
                     ) : (
                         <ComingSoon />
                     )}
@@ -179,15 +266,15 @@ export default function ToolsPanel({
 }
 
 function PublishingOverview({ publication }: { publication: Publication }) {
-    const live = publication.status === 'live';
+    const live = publication.status === "live";
 
     const status = live
-        ? 'Live'
-        : publication.status === 'publishing'
-          ? 'Publishing…'
-          : publication.status === 'failed'
-            ? 'Failed'
-            : 'Not published';
+        ? "Live"
+        : publication.status === "publishing"
+          ? "Publishing…"
+          : publication.status === "failed"
+            ? "Failed"
+            : "Not published";
 
     return (
         <div className="max-w-xl space-y-4">
@@ -199,8 +286,8 @@ function PublishingOverview({ publication }: { publication: Publication }) {
                 >
                     <span
                         className={cn(
-                            'size-2 rounded-full',
-                            live ? 'bg-green-500' : 'bg-muted-foreground/40',
+                            "size-2 rounded-full",
+                            live ? "bg-green-500" : "bg-muted-foreground/40",
                         )}
                     />
                     {status}
@@ -211,8 +298,8 @@ function PublishingOverview({ publication }: { publication: Publication }) {
                             Who can open it
                         </dt>
                         <dd>
-                            {publication.visibility === 'public'
-                                ? 'Anyone with the URL'
+                            {publication.visibility === "public"
+                                ? "Anyone with the URL"
                                 : "People on your team's tailnet"}
                         </dd>
                     </>
@@ -227,7 +314,7 @@ function PublishingOverview({ publication }: { publication: Publication }) {
                                 rel="noreferrer"
                                 className="underline underline-offset-4"
                             >
-                                {publication.url.replace('https://', '')}
+                                {publication.url.replace("https://", "")}
                             </a>
                         </dd>
                     </>

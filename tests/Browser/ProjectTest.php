@@ -17,19 +17,19 @@ test('describing an app creates a project and opens the chat + preview workspace
         ->press('@login-button')
         ->assertPathIs('/dashboard')
         ->assertSee('Dev, what are we working on today?')
-        ->click('A time tracker like Toggl')
-        ->assertValue('#composer-prompt', 'A time tracker like Toggl')
+        ->click('A time-off tracker for my team')
+        ->assertValue('#composer-prompt', 'A time-off tracker for my team')
         ->press('@composer-send')
         ->assertSee('Your app will appear here in a moment.');
 
     $project = Project::sole();
 
     $page->assertPathIs("/projects/{$project->id}")
-        ->assertSeeIn('@message-user', 'A time tracker like Toggl')
+        ->assertSeeIn('@message-user', 'A time-off tracker for my team')
         ->assertSee('Planning app development')
         ->assertSee('using Claude')
         ->assertVisible('@preview-placeholder')
-        ->assertSeeIn('[data-sidebar="sidebar"]', 'A Time Tracker Like Toggl');
+        ->assertSeeIn('[data-sidebar="sidebar"]', 'A Time-Off Tracker For My Team');
 
     $page->fill('#composer-content', 'add tags too')
         ->keys('#composer-content', 'Enter')

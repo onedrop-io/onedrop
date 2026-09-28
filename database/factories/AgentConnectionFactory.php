@@ -40,4 +40,26 @@ class AgentConnectionFactory extends Factory
     {
         return $this->state(fn (array $attributes) => ['provider' => $provider]);
     }
+
+    /**
+     * A Codex connection from signing in with ChatGPT.
+     *
+     * @param  array<string, mixed>  $tokens
+     */
+    public function chatGpt(array $tokens = []): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'provider' => AgentProvider::Codex,
+            'credential_type' => CredentialType::ChatGpt,
+            'credential' => json_encode([
+                'access' => 'chatgpt-access-token',
+                'refresh' => 'chatgpt-refresh-token',
+                'expires' => now()->addDays(10)->getTimestamp(),
+                'account_id' => 'acct-1234',
+                'email' => 'dev@example.com',
+                ...$tokens,
+            ]),
+            'hint' => '1234',
+        ]);
+    }
 }

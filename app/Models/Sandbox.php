@@ -20,12 +20,13 @@ use Illuminate\Support\Str;
  * @property SandboxStatus $status
  * @property string|null $preview_url
  * @property string|null $shell_url
+ * @property string|null $ssh_address
  * @property string|null $error
  * @property string|null $events_token_hash
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['provider', 'external_id', 'status', 'preview_url', 'shell_url', 'error', 'events_token_hash'])]
+#[Fillable(['provider', 'external_id', 'status', 'preview_url', 'shell_url', 'ssh_address', 'error', 'events_token_hash'])]
 #[Hidden(['events_token_hash'])]
 class Sandbox extends Model
 {

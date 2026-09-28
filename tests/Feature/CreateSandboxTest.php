@@ -23,7 +23,7 @@ test('the sandbox gets the owner\'s default AI credential and project name', fun
 
     expect($spec->env)->toMatchArray([
         'ANTHROPIC_API_KEY' => 'sk-ant-api03-secret',
-        'ZAP_PROJECT_NAME' => 'Timesheets',
+        'APP_PROJECT_NAME' => 'Timesheets',
     ])
         ->and($spec->port)->toBe(8000)
         ->and($spec->name)->toStartWith("zap-project-{$project->id}-")
@@ -76,3 +76,18 @@ test('exec results report success', function () {
     expect((new ExecResult(0, 'ok'))->successful())->toBeTrue()
         ->and((new ExecResult(1, ''))->successful())->toBeFalse();
 })->group('SBX-001');
+
+test('every sandbox for a project shares its storage key, so buckets outlive the container', function () {
+    $project = Project::factory()->create();
+
+    CreateSandbox::dispatchSync($project);
+    CreateSandbox::dispatchSync($project);
+
+    /** @var FakeSandboxProvider $provider */
+    $provider = app(SandboxProvider::class);
+    $specs = collect($provider->created)->values();
+
+    expect($specs)->toHaveCount(2)
+        ->and($specs->pluck('storageKey')->unique()->all())->toBe(["project-{$project->id}"])
+        ->and($specs[0]->name)->not->toBe($specs[1]->name);
+})->group('STORE-001');

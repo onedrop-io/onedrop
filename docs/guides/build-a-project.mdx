@@ -1,0 +1,60 @@
+---
+title: 'Build a project'
+description: 'Describe an app, watch the agent build it, and keep improving it through chat.'
+---
+
+## Start a project
+
+After logging in you see **"what are we working on today?"** Type a description of the app you want, or pick a suggestion, and press Enter.
+
+OneDrop then:
+
+1. Creates a project named after your description
+2. Starts a sandbox for it (the preview shows "Starting sandbox…")
+3. Sends your description to the agent
+
+You land in the project's workspace: chat on the left, preview on the right.
+
+## Watch the agent work
+
+The chat updates on its own while the agent works:
+
+- **Thinking…** appears as soon as you send a message
+- Short grey lines show each step, such as "Creating src/App.tsx" or "Running Install dependencies"
+- The agent's replies appear as it writes them, formatted with headings, lists, links, tables, and syntax-highlighted code blocks (links open in a new tab)
+
+When the agent sets up the app's dev server, the preview switches from the placeholder to your app and reloads when the agent finishes.
+
+## Keep going
+
+Send follow-up messages to change the app, for example "make the Start button blue" or "add a page for reports". The agent remembers the whole conversation for that project.
+
+<Tip>
+    Press **Up** in an empty message box to bring back your last prompt, and
+    keep pressing it to go further back. **Down** steps forward again.
+</Tip>
+
+Messages you send while the agent is working are queued and run when it finishes. Press ⌘/Ctrl+Enter to stop the current run and send yours right away.
+
+## Attach images and files
+
+Paste an image straight into the message box, drag files onto it, or click the paperclip. You can attach up to 10 files (10 MB each) to a message, with or without text, including when you start a new project. Thumbnails show above the box; click the **×** on one to remove it before sending.
+
+The agent looks at attached images along with your text, so you can:
+
+- **Show it what you mean.** Paste a screenshot, mockup, or sketch and say "build this" or "make the sidebar look like this".
+- **Put it in your app.** Paste a logo and say "use this as the logo in the header". The agent copies it to the right place: next to the app's code for fixed parts of the design (logos, icons, backgrounds), or into [App Storage](/guides/app-storage) for content the app's users see and manage, such as sample photos in a gallery.
+
+Other files (text, CSV, PDFs and so on) are handed to the agent as files it can open and use.
+
+<Note>
+    If the model you picked can't read images, OneDrop uses one from the same
+    provider that can for that message, and the chat says which. If none can,
+    the agent works from your text but still has the files.
+</Note>
+
+Attachments stay in the chat, and only people who can see the project can open them. If you stop the agent while messages are queued, their text comes back into the box but their attachments are removed, so attach them again.
+
+## Your projects
+
+Recent projects are listed in the sidebar under **Recent**. Only you (and admins) can see your projects.

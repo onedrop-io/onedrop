@@ -1,0 +1,106 @@
+---
+title: 'Users & Auth'
+description: 'Let people sign up and sign in to your app, see who has, and connect Google, GitHub or Microsoft.'
+---
+
+**Tools → Users & Auth** adds sign-in to the app you're building. The agent builds sign-up and sign-in pages into the app, using the standard auth library for its stack (for example Laravel Fortify and Socialite, or Better Auth for Node). The accounts are stored in the app's own database.
+
+Sign-in doesn't depend on a hosted auth service, so the published app works on its own and you can change the setup or move the app later. If you'd rather use something else (Clerk, Auth0, your company's SSO), ask the agent in the chat instead.
+
+## Set up sign-in
+
+<Steps>
+    <Step title="Choose how people sign in">
+        Open **Tools → Users & Auth** and pick one or more methods: email and
+        password, Google, GitHub, or Microsoft.
+    </Step>
+    <Step title="Click Set up with agent">
+        This sends a request to the agent in the chat. If the agent is busy, the
+        request is queued and runs next.
+    </Step>
+    <Step title="Check the result">
+        When the agent finishes, the panel shows the **Users** and **Configure**
+        tabs.
+    </Step>
+</Steps>
+
+## Users
+
+The **Users** tab lists everyone who has signed up, with their name, email, when they joined, and when they last signed in. You can search by name or email.
+
+- **Add user**: enter a name, email and password. The person can sign in right away.
+- **Export**: downloads every user (name, email, role, status, joined, last sign-in) as a CSV file.
+
+Each user's **⋯** menu has:
+
+| Action | What happens |
+| --- | --- |
+| **Edit name and email** | Saved straight to the app's database. |
+| **Set password** | Gives them a new password. **Sign them out everywhere** is on by default. |
+| **Require a new password** | Next time they use the app, they must choose a new password before anything else. Shows **Must choose new password** until they do. |
+| **Sign out everywhere** | Ends all their sessions on every device. |
+| **Role** | Choose from the roles your app has (admin and member unless you asked for others). Takes effect on their next page. |
+| **Sign in as** | Opens the app in a new tab, signed in as them, so you can see what they see. A banner shows who you're signed in as, with **Stop** to sign out. The link works once and only for a minute. |
+| **Turn account off** / **on** | They can't sign in, and anyone already signed in as them is signed out. Shows **Turned off**. Reversible, and their data is kept. |
+| **Delete user** | Removes the account after you confirm. If other data in the app belongs to the user and the app doesn't allow removing it, the panel explains and nothing is deleted. |
+
+The app enforces turned-off accounts and required password changes on every request, so they apply to people who are already signed in. Adding users, setting passwords and signing people out go through a small helper in the app (`.zap/users`), which uses the app's own sign-in library so passwords are stored the way sign-in expects.
+
+<Note>
+    The agent adds these controls when it sets up sign-in. If your app's
+    sign-in was set up before a control existed, choosing it offers **Ask the
+    agent**, which asks the agent to add just what's missing.
+</Note>
+
+## Configure
+
+The **Configure** tab shows how sign-in was built, where users are stored, and links to the sign-in page on the preview and published addresses.
+
+### Turn methods on or off
+
+Flip a method's switch and click **Update with agent**. The agent changes the app. Existing users are kept.
+
+### Sign in with OneDrop
+
+Turn on **OneDrop accounts** to let people sign in to the app with the account they already use for Zap. There are no keys to create: Zap sets up the app's keys itself when you click **Update with agent**, and the agent adds a **Sign in with OneDrop** button.
+
+Once it's on, choose **Who can sign in**:
+
+- **Everyone with a OneDrop account**
+- **Only members of these groups**: pick one or more [groups](/guides/groups-and-users). You can always sign in to your own app.
+
+Someone who isn't signed in to Zap signs in first, then lands back in the app. Someone outside the chosen groups sees an explanation and isn't signed in. Turning the method off stops sign-ins through OneDrop right away.
+
+<Note>
+    People sign in on Zap's own address, so they must be able to reach it. That's
+    fine when Zap runs on a server or your tailnet. A public app can't use it
+    while Zap runs on a laptop that visitors can't reach.
+</Note>
+
+Under the hood this is standard OAuth 2.0 (authorization code with PKCE, plus a user-info endpoint returning `sub`, `name`, `email`, `email_verified` and `groups`), so it works with any stack's auth library.
+
+### Add Google, GitHub or Microsoft keys
+
+Sign-in with a provider needs an OAuth app at that provider. A provider that's on but has no keys yet shows **Needs keys**, and its button doesn't appear on the sign-in page until the keys are added.
+
+<Steps>
+    <Step title="Create an OAuth app">
+        Follow the link to the provider's developer console and create an OAuth
+        app. Add the callback URLs shown in the panel, one for the preview and
+        one for the published address when the project is published.
+    </Step>
+    <Step title="Paste the client ID and secret">
+        Click **Save keys**. The app restarts to use them.
+    </Step>
+</Steps>
+
+<Info>
+    Keys are written to the app's `.env` file in its sandbox, as
+    `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` (and likewise for GitHub and
+    Microsoft). OneDrop doesn't store them. You can see or change them in
+    [Secrets](/guides/secrets).
+</Info>
+
+## How it works
+
+The agent follows a built-in guide (`/opt/zap/guides/auth.md` in the sandbox) so sign-in is built the same way in every project. When it's done, it describes the setup in `.zap/auth.json` and adds the `.zap/users` helper: the library, the sign-in methods, the env file, and the users table and its columns. The panel reads that file and the users table through the sandbox, the same way the [Database](/guides/workspace#database) browser does.
