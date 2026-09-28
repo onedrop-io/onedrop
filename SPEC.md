@@ -120,6 +120,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Opening a project whose sandbox is older than the image should update it in the background, unless the agent is working.
 - Before the agent starts a run, an outdated sandbox should be updated first, so the agent always has the current guides and tools.
 - Updating keeps the app's files, App Storage, the agent's history, and everything in the sandbox user's home folder (such as a database or tools the agent installed there); the app restarts, and a published project is published again.
+- Updated sandboxes should get the image's current shell setup (banner, prompt, aliases, prompt theme) even though the home folder is kept; lines the user added to `~/.bashrc` below the loader line, and a `~/.config/starship.toml` the user made, stay.
 - User should see the sandbox updating in the preview, then the app again.
 - Two updates of the same sandbox should never run at once.
 - An update that fails or is cut off partway (a deploy, a queue timeout) should leave the project on its old sandbox with every file; the old sandbox is only removed once the new one has them all.
@@ -200,6 +201,9 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be able to clear the console view.
 - User should be able to open a Shell tab with an interactive terminal in the project's workspace.
 - A Shell tab should keep its session while the user switches tabs.
+- User should see a OneDrop banner with the project's name and a few shell tips when a Shell tab (or SSH session) starts, once per terminal.
+- User should have modern command-line tools in the Shell tab: `bat` (view files with highlighting), `rg` (search), `fd` (find files), `z` (jump to directories), `jq` (JSON), `btop` (processes), `lazygit` (git), `micro` (editor, also used for commit messages), `vim` and `ncdu` (what's using disk space).
+- User should see file listings (`ls`, `ll`, `la`, `tree`) with folders first, colours, a git column and relative times; `ls` with GNU-only flags (e.g. `-ltr`) should still work.
 - User should see a clear notice when the console or shell isn't available (e.g. sandbox not running, or an older sandbox without a shell).
 
 ## PUB-001: Publish a project

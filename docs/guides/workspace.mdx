@@ -15,7 +15,23 @@ The right side of a project holds tabs and a files panel.
 | **Shell**   | An interactive terminal in the project's workspace        | Yes       |
 | File tabs   | An editor for a file you opened                           | Yes       |
 
-Add Console or Shell from the **+** button. The shell keeps its session while you switch tabs.
+Add Console or Shell from the **+** button. The shell keeps its session while you switch tabs. It opens with a OneDrop banner showing the project's name and a few shortcuts.
+
+| Command | What it does |
+| --- | --- |
+| `ls`, `ll`, `la`, `tree` | List files: folders first, with git status and how long ago each changed |
+| `bat <file>` | View a file with syntax highlighting |
+| `rg <text>` | Search the code |
+| `fd <name>` | Find files by name |
+| `z <dir>` | Jump to a directory you've been to (`zi` to pick one) |
+| `jq` | Read and filter JSON, e.g. `curl -s localhost:$PORT/api \| jq` |
+| `lazygit` | Stage, commit and browse changes |
+| `btop` | See what's using CPU and memory |
+| `ncdu` | See what's using disk space, folder by folder |
+| `micro <file>` | Edit a file (**Ctrl-S** saves, **Ctrl-Q** quits) |
+| `vim <file>` | Edit a file in vim |
+| **Ctrl-R** | Search your command history |
+| `/opt/zap/restart` | Restart the preview |
 
 ## Tools
 

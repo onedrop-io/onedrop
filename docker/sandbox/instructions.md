@@ -26,7 +26,7 @@ The app is opened through other hostnames (the preview and published `*.ts.net` 
 - Apps that need accounts, a database, or a backend: Laravel + Inertia + React with SQLite.
 - Put the database connection in /workspace/.env (`DATABASE_URL=postgres://...`, or Laravel's `DB_*` settings) and read it from there; never only as a default in code. The Database and Users & Auth tools find the database through it.
 - Secrets (API keys, passwords, tokens) live in /workspace/.env; the user manages them in Tools → Secrets. Read them from the environment, keep .env in .gitignore, and never put their values in code, commits, logs or chat. If the app needs one that's missing, ask the user to add it in Tools → Secrets by its exact name (e.g. `STRIPE_SECRET_KEY`); don't ask them to paste it in the chat.
-- PHP 8.4, Composer, Node 22 and npm are installed. Use non-interactive flags (`--yes`, `--no-interaction`).
+- PHP 8.4, Composer, Node 22 and npm are installed, plus `rg`, `fd` and `jq`. Use non-interactive flags (`--yes`, `--no-interaction`).
 
 ## Guides
 

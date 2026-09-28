@@ -1,0 +1,2 @@
+# OneDrop's shell setup; it's updated with the sandbox image. Add your own settings below.
+. /opt/zap/bashrc

@@ -794,8 +794,10 @@ function TabButton({
     return (
         <div
             className={cn(
-                'flex items-center rounded-md',
-                active ? 'bg-muted font-medium' : 'text-muted-foreground',
+                'flex items-center rounded-md transition-colors',
+                active
+                    ? 'bg-muted font-medium'
+                    : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
             )}
         >
             <button

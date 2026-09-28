@@ -259,6 +259,14 @@
     body {
         @apply bg-background text-foreground;
     }
+
+    button:not(:disabled),
+    [role='button']:not(:disabled),
+    [role='tab'],
+    [role='menuitem'],
+    summary {
+        cursor: pointer;
+    }
 }
 
 /* Syntax colors for highlighted code in chat replies (components/code-highlight.tsx). */

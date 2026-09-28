@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Sandbox\Providers\DockerSandboxProvider;
 use App\Sandbox\SandboxInspector;
 use App\Sandbox\SandboxSpec;
+use App\Sandbox\SandboxUpdater;
 use App\Sandbox\WorkspaceFiles;
 use App\Sandbox\WorkspaceSsh;
 use Illuminate\Support\Facades\Http;
@@ -83,6 +84,54 @@ test('the web terminal answers on the shell port', function () {
         $docker->destroy($id);
     }
 })->group('TAB-001');
+
+test('the shell greets each new terminal with a banner, but not nested shells, and has the shell tools', function () {
+    $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
+    $id = $docker->create(new SandboxSpec('zap-test-'.bin2hex(random_bytes(3)), ['APP_PROJECT_NAME' => 'Banner Check']));
+
+    try {
+        $first = $docker->exec($id, ['bash', '-ic', 'true']);
+        expect($first->output)->toContain('\\____/_/ /_/\\___/')->toContain('Banner Check')->toContain('/opt/zap/restart');
+
+        $nested = $docker->exec($id, ['bash', '-ic', 'true'], ['ZAP_BANNER_SHOWN' => '1']);
+        expect($nested->output)->not->toContain('Banner Check')
+            ->and($docker->exec($id, ['bash', '-ic', 'type z && echo "editor=$EDITOR"'])->output)->toContain('z is a function')->toContain('editor=micro');
+
+        // ls lists through eza, but GNU-only flags still reach GNU ls.
+        $listing = fn (string $args) => $docker->exec($id, ['bash', '-ic', "touch /tmp/a /tmp/b && ls {$args} /tmp >/dev/null && echo ok"])->output;
+        expect($docker->exec($id, ['bash', '-ic', 'type ls'])->output)->toContain('ls is a function')
+            ->and($listing('-la'))->toContain('ok')
+            ->and($listing('-ltr'))->toContain('ok');
+
+        foreach (['bat --version', 'rg --version', 'fd --version', 'zoxide --version', 'jq --version', 'btop --version', 'lazygit --version', 'micro -version', 'vim --version', 'ncdu -v'] as $command) {
+            expect($docker->exec($id, explode(' ', $command))->successful())->toBeTrue("{$command} failed");
+        }
+    } finally {
+        $docker->destroy($id);
+    }
+})->group('TAB-001');
+
+test('old shell files carried over by an update give way to the image\'s, and the user\'s own are kept', function () {
+    $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
+    $id = $docker->create(new SandboxSpec('zap-test-'.bin2hex(random_bytes(3)), ['APP_PROJECT_NAME' => 'Bashrc Check']));
+    $sh = fn (string $script) => $docker->exec($id, ['bash', '-c', $script]);
+
+    try {
+        // An old sandbox: the whole setup in ~/.bashrc and the image's prompt config in ~/.config.
+        $sh('echo "PS1=old" > ~/.bashrc && mkdir -p ~/.config && cp /opt/zap/starship.toml ~/.config/starship.toml');
+        $sh(SandboxUpdater::USE_IMAGE_SHELL_SETUP);
+        expect($docker->exec($id, ['bash', '-ic', 'true'])->output)->toContain('Bashrc Check')
+            ->and($sh('test -e ~/.config/starship.toml')->successful())->toBeFalse()
+            ->and(trim($docker->exec($id, ['bash', '-ic', 'echo "$STARSHIP_CONFIG"'])->output))->toEndWith('/opt/zap/starship.toml');
+
+        $sh('echo "alias mine=true" >> ~/.bashrc && echo "add_newline = true" > ~/.config/starship.toml');
+        $sh(SandboxUpdater::USE_IMAGE_SHELL_SETUP);
+        expect($sh('cat ~/.bashrc')->output)->toContain('alias mine=true')
+            ->and($sh('cat ~/.config/starship.toml')->output)->toContain('add_newline = true');
+    } finally {
+        $docker->destroy($id);
+    }
+})->group('SBX-002');
 
 test('the host proxy rewrites unknown hostnames to localhost', function () {
     $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
@@ -356,7 +405,7 @@ test('developer tools read ports, usage and storage, and SSH takes the owner\'s 
         $port = parse_url($docker->previewUrl($id, 2222), PHP_URL_PORT);
         $ssh = fn (array $options) => Process::timeout(20)->run([
             'ssh', '-p', (string) $port, '-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null',
-            '-o', 'BatchMode=yes', '-o', 'LogLevel=ERROR', ...$options, 'sandbox@127.0.0.1', 'pwd',
+            '-o', 'BatchMode=yes', '-o', 'IdentitiesOnly=yes', '-o', 'LogLevel=ERROR', ...$options, 'sandbox@127.0.0.1', 'pwd',
         ]);
 
         expect(trim($ssh(['-i', $keyFile])->output()))->toBe('/workspace')
