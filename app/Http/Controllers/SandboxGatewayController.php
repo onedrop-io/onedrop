@@ -40,7 +40,7 @@ class SandboxGatewayController extends Controller
      */
     public function enter(Request $request, Gateway $gateway): Response|RedirectResponse
     {
-        $target = $gateway->parse($request->getHost());
+        $target = $gateway->parse((string) $gateway->requestedHost($request, $request->getHost()));
         $userId = $target ? $gateway->userFromToken((string) $request->query('token'), $target) : null;
 
         if (! $userId) {
@@ -65,11 +65,11 @@ class SandboxGatewayController extends Controller
     }
 
     /**
-     * Called by Caddy (forward_auth): may this browser open the preview or shell? If so, where does it live?
+     * Called by Caddy (forward_auth) or the Cloudflare Worker: may this browser open the preview or shell? If so, where does it live?
      */
     public function authorize(Request $request, Gateway $gateway): Response
     {
-        $target = $gateway->parse((string) $request->header('X-Forwarded-Host'));
+        $target = $gateway->parse((string) $gateway->requestedHost($request, $request->header('X-Forwarded-Host')));
         $sandbox = $target ? Sandbox::with('project')->find($target['sandbox_id']) : null;
 
         if (! $sandbox || $sandbox->status !== SandboxStatus::Running) {
@@ -86,6 +86,20 @@ class SandboxGatewayController extends Controller
 
         if ($user->cannot('view', $sandbox->project)) {
             return response('Forbidden', 403);
+        }
+
+        // The Worker forwards to the provider's address with its token; Caddy to a published host:port.
+        if ($gateway->viaWorker()) {
+            $upstream = $gateway->target($sandbox, $target['kind']);
+
+            return $upstream
+                ? response('', 200, array_filter([
+                    'X-Zap-Upstream' => $upstream['url'],
+                    'X-Zap-Upstream-Header' => $upstream['header'],
+                    'X-Zap-Upstream-Token' => $upstream['token'],
+                    'Cache-Control' => 'no-store',
+                ]))
+                : response('Not available', 404);
         }
 
         $upstream = $gateway->upstream($sandbox, $target['kind']);

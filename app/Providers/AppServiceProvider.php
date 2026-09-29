@@ -34,7 +34,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->bind(AgentRunner::class, fn ($app) => $app->make(config('sandbox.agent')));
 
-        $this->app->bind(Gateway::class, fn () => new Gateway(config('sandbox.gateway_domain')));
+        $this->app->bind(Gateway::class, fn () => new Gateway(config('sandbox.gateway_domain'), config('sandbox.gateway_secret')));
 
         // New sandboxes go to the configured provider; each existing one keeps its own (see RoutingSandboxProvider).
         $this->app->singleton(SandboxProvider::class, function () {

@@ -198,6 +198,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - With `SANDBOX_PROVIDER=runtime`, each project's sandbox should run on Runtime Cloud, from the sandbox image built there with `php artisan sandbox:build-image`.
 - The sandbox's settings and the user's AI credential should reach it at start without appearing in any command line.
 - User should see the preview and the Shell tab through private Runtime preview links, handed out only to people allowed to see the project; the links should be renewed before their tokens expire.
+- An admin should be able to make Runtime previews public (`RUNTIME_PREVIEW_VISIBILITY=public`, paid sandboxes only), so they show inside the workspace: private Runtime previews can't be embedded in another site's page. Public links carry no token and are handed out only to people allowed to see the project.
 - Pausing, resuming, updating (files kept) and deleting a sandbox should work as they do with Docker.
 - A sandbox made from an older image should be reported as outdated, so SBX-002 updates it.
 - Sandboxes should use the free trial unless `RUNTIME_FUNDING=paid` is set; Runtime errors should reach the user with Runtime's hint.
@@ -347,6 +348,14 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - The app's login cookie should never reach preview or shell addresses; each address gets its own cookie through a short-lived hand-off from the app, so sandboxed code can't read the user's login and a sandboxed app's cookies can't break the preview.
 - User should see a "Reopen" link when a preview's access has expired.
 - HTTPS certificates should only be issued for addresses of sandboxes that exist.
+
+## GW-002: Previews and shells through Cloudflare
+- On Laravel Cloud (no Caddy), user should see each project's preview and shell inside the workspace at `preview-<id>.<domain>` and `shell-<id>.<domain>`, served by a Cloudflare Worker in front of the sandbox's provider (Blaxel or Runtime).
+- Previews should load with their styles and scripts in every browser, Safari included, and on every provider: the browser only ever deals with onedrop.io addresses and cookies.
+- Only a logged-in user allowed to see the project should get through, checked on every request (GW-001's hand-off and cookie); a copied link without that user's cookie should be refused.
+- The provider's preview token should never reach the browser: the Worker adds it to each request it forwards.
+- Only the Worker should be able to ask the app for a sandbox's address and token (a shared secret).
+- Links in the app's pages that point at the provider's address should point at the preview address instead, and the Shell tab's live connection should work.
 
 ## HOME-001: Marketing home page
 

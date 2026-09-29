@@ -45,6 +45,9 @@ return [
             'timeout_seconds' => (int) env('RUNTIME_TIMEOUT_SECONDS', 3600),
             // Paid only: renew the lease while credit lasts, so long agent runs are never paused mid-way.
             'persistent' => (bool) env('RUNTIME_PERSISTENT', false),
+            // "private" previews carry a token in a cookie browsers won't send inside another site's frame, so they only
+            // open in their own tab; "public" (paid only) shows them in the workspace's Preview tab.
+            'preview_visibility' => env('RUNTIME_PREVIEW_VISIBILITY', 'private'),
         ],
 
         // Blaxel (blaxel.ai). The image is docker/sandbox plus docker/sandbox/blaxel, pushed by `php artisan sandbox:build-image`.
@@ -75,6 +78,10 @@ return [
     */
 
     'gateway_domain' => env('SANDBOX_GATEWAY_DOMAIN'),
+
+    // Set when a Cloudflare Worker (infra/cloudflare/preview-gateway) stands in for Caddy, e.g. on Laravel Cloud:
+    // the Worker proves itself with this secret, and gets each sandbox's provider address and token to forward to.
+    'gateway_secret' => env('SANDBOX_GATEWAY_SECRET'),
 
     /*
     |--------------------------------------------------------------------------

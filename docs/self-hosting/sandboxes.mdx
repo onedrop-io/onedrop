@@ -88,7 +88,7 @@ Runtime Cloud runs each sandbox in its own Firecracker microVM. OneDrop talks to
 How it differs from Docker:
 
 - **Settings at start.** Runtime can't set a sandbox's environment when it's created, so OneDrop writes the settings and the owner's AI key to `/home/sandbox/.zap-env`, readable only by the sandbox user. `start.sh` and the Shell tab read it. They never appear in a command line.
-- **Previews and the Shell tab** use private Runtime preview links under `runtimehost.com`. Each link carries a token, and OneDrop hands it only to people allowed to see the project. Tokens last 7 days, and OneDrop fetches new links at most once a day when someone opens the project.
+- **Previews and the Shell tab** use private Runtime preview links under `runtimehost.com`. Each link carries a token, and OneDrop hands it only to people allowed to see the project. Tokens last 7 days, and OneDrop fetches new links at most once a day when someone opens the project. Browsers won't show private Runtime links inside another site's page, so with private links the Preview and Shell tabs only open in their own browser tab. With paid credit, set `RUNTIME_PREVIEW_VISIBILITY=public` to show them in the workspace: public links carry no token, so anyone who has one can open it.
 - **Idle sandboxes pause.** After 60 seconds with nothing happening, a sandbox pauses with its memory and processes kept. The next preview visit, command or agent run wakes it in about a second.
 - **Leases.** A trial sandbox pauses when its hour-long lease ends, even during an agent run. With paid credit, set `RUNTIME_PERSISTENT=true` so leases renew.
 - **Not available yet:** SSH (Tools → Developer → SSH) and Tailscale publishing, which need Docker.

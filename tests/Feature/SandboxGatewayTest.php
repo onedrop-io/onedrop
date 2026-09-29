@@ -183,3 +183,72 @@ test('the gateway is off without a domain', function () {
     gatewayAuth("preview-{$this->sandbox->id}.zap.example.com", $this->owner)->assertNotFound();
     $this->actingAs($this->owner)->get(route('projects.gateway.open', [$this->project, 'preview']))->assertNotFound();
 })->group('GW-001');
+
+/**
+ * A request as the Cloudflare Worker sends it: the shared secret, and the address it's serving.
+ */
+function workerAuth(string $host, ?User $user = null, string $secret = 'worker-secret'): TestResponse
+{
+    $request = test()->withHeaders([Gateway::SECRET_HEADER => $secret, Gateway::HOST_HEADER => $host]);
+
+    if ($user) {
+        $request->withCookie(Gateway::COOKIE, app(Gateway::class)->pass($user->id, app(Gateway::class)->parse($host)));
+    }
+
+    return $request->get(route('sandbox-gateway.authorize'));
+}
+
+test('the worker gets the provider address and token to forward to, never the browser', function (string $url, string $upstream, string $header, string $token) {
+    config(['sandbox.gateway_secret' => 'worker-secret']);
+    $this->sandbox->update(['preview_url' => $url]);
+
+    workerAuth("preview-{$this->sandbox->id}.zap.example.com", $this->owner)
+        ->assertOk()
+        ->assertHeader('X-Zap-Upstream', $upstream)
+        ->assertHeader('X-Zap-Upstream-Header', $header)
+        ->assertHeader('X-Zap-Upstream-Token', $token)
+        ->assertHeader('Cache-Control', 'no-store, private');
+})->with([
+    'blaxel' => ['https://abc.preview.bl.run/?bl_preview_token=bl-tok', 'https://abc.preview.bl.run', 'X-Blaxel-Preview-Token', 'bl-tok'],
+    'runtime' => ['https://8081-abc.runtimehost.com/?runtime_preview_token=rt-tok', 'https://8081-abc.runtimehost.com', 'X-Runtime-Preview-Token', 'rt-tok'],
+])->group('GW-002');
+
+test('without the worker\'s secret nobody learns where a sandbox lives', function (string $secret) {
+    config(['sandbox.gateway_secret' => 'worker-secret']);
+    $this->sandbox->update(['preview_url' => 'https://abc.preview.bl.run/?bl_preview_token=bl-tok']);
+
+    workerAuth("preview-{$this->sandbox->id}.zap.example.com", $this->owner, $secret)
+        ->assertNotFound()
+        ->assertHeaderMissing('X-Zap-Upstream-Token');
+})->with(['wrong secret' => ['nope'], 'no secret' => ['']])->group('GW-002');
+
+test('behind the worker, the address comes from the worker, not the forwarded host', function () {
+    config(['sandbox.gateway_secret' => 'worker-secret']);
+    $other = Sandbox::factory()->create(['preview_url' => 'https://other.preview.bl.run/?bl_preview_token=x']);
+
+    // A browser can't pick another sandbox by sending its own forwarded host.
+    test()->withHeaders([Gateway::SECRET_HEADER => 'worker-secret', Gateway::HOST_HEADER => "preview-{$this->sandbox->id}.zap.example.com", 'X-Forwarded-Host' => "preview-{$other->id}.zap.example.com"])
+        ->withCookie(Gateway::COOKIE, app(Gateway::class)->pass($this->owner->id, ['kind' => 'preview', 'sandbox_id' => $this->sandbox->id]))
+        ->get(route('sandbox-gateway.authorize'))
+        ->assertOk()
+        ->assertHeader('X-Zap-Upstream', 'http://127.0.0.1:32800');
+})->group('GW-002');
+
+test('other users are refused behind the worker too', function () {
+    config(['sandbox.gateway_secret' => 'worker-secret']);
+
+    workerAuth("preview-{$this->sandbox->id}.zap.example.com")->assertUnauthorized();
+    workerAuth("preview-{$this->sandbox->id}.zap.example.com", User::factory()->create())->assertForbidden();
+})->group('GW-002');
+
+test('the worker\'s hand-off sets the cookie for the address it names', function () {
+    config(['sandbox.gateway_secret' => 'worker-secret']);
+    $host = "preview-{$this->sandbox->id}.zap.example.com";
+    parse_str((string) parse_url(app(Gateway::class)->enterUrl($this->sandbox, 'preview', $this->owner, '/contacts'), PHP_URL_QUERY), $query);
+    $token = $query['token'];
+
+    test()->withHeaders([Gateway::SECRET_HEADER => 'worker-secret', Gateway::HOST_HEADER => $host])
+        ->get(route('sandbox-gateway.enter', ['token' => $token, 'path' => '/contacts']))
+        ->assertRedirect("https://{$host}/contacts")
+        ->assertCookie(Gateway::COOKIE);
+})->group('GW-002');

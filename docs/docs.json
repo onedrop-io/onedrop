@@ -90,6 +90,7 @@
                             "self-hosting/deploy-aws",
                             "self-hosting/install-anywhere",
                             "self-hosting/server-mode",
+                            "self-hosting/cloudflare-preview-gateway",
                             "self-hosting/configuration",
                             "self-hosting/social-login",
                             "self-hosting/github-app",

@@ -1,0 +1,53 @@
+---
+title: 'Previews on Laravel Cloud'
+description: 'Serve project previews and shells through a Cloudflare Worker when OneDrop runs on Laravel Cloud with Blaxel or Runtime sandboxes.'
+---
+
+On a server, Caddy serves each project's preview and shell at its own address and checks every request with OneDrop ([Previews and shells on a server](/self-hosting/server-mode)). Laravel Cloud has no Caddy, so a Cloudflare Worker does the same job in front of the sandbox's provider:
+
+| Address                         | Goes to                                       |
+| ------------------------------- | --------------------------------------------- |
+| `preview-<sandbox id>.<domain>` | The project's app, on Blaxel or Runtime       |
+| `shell-<sandbox id>.<domain>`   | The project's web terminal                    |
+
+## Why not the provider's own preview links
+
+Blaxel and Runtime protect private previews with a cookie on their own domain. Browsers limit cookies for another site shown inside a page, so inside OneDrop's Preview tab:
+
+- **Runtime** previews don't load at all.
+- **Blaxel** previews load in Chrome but lose their styles and scripts in Safari.
+
+Through the Worker, the browser only deals with addresses and cookies under your own domain, and the provider's token never reaches it.
+
+## How a request is checked
+
+1. Opening a project's preview sends the browser to `preview-<id>.<domain>/__zap/enter` with a short-lived token. The Worker asks OneDrop to check it, and OneDrop sets that address's own cookie. The app's login cookie never reaches these addresses.
+2. On every other request, the Worker asks OneDrop whether that cookie may see the project, and where the sandbox lives. Answers are reused for a minute per cookie, so a page's assets don't each cost a request.
+3. The Worker forwards the request to the provider with the private preview token in a header, and points links to the provider's address back at the gateway address. WebSockets (the Shell tab, hot reload) pass through.
+
+Only the Worker can ask OneDrop where a sandbox lives: it proves itself with a shared secret.
+
+## Set it up
+
+You need your domain's DNS on Cloudflare, with a proxied wildcard record (`*.<domain>`). Keep your app's own records (the root, `www`, docs) on **DNS only**.
+
+<Steps>
+  <Step title="Create a shared secret">
+    ```bash
+    openssl rand -hex 32
+    ```
+  </Step>
+  <Step title="Deploy the Worker">
+    Edit `infra/cloudflare/preview-gateway/wrangler.toml` for your domain (`routes`, `APP_URL`, `GATEWAY_DOMAIN`), then, with a Cloudflare API token that can edit Workers scripts and routes:
+    ```bash
+    cd infra/cloudflare/preview-gateway
+    npx wrangler deploy
+    npx wrangler secret put GATEWAY_SECRET
+    ```
+  </Step>
+  <Step title="Turn it on in OneDrop">
+    On Laravel Cloud, set `SANDBOX_GATEWAY_DOMAIN` to your domain and `SANDBOX_GATEWAY_SECRET` to the same secret (as a Secrets Manager secret), then redeploy.
+  </Step>
+</Steps>
+
+The Worker's own tests run with `node --test infra/cloudflare/preview-gateway/worker.test.mjs`.

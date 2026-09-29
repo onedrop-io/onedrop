@@ -19,6 +19,7 @@ OneDrop is a Laravel application, so the usual Laravel settings (`APP_URL`, `DB_
 | `SANDBOX_PROXY_PORT`    | `8081`                             | Port of the host-rewriting proxy in front of the app, used by the preview and published URLs.       |
 | `SANDBOX_SHELL_PORT`    | `7681`                             | Port of the web terminal behind the Shell tab.                                                      |
 | `SANDBOX_SSH_PORT`      | `2222`                             | Port of the SSH server behind Tools → Developer → SSH.                                              |
+| `SANDBOX_GATEWAY_SECRET` | empty                            | Shared secret for the Cloudflare Worker that serves previews on Laravel Cloud. See [Previews on Laravel Cloud](/self-hosting/cloudflare-preview-gateway). |
 | `SANDBOX_CALLBACK_URL`  | `http://host.docker.internal:8000` | How code inside a sandbox reaches OneDrop to report agent events. In production, your public `APP_URL`. |
 | `SANDBOX_BACKUP_DISK`   | `local`                            | Filesystem disk that holds each project's code backup. See [Code backups](/self-hosting/sandboxes#code-backups). |
 | `SANDBOX_TASK_COPIES`   | `true`                             | Give each task its own copy of the project's sandbox, with its own preview; its work is merged back when applied. Off, tasks share the main sandbox. See [Tasks and the board](/guides/tasks). |
@@ -37,6 +38,7 @@ OneDrop is a Laravel application, so the usual Laravel settings (`APP_URL`, `DB_
 | `RUNTIME_VCPU`, `RUNTIME_MEMORY_MIB`, `RUNTIME_DISK_MIB` | `2`, `4096`, `8192` | Size of each Runtime sandbox. The trial allows 2 vCPUs and 4096 MiB at most.         |
 | `RUNTIME_TIMEOUT_SECONDS` | `3600`                           | Lease length, at most an hour. When it ends the sandbox pauses with its memory kept, and the next request wakes it. |
 | `RUNTIME_PERSISTENT`    | `false`                            | Paid only. Renews the lease while credit lasts, so a long agent run is never paused partway through. |
+| `RUNTIME_PREVIEW_VISIBILITY` | `private`                  | `private` links carry a token but only open in their own tab. `public` (paid only) shows previews inside the workspace. |
 
 ## Agent
 

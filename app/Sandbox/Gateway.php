@@ -5,6 +5,7 @@ namespace App\Sandbox;
 use App\Models\Sandbox;
 use App\Models\User;
 use Illuminate\Contracts\Encryption\DecryptException;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 
 /**
@@ -29,11 +30,76 @@ class Gateway
     /** How long a preview or shell stays open without going through the app again. */
     public const PASS_MINUTES = 720;
 
-    public function __construct(protected ?string $domain) {}
+    /** Header the Cloudflare Worker proves itself with, and the one naming the preview/shell address it serves. */
+    public const SECRET_HEADER = 'X-Zap-Gateway-Secret';
+
+    public const HOST_HEADER = 'X-Zap-Gateway-Host';
+
+    /** Private preview links' token parameter => the header the provider also accepts it in. */
+    public const PROVIDER_TOKENS = [
+        'bl_preview_token' => 'X-Blaxel-Preview-Token',
+        'runtime_preview_token' => 'X-Runtime-Preview-Token',
+    ];
+
+    public function __construct(protected ?string $domain, protected ?string $secret = null) {}
 
     public function enabled(): bool
     {
         return filled($this->domain);
+    }
+
+    /**
+     * Whether a Cloudflare Worker, not Caddy on this server, serves the gateway addresses.
+     */
+    public function viaWorker(): bool
+    {
+        return filled($this->secret);
+    }
+
+    /**
+     * Whether a request comes from the Worker (it carries the shared secret).
+     */
+    public function isFromWorker(Request $request): bool
+    {
+        return $this->viaWorker() && hash_equals($this->secret, (string) $request->header(self::SECRET_HEADER));
+    }
+
+    /**
+     * The preview/shell address a request is for: named by the Worker, or (behind Caddy) the given host.
+     * Null when the Worker is expected but the request doesn't prove it came from there.
+     */
+    public function requestedHost(Request $request, ?string $caddyHost): ?string
+    {
+        if (! $this->viaWorker()) {
+            return $caddyHost;
+        }
+
+        return $this->isFromWorker($request) ? (string) $request->header(self::HOST_HEADER) : null;
+    }
+
+    /**
+     * Where the Worker should forward a sandbox's preview or shell: the provider's address, and the header
+     * carrying its private preview token, so the token never reaches the browser.
+     *
+     * @return array{url: string, header: string|null, token: string|null}|null
+     */
+    public function target(Sandbox $sandbox, string $kind): ?array
+    {
+        $url = $kind === 'shell' ? $sandbox->shell_url : $sandbox->preview_url;
+        $parts = $url ? parse_url($url) : null;
+
+        if (! isset($parts['scheme'], $parts['host'])) {
+            return null;
+        }
+
+        parse_str($parts['query'] ?? '', $query);
+        $param = collect(array_keys(self::PROVIDER_TOKENS))->first(fn (string $name) => isset($query[$name]));
+
+        return [
+            'url' => "{$parts['scheme']}://{$parts['host']}".(isset($parts['port']) ? ":{$parts['port']}" : ''),
+            'header' => $param ? self::PROVIDER_TOKENS[$param] : null,
+            'token' => $param ? (string) $query[$param] : null,
+        ];
     }
 
     /**

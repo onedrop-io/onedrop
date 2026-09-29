@@ -34,7 +34,7 @@ class RuntimeSandboxProvider implements SandboxProvider
     public const PREVIEW_TTL_SECONDS = 604800;
 
     /**
-     * @param  array{api_key: ?string, url: string, image: string, funding: string, vcpu: int, memory_mib: int, disk_mib: int, timeout_seconds: int, persistent: bool}  $config
+     * @param  array{api_key: ?string, url: string, image: string, funding: string, vcpu: int, memory_mib: int, disk_mib: int, timeout_seconds: int, persistent: bool, preview_visibility?: string}  $config
      */
     public function __construct(protected array $config) {}
 
@@ -119,8 +119,12 @@ class RuntimeSandboxProvider implements SandboxProvider
             return null;
         }
 
-        // Private: the link carries a token, and the app hands it only to people who may see the project.
-        // Asking again answers the same preview with a current token.
+        // Either way the app hands the link only to people who may see the project. Private links carry a token
+        // (asking again answers the same preview with a current one); public ones (paid only) embed in the workspace.
+        if (($this->config['preview_visibility'] ?? 'private') === 'public') {
+            return $this->send('post', "sandboxes/{$id}/previews", ['port' => $port, 'visibility' => 'public'])['url'] ?? null;
+        }
+
         $preview = $this->send('post', "sandboxes/{$id}/previews", ['port' => $port, 'ttlSeconds' => self::PREVIEW_TTL_SECONDS]);
 
         return $preview['urlWithToken'] ?? null;

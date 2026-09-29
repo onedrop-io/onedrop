@@ -140,6 +140,31 @@ test('the preview url is a private link that carries its token', function () {
         && ! isset($request['visibility']));
 })->group('SBX-003');
 
+test('public previews are asked for when configured, and carry no token', function () {
+    Http::fake([RT_API.'/sandboxes/'.RT_ID.'/previews' => Http::response([
+        'url' => 'https://8081-abc.runtimehost.com/',
+        'urlWithToken' => null,
+        'visibility' => 'public',
+    ])]);
+
+    $runtime = new RuntimeSandboxProvider([...$this->runtimeConfig, 'preview_visibility' => 'public']);
+
+    expect($runtime->previewUrl(RT_ID, 8081))->toBe('https://8081-abc.runtimehost.com/');
+
+    Http::assertSent(fn (Request $request) => $request['visibility'] === 'public' && $request['port'] === 8081);
+})->group('SBX-003');
+
+test('a trial account refusing public previews explains why', function () {
+    Http::fake([RT_API.'/sandboxes/'.RT_ID.'/previews' => Http::response(['error' => [
+        'code' => 'public_preview_not_allowed', 'status' => 403,
+        'message' => 'A trial sandbox shares a port privately, with a token; public previews need a paid sandbox.',
+        'hint' => 'Create the preview without visibility public.', 'requestId' => 'req_9',
+    ]], 403)]);
+
+    expect(fn () => (new RuntimeSandboxProvider([...$this->runtimeConfig, 'preview_visibility' => 'public']))->previewUrl(RT_ID, 8081))
+        ->toThrow(SandboxException::class, 'public previews need a paid sandbox');
+})->group('SBX-003');
+
 test('the ssh port gets no https preview', function () {
     expect($this->runtime->previewUrl(RT_ID, config('sandbox.ssh_port')))->toBeNull();
 

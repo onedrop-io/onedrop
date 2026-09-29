@@ -1,0 +1,13 @@
+# OneDrop preview gateway (GW-002). Deploy: see docs/self-hosting/cloudflare-preview-gateway.mdx.
+name = "onedrop-preview-gateway"
+main = "worker.js"
+compatibility_date = "2026-09-01"
+
+# Every name under the wildcard reaches the Worker; it only handles preview-<id> and shell-<id>.
+routes = [{ pattern = "*.onedrop.io/*", zone_name = "onedrop.io" }]
+
+[vars]
+APP_URL = "https://onedrop.io"
+GATEWAY_DOMAIN = "onedrop.io"
+
+# Secret, set with: npx wrangler secret put GATEWAY_SECRET  (the app's SANDBOX_GATEWAY_SECRET)
