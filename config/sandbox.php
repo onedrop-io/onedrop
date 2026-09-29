@@ -28,6 +28,9 @@ return [
             'runtime' => env('SANDBOX_DOCKER_RUNTIME'),
             // Docker network to join, e.g. "drop" when the app itself runs in a container, so sandboxes reach it by name.
             'network' => env('SANDBOX_DOCKER_NETWORK'),
+            // How the app reaches sandbox ports: "published" (their ports on `host`), or "network" (container name
+            // and port on that network, for a containerized app behind the gateway; nothing is reachable from outside).
+            'reach' => env('SANDBOX_DOCKER_REACH', 'published'),
             // Host folder holding each project's App Storage buckets (<path>/project-<id>/storage), mounted
             // into its sandbox at /data/storage so they survive the container. Empty keeps them in the container.
             'storage_path' => env('SANDBOX_DOCKER_STORAGE_PATH', storage_path('app/sandboxes')),

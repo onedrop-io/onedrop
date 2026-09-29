@@ -23,7 +23,7 @@ class DockerSandboxProvider implements SandboxProvider
     public const STORAGE_MOUNT = '/data/storage';
 
     /**
-     * @param  array{image: string, memory: string, cpus: string, host: string, runtime?: ?string, network?: ?string, storage_path?: ?string}  $config
+     * @param  array{image: string, memory: string, cpus: string, host: string, runtime?: ?string, network?: ?string, reach?: ?string, storage_path?: ?string}  $config
      */
     public function __construct(protected array $config) {}
 
@@ -121,6 +121,13 @@ class DockerSandboxProvider implements SandboxProvider
 
     public function previewUrl(string $id, int $port): ?string
     {
+        // The app runs in a container on the sandbox's network, behind the gateway: reach the sandbox by name.
+        if (($this->config['reach'] ?? null) === 'network') {
+            $name = $this->containerName($id);
+
+            return $name === null ? null : "http://{$name}:{$port}";
+        }
+
         $result = Process::timeout(15)->run(['docker', 'port', $id, (string) $port]);
 
         if ($result->failed()) {
@@ -207,6 +214,17 @@ class DockerSandboxProvider implements SandboxProvider
         }
 
         return $folder;
+    }
+
+    /**
+     * The container's name, which Docker's DNS resolves on its networks.
+     */
+    protected function containerName(string $id): ?string
+    {
+        $result = Process::timeout(15)->run(['docker', 'inspect', '--format', '{{.Name}}', $id]);
+        $name = ltrim(trim($result->output()), '/');
+
+        return $result->successful() && $name !== '' ? $name : null;
     }
 
     /**

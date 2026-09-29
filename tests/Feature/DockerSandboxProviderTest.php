@@ -57,6 +57,23 @@ test('sandboxes join the configured network so a containerized app is reachable 
         && $process->command[array_search('drop', $process->command) - 1] === '--network');
 })->group('INSTALL-001');
 
+test('behind the gateway, sandbox addresses are the container name and port on the network', function () {
+    Process::fake(['*inspect*' => Process::result("/zap-project-1-x\n")]);
+
+    $docker = new DockerSandboxProvider([...$this->dockerConfig, 'network' => 'drop', 'reach' => 'network']);
+
+    expect($docker->previewUrl('abc123', 8081))->toBe('http://zap-project-1-x:8081');
+    Process::assertNotRan(fn (PendingProcess $process) => $process->command[1] === 'port');
+})->group('INSTALL-002');
+
+test('a sandbox that no longer exists has no network address', function () {
+    Process::fake(['*' => Process::result(errorOutput: 'Error: No such object: gone', exitCode: 1)]);
+
+    $docker = new DockerSandboxProvider([...$this->dockerConfig, 'reach' => 'network']);
+
+    expect($docker->previewUrl('gone', 8081))->toBeNull();
+})->group('INSTALL-002');
+
 test('sandboxes stay on the default network when none is configured', function () {
     Process::fake(['*' => Process::result('abc123')]);
 

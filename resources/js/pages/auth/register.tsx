@@ -15,12 +15,14 @@ type Props = {
     passwordRules: string;
     invitation: { email: string | null; invited_by: string | null } | null;
     socialProviders: SocialProviderOption[];
+    setupRequired: boolean;
 };
 
 export default function Register({
     passwordRules,
     invitation,
     socialProviders,
+    setupRequired,
 }: Props) {
     return (
         <>
@@ -32,6 +34,15 @@ export default function Register({
                 >
                     {invitation.invited_by ?? 'Someone'} invited you. Create
                     your account to get started.
+                </p>
+            )}
+            {setupRequired && (
+                <p
+                    className="mb-6 rounded-lg bg-muted p-3 text-center text-sm"
+                    data-test="setup-required-banner"
+                >
+                    This server is new. To create its first account, open the
+                    setup link the installer printed.
                 </p>
             )}
             <SocialLoginButtons providers={socialProviders} />

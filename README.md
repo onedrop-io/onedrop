@@ -13,6 +13,7 @@ curl -fsSL https://raw.githubusercontent.com/onedrop-io/onedrop/main/install.sh 
 This adds the `drop` command and starts OneDrop at `http://localhost:8000`. The first account you create is the admin. Run `drop help` to update, stop, or uninstall it.
 
 - [Install guide](https://docs.onedrop.io/install)
+- On a server, add a domain for HTTPS (`auto` uses a free `<ip>.sslip.io` address): `curl -fsSL https://raw.githubusercontent.com/onedrop-io/onedrop/main/install.sh | sh -s -- --domain auto`
 - [Install on a server](https://docs.onedrop.io/self-hosting/install-anywhere) (any Ubuntu 24.04 machine) or [on AWS](https://docs.onedrop.io/self-hosting/deploy-aws)
 - [Run from source](https://docs.onedrop.io/quickstart) to work on OneDrop itself
 - [Documentation](https://docs.onedrop.io/introduction)

@@ -16,6 +16,16 @@ fi
 ln -sfn /data/.env /app/.env
 touch /data/database.sqlite
 
+# Server mode (INSTALL-002): HTTPS at APP_DOMAIN, previews and shells through the gateway, sandboxes reached by
+# name on the drop network, and a setup link for the first account.
+if [ -n "${APP_DOMAIN:-}" ]; then
+    export APP_URL="https://$APP_DOMAIN" SANDBOX_GATEWAY_DOMAIN="$APP_DOMAIN" SANDBOX_DOCKER_REACH=network \
+        SESSION_SECURE_COOKIE=true
+    if ! grep -q '^SETUP_TOKEN=' /data/.env; then
+        echo "SETUP_TOKEN=$(head -c 24 /dev/urandom | base64 | tr -d '/+=')" >> /data/.env
+    fi
+fi
+
 if ! docker info >/dev/null 2>&1; then
     log "Warning: can't reach Docker. Start this container with -v /var/run/docker.sock:/var/run/docker.sock so projects can run."
 elif ! docker image inspect "$SANDBOX_DOCKER_IMAGE" >/dev/null 2>&1; then
@@ -28,6 +38,11 @@ php artisan optimize --no-interaction >/dev/null
 
 # The queue worker creates sandboxes and runs agents; restart it whenever it exits.
 (while true; do php artisan queue:work --tries=1 --timeout=0 --sleep=1 || true; sleep 1; done) &
+
+if [ -n "${APP_DOMAIN:-}" ]; then
+    log "OneDrop is running at https://$APP_DOMAIN"
+    exec frankenphp run --config /etc/drop/Caddyfile --adapter caddyfile
+fi
 
 log "OneDrop is running on port 8000"
 exec frankenphp php-server --root /app/public --listen :8000

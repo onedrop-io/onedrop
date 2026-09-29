@@ -7,6 +7,7 @@ use App\Actions\Fortify\ResetUserPassword;
 use App\Enums\SocialProvider;
 use App\Http\Controllers\AcceptInvitationController;
 use App\Models\Invitation;
+use App\Models\User;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -72,12 +73,15 @@ class FortifyServiceProvider extends ServiceProvider
         ]));
 
         Fortify::registerView(function (Request $request) {
+            User::openSetupLink($request->query('setup'));
+
             $id = $request->session()->get(AcceptInvitationController::SESSION_KEY);
             $invitation = is_int($id) || is_string($id) ? Invitation::find($id) : null;
 
             return Inertia::render('auth/register', [
                 'passwordRules' => Password::defaults()->toPasswordRulesString(),
                 'socialProviders' => SocialProvider::options(),
+                'setupRequired' => ! User::setupAllowed(),
                 'invitation' => $invitation?->isUsable() ? [
                     'email' => $invitation->email,
                     'invited_by' => $invitation->inviter?->name,

@@ -1,13 +1,13 @@
 ---
-title: 'Install on your computer'
-description: 'Run OneDrop on macOS or Linux with one command. Docker is the only requirement.'
+title: 'Install with one command'
+description: 'Run OneDrop on your computer or on a server with one command. Docker is the only requirement.'
 ---
 
-OneDrop runs on your computer as a single Docker container with its own SQLite database. Each project you build gets its own sandbox container next to it.
+OneDrop runs as a single Docker container with its own SQLite database. Each project you build gets its own sandbox container next to it. The same command installs it on your computer or, with a domain, on a server for your team.
 
 ## Requirements
 
-- macOS or Linux
+- macOS or Linux (a server: any Linux with Docker, or one the installer can install Docker on)
 - Docker: [Docker Desktop](https://www.docker.com/products/docker-desktop/) or [OrbStack](https://orbstack.dev) on a Mac, Docker Engine on Linux
 - About 5 GB of free disk space for the images
 - An API key for Anthropic, OpenAI, Google (Gemini), or OpenRouter, or a ChatGPT Plus or Pro plan
@@ -31,6 +31,45 @@ The first account you create is the admin. After signing up, [connect your AI](/
     You don't need `sudo`. On Linux, installing Docker itself asks for your
     password.
 </Note>
+
+## Install on a server
+
+Add `--domain` to serve OneDrop over HTTPS. With `auto`, it uses `<your server's IP>.sslip.io`, a free address that needs no DNS setup:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/onedrop-io/onedrop/main/install.sh | sh -s -- --domain auto
+```
+
+Or use your own domain:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/onedrop-io/onedrop/main/install.sh | sh -s -- --domain onedrop.example.com
+```
+
+Run over SSH without `--domain`, the installer offers the sslip.io address itself.
+
+<Steps>
+    <Step title="Open ports 80 and 443">
+        Allow incoming traffic on ports 80 and 443, for example in your cloud's
+        security group or firewall. OneDrop uses them to get its certificates
+        from Let's Encrypt and to serve the app.
+    </Step>
+    <Step title="Point DNS at the server (your own domain only)">
+        Create two records pointing at the server's IP address:
+        `onedrop.example.com` and `*.onedrop.example.com`. Skip this with
+        `--domain auto`.
+    </Step>
+    <Step title="Create the admin account">
+        The installer prints a one-time setup link. Open it to create the first
+        account, which is the admin. Until that account exists, sign-up works
+        only through this link, so nobody who finds the server first can take it
+        over. After that, invite your team from **Settings → Invite people**.
+    </Step>
+</Steps>
+
+On a server, each project's preview and shell are at `preview-<id>.<domain>` and `shell-<id>.<domain>`, and only people who can see the project get through (see [Server mode](/self-hosting/server-mode)). Sandbox ports aren't reachable from outside.
+
+Running the installer again keeps the domain. Use `--domain` to change it, or `--local` to go back to `http://localhost` only.
 
 ## Manage OneDrop
 
@@ -71,7 +110,7 @@ curl -fsSL https://raw.githubusercontent.com/onedrop-io/onedrop/main/install.sh 
 | `drop` network     | Connects the sandboxes to the app so the agent can report what it's doing |
 | Docker socket      | Mounted into the `drop` container so OneDrop can start and stop sandboxes |
 
-OneDrop and project previews listen only on `127.0.0.1`, so other computers on your network can't reach them. To share a project, [publish it](/guides/publish).
+On your computer, OneDrop and project previews listen only on `127.0.0.1`, so other computers on your network can't reach them. To share a project, [publish it](/guides/publish). On a server, only ports 80 and 443 are open.
 
 <Warning>
     Access to the Docker socket gives the `drop` container full control of

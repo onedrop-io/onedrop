@@ -721,3 +721,11 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should land on the sign-up page when the install finishes; the first person to sign up on a new install becomes its admin.
 - User should find the install command on the home page, at the top of the README, and in the docs (introduction and install pages).
 - Both images should be built for amd64 and arm64 and published by GitHub Actions whenever `main` passes its tests.
+
+## INSTALL-002: One-line install on a server
+
+- User should be able to install OneDrop on a Linux server with the same command, served over HTTPS at a domain: `--domain onedrop.example.com`, or `--domain auto` for a free `<ip>.sslip.io` address that needs no DNS. Run over SSH, the installer should offer the sslip.io address itself.
+- OneDrop should get its certificates on its own (Let's Encrypt), and serve each project's preview and shell at `preview-<id>.<domain>` / `shell-<id>.<domain>` only to signed-in people allowed to see that project, the same way as the server install (GW-001). Sandbox ports should never be reachable from outside.
+- User should be told which ports to open (80 and 443) and that DNS for the domain and `*.<domain>` must point at the server.
+- The first account on a server install should only be creatable through the one-time setup link the installer prints, so a stranger who finds the server first can't make themselves admin. After the first account exists, sign-up works as usual.
+- Running the installer again keeps the domain; `--domain` changes it and `--local` goes back to localhost only.

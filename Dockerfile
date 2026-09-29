@@ -27,6 +27,8 @@ RUN composer dump-autoload --optimize --no-dev \
 FROM base
 COPY --from=build /app /app
 COPY docker/app/entrypoint.sh /usr/local/bin/drop-entrypoint
+# Server mode only (APP_DOMAIN set): HTTPS, and previews/shells through the gateway.
+COPY docker/app/Caddyfile /etc/drop/Caddyfile
 
 ENV APP_ENV=production \
     APP_DEBUG=false \
@@ -46,6 +48,6 @@ ENV APP_ENV=production \
     SANDBOX_CALLBACK_URL=http://drop:8000
 
 VOLUME /data
-EXPOSE 8000
+EXPOSE 8000 80 443 443/udp
 HEALTHCHECK --interval=10s --timeout=5s --start-period=60s CMD curl -fsS http://127.0.0.1:8000/up >/dev/null || exit 1
 ENTRYPOINT ["drop-entrypoint"]

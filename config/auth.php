@@ -17,6 +17,10 @@ return [
 
     'verify_email' => (bool) env('AUTH_VERIFY_EMAIL', true),
 
+    // Set by a server install (INSTALL-002): the first account can only be created from /register?setup=<token>,
+    // the link the installer prints, so nobody who finds a new server first can make themselves its admin.
+    'setup_token' => env('SETUP_TOKEN'),
+
     /*
     |--------------------------------------------------------------------------
     | Authentication Defaults

@@ -8,6 +8,7 @@ use App\Http\Controllers\AcceptInvitationController;
 use App\Models\Invitation;
 use App\Models\User;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 use Laravel\Fortify\Contracts\CreatesNewUsers;
 
 class CreateNewUser implements CreatesNewUsers
@@ -21,6 +22,10 @@ class CreateNewUser implements CreatesNewUsers
      */
     public function create(array $input): User
     {
+        if (! User::setupAllowed()) {
+            throw ValidationException::withMessages(['email' => __('To create the first account, open the setup link the installer printed.')]);
+        }
+
         Validator::make($input, [
             ...$this->profileRules(),
             'password' => $this->passwordRules(),

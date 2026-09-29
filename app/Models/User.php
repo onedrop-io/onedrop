@@ -60,6 +60,32 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
         ];
     }
 
+    /** Session flag: this browser opened the installer's setup link (see setupAllowed()). */
+    public const SETUP_SESSION_KEY = 'setup_link_opened';
+
+    /**
+     * Whether an account can be created now: always, except for the first account on a server install, which
+     * needs the installer's setup link to have been opened in this session.
+     */
+    public static function setupAllowed(): bool
+    {
+        return blank(config('auth.setup_token'))
+            || session(self::SETUP_SESSION_KEY) === true
+            || static::query()->exists();
+    }
+
+    /**
+     * Remember that this session opened the setup link, when $token is the install's setup token.
+     */
+    public static function openSetupLink(mixed $token): void
+    {
+        $expected = config('auth.setup_token');
+
+        if (is_string($token) && is_string($expected) && $expected !== '' && hash_equals($expected, $token)) {
+            session()->put(self::SETUP_SESSION_KEY, true);
+        }
+    }
+
     /**
      * Make the first person to sign up on a new install its admin, so nobody needs a command to get in.
      */

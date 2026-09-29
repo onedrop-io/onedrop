@@ -1,0 +1,76 @@
+# OneDrop on a server, in its container (INSTALL-002). The entrypoint uses this when APP_DOMAIN is set;
+# it follows infra/server/Caddyfile, with FrankenPHP serving PHP itself.
+{
+	frankenphp
+	# Only issue certificates for preview-<id>/shell-<id> hosts of sandboxes that exist.
+	on_demand_tls {
+		ask http://127.0.0.1:8080/sandbox-gateway/certificate
+	}
+	# Empty normally. "local_certs" swaps Let's Encrypt for Caddy's own CA (testing, or a LAN without public DNS).
+	{$DROP_CADDY_OPTIONS}
+}
+
+(laravel) {
+	root * /app/public
+	encode zstd gzip
+	php_server
+}
+
+# Internal listener for Caddy's own checks (certificate "ask" and forward_auth). Loopback only.
+# No hostname: forward_auth keeps the original Host header, so this must answer for any host.
+http://:8080 {
+	bind 127.0.0.1
+	import laravel
+}
+
+# Sandboxes report agent events here over the drop network (SANDBOX_CALLBACK_URL=http://drop:8000), and the
+# container's health check uses it. It isn't published on the host.
+http://:8000 {
+	handle /sandbox-gateway/* {
+		respond 404
+	}
+
+	handle {
+		import laravel
+	}
+}
+
+# The app builder.
+{$APP_DOMAIN} {
+	# Gateway endpoints are for Caddy only.
+	handle /sandbox-gateway/* {
+		respond 404
+	}
+
+	handle {
+		import laravel
+	}
+}
+
+# Sandbox previews and shells: preview-<id>.<domain>, shell-<id>.<domain>.
+*.{$APP_DOMAIN} {
+	tls {
+		on_demand
+	}
+
+	# route keeps these in the written order (Caddy would otherwise reorder them).
+	route {
+		# Never trust a client-supplied upstream.
+		request_header -X-Zap-Upstream
+
+		# The app's hand-off lands here; Laravel sets this address's own zap_gateway cookie.
+		@enter path /__zap/enter
+		reverse_proxy @enter 127.0.0.1:8080
+
+		# Laravel checks the zap_gateway cookie and answers with the sandbox's address on the drop network.
+		forward_auth 127.0.0.1:8080 {
+			uri /sandbox-gateway/authorize
+			copy_headers X-Zap-Upstream
+		}
+
+		# Code in the sandbox never sees the gateway cookie.
+		reverse_proxy {http.request.header.X-Zap-Upstream} {
+			header_up Cookie "(^|;\s*)zap_gateway=[^;]*(;\s*)?" "$1"
+		}
+	}
+}

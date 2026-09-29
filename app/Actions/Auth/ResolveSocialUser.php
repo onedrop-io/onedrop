@@ -91,6 +91,10 @@ class ResolveSocialUser
      */
     protected function register(SocialProvider $provider, SocialiteUser $identity, bool $verified): User
     {
+        if (! User::setupAllowed()) {
+            throw $this->failure(__('To create the first account, open the setup link the installer printed.'));
+        }
+
         $email = $identity->getEmail();
 
         $user = User::create([

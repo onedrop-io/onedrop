@@ -2,10 +2,14 @@
 # drop: run OneDrop on this computer in Docker. Installed to ~/.local/bin/drop by install.sh.
 #
 #   drop install     Pull the images and start OneDrop (also what `drop update` does)
+#   drop install --domain onedrop.example.com | --domain auto | --local
 #   drop start|stop|restart|status|logs|open|config|uninstall
 #
-# Settings: DROP_PORT (default 8000, or the next free port), DROP_IMAGE, DROP_SANDBOX_IMAGE,
-# DROP_PULL=0 (use local images), DROP_NO_OPEN=1 (don't open the browser).
+# On a laptop OneDrop listens on http://localhost:8000. With a domain (a server), it serves HTTPS on ports 80
+# and 443, and previews and shells at preview-<id>.<domain> / shell-<id>.<domain> through its gateway.
+#
+# Settings: DROP_DOMAIN (like --domain), DROP_PORT (laptop; default 8000, or the next free port), DROP_IMAGE,
+# DROP_SANDBOX_IMAGE, DROP_PULL=0 (use local images), DROP_NO_OPEN=1 (don't open the browser).
 set -eu
 
 IMAGE="${DROP_IMAGE:-ghcr.io/onedrop-io/onedrop:latest}"
@@ -130,12 +134,35 @@ current_port() {
     $DOCKER port "$NAME" 8000 2>/dev/null | head -n 1 | sed 's/.*://'
 }
 
-url() { echo "http://localhost:${1:-$(current_port)}"; }
+# The domain an earlier server install used (empty on a laptop).
+current_domain() {
+    $DOCKER container inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$NAME" 2>/dev/null | sed -n 's/^APP_DOMAIN=//p'
+}
 
-wait_until_up() { # wait_until_up PORT
+# This machine's public IP, as <ip with dashes>.sslip.io: a free domain whose DNS (and *.) points back at it.
+sslip_domain() {
+    ip="$(curl -fsS --max-time 5 https://checkip.amazonaws.com 2>/dev/null || curl -fsS --max-time 5 https://api.ipify.org 2>/dev/null || true)"
+    ip="$(echo "$ip" | tr -d '[:space:]')"
+    case "$ip" in
+        *[!0-9.]* | '') die "Couldn't find this server's public IP. Use --domain with your own domain instead." ;;
+    esac
+    echo "$(echo "$ip" | tr . -).sslip.io"
+}
+
+url() { # url [PORT]
+    domain="$(current_domain)"
+    if [ -n "$domain" ]; then
+        echo "https://$domain"
+    else
+        echo "http://localhost:${1:-$(current_port)}"
+    fi
+}
+
+wait_until_up() {
     printf 'Starting OneDrop'
     i=0
-    until curl -fsS "$(url "$1")/up" >/dev/null 2>&1; do
+    # Asked from inside the container, which answers on port 8000 whether or not it's published.
+    until $DOCKER exec "$NAME" curl -fsS http://127.0.0.1:8000/up >/dev/null 2>&1; do
         i=$((i + 1))
         if [ "$i" -gt 90 ] || ! running; then
             echo
@@ -151,6 +178,18 @@ wait_until_up() { # wait_until_up PORT
 # --- Commands -------------------------------------------------------------------------------------
 
 cmd_install() {
+    domain="${DROP_DOMAIN:-}"
+    local_only=0
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --domain) [ $# -ge 2 ] || die "--domain needs a name, or auto"; domain="$2"; shift ;;
+            --domain=*) domain="${1#--domain=}" ;;
+            --local) local_only=1 ;;
+            *) die "Unknown option: $1 (see drop help)" ;;
+        esac
+        shift
+    done
+
     ensure_docker
 
     if [ "${DROP_PULL:-1}" != 0 ]; then
@@ -163,32 +202,70 @@ cmd_install() {
     $DOCKER volume inspect "$VOLUME" >/dev/null 2>&1 || first_install=1
     $DOCKER network inspect "$NETWORK" >/dev/null 2>&1 || $DOCKER network create "$NETWORK" >/dev/null
 
-    # Keep the port an earlier install used, unless DROP_PORT says otherwise.
-    port="${DROP_PORT:-$(current_port)}"
-    if [ -z "$port" ]; then
-        port=8000
-        while port_in_use "$port"; do port=$((port + 1)); done
+    # Keep the domain (server) or port (laptop) an earlier install used, unless told otherwise.
+    if [ "$local_only" = 1 ]; then
+        domain=""
+    elif [ -z "$domain" ]; then
+        domain="$(current_domain)"
+        # A new install over SSH on Linux is almost certainly a server: offer it a real address.
+        if [ -z "$domain" ] && [ "$first_install" = 1 ] && [ -n "${SSH_CONNECTION:-}" ] && [ "$(uname)" = Linux ]; then
+            suggested="$(sslip_domain)"
+            confirm "This looks like a server. Serve OneDrop over HTTPS at https://$suggested ?" y && domain="$suggested"
+        fi
     fi
+    [ "$domain" = auto ] && domain="$(sslip_domain)"
+    case "$domain" in
+        *[!A-Za-z0-9.-]* | .* | *. ) die "Not a domain name: $domain" ;;
+    esac
+    domain="$(echo "$domain" | tr '[:upper:]' '[:lower:]')"
+
+    port="${DROP_PORT:-$(current_port)}"
 
     if exists; then
         say "Replacing the running OneDrop (your data is kept)"
         $DOCKER rm --force "$NAME" >/dev/null
     fi
 
+    if [ -n "$domain" ]; then
+        for server_port in 80 443; do
+            port_in_use "$server_port" && die "Port $server_port is in use by something else on this server. OneDrop needs 80 and 443 for HTTPS."
+        done
+        # Nothing but 80 and 443: sandbox ports stay on the drop network, behind the gateway.
+        set -- --publish 80:80 --publish 443:443 --publish 443:443/udp --env "APP_DOMAIN=$domain"
+        # DROP_CADDY_OPTIONS=local_certs: certificates from OneDrop's own CA (testing, or a LAN without public DNS).
+        [ -n "${DROP_CADDY_OPTIONS:-}" ] && set -- "$@" --env "DROP_CADDY_OPTIONS=$DROP_CADDY_OPTIONS"
+    else
+        if [ -z "$port" ]; then
+            port=8000
+            while port_in_use "$port"; do port=$((port + 1)); done
+        fi
+        set -- --publish "127.0.0.1:$port:8000" --env "APP_URL=http://localhost:$port"
+    fi
+
     $DOCKER run --detach --init \
         --name "$NAME" \
         --restart unless-stopped \
         --network "$NETWORK" \
-        --publish "127.0.0.1:$port:8000" \
         --volume "$VOLUME:/data" \
         --volume "$(socket):/var/run/docker.sock" \
-        --env "APP_URL=$(url "$port")" \
         --env "SANDBOX_DOCKER_IMAGE=$SANDBOX_IMAGE" \
+        "$@" \
         "$IMAGE" >/dev/null
 
-    wait_until_up "$port"
+    wait_until_up
 
-    if [ "$first_install" = 1 ]; then
+    if [ -n "$domain" ]; then
+        say "OneDrop is running at https://$domain"
+        case "$domain" in
+            *.sslip.io) ;;
+            *) echo "    Point $domain and *.$domain at this server's IP address (two DNS records)." ;;
+        esac
+        echo "    Open ports 80 and 443 to this server (for example in your cloud's security group or firewall)."
+        # Until the first account exists, only the setup link can create it.
+        if setup="$($DOCKER exec "$NAME" php artisan onedrop:setup-link 2>/dev/null)"; then
+            say "Create the first account (the admin) here: $setup"
+        fi
+    elif [ "$first_install" = 1 ]; then
         say "OneDrop is running at $(url "$port"). Create your account; the first one is the admin."
         open_url "$(url "$port")/register"
     else
@@ -201,7 +278,7 @@ cmd_start() {
     ensure_docker
     exists || { cmd_install; return; }
     $DOCKER start "$NAME" >/dev/null
-    wait_until_up "$(current_port)"
+    wait_until_up
     say "OneDrop is running at $(url)"
 }
 
@@ -245,7 +322,7 @@ cmd_config() {
             'value=$(printf "%s" "$VALUE" | sed "s/[\\\\\"\$]/\\\\&/g"); grep -v "^$KEY=" /data/.env > /data/.env.new; printf "%s=\"%s\"\n" "$KEY" "$value" >> /data/.env.new; cat /data/.env.new > /data/.env; rm /data/.env.new'
     done
     $DOCKER restart "$NAME" >/dev/null
-    wait_until_up "$(current_port)"
+    wait_until_up
     say "Saved. OneDrop restarted at $(url)"
 }
 
@@ -278,9 +355,12 @@ cmd_uninstall() {
 
 usage() {
     cat <<'EOF'
-drop: run OneDrop on this computer
+drop: run OneDrop on this computer or server
 
   drop install      Download OneDrop and start it (run again to update)
+    --domain NAME   On a server: HTTPS at NAME (point NAME and *.NAME at it)
+    --domain auto   On a server: HTTPS at <this server's IP>.sslip.io, no DNS needed
+    --local         Back to http://localhost only
   drop update       Same as install
   drop start        Start OneDrop
   drop stop         Stop OneDrop
@@ -296,7 +376,7 @@ EOF
 command="${1:-help}"
 [ $# -gt 0 ] && shift
 case "$command" in
-    install | update | upgrade) cmd_install ;;
+    install | update | upgrade) cmd_install "$@" ;;
     start) cmd_start ;;
     stop) cmd_stop ;;
     restart) cmd_stop >/dev/null && cmd_start ;;
