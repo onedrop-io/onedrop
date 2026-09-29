@@ -23,6 +23,13 @@ class DockerSandboxProvider implements SandboxProvider
     public const STORAGE_MOUNT = '/data/storage';
 
     /**
+     * Claude Code's config folder (CLAUDE_CONFIG_DIR), backed by one host folder per user when storage_path
+     * is set, so signing in to Claude once works in all of their sandboxes (AI-005). Only Claude Code
+     * reads or writes it; the platform never does.
+     */
+    public const CLAUDE_MOUNT = '/data/claude';
+
+    /**
      * @param  array{image: string, memory: string, cpus: string, host: string, runtime?: ?string, network?: ?string, reach?: ?string, storage_path?: ?string}  $config
      */
     public function __construct(protected array $config) {}
@@ -61,10 +68,15 @@ class DockerSandboxProvider implements SandboxProvider
             array_push($command, '--publish', "127.0.0.1::{$spec->sshPort}", '--env', "SSH_PORT={$spec->sshPort}");
         }
 
-        $storage = $this->storageFolder($spec);
+        $storage = $this->hostFolder($spec->storageKey, 'storage', 'App Storage');
+        $claude = $this->hostFolder($spec->claudeLoginKey, 'claude', 'Claude login');
 
         if ($storage !== null) {
             array_push($command, '--mount', "type=bind,source={$storage},target=".self::STORAGE_MOUNT);
+        }
+
+        if ($claude !== null) {
+            array_push($command, '--mount', "type=bind,source={$claude},target=".self::CLAUDE_MOUNT, '--env', 'CLAUDE_CONFIG_DIR='.self::CLAUDE_MOUNT);
         }
 
         // Pass names only; docker reads the values from its own environment so
@@ -84,9 +96,9 @@ class DockerSandboxProvider implements SandboxProvider
         $id = trim($result->output());
 
         // A new host folder is owned by the platform's user; let the sandbox user write to it. Best effort:
-        // if this fails the sandbox still runs, and App Storage reports that it can't write.
-        if ($storage !== null) {
-            Process::timeout(30)->run(['docker', 'exec', '-u', 'root', $id, 'chown', 'sandbox:sandbox', self::STORAGE_MOUNT]);
+        // if this fails the sandbox still runs, and App Storage (or Claude's sign-in) reports that it can't write.
+        foreach (array_filter([$storage ? self::STORAGE_MOUNT : null, $claude ? self::CLAUDE_MOUNT : null]) as $mount) {
+            Process::timeout(30)->run(['docker', 'exec', '-u', 'root', $id, 'chown', 'sandbox:sandbox', $mount]);
         }
 
         return $id;
@@ -151,9 +163,9 @@ class DockerSandboxProvider implements SandboxProvider
             return false;
         }
 
-        // Made before App Storage moved to a host folder: recreate it so its buckets move there.
+        // Made before App Storage (or Claude's sign-in) moved to a host folder: recreate it to move them there.
         return trim($current->output()) !== trim($used->output())
-            || (filled($this->config['storage_path'] ?? null) && ! $this->mounts($id, self::STORAGE_MOUNT));
+            || (filled($this->config['storage_path'] ?? null) && (! $this->mounts($id, self::STORAGE_MOUNT) || ! $this->mounts($id, self::CLAUDE_MOUNT)));
     }
 
     public function copyOut(string $id, string $path, string $directory): void
@@ -195,22 +207,23 @@ class DockerSandboxProvider implements SandboxProvider
     }
 
     /**
-     * The host folder for a sandbox's App Storage, created if needed; null when buckets stay in the container.
+     * A host folder kept outside the container (<storage_path>/<key>/<name>), created if needed; null when
+     * there's no storage_path or key, and the files stay in the container.
      *
      * @throws SandboxException
      */
-    protected function storageFolder(SandboxSpec $spec): ?string
+    protected function hostFolder(?string $key, string $name, string $label): ?string
     {
         $root = $this->config['storage_path'] ?? null;
 
-        if (blank($root) || blank($spec->storageKey)) {
+        if (blank($root) || blank($key)) {
             return null;
         }
 
-        $folder = rtrim($root, '/').'/'.$spec->storageKey.'/storage';
+        $folder = rtrim($root, '/')."/{$key}/{$name}";
 
         if (! is_dir($folder) && ! @mkdir($folder, 0755, true)) {
-            throw new SandboxException("Couldn't create the App Storage folder {$folder}. Check that the app can write to it.");
+            throw new SandboxException("Couldn't create the {$label} folder {$folder}. Check that the app can write to it.");
         }
 
         return $folder;

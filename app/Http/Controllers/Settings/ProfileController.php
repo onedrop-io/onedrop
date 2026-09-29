@@ -6,6 +6,7 @@ use App\Actions\DeleteProject;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Settings\ProfileDeleteRequest;
 use App\Http\Requests\Settings\ProfileUpdateRequest;
+use App\Jobs\SignOutOfClaude;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -55,6 +56,8 @@ class ProfileController extends Controller
         Auth::logout();
 
         $user->projects()->with('sandbox')->get()->each($deleteProject->handle(...));
+        // Their sandboxes are gone; this removes the Claude sign-in they shared (AI-005).
+        SignOutOfClaude::dispatch($user->id);
         $user->delete();
 
         $request->session()->invalidate();

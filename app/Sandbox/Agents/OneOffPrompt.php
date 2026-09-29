@@ -32,7 +32,7 @@ class OneOffPrompt
             throw new SandboxException("The project's sandbox isn't running.");
         }
 
-        if ($selection === null || $connection === null || $connection->credential_type === CredentialType::OAuthToken) {
+        if ($selection === null || $connection === null || $connection->credential_type === CredentialType::ClaudeLogin) {
             throw new SandboxException('No connected AI can be asked.');
         }
 

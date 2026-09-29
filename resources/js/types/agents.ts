@@ -6,7 +6,7 @@ export type AgentHarness = 'opencode' | 'claude_code';
 export type AgentConnection = {
     id: number;
     provider: AgentProvider;
-    credential_type: 'api_key' | 'oauth_token' | 'chatgpt';
+    credential_type: 'api_key' | 'claude_login' | 'chatgpt';
     hint: string;
     is_default: boolean;
     verified: boolean;

@@ -9,7 +9,7 @@ beforeEach(function () {
     $this->seed(DatabaseSeeder::class);
 });
 
-test('the dev user logs in, connects Claude, and lands on the new-project prompt', function () {
+test('the dev user logs in, chooses their Claude subscription, and lands on the new-project prompt', function () {
     $page = visit('/login')
         ->fill('email', 'dev@example.com')
         ->fill('password', 'password')
@@ -17,20 +17,20 @@ test('the dev user logs in, connects Claude, and lands on the new-project prompt
         ->assertPathIs('/onboarding/ai')
         ->assertSee('Set up your AI')
         ->assertSee('Connect an AI to continue')
-        ->assertDontSee('Claude Code token')
+        ->assertDontSee('OneDrop never sees your Claude login')
         ->click('@switch-method-claude')
-        ->assertSee('Claude Code token');
+        ->assertSee('OneDrop never sees your Claude login');
 
-    $page->fill('#credential-claude', 'sk-ant-oat01-browser-test-token-wxyz')
-        ->press('@connect-claude')
+    $page->press('@use-claude-subscription')
         ->assertPathIs('/dashboard')
-        ->assertSee('Claude connected.')
+        ->assertSee('Claude subscription added.')
         ->assertSee('Dev, what are we working on today?')
         ->assertNoJavaScriptErrors();
 
     $connection = User::where('email', 'dev@example.com')->sole()->agentConnections()->sole();
-    expect($connection->credential_type)->toBe(CredentialType::OAuthToken);
-})->group('AUTH-001', 'AI-001');
+    expect($connection->credential_type)->toBe(CredentialType::ClaudeLogin)
+        ->and($connection->credential)->toBe('');
+})->group('AUTH-001', 'AI-001', 'AI-005');
 
 test('the dev user signs in with ChatGPT and lands on the new-project prompt', function () {
     Http::fake([

@@ -3,28 +3,22 @@
 namespace App\Sandbox\Agents;
 
 use App\Enums\AgentProvider;
-use App\Enums\CredentialType;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Checks a pasted credential against the provider before we store it.
+ * Checks a pasted API key against the provider before we store it.
  */
 class CredentialVerifier
 {
     /**
-     * Verify the credential, returning false when it can't be checked
-     * (Claude subscription tokens have no public endpoint to test against).
+     * Verify the API key with the provider.
      *
-     * @throws ValidationException when the provider rejects the credential or can't be reached
+     * @throws ValidationException when the provider rejects the key or can't be reached
      */
-    public function verify(AgentProvider $provider, CredentialType $type, string $credential): bool
+    public function verify(AgentProvider $provider, string $credential): void
     {
-        if ($type === CredentialType::OAuthToken) {
-            return false;
-        }
-
         $request = match ($provider) {
             AgentProvider::Claude => fn () => Http::withHeaders([
                 'x-api-key' => $credential,
@@ -57,7 +51,5 @@ class CredentialVerifier
                 'credential' => __(':provider returned an error while checking the key. Try again.', ['provider' => $provider->label()]),
             ]);
         }
-
-        return true;
     }
 }

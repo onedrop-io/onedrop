@@ -41,11 +41,11 @@ SHELL_THEME+='"brightBlack":"#5c6370","brightRed":"#ff7b86","brightGreen":"#b1e1
 
 (
     while true; do
-        ttyd --writable --port "${SHELL_PORT}" --cwd /workspace \
+        ttyd --writable --url-arg --port "${SHELL_PORT}" --cwd /workspace \
             -t fontSize=13 -t lineHeight=1.2 -t cursorBlink=true -t rendererType=dom -t disableLeaveAlert=true \
             -t 'fontFamily=ui-monospace,SFMono-Regular,Menlo,Consolas,Liberation Mono,monospace' \
             -t "theme=${SHELL_THEME}" \
-            bash >/dev/null 2>&1
+            /opt/zap/shell-entry >/dev/null 2>&1
         sleep 1
     done
 ) &

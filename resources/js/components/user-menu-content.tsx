@@ -1,5 +1,6 @@
 import { Link, router } from '@inertiajs/react';
 import {
+    ChartArea,
     BookOpen,
     CircleHelp,
     FolderGit2,
@@ -27,6 +28,7 @@ import { DOCUMENTATION_URL, REPOSITORY_URL } from '@/lib/links';
 import { logout } from '@/routes';
 import { index as invitationsIndex } from '@/routes/invitations';
 import { edit } from '@/routes/profile';
+import { index as usageIndex } from '@/routes/usage';
 import type { User } from '@/types';
 
 type Props = {
@@ -67,6 +69,18 @@ export function UserMenuContent({ user }: Props) {
                     >
                         <Settings />
                         Settings
+                    </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                    <Link
+                        className="w-full cursor-pointer"
+                        href={usageIndex()}
+                        prefetch
+                        onClick={cleanup}
+                        data-test="usage-link"
+                    >
+                        <ChartArea />
+                        Usage
                     </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>

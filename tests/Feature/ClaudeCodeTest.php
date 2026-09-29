@@ -2,7 +2,6 @@
 
 use App\Enums\AgentHarness;
 use App\Enums\AgentProvider;
-use App\Enums\CredentialType;
 use App\Enums\MessageRole;
 use App\Enums\ProjectStatus;
 use App\Models\AgentConnection;
@@ -31,13 +30,9 @@ beforeEach(function () {
     };
     app()->instance(SandboxProvider::class, $this->provider);
 
-    // A Claude subscription token: only Claude Code can run it.
+    // The user's Claude subscription: only Claude Code can run it.
     $this->user = User::factory()->create();
-    $this->claude = AgentConnection::factory()->for($this->user)->create([
-        'credential_type' => CredentialType::OAuthToken,
-        'credential' => 'sk-ant-oat01-subscription',
-        'verified_at' => null,
-    ]);
+    $this->claude = AgentConnection::factory()->for($this->user)->claudeLogin()->create();
     $this->catalog = app(ModelCatalog::class);
 });
 
@@ -55,7 +50,7 @@ function sendClaudeEvents(Project $project, array $events): void
         ->assertOk();
 }
 
-test('a subscription token alone makes Claude Code the default agent', function () {
+test('a Claude subscription alone makes Claude Code the default agent', function () {
     $project = Project::factory()->for($this->user)->create();
 
     expect($this->catalog->harnesses($this->user))->toBe([AgentHarness::ClaudeCode])
@@ -98,6 +93,87 @@ test('a project can be started on Claude Code with a Claude model', function () 
     expect($this->user->projects()->sole()->agent_harness)->toBe(AgentHarness::ClaudeCode);
 })->group('AGT-007');
 
+test('new projects default to the AI subscription over other connections', function () {
+    AgentConnection::factory()->for($this->user)->provider(AgentProvider::OpenRouter)->create(['is_default' => true]);
+
+    $this->actingAs($this->user)
+        ->get(route('dashboard'))
+        ->assertInertia(fn ($page) => $page
+            ->where('agent.harness', 'claude_code')
+            ->where('agent.provider', 'claude')
+            ->where('agent.model', 'claude-sonnet-5'));
+})->group('AGT-007');
+
+test('a ChatGPT sign-in makes new projects default to Codex on OpenCode', function () {
+    $this->user->agentConnections()->delete();
+    AgentConnection::factory()->for($this->user)->provider(AgentProvider::OpenRouter)->create(['is_default' => true]);
+    AgentConnection::factory()->for($this->user)->chatGpt()->create(['is_default' => false]);
+
+    expect($this->catalog->newProjectAgent($this->user))->toMatchArray([
+        'agent_harness' => AgentHarness::OpenCode,
+        'agent_provider' => AgentProvider::Codex,
+    ]);
+})->group('AGT-007');
+
+test('the agent the user picks sticks for new projects until they pick another', function () {
+    Queue::fake();
+    AgentConnection::factory()->for($this->user)->provider(AgentProvider::OpenRouter)->create(['is_default' => false]);
+
+    $this->actingAs($this->user)->post(route('projects.store'), [
+        'prompt' => 'a timer',
+        'agent_harness' => 'opencode',
+        'agent_provider' => 'openrouter',
+        'agent_model' => 'moonshotai/kimi-k3',
+        'agent_variant' => null,
+    ])->assertSessionHasNoErrors();
+
+    $this->get(route('dashboard'))
+        ->assertInertia(fn ($page) => $page->where('agent.harness', 'opencode')->where('agent.model', 'moonshotai/kimi-k3'));
+
+    $this->patch(route('projects.agent.update', Project::factory()->for($this->user)->create()), [
+        'agent_harness' => 'claude_code',
+        'agent_provider' => 'claude',
+        'agent_model' => 'claude-opus-5-5',
+        'agent_variant' => 'high',
+    ])->assertSessionHasNoErrors();
+
+    expect($this->catalog->newProjectAgent($this->user->fresh()))->toBe([
+        'agent_harness' => AgentHarness::ClaudeCode,
+        'agent_provider' => AgentProvider::Claude,
+        'agent_model' => 'claude-opus-5-5',
+        'agent_variant' => 'high',
+    ]);
+})->group('AGT-007');
+
+test('starting a project on the default does not pin it', function () {
+    Queue::fake();
+
+    $this->actingAs($this->user)->post(route('projects.store'), [
+        'prompt' => 'a timer',
+        'agent_harness' => 'claude_code',
+        'agent_provider' => 'claude',
+        'agent_model' => 'claude-sonnet-5',
+    ])->assertSessionHasNoErrors();
+
+    expect($this->user->fresh()->agent_preference)->toBeNull();
+})->group('AGT-007');
+
+test('a choice the user can no longer run falls back to the subscription', function () {
+    $this->user->forceFill(['agent_preference' => ['harness' => 'opencode', 'provider' => 'openrouter', 'model' => 'moonshotai/kimi-k3', 'variant' => null]])->save();
+
+    expect($this->catalog->newProjectAgent($this->user)['agent_harness'])->toBe(AgentHarness::ClaudeCode);
+})->group('AGT-007');
+
+test('a project started without a choice is saved on the default agent', function () {
+    Queue::fake();
+
+    $this->actingAs($this->user)->post(route('projects.store'), ['prompt' => 'a timer'])->assertSessionHasNoErrors();
+
+    expect($this->user->projects()->sole())
+        ->agent_harness->toBe(AgentHarness::ClaudeCode)
+        ->agent_provider->toBe(AgentProvider::Claude);
+})->group('AGT-007');
+
 test('agent choices that cannot run are rejected with a reason', function (array $payload, string $message) {
     AgentConnection::factory()->for($this->user)->provider(AgentProvider::OpenRouter)->create(['is_default' => false]);
     $project = Project::factory()->for($this->user)->create();
@@ -107,7 +183,7 @@ test('agent choices that cannot run are rejected with a reason', function (array
         ->assertSessionHasErrors(['agent_provider' => $message]);
 })->with([
     'Claude Code with another provider' => [['agent_harness' => 'claude_code', 'agent_provider' => 'openrouter', 'agent_model' => 'moonshotai/kimi-k3'], 'Claude Code only runs Claude models.'],
-    'OpenCode with a subscription token' => [['agent_harness' => 'opencode', 'agent_provider' => 'claude', 'agent_model' => 'claude-sonnet-5'], "OpenCode can't use a Claude subscription token. Choose Claude Code, or connect an Anthropic API key in Settings → AI."],
+    'OpenCode with a Claude subscription' => [['agent_harness' => 'opencode', 'agent_provider' => 'claude', 'agent_model' => 'claude-sonnet-5'], "OpenCode can't use a Claude subscription. Choose Claude Code, or connect an Anthropic API key in Settings → AI."],
 ])->group('AGT-007');
 
 test('switching agents starts a fresh conversation and says so', function () {
@@ -143,7 +219,7 @@ test('the agent cannot be switched while it works', function () {
     expect($project->fresh()->agent_harness)->toBe(AgentHarness::OpenCode);
 })->group('AGT-007');
 
-test('Claude Code runs in the sandbox on the subscription token with the chosen model and effort', function () {
+test('Claude Code runs on the user\'s own Claude sign-in with the chosen model and effort', function () {
     $project = Project::factory()->for($this->user)->create([
         'status' => ProjectStatus::Working,
         'agent_harness' => AgentHarness::ClaudeCode,
@@ -164,9 +240,9 @@ test('Claude Code runs in the sandbox on the subscription token with the chosen 
             'APP_MODEL' => 'claude-opus-5-5',
             'APP_VARIANT' => 'high',
             'APP_SESSION_ID' => 'c0ffee00-0000-0000-0000-000000000000',
-            'CLAUDE_CODE_OAUTH_TOKEN' => 'sk-ant-oat01-subscription',
+            'APP_CLAUDE_AUTH' => 'subscription',
         ])
-        ->and($this->provider->envs[0])->not->toHaveKey('ANTHROPIC_API_KEY');
+        ->and($this->provider->envs[0])->not->toHaveKeys(['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN']);
 })->group('AGT-007');
 
 test('a Claude Code project falls back to OpenCode once Claude is disconnected', function () {
@@ -221,8 +297,9 @@ test('failed Claude Code runs are explained once', function (array $result, stri
     expect($project->messages()->pluck('content')->all())->toBe([$expected])
         ->and($project->fresh()->status)->toBe(ProjectStatus::Idle);
 })->with([
-    'rejected token' => [['api_error_status' => 401, 'result' => 'Failed to authenticate. API Error: 401 API key is invalid.'], 'Claude rejected your key or token. Reconnect Claude in Settings → AI (for a subscription, run `claude setup-token` again).'],
-    'plan limit' => [['result' => "You've hit your limit · resets 5pm"], "Your Claude plan's usage limit (or its monthly Agent SDK credit) is used up for now. Try again later, or connect an Anthropic API key in Settings → AI."],
+    'not signed in' => [['result' => 'Not logged in · Please run /login'], 'Sign in to Claude to build on your subscription: click **Sign in to Claude** under the chat box, then send your message again.'],
+    'expired sign-in' => [['api_error_status' => 401, 'result' => 'authentication_failed'], 'Your Claude sign-in has expired or was signed out. Click **Sign in to Claude** under the chat box to sign in again, then send your message again.'],
+    'plan limit' => [['result' => "You've hit your limit · resets 5pm"], "Your Claude plan's usage limit is used up for now. Try again when it resets, or connect an Anthropic API key in Settings → AI."],
     'no API credits' => [['result' => 'Credit balance is too low'], 'Your Anthropic account is out of credits. Add credits at console.anthropic.com, then try again.'],
     'overloaded' => [['api_error_status' => 529, 'result' => 'Overloaded'], 'Claude is overloaded right now. Try again in a minute.'],
     'anything else' => [['subtype' => 'error_during_execution', 'errors' => ['boom']], 'Something went wrong: boom'],

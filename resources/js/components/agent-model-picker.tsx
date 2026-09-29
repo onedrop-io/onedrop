@@ -39,7 +39,7 @@ export function effortLabel(effort: string | null): string {
     return effort ? (EFFORT_LABELS[effort] ?? effort) : 'Default';
 }
 
-function ProviderIcon({
+export function ProviderIcon({
     provider,
     className,
 }: {
@@ -591,7 +591,9 @@ function HarnessMenu({
                     data-test="harness-picker"
                 >
                     <Bot className="size-3.5 shrink-0 text-muted-foreground" />
-                    <span>{current?.label ?? selection.harness}</span>
+                    <span className="whitespace-nowrap">
+                        {current?.label ?? selection.harness}
+                    </span>
                     <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
                 </button>
             </DropdownMenuTrigger>

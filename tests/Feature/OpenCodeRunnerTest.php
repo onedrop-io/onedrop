@@ -76,7 +76,7 @@ test('explains instead of running when the agent cannot start', function (Closur
         ->and($this->project->fresh()->status)->toBe(ProjectStatus::Idle);
 })->with([
     'sandbox not running' => [fn ($test) => $test->sandbox->update(['status' => SandboxStatus::Failed]), "sandbox isn't running"],
-    'claude subscription token' => [fn ($test) => $test->user->agentConnections()->update(['provider' => 'claude', 'credential_type' => CredentialType::OAuthToken]), "can't use a Claude subscription token"],
+    'claude subscription' => [fn ($test) => $test->user->agentConnections()->update(['provider' => 'claude', 'credential_type' => CredentialType::ClaudeLogin]), "can't use a Claude subscription"],
     'no AI' => [fn ($test) => $test->user->agentConnections()->delete(), 'Connect an AI'],
 ])->group('AGT-001');
 

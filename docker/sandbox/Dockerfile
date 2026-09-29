@@ -45,7 +45,7 @@ RUN useradd --create-home --shell /bin/bash sandbox \
 
 COPY placeholder /opt/zap/placeholder
 # fork copies the app for a task and merges its work back (TASK-003). file-watcher.mjs tells the Files panel when files come and go (FILE-004). db.php backs the Tools → Database panel (SQLite, Postgres and MySQL through PDO); auth.php backs Users & Auth; secrets.php backs Secrets; storage.php backs App Storage; git.php backs Git.
-COPY start.sh restart stop-agent checkpoint fork forwarder.mjs file-watcher.mjs host-proxy.mjs db.php auth.php secrets.php storage.php git.php instructions.md opencode.json /opt/zap/
+COPY start.sh restart stop-agent shell-entry checkpoint fork forwarder.mjs file-watcher.mjs host-proxy.mjs db.php auth.php secrets.php storage.php git.php instructions.md opencode.json /opt/zap/
 # Task guides the agent follows (e.g. guides/auth.md for adding sign-in).
 COPY guides /opt/zap/guides
 # Shell setup lives in /opt/zap (not the home folder, which updates carry over) so image changes reach every sandbox; ~/.bashrc only loads it.

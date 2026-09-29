@@ -49,6 +49,8 @@ class CreateSandbox implements ShouldQueue
             sshPort: config('sandbox.ssh_port'),
             // A task's copy keeps its App Storage buckets apart from Main's.
             storageKey: "project-{$this->project->id}".($this->task ? "-task-{$this->task->id}" : ''),
+            // One Claude sign-in for all of the owner's sandboxes; only they (and site admins) can open a project (AI-005).
+            claudeLoginKey: "user-{$this->project->user_id}",
         );
 
         try {

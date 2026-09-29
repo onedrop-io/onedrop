@@ -65,8 +65,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 ## AI-001: Set up AI after sign-up
 
 - After signing up, user should be asked to connect an AI before they can start building.
-- User should be able to connect Claude with an Anthropic API key, with a small link to use a Claude Code token (`claude setup-token`) instead.
-- User should be able to copy the `claude setup-token` command with one click.
+- User should be able to connect Claude with an Anthropic API key, with a small link to use their Claude subscription instead (AI-005).
 - User should be able to connect Codex by signing in with ChatGPT (AI-003) or with an OpenAI API key.
 - User should be able to connect OpenRouter by signing in to OpenRouter, with a small link to paste an API key instead.
 - User should see an error when a key is rejected by the provider.
@@ -89,6 +88,16 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - The agent should run on the user's ChatGPT subscription; the platform keeps the refresh token and refreshes it, and only a short-lived access token enters the sandbox.
 - User should be told to sign in again when their ChatGPT sign-in can no longer be refreshed.
 - User should only be offered models OpenAI includes with Codex when signed in with ChatGPT, and projects should start on one of those.
+
+## AI-005: Use a Claude subscription through Claude Code's own sign-in
+
+- User should be able to choose "Use my Claude subscription" on the Claude card instead of pasting a key; OneDrop never asks for, receives or stores their Claude login or token (Anthropic requires sign-in to go through its own flow).
+- User should be able to sign in from the project: "Sign in to Claude" under the chat box opens the Shell tab running Claude Code's own `claude auth login`.
+- User should see who they're signed in to Claude as under the chat box, once signed in.
+- One sign-in should work in all of the user's sandboxes where the sandbox provider supports a shared login folder (Docker); elsewhere each sandbox signs in once. The folder is only mounted into sandboxes of projects the user owns.
+- User should be told to sign in to Claude, or sign in again, when a Claude Code run finds they aren't signed in or their sign-in expired.
+- Pasting a Claude subscription token (`sk-ant-oat…`) should be refused with a pointer to "Use my Claude subscription"; tokens saved before this change are deleted.
+- Disconnecting the Claude subscription should sign Claude Code out in the user's running sandboxes and delete the shared login folder.
 
 ## AI-004: Connect Gemini with a Google AI Studio key
 
@@ -426,12 +435,15 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 ## AGT-007: Choose the agent (OpenCode or Claude Code)
 
 - User should be able to choose which agent works on a project, OpenCode or Claude Code, next to the model picker when starting a project and in the project's chat.
-- User should only be offered Claude Code once they've connected Claude (an Anthropic API key or a Claude subscription token), and only Claude models while it's chosen.
-- User should be able to build on their Claude Pro/Max subscription with Claude Code, using a token from `claude setup-token`; OpenCode still can't use subscription tokens.
-- Projects should start on OpenCode, or on Claude Code when Claude Code is the only agent the user's connections can run.
+- User should only be offered Claude Code once they've connected Claude (an Anthropic API key or their Claude subscription), and only Claude models while it's chosen.
+- User should be able to build on their Claude Pro/Max subscription with Claude Code (AI-005); OpenCode can't use a Claude subscription.
+- New projects should start on the agent and model the user last chose (when starting a project or in a project's chat), while they can still run it.
+- Until the user chooses one, new projects should start on their AI subscription: Claude Code for a Claude subscription, OpenCode with Codex for a ChatGPT sign-in (their default connection first if they have both).
+- Without a subscription, new projects should start on OpenCode, or on Claude Code when Claude Code is the only agent the user's connections can run.
+- Starting a project without touching the picker should not pin the default as the user's choice.
 - User should see Claude Code's thinking, steps and replies in the chat the same way as OpenCode's, and be able to stop it and queue messages.
 - Claude Code should remember the conversation across messages; switching agents starts a fresh conversation (the project's files are kept) and the chat says so.
-- User should see a plain explanation when Claude rejects the token or their plan's usage limit or credit is used up.
+- User should see a plain explanation when Claude rejects the key, they aren't signed in to Claude, or their plan's usage limit is used up.
 
 ## AGT-003: Stop, queue, and send now
 
@@ -730,3 +742,11 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be told which ports to open (80 and 443) and that DNS for the domain and `*.<domain>` must point at the server.
 - The first account on a server install should only be creatable through the one-time setup link the installer prints, so a stranger who finds the server first can't make themselves admin. After the first account exists, sign-up works as usual.
 - Running the installer again keeps the domain; `--domain` changes it and `--local` goes back to localhost only.
+
+## USAGE-001: AI usage
+- The platform should record the tokens and estimated cost of every agent run, per model, from Claude Code's result and OpenCode's steps, charged to the project's owner (whose AI connection ran it).
+- User should be able to open Usage from their account menu and see, for the past 24 hours, 7, 30 or 90 days (30 by default): the total estimated cost, how many agent sessions it came from, and each agent's (OpenCode, Claude Code) share of cost and tokens.
+- User should see a chart of cost (or tokens) over the period, one line per agent, and be able to switch the page between Cost and Tokens.
+- User should see totals: processed tokens, cached input, uncached input, output, and the share of input served from the cache.
+- User should see a breakdown by model, by project, or by day, with each row's cost, share and tokens.
+- User should only see usage their own AI connections paid for; costs are API-price estimates (what a subscription run would have cost on an API key).

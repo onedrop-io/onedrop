@@ -115,6 +115,8 @@ export type SandboxState = {
     status: 'creating' | 'running' | 'paused' | 'failed';
     preview_url: string | null;
     shell_url: string | null;
+    /** The Shell tab opened on Claude Code's own sign-in (AI-005). */
+    claude_login_url: string | null;
     error: string | null;
     /** Moving to the current sandbox image (files kept). */
     updating: boolean;

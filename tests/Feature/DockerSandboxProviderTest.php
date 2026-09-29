@@ -228,5 +228,21 @@ test('with a storage path, a container on the current image without the storage 
     expect($docker->isOutdated('abc123'))->toBe($outdated);
 })->with([
     'no mount' => ["\n", true],
-    'mounted' => ["/data/storage\n", false],
-])->group('STORE-001');
+    'no Claude sign-in mount (made before AI-005)' => ["/data/storage\n", true],
+    'mounted' => ["/data/storage\n/data/claude\n", false],
+])->group('STORE-001', 'AI-005');
+
+test('each user\'s Claude sign-in is one host folder mounted into all their sandboxes', function () {
+    $root = storageRoot();
+    $docker = new DockerSandboxProvider([...$this->dockerConfig, 'storage_path' => $root]);
+    Process::fake(['*' => Process::result("abc123\n")]);
+
+    $docker->create(new SandboxSpec('zap-project-7-x', storageKey: 'project-7', claudeLoginKey: 'user-3'));
+    $docker->create(new SandboxSpec('zap-project-8-x', storageKey: 'project-8', claudeLoginKey: 'user-3'));
+
+    expect(is_dir("{$root}/user-3/claude"))->toBeTrue();
+    Process::assertRanTimes(fn (PendingProcess $process) => $process->command[1] === 'run'
+        && in_array("type=bind,source={$root}/user-3/claude,target=/data/claude", $process->command)
+        && in_array('CLAUDE_CONFIG_DIR=/data/claude', $process->command), 2);
+    Process::assertRan(fn (PendingProcess $process) => $process->command === ['docker', 'exec', '-u', 'root', 'abc123', 'chown', 'sandbox:sandbox', '/data/claude']);
+})->group('AI-005');

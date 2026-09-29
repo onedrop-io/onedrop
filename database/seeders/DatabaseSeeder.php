@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Enums\AgentProvider;
+use App\Enums\CredentialType;
 use App\Enums\GroupRole;
 use App\Models\AgentConnection;
 use App\Models\Group;
@@ -40,12 +41,15 @@ class DatabaseSeeder extends Seeder
             ->hasAttached($member, ['role' => GroupRole::Member->value], 'members')
             ->create(['name' => 'Engineering', 'description' => 'Platform builders.']);
 
+        // A subscription token isn't stored (AI-005): the dev user signs in to Claude in the sandbox instead.
         if ($credential = config('sandbox.dev_claude_credential')) {
+            $subscription = AgentProvider::Claude->isSubscriptionToken($credential);
+
             $dev->agentConnections()->create([
                 'provider' => AgentProvider::Claude,
-                'credential_type' => AgentProvider::Claude->credentialTypeFor($credential),
-                'credential' => $credential,
-                'hint' => AgentConnection::hintFor($credential),
+                'credential_type' => $subscription ? CredentialType::ClaudeLogin : CredentialType::ApiKey,
+                'credential' => $subscription ? '' : $credential,
+                'hint' => $subscription ? '' : AgentConnection::hintFor($credential),
                 'is_default' => true,
             ]);
         }

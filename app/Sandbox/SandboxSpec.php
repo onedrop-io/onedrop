@@ -15,6 +15,7 @@ final readonly class SandboxSpec
      * @param  int|null  $proxyPort  the port of the host-rewriting proxy in front of the app, if any
      * @param  int|null  $sshPort  the port the SSH server listens on, if any
      * @param  string|null  $storageKey  stable per-project key for files kept outside the sandbox (App Storage), if any
+     * @param  string|null  $claudeLoginKey  stable per-user key for Claude Code's sign-in, shared by that user's sandboxes, if any
      */
     public function __construct(
         public string $name,
@@ -24,5 +25,6 @@ final readonly class SandboxSpec
         public ?int $proxyPort = null,
         public ?int $sshPort = null,
         public ?string $storageKey = null,
+        public ?string $claudeLoginKey = null,
     ) {}
 }

@@ -42,6 +42,20 @@ class AgentConnectionFactory extends Factory
     }
 
     /**
+     * A Claude connection on the user's Claude subscription, signed in inside the sandbox (nothing stored).
+     */
+    public function claudeLogin(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'provider' => AgentProvider::Claude,
+            'credential_type' => CredentialType::ClaudeLogin,
+            'credential' => '',
+            'hint' => '',
+            'verified_at' => null,
+        ]);
+    }
+
+    /**
      * A Codex connection from signing in with ChatGPT.
      *
      * @param  array<string, mixed>  $tokens

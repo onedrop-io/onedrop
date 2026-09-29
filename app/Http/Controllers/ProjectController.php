@@ -35,12 +35,11 @@ class ProjectController extends Controller
      */
     public function create(Request $request, ModelCatalog $catalog): Response
     {
-        $harness = $catalog->defaultHarness($request->user());
-        $selection = $catalog->defaultSelection($request->user(), $harness);
+        $agent = $catalog->newProjectAgent($request->user());
 
         return Inertia::render('projects/create', [
             'defaultAi' => $request->user()->agentConnections()->firstWhere('is_default', true)?->provider->label(),
-            'agent' => $selection ? $catalog->describe($selection, $harness) : null,
+            'agent' => $agent ? $catalog->describe(['provider' => $agent['agent_provider'], 'model' => $agent['agent_model'], 'variant' => $agent['agent_variant']], $agent['agent_harness']) : null,
             'templates' => AppTemplate::options(),
         ]);
     }
@@ -52,11 +51,19 @@ class ProjectController extends Controller
     {
         $prompt = (string) $request->validated('prompt');
         $template = $request->enum('template', AppTemplate::class);
-        $agent = $this->validatedAgentSelection($request, $request->user(), $catalog) ?? [];
+        $default = $catalog->newProjectAgent($request->user());
+        $agent = $this->validatedAgentSelection($request, $request->user(), $catalog);
 
         if ($agent) {
             $request->user()->rememberModel($agent['agent_provider'], $agent['agent_model']);
+
+            // Only a choice that differs from the default sticks, so an untouched picker keeps following it.
+            if ($agent != $default) {
+                $request->user()->preferAgent($agent);
+            }
         }
+
+        $agent ??= $default ?? [];
 
         $project = $request->user()->projects()->create([
             'name' => $template?->label() ?? Project::nameFromPrompt($prompt),

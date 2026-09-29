@@ -34,6 +34,7 @@ import ProjectMessageController from '@/actions/App/Http/Controllers/ProjectMess
 import TaskController from '@/actions/App/Http/Controllers/TaskController';
 import TaskMessageController from '@/actions/App/Http/Controllers/TaskMessageController';
 import AgentModelPicker from '@/components/agent-model-picker';
+import ClaudeLoginStatus from '@/components/claude-login-status';
 import HeaderActions from '@/components/header-actions';
 import Markdown from '@/components/markdown';
 import MessageAttachments from '@/components/message-attachments';
@@ -144,6 +145,7 @@ export default function ShowProject({
     messages,
     queued,
     publication,
+    claudeSubscription,
 }: {
     project: Project;
     /** The task whose chat this is, or null for the main chat (or a new task). */
@@ -155,7 +157,11 @@ export default function ShowProject({
     messages: ChatMessage[];
     queued: QueuedMessage[];
     publication: Publication;
+    /** Claude Code runs on the owner's own Claude sign-in in the sandbox (AI-005). */
+    claudeSubscription: boolean;
 }) {
+    // Bumped by "Sign in to Claude": the workspace opens the Shell tab on Claude Code's sign-in.
+    const [claudeSignIns, setClaudeSignIns] = useState(0);
     const working = task
         ? task.status === 'working'
         : !newTask && project.status === 'working';
@@ -237,6 +243,11 @@ export default function ShowProject({
                     messages={messages}
                     working={working}
                     width={chatWidth}
+                    claudeSignIn={
+                        claudeSubscription && agent?.harness === 'claude_code'
+                            ? () => setClaudeSignIns((count) => count + 1)
+                            : null
+                    }
                 />
                 <ResizeHandle
                     label="Resize chat"
@@ -255,6 +266,7 @@ export default function ShowProject({
                     copy={task?.own_copy ?? false}
                     working={working}
                     activity={messages.length}
+                    claudeSignIns={claudeSignIns}
                 />
             </div>
         </>
@@ -271,6 +283,7 @@ function ChatPanel({
     messages,
     working,
     width,
+    claudeSignIn,
 }: {
     project: Project;
     task: TaskDetail | null;
@@ -281,6 +294,8 @@ function ChatPanel({
     messages: ChatMessage[];
     working: boolean;
     width: number;
+    /** Open Claude Code's sign-in, when the agent runs on the user's Claude subscription. */
+    claudeSignIn: (() => void) | null;
 }) {
     const bottom = useRef<HTMLDivElement>(null);
     const [draft, setDraft] = useState<string | undefined>(undefined);
@@ -396,6 +411,13 @@ function ChatPanel({
                 <div ref={bottom} />
             </div>
             <div className="p-3">
+                {claudeSignIn && (
+                    <ClaudeLoginStatus
+                        projectId={project.id}
+                        taskId={task?.own_copy ? task.id : null}
+                        onSignIn={claudeSignIn}
+                    />
+                )}
                 <PromptComposer
                     action={routes.send}
                     field="content"
@@ -526,6 +548,7 @@ function WorkspacePanel({
     copy,
     working,
     activity,
+    claudeSignIns,
 }: {
     project: Project;
     /** Where the chat on screen sends messages. */
@@ -537,6 +560,8 @@ function WorkspacePanel({
     working: boolean;
     /** Changes whenever the agent does something (message count). */
     activity: number;
+    /** Changes when the user asks to sign in to Claude: open the Shell tab on Claude Code's sign-in. */
+    claudeSignIns: number;
 }) {
     const running = sandbox?.status === 'running';
     const isRemoteBrowser = useIsRemote();
@@ -739,6 +764,15 @@ function WorkspacePanel({
         setExtraTabs((tabs) => (tabs.includes(kind) ? tabs : [...tabs, kind]));
         setTab(kind);
     };
+
+    useEffect(() => {
+        if (claudeSignIns > 0) {
+            setExtraTabs((tabs) =>
+                tabs.includes('shell') ? tabs : [...tabs, 'shell'],
+            );
+            setTab('shell');
+        }
+    }, [claudeSignIns]);
 
     const closeTab = (kind: MovableTab) => {
         setExtraTabs((tabs) => tabs.filter((t) => t !== kind));
@@ -1032,8 +1066,14 @@ function WorkspacePanel({
                     (running && sandbox.shell_url && !shellUnreachable ? (
                         // Stays mounted while the tab is open so the session survives tab switches.
                         <iframe
+                            // A new sign-in restarts the terminal on Claude Code's own `claude auth login`.
+                            key={claudeSignIns}
                             ref={shellFrame}
-                            src={sandbox.shell_url}
+                            src={
+                                claudeSignIns > 0 && sandbox.claude_login_url
+                                    ? sandbox.claude_login_url
+                                    : sandbox.shell_url
+                            }
                             title="Shell"
                             onLoad={() =>
                                 tab === 'shell' && shellFrame.current?.focus()

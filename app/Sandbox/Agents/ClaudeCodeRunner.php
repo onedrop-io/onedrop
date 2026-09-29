@@ -4,14 +4,15 @@ namespace App\Sandbox\Agents;
 
 use App\Enums\AgentHarness;
 use App\Enums\AgentProvider;
+use App\Enums\CredentialType;
 use App\Models\Message;
 use App\Models\Project;
 use App\Sandbox\SandboxException;
 
 /**
  * Runs Claude Code (`claude -p`) inside the project's sandbox (see SandboxAgentRunner). It runs on
- * the user's Anthropic API key or Claude subscription token: Claude Code is Anthropic's own agent,
- * so, unlike OpenCode, it may use a subscription.
+ * the user's Anthropic API key, or on their Claude subscription through Claude Code's own sign-in in
+ * the sandbox (AI-005): Claude Code is Anthropic's own agent, so, unlike OpenCode, it may use one.
  */
 class ClaudeCodeRunner extends SandboxAgentRunner
 {
@@ -24,7 +25,7 @@ class ClaudeCodeRunner extends SandboxAgentRunner
 
         $problem = match (true) {
             ($sandboxProblem = $this->sandboxProblem($sandbox)) !== null => $sandboxProblem,
-            $connection === null || $selection === null => 'Claude Code needs Claude: connect an Anthropic API key or a Claude subscription token in Settings → AI.',
+            $connection === null || $selection === null => 'Claude Code needs Claude: connect an Anthropic API key or use your Claude subscription in Settings → AI.',
             default => null,
         };
 
@@ -46,6 +47,7 @@ class ClaudeCodeRunner extends SandboxAgentRunner
         $this->launch($conversation, $sandbox, [
             ...$connection->sandboxEnvironment(),
             'APP_AGENT' => AgentHarness::ClaudeCode->value,
+            'APP_CLAUDE_AUTH' => $connection->credential_type === CredentialType::ClaudeLogin ? 'subscription' : 'api_key',
             'APP_PROMPT' => $this->prompt($message, $attached),
             'APP_MODEL' => $selection['model'],
             'APP_VARIANT' => $selection['variant'] ?? '',

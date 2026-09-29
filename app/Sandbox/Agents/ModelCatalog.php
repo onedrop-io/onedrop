@@ -100,8 +100,8 @@ class ModelCatalog
     }
 
     /**
-     * Providers the user can run with an agent: OpenCode can't use Claude subscription tokens, and
-     * Claude Code only runs Claude (with an API key or a subscription token).
+     * Providers the user can run with an agent: OpenCode can't use a Claude subscription, and
+     * Claude Code only runs Claude (with an API key or the user's Claude subscription).
      *
      * @return list<AgentProvider>
      */
@@ -112,7 +112,7 @@ class ModelCatalog
         }
 
         return array_values($user->agentConnections()
-            ->where('credential_type', '!=', CredentialType::OAuthToken)
+            ->where('credential_type', '!=', CredentialType::ClaudeLogin)
             ->orderByDesc('is_default')
             ->orderBy('id')
             ->get()
@@ -136,6 +136,45 @@ class ModelCatalog
     public function defaultHarness(User $user): AgentHarness
     {
         return $this->harnesses($user)[0] ?? AgentHarness::OpenCode;
+    }
+
+    /**
+     * The agent and model new projects start on: the user's last choice while they can still run it,
+     * otherwise their AI subscription (Claude or ChatGPT), otherwise their default provider on the default agent.
+     *
+     * @return array{agent_harness: AgentHarness, agent_provider: AgentProvider, agent_model: string, agent_variant: string|null}|null
+     */
+    public function newProjectAgent(User $user): ?array
+    {
+        $preference = $user->agent_preference ?? [];
+        $harness = AgentHarness::tryFrom($preference['harness'] ?? '');
+        $provider = AgentProvider::tryFrom($preference['provider'] ?? '');
+        $model = $preference['model'] ?? null;
+
+        if ($harness && $provider && $model && in_array($provider, $this->usableProviders($user, $harness), true)
+            && (! $this->signedInWithChatGpt($provider, $user) || $this->includedWithChatGpt($model))) {
+            return ['agent_harness' => $harness, 'agent_provider' => $provider, 'agent_model' => $model, 'agent_variant' => $preference['variant'] ?? null];
+        }
+
+        $subscription = $user->agentConnections()
+            ->whereIn('credential_type', [CredentialType::ClaudeLogin, CredentialType::ChatGpt])
+            ->orderByDesc('is_default')
+            ->orderBy('id')
+            ->first();
+
+        if ($subscription) {
+            return [
+                'agent_harness' => $subscription->credential_type === CredentialType::ClaudeLogin ? AgentHarness::ClaudeCode : AgentHarness::OpenCode,
+                'agent_provider' => $subscription->provider,
+                'agent_model' => $this->defaultModel($subscription->provider, $user),
+                'agent_variant' => null,
+            ];
+        }
+
+        $harness = $this->defaultHarness($user);
+        $selection = $this->defaultSelection($user, $harness);
+
+        return $selection ? ['agent_harness' => $harness, 'agent_provider' => $selection['provider'], 'agent_model' => $selection['model'], 'agent_variant' => null] : null;
     }
 
     /**

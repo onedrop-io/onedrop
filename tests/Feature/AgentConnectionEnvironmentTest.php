@@ -14,17 +14,20 @@ test('each connection maps to the env var its agent CLI reads', function (AgentP
     expect($connection->sandboxEnvironment())->toBe([$variable => 'secret']);
 })->with([
     'claude api key' => [AgentProvider::Claude, CredentialType::ApiKey, 'ANTHROPIC_API_KEY'],
-    'claude subscription token' => [AgentProvider::Claude, CredentialType::OAuthToken, 'CLAUDE_CODE_OAUTH_TOKEN'],
     'codex' => [AgentProvider::Codex, CredentialType::ApiKey, 'OPENAI_API_KEY'],
     'openrouter' => [AgentProvider::OpenRouter, CredentialType::ApiKey, 'OPENROUTER_API_KEY'],
     'gemini' => [AgentProvider::Gemini, CredentialType::ApiKey, 'GOOGLE_GENERATIVE_AI_API_KEY'],
 ])->group('AI-001');
 
-test('claude tokens from setup-token are detected as subscription tokens', function () {
-    expect(AgentProvider::Claude->credentialTypeFor('sk-ant-oat01-abc'))->toBe(CredentialType::OAuthToken)
-        ->and(AgentProvider::Claude->credentialTypeFor('sk-ant-api03-abc'))->toBe(CredentialType::ApiKey)
-        ->and(AgentProvider::Codex->credentialTypeFor('sk-ant-oat01-abc'))->toBe(CredentialType::ApiKey);
-})->group('AI-001');
+test('claude tokens from setup-token are recognised as subscription tokens', function () {
+    expect(AgentProvider::Claude->isSubscriptionToken(' sk-ant-oat01-abc'))->toBeTrue()
+        ->and(AgentProvider::Claude->isSubscriptionToken('sk-ant-api03-abc'))->toBeFalse()
+        ->and(AgentProvider::Codex->isSubscriptionToken('sk-ant-oat01-abc'))->toBeFalse();
+})->group('AI-005');
+
+test('a Claude subscription puts no credential in the sandbox', function () {
+    expect(AgentConnection::factory()->claudeLogin()->make()->sandboxEnvironment())->toBe([]);
+})->group('AI-005');
 
 test('a ChatGPT sign-in gives OpenCode its access token but never the refresh token', function () {
     $connection = AgentConnection::factory()->chatGpt(['expires' => 1_900_000_000])->make();

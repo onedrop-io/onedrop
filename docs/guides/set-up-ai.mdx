@@ -11,11 +11,28 @@ The agent that builds your apps uses your own AI account: your ChatGPT Plus or P
   <Tab title="Claude (Anthropic)">
     Paste an Anthropic API key from [console.anthropic.com](https://console.anthropic.com/settings/keys). OneDrop checks the key with Anthropic before saving it.
 
-    To build on your Claude Pro or Max plan instead, click **Use a Claude subscription token instead** and paste the token printed by `claude setup-token` (run it anywhere Claude Code is installed). Subscription tokens only work with the [Claude Code agent](#choose-the-agent): Anthropic lets its own agent use a subscription, but not other agents like OpenCode.
+    To build on your Claude Pro or Max plan instead, click **Use my Claude subscription instead**, then **Use my Claude subscription**. There's nothing to paste: you sign in to Claude from your project, in Claude Code's own sign-in.
+
+    <Steps>
+      <Step title="Open a project on Claude Code">
+        A subscription only works with the [Claude Code agent](#choose-the-agent). Anthropic lets its own agent use a subscription, but not other agents like OpenCode.
+      </Step>
+      <Step title="Sign in to Claude">
+        Above the chat box, click **Sign in to Claude**. The **Shell** tab opens and runs `claude auth login`.
+      </Step>
+      <Step title="Approve on Claude">
+        Open the link it shows, sign in to Claude and approve. Copy the code Claude gives you and paste it into the Shell tab.
+      </Step>
+      <Step title="Start building">
+        Back in the chat, the line above the chat box says who Claude Code is signed in as. Send your message.
+      </Step>
+    </Steps>
 
     <Note>
-      Claude Code runs started this way use your plan's monthly Agent SDK credit, not your regular chat limits. When the credit runs out, the chat tells you; switch to an API key or wait for the next month.
+      OneDrop never sees or stores your Claude login: it stays inside Claude Code, in your sandboxes, as Anthropic requires. On OneDrop installs that use Docker sandboxes, one sign-in works in all of your projects. On other sandbox providers, sign in once in each project.
     </Note>
+
+    If Claude Code isn't signed in, or your sign-in expires, the chat tells you to sign in again. Disconnecting Claude in **Settings → AI** signs Claude Code out of your sandboxes. Claude subscription tokens from `claude setup-token` can't be pasted.
 
   </Tab>
   <Tab title="OpenAI">
@@ -72,12 +89,12 @@ Keys are encrypted in the database, never sent back to your browser, and only pa
 
 Each project runs one of two agents in its sandbox. The agent picker sits under the chat box, left of the model picker, in both the new-project prompt and the project chat.
 
-| Agent           | Runs                                                                         | Best for                                          |
-| --------------- | ---------------------------------------------------------------------------- | ------------------------------------------------- |
-| **OpenCode**    | Any connected provider except Claude subscription tokens                     | Choosing between providers and hundreds of models |
-| **Claude Code** | Claude models only, with an Anthropic API key or a Claude subscription token | Building on your Claude Pro or Max plan           |
+| Agent | Runs | Best for |
+| --- | --- | --- |
+| **OpenCode** | Any connected provider except a Claude subscription | Choosing between providers and hundreds of models |
+| **Claude Code** | Claude models only, with an Anthropic API key or your Claude subscription | Building on your Claude Pro or Max plan |
 
-- New projects start on OpenCode, or on Claude Code if a Claude subscription token is all you've connected.
+- New projects start on whatever agent and model you picked last. Until you pick one, they start on your AI subscription: Claude Code for a Claude subscription, or OpenCode with Codex for a ChatGPT sign-in. Without a subscription, they start on OpenCode (or Claude Code, if that's the only agent your connections can run).
 - Claude Code only shows up once you've connected Claude. While it's chosen, the model picker only lists Claude models.
 - Switching agents starts a fresh conversation: the new agent can't read the old one's history, but your app's files stay as they are. The chat notes the switch.
 - You can't switch while the agent is working. Stop it or wait for it to finish first.
@@ -94,7 +111,7 @@ Each project runs on the model you pick. The picker sits under the chat box, in 
 
 Changing the model takes effect on your next message; the agent keeps the conversation. Each model shows its context size and price per million tokens (input/output).
 
-New projects start on your default provider's default model, set by whoever runs OneDrop (`SANDBOX_MODEL_*` in [Configuration](/self-hosting/configuration#agent)).
+New projects start on the model you picked last. Until you pick one, they start on your subscription's (or else your default provider's) default model, set by whoever runs OneDrop (`SANDBOX_MODEL_*` in [Configuration](/self-hosting/configuration#agent)).
 
 <Warning>
     OpenRouter reserves the maximum possible cost of each request before running

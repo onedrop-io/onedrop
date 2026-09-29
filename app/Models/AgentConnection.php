@@ -60,6 +60,7 @@ class AgentConnection extends Model
     /**
      * Environment variables that give an agent CLI in a sandbox this credential
      * (the names OpenCode, Claude Code and Codex read; a ChatGPT sign-in is OpenCode-only).
+     * A Claude subscription has none: Claude Code uses its own sign-in in the sandbox.
      *
      * @return array<string, string>
      */
@@ -69,10 +70,12 @@ class AgentConnection extends Model
             return ['OPENCODE_AUTH_CONTENT' => json_encode($this->opencodeAuth(), JSON_THROW_ON_ERROR)];
         }
 
+        if ($this->credential_type === CredentialType::ClaudeLogin) {
+            return [];
+        }
+
         $variable = match ($this->provider) {
-            AgentProvider::Claude => $this->credential_type === CredentialType::OAuthToken
-                ? 'CLAUDE_CODE_OAUTH_TOKEN'
-                : 'ANTHROPIC_API_KEY',
+            AgentProvider::Claude => 'ANTHROPIC_API_KEY',
             AgentProvider::Codex => 'OPENAI_API_KEY',
             AgentProvider::OpenRouter => 'OPENROUTER_API_KEY',
             AgentProvider::Gemini => 'GOOGLE_GENERATIVE_AI_API_KEY',

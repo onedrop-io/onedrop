@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Settings;
 
 use App\Actions\ConnectAgent;
 use App\Enums\AgentProvider;
+use App\Enums\CredentialType;
 use App\Http\Controllers\Controller;
+use App\Jobs\SignOutOfClaude;
 use App\Models\AgentConnection;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -27,7 +29,7 @@ class AgentConnectionController extends Controller
     }
 
     /**
-     * Connect a provider with a pasted key or token.
+     * Connect a provider with a pasted key.
      */
     public function store(Request $request, ConnectAgent $connect): RedirectResponse
     {
@@ -41,6 +43,18 @@ class AgentConnectionController extends Controller
         $connect->handle($request->user(), $provider, $validated['credential']);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __(':provider connected.', ['provider' => $provider->label()])]);
+
+        return $request->boolean('onboarding') ? to_route('dashboard') : back();
+    }
+
+    /**
+     * Use the user's Claude subscription with Claude Code. They sign in to Claude inside their sandboxes (AI-005).
+     */
+    public function claudeLogin(Request $request, ConnectAgent $connect): RedirectResponse
+    {
+        $connect->claudeLogin($request->user());
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Claude subscription added. Sign in to Claude from your project when you start building.')]);
 
         return $request->boolean('onboarding') ? to_route('dashboard') : back();
     }
@@ -68,6 +82,10 @@ class AgentConnectionController extends Controller
         abort_unless($connection->user_id === $request->user()->id, 404);
 
         $connection->delete();
+
+        if ($connection->credential_type === CredentialType::ClaudeLogin) {
+            SignOutOfClaude::dispatch($connection->user_id);
+        }
 
         if ($connection->is_default) {
             $request->user()->agentConnections()->oldest()->first()?->update(['is_default' => true]);

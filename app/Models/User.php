@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AgentHarness;
 use App\Enums\AgentProvider;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
@@ -28,6 +29,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property bool $is_admin
  * @property list<string>|null $favorite_models
  * @property list<string>|null $recent_models
+ * @property array{harness: string, provider: string, model: string, variant: string|null}|null $agent_preference
  * @property string|null $two_factor_secret
  * @property string|null $two_factor_recovery_codes
  * @property Carbon|null $two_factor_confirmed_at
@@ -56,6 +58,7 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
             'is_admin' => 'boolean',
             'favorite_models' => 'array',
             'recent_models' => 'array',
+            'agent_preference' => 'array',
             'two_factor_confirmed_at' => 'datetime',
         ];
     }
@@ -94,6 +97,21 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
         if (! static::whereKeyNot($this->getKey())->exists()) {
             $this->forceFill(['is_admin' => true])->save();
         }
+    }
+
+    /**
+     * Remember the agent, model and reasoning level the user chose, for their next new project.
+     *
+     * @param  array{agent_harness: AgentHarness, agent_provider: AgentProvider, agent_model: string, agent_variant: string|null}  $agent
+     */
+    public function preferAgent(array $agent): void
+    {
+        $this->forceFill(['agent_preference' => [
+            'harness' => $agent['agent_harness']->value,
+            'provider' => $agent['agent_provider']->value,
+            'model' => $agent['agent_model'],
+            'variant' => $agent['agent_variant'],
+        ]])->save();
     }
 
     /**
@@ -188,6 +206,16 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
         return (int) $this->hasPassword()
             + $this->socialAccounts()->count()
             + $this->passkeys()->count();
+    }
+
+    /**
+     * Tokens and estimated cost of the agent runs the user's AI connections paid for (USAGE-001).
+     *
+     * @return HasMany<AgentUsage, $this>
+     */
+    public function agentUsages(): HasMany
+    {
+        return $this->hasMany(AgentUsage::class);
     }
 
     /**

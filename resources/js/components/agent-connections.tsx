@@ -24,7 +24,8 @@ type Method =
           help: React.ReactNode;
       }
     | { kind: 'signin'; label: string; href: string }
-    | { kind: 'chatgpt'; label: string; help: React.ReactNode };
+    | { kind: 'chatgpt'; label: string; help: React.ReactNode }
+    | { kind: 'claude-login'; label: string; help: React.ReactNode };
 
 type ProviderInfo = {
     id: AgentProvider;
@@ -59,17 +60,15 @@ const providers: ProviderInfo[] = [
             ),
         },
         alternate: {
-            kind: 'paste',
-            switchLabel: 'Use a Claude subscription token instead',
+            kind: 'claude-login',
+            switchLabel: 'Use my Claude subscription instead',
             backLabel: 'Use an API key instead',
-            label: 'Claude Code token',
-            placeholder: 'sk-ant-oat…',
+            label: 'Use my Claude subscription',
             help: (
                 <>
-                    From <CopyCommand command="claude setup-token" />. Uses your
-                    Claude Pro or Max plan with the Claude Code agent (choose it
-                    under the chat box); runs draw on your plan's monthly Agent
-                    SDK credit.
+                    Builds on your Claude Pro or Max plan with the Claude Code
+                    agent. You sign in to Claude from your project, in Claude
+                    Code's own sign-in: OneDrop never sees your Claude login.
                 </>
             ),
         },
@@ -156,7 +155,7 @@ const providers: ProviderInfo[] = [
 
 const credentialLabels: Record<AgentConnection['credential_type'], string> = {
     api_key: 'API key',
-    oauth_token: 'subscription token',
+    claude_login: 'Claude subscription',
     chatgpt: 'ChatGPT sign-in',
 };
 
@@ -224,12 +223,13 @@ function ProviderCard({
                     <div className="flex items-center gap-2">
                         {connection.is_default && <Badge>default</Badge>}
                         <Badge variant="secondary">
-                            {credentialLabels[connection.credential_type]} ••••
-                            {connection.hint}
+                            {credentialLabels[connection.credential_type]}
+                            {connection.hint && ` ••••${connection.hint}`}
                         </Badge>
-                        {!connection.verified && (
-                            <Badge variant="outline">not verified</Badge>
-                        )}
+                        {!connection.verified &&
+                            connection.credential_type !== 'claude_login' && (
+                                <Badge variant="outline">not verified</Badge>
+                            )}
                     </div>
                 )}
             </header>
@@ -280,6 +280,11 @@ function ProviderCard({
                         </Button>
                     ) : method.kind === 'chatgpt' ? (
                         <ChatGptSignIn
+                            method={method}
+                            onboarding={onboarding}
+                        />
+                    ) : method.kind === 'claude-login' ? (
+                        <ClaudeSubscription
                             method={method}
                             onboarding={onboarding}
                         />
@@ -384,6 +389,45 @@ function PasteForm({
                 </>
             )}
         </Form>
+    );
+}
+
+/**
+ * Use the Claude subscription: nothing to paste. Claude Code signs in inside the sandbox (AI-005).
+ */
+function ClaudeSubscription({
+    method,
+    onboarding,
+}: {
+    method: Extract<Method, { kind: 'claude-login' }>;
+    onboarding: boolean;
+}) {
+    const [processing, setProcessing] = useState(false);
+
+    return (
+        <div className="grid gap-2">
+            <div>
+                <Button
+                    type="button"
+                    disabled={processing}
+                    onClick={() =>
+                        router.post(
+                            AgentConnectionController.claudeLogin.url(),
+                            onboarding ? { onboarding: 1 } : {},
+                            {
+                                preserveScroll: true,
+                                onStart: () => setProcessing(true),
+                                onFinish: () => setProcessing(false),
+                            },
+                        )
+                    }
+                    data-test="use-claude-subscription"
+                >
+                    {method.label}
+                </Button>
+            </div>
+            <p className="text-sm text-muted-foreground">{method.help}</p>
+        </div>
     );
 }
 
@@ -561,7 +605,7 @@ function ProviderLogo({ provider }: { provider: ProviderInfo }) {
 
 function CopyCommand({
     command,
-    test = 'copy-setup-token',
+    test = 'copy-command',
 }: {
     command: string;
     test?: string;

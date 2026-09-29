@@ -2,6 +2,8 @@
 
 namespace App\Concerns;
 
+use App\Enums\AgentProvider;
+use App\Enums\CredentialType;
 use App\Enums\PublishStatus;
 use App\Enums\SandboxStatus;
 use App\Jobs\CreateSandbox;
@@ -45,7 +47,7 @@ trait RendersWorkspace
         $task = $conversation instanceof Task ? $conversation : null;
         // A task with its own copy of the app shows that copy's preview, shell and files (TASK-003).
         $sandbox = $task && Task::getsCopies() ? $task->sandbox()->first() : $project->sandbox;
-        $open = fn (string $kind) => route('projects.gateway.open', [$project, $kind, ...($sandbox?->task_id ? ['task' => $sandbox->task_id] : [])]);
+        $open = fn (string $kind, string $path = '/') => route('projects.gateway.open', [$project, $kind, ...($sandbox?->task_id ? ['task' => $sandbox->task_id] : []), ...($path !== '/' ? ['path' => $path] : [])]);
         $messages = $newTask ? collect() : $conversation->messages()->with('attachments')->get();
         $queued = $newTask ? collect() : $conversation->queuedMessages()->with('attachments')->get();
 
@@ -59,6 +61,11 @@ trait RendersWorkspace
             ] : null,
             'newTask' => $newTask,
             'agent' => ($selection = $catalog->selectionFor($project)) ? $catalog->describe($selection, $catalog->harnessFor($project)) : null,
+            // Claude Code runs on the owner's own Claude sign-in in the sandbox (AI-005).
+            'claudeSubscription' => $project->user->agentConnections()
+                ->where('provider', AgentProvider::Claude)
+                ->where('credential_type', CredentialType::ClaudeLogin)
+                ->exists(),
             'publication' => [
                 'status' => $project->publish_status,
                 'visibility' => $project->publish_visibility,
@@ -75,6 +82,8 @@ trait RendersWorkspace
                 // On servers the browser goes through the gateway (which signs it in to that address), not the sandbox's local ports.
                 'preview_url' => $sandbox->preview_url ? ($gateway->enabled() ? $open('preview') : $sandbox->preview_url) : null,
                 'shell_url' => $sandbox->shell_url ? ($gateway->enabled() ? $open('shell') : $sandbox->shell_url) : null,
+                // The Shell tab opened on Claude Code's own sign-in (see docker/sandbox/shell-entry; AI-005).
+                'claude_login_url' => $sandbox->shell_url ? ($gateway->enabled() ? $open('shell', '/?arg=claude-login') : rtrim($sandbox->shell_url, '/').'/?arg=claude-login') : null,
             ] : null,
             'queued' => $queued->map(fn (Message $message): array => [
                 ...$message->only('id', 'content'),

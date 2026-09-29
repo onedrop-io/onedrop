@@ -64,7 +64,7 @@ test('without the catalog the configured default and featured models are still o
 
 test('the picker lists only providers the agent can use, plus favorites', function () {
     $this->user->agentConnections()->where('provider', 'openrouter')->delete();
-    AgentConnection::factory()->for($this->user)->provider(AgentProvider::Codex)->create(['is_default' => false, 'credential_type' => CredentialType::OAuthToken]);
+    AgentConnection::factory()->for($this->user)->provider(AgentProvider::Codex)->create(['is_default' => false, 'credential_type' => CredentialType::ClaudeLogin]);
     $this->user->forceFill(['favorite_models' => ['claude:claude-sonnet-5']])->save();
 
     $this->actingAs($this->user)

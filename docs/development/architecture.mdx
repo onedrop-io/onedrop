@@ -40,6 +40,7 @@ sequenceDiagram
 ## Security
 
 - AI keys are encrypted at rest and injected into sandboxes as environment variables by name
+- Claude subscriptions are never stored: users sign in inside their sandboxes with Claude Code's own `claude auth login`, and its login lives in Claude Code's config folder (shared per user on Docker via `CLAUDE_CONFIG_DIR`); the platform only asks `claude auth status` whether it's signed in
 - Agent events are accepted only with the sandbox's current secret token, stored as a hash
 - File reads are limited to `/workspace` and run without a shell
 - Invite tokens are stored encrypted, looked up by hash

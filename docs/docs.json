@@ -73,6 +73,7 @@
                         "icon": "users",
                         "pages": [
                             "guides/settings",
+                            "guides/usage",
                             "guides/invite-people",
                             "guides/groups-and-users",
                             "guides/remote-access"

@@ -49,12 +49,11 @@ enum AgentProvider: string
     }
 
     /**
-     * Work out what kind of credential was pasted.
+     * Whether a pasted credential is a Claude subscription token (from `claude setup-token`). OneDrop
+     * doesn't take those: a subscription is signed in inside the sandbox instead (CredentialType::ClaudeLogin).
      */
-    public function credentialTypeFor(string $credential): CredentialType
+    public function isSubscriptionToken(string $credential): bool
     {
-        return $this === self::Claude && str_starts_with($credential, 'sk-ant-oat')
-            ? CredentialType::OAuthToken
-            : CredentialType::ApiKey;
+        return $this === self::Claude && str_starts_with(trim($credential), 'sk-ant-oat');
     }
 }

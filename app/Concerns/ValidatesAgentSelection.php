@@ -42,7 +42,7 @@ trait ValidatesAgentSelection
 
         if (! in_array($provider, $catalog->usableProviders($user, $harness), true)) {
             throw ValidationException::withMessages(['agent_provider' => $provider === AgentProvider::Claude && $user->agentConnections()->where('provider', $provider)->exists()
-                ? __('OpenCode can\'t use a Claude subscription token. Choose Claude Code, or connect an Anthropic API key in Settings → AI.')
+                ? __('OpenCode can\'t use a Claude subscription. Choose Claude Code, or connect an Anthropic API key in Settings → AI.')
                 : __('Connect :provider in Settings → AI first.', ['provider' => $provider->pickerLabel()])]);
         }
 

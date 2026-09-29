@@ -3,6 +3,7 @@
 use App\Http\Controllers\AcceptInvitationController;
 use App\Http\Controllers\AgentModelController;
 use App\Http\Controllers\ChatGptAuthController;
+use App\Http\Controllers\ClaudeLoginController;
 use App\Http\Controllers\GitHubAppController;
 use App\Http\Controllers\GroupController;
 use App\Http\Controllers\GroupMemberController;
@@ -34,6 +35,7 @@ use App\Http\Controllers\SocialLoginController;
 use App\Http\Controllers\SshKeyController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TaskMessageController;
+use App\Http\Controllers\UsageController;
 use App\Http\Controllers\UserController;
 use App\Http\Middleware\HandleInertiaRequests;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
@@ -181,6 +183,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('ssh-keys/{sshKey}', [SshKeyController::class, 'destroy'])->name('ssh-keys.destroy');
         Route::get('projects/{project}/open/{kind}', [SandboxGatewayController::class, 'open'])->name('projects.gateway.open');
         Route::patch('projects/{project}/agent', [ProjectAgentController::class, 'update'])->name('projects.agent.update');
+        Route::get('projects/{project}/claude-login', [ClaudeLoginController::class, 'show'])->middleware('throttle:30,1')->name('projects.claude-login.show');
         Route::patch('projects/{project}/agent/autofix', [ProjectAgentController::class, 'autofix'])->name('projects.agent.autofix');
         Route::post('projects/{project}/agent/stop', [ProjectAgentController::class, 'stop'])->name('projects.agent.stop');
         Route::delete('projects/{project}/messages/{message}', [ProjectMessageController::class, 'destroy'])->name('projects.messages.destroy');
@@ -200,6 +203,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('projects/{project}/publication', [ProjectPublicationController::class, 'store'])->name('projects.publication.store');
         Route::delete('projects/{project}/publication', [ProjectPublicationController::class, 'destroy'])->name('projects.publication.destroy');
     });
+
+    Route::get('usage', [UsageController::class, 'index'])->name('usage.index');
 
     Route::get('invitations', [InvitationController::class, 'index'])->name('invitations.index');
     Route::post('invitations', [InvitationController::class, 'store'])->name('invitations.store');

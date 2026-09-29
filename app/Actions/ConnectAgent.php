@@ -22,10 +22,25 @@ class ConnectAgent
     public function handle(User $user, AgentProvider $provider, string $credential): AgentConnection
     {
         $credential = trim($credential);
-        $type = $provider->credentialTypeFor($credential);
-        $verified = $this->verifier->verify($provider, $type, $credential);
 
-        return $this->store($user, $provider, $type, $credential, AgentConnection::hintFor($credential), $verified);
+        if ($provider->isSubscriptionToken($credential)) {
+            throw ValidationException::withMessages([
+                'credential' => __('OneDrop doesn\'t take Claude subscription tokens. Choose "Use my Claude subscription" instead, then sign in to Claude from your project.'),
+            ]);
+        }
+
+        $this->verifier->verify($provider, $credential);
+
+        return $this->store($user, $provider, CredentialType::ApiKey, $credential, AgentConnection::hintFor($credential), verified: true);
+    }
+
+    /**
+     * Use the user's Claude subscription with Claude Code. Nothing is stored: they sign in inside their
+     * sandboxes through Claude Code's own `claude auth login`, as Anthropic requires.
+     */
+    public function claudeLogin(User $user): AgentConnection
+    {
+        return $this->store($user, AgentProvider::Claude, CredentialType::ClaudeLogin, '', '', verified: false);
     }
 
     /**

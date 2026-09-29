@@ -36,7 +36,7 @@ class OpenCodeRunner extends SandboxAgentRunner
         $problem = match (true) {
             ($sandboxProblem = $this->sandboxProblem($sandbox)) !== null => $sandboxProblem,
             $connection === null => 'Connect an AI in Settings → AI so I can start working.',
-            $connection->credential_type === CredentialType::OAuthToken => "OpenCode can't use a Claude subscription token (Anthropic doesn't allow it). Choose Claude Code under the chat box, or connect an Anthropic API key in Settings → AI.",
+            $connection->credential_type === CredentialType::ClaudeLogin => "OpenCode can't use a Claude subscription (Anthropic doesn't allow it). Choose Claude Code under the chat box, or connect an Anthropic API key in Settings → AI.",
             default => null,
         };
 

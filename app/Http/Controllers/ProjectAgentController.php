@@ -48,6 +48,7 @@ class ProjectAgentController extends Controller
         }
 
         $request->user()->rememberModel($agent['agent_provider'], $agent['agent_model']);
+        $request->user()->preferAgent($agent);
 
         return to_route('projects.show', $project);
     }

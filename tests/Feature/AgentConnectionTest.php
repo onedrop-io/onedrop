@@ -2,12 +2,14 @@
 
 use App\Enums\AgentProvider;
 use App\Enums\CredentialType;
+use App\Jobs\SignOutOfClaude;
 use App\Models\AgentConnection;
 use App\Models\User;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 
 beforeEach(function () {
     $this->user = User::factory()->create();
@@ -40,19 +42,39 @@ test('credentials are encrypted at rest', function () {
     expect($raw)->not->toContain('sk-ant-api03-secret');
 })->group('AI-002');
 
-test('a Claude subscription token is stored unverified without calling the API', function () {
+test('a pasted Claude subscription token is refused and not stored', function () {
     Http::fake();
 
     $this->actingAs($this->user)
         ->post(route('agent-connections.store'), ['provider' => 'claude', 'credential' => 'sk-ant-oat01-subscription-token'])
-        ->assertSessionHasNoErrors();
+        ->assertSessionHasErrors(['credential' => 'OneDrop doesn\'t take Claude subscription tokens. Choose "Use my Claude subscription" instead, then sign in to Claude from your project.']);
+
+    expect($this->user->agentConnections()->count())->toBe(0);
+    Http::assertNothingSent();
+})->group('AI-005');
+
+test('users can use their Claude subscription without giving OneDrop a token', function () {
+    $this->actingAs($this->user)
+        ->post(route('agent-connections.claude-login'), ['onboarding' => 1])
+        ->assertRedirect(route('dashboard'));
 
     $connection = $this->user->agentConnections()->sole();
 
-    expect($connection->credential_type)->toBe(CredentialType::OAuthToken)
-        ->and($connection->verified_at)->toBeNull();
-    Http::assertNothingSent();
-})->group('AI-001');
+    expect($connection->provider)->toBe(AgentProvider::Claude)
+        ->and($connection->credential_type)->toBe(CredentialType::ClaudeLogin)
+        ->and($connection->credential)->toBe('')
+        ->and($connection->is_default)->toBeTrue()
+        ->and($connection->sandboxEnvironment())->toBe([]);
+})->group('AI-005');
+
+test('disconnecting the Claude subscription signs Claude Code out', function () {
+    Queue::fake();
+    $connection = AgentConnection::factory()->for($this->user)->claudeLogin()->create();
+
+    $this->actingAs($this->user)->delete(route('agent-connections.destroy', $connection));
+
+    Queue::assertPushed(SignOutOfClaude::class, fn (SignOutOfClaude $job) => $job->userId === $this->user->id);
+})->group('AI-005');
 
 test('connecting Codex verifies the key with OpenAI', function () {
     Http::fake(['api.openai.com/*' => Http::response(['data' => []])]);

@@ -2,6 +2,8 @@
 
 namespace App\Sandbox\Agents;
 
+use App\Enums\AgentHarness;
+use App\Enums\AgentProvider;
 use App\Enums\MessageRole;
 use App\Enums\ProjectStatus;
 use Illuminate\Support\Str;
@@ -28,6 +30,7 @@ class OpenCodeEvents extends AgentEvents
             'reasoning' => $this->say($conversation, MessageRole::Activity, 'Thinking'),
             'text' => $this->say($conversation, MessageRole::Assistant, trim((string) ($part['text'] ?? ''))),
             'tool_use' => $this->say($conversation, MessageRole::Activity, $this->describeTool($part)),
+            'step_finish' => $this->stepFinished($conversation, $part, $event['model'] ?? null),
             'error' => $this->say($conversation, MessageRole::Assistant, $this->explainError($this->errorMessage($event['error'] ?? null))),
             'zap.exit' => $this->finish($conversation, (int) ($event['code'] ?? 0), (string) ($event['stderr'] ?? '')),
             default => null,
@@ -59,6 +62,30 @@ class OpenCodeEvents extends AgentEvents
         };
 
         return $failed ? "{$line} (failed)" : $line;
+    }
+
+    /**
+     * Record a finished step's tokens and cost (USAGE-001). OpenCode doesn't say which model ran it, so the
+     * forwarder adds the one it started OpenCode with ("anthropic/claude-sonnet-5"); older forwarders don't,
+     * and then it's the project's current one.
+     *
+     * @param  array<string, mixed>  $part
+     */
+    protected function stepFinished(Conversation $conversation, array $part, mixed $model): void
+    {
+        $tokens = is_array($part['tokens'] ?? null) ? $part['tokens'] : [];
+        $project = $conversation->ownerProject();
+        [$catalogId, $id] = is_string($model) && str_contains($model, '/')
+            ? explode('/', $model, 2)
+            : [$project->agent_provider?->catalogId(), $project->agent_model ?? 'unknown'];
+
+        $this->recordUsage($conversation, AgentHarness::OpenCode, collect(AgentProvider::cases())->first(fn (AgentProvider $provider) => $provider->catalogId() === $catalogId), $id, $part['sessionID'] ?? null, [
+            // OpenCode counts reasoning separately from output; both are billed as output.
+            'input' => (int) ($tokens['input'] ?? 0),
+            'output' => (int) ($tokens['output'] ?? 0) + (int) ($tokens['reasoning'] ?? 0),
+            'cache_read' => (int) ($tokens['cache']['read'] ?? 0),
+            'cache_write' => (int) ($tokens['cache']['write'] ?? 0),
+        ], (float) ($part['cost'] ?? 0));
     }
 
     /**

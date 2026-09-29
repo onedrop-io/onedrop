@@ -5,8 +5,9 @@
 // Env: APP_AGENT ("opencode", the default, or "claude_code"), APP_PROMPT, APP_MODEL, APP_EVENTS_URL,
 // APP_EVENTS_TOKEN, optional APP_RUN (which chat: "main" or "task-<id>"; several may run at once),
 // APP_SESSION_ID, APP_VARIANT (reasoning level) and, for OpenCode,
-// APP_FILES (JSON list of image paths the model should see with the prompt).
-// Provider keys (ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN, OPENAI_API_KEY, ...) are read by the agent.
+// APP_FILES (JSON list of image paths the model should see with the prompt). For Claude Code,
+// APP_CLAUDE_AUTH is "subscription" when it runs on the user's own `claude auth login` (AI-005).
+// Provider keys (ANTHROPIC_API_KEY, OPENAI_API_KEY, ...) are read by the agent; a Claude subscription is Claude Code's own sign-in.
 import { spawn, spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { createInterface } from 'node:readline';
@@ -24,6 +25,7 @@ const {
     APP_VARIANT,
     APP_FILES,
     APP_RUN = 'main',
+    APP_CLAUDE_AUTH,
 } = process.env;
 
 // /opt/zap/stop-agent signals this process to end the run. The project's main chat and each of its
@@ -97,6 +99,11 @@ function claudeCommand(resume) {
         command: 'claude',
         args,
         env: { DISABLE_AUTOUPDATER: '1' },
+        // A key would win over the user's Claude sign-in and bill their API account instead.
+        unset:
+            APP_CLAUDE_AUTH === 'subscription'
+                ? ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN']
+                : [],
         input: APP_PROMPT,
     };
 }
@@ -153,15 +160,32 @@ function compactClaudeEvent(event) {
                 },
             };
         case 'result':
-            return pick(event, [
-                'type',
-                'subtype',
-                'is_error',
-                'result',
-                'errors',
-                'api_error_status',
-                'session_id',
-            ]);
+            return {
+                ...pick(event, [
+                    'type',
+                    'subtype',
+                    'is_error',
+                    'result',
+                    'errors',
+                    'api_error_status',
+                    'session_id',
+                ]),
+                // Tokens and estimated cost per model, for the Usage page.
+                modelUsage: Object.fromEntries(
+                    Object.entries(event.modelUsage ?? {}).map(
+                        ([model, usage]) => [
+                            model,
+                            pick(usage, [
+                                'inputTokens',
+                                'outputTokens',
+                                'cacheReadInputTokens',
+                                'cacheCreationInputTokens',
+                                'costUSD',
+                            ]),
+                        ],
+                    ),
+                ),
+            };
         case 'system':
             return ['init', 'api_retry'].includes(event.subtype)
                 ? pick(event, ['type', 'subtype', 'session_id', 'error'])
@@ -262,9 +286,13 @@ process.on('SIGTERM', () => {
 });
 
 function run(resume) {
-    const { command, args, env, input } = claude
-        ? claudeCommand(resume)
-        : opencodeCommand();
+    const {
+        command,
+        args,
+        env,
+        unset = [],
+        input,
+    } = claude ? claudeCommand(resume) : opencodeCommand();
     // Claude Code can't resume a session it no longer has (e.g. a new sandbox); then start a fresh one.
     let retryFresh = false;
     let stderr = '';
@@ -272,7 +300,11 @@ function run(resume) {
     agent = spawn(command, args, {
         cwd: '/workspace',
         stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
-        env: { ...process.env, ...env },
+        env: Object.fromEntries(
+            Object.entries({ ...process.env, ...env }).filter(
+                ([name]) => !unset.includes(name),
+            ),
+        ),
         // Own process group, so stopping also ends anything the agent started (npm, builds, ...).
         detached: true,
     });
@@ -296,7 +328,12 @@ function run(resume) {
         }
 
         if (!claude) {
-            pending.push(event);
+            // OpenCode's steps say what they used but not with which model.
+            pending.push(
+                event.type === 'step_finish'
+                    ? { ...event, model: APP_MODEL }
+                    : event,
+            );
 
             return;
         }

@@ -1,0 +1,486 @@
+import { Head, Link, router } from '@inertiajs/react';
+import { RefreshCw } from 'lucide-react';
+import { useState } from 'react';
+import { ProviderIcon } from '@/components/agent-model-picker';
+import AreaLinesChart from '@/components/charts/area-lines-chart';
+import { cn } from '@/lib/utils';
+import { index } from '@/routes/usage';
+import type { AgentHarness, AgentProvider } from '@/types/agents';
+
+type Range = '24h' | '7d' | '30d' | '90d';
+type Metric = 'cost' | 'tokens';
+type Breakdown = 'model' | 'project' | 'day';
+
+type Sums = {
+    cost: number;
+    input: number;
+    output: number;
+    cache_read: number;
+    cache_write: number;
+    tokens: number;
+    sessions: number;
+};
+
+type Props = {
+    range: Range;
+    since: string;
+    until: string;
+    bucket: 'hour' | 'day';
+    totals: Sums;
+    agents: (Sums & { harness: AgentHarness; label: string })[];
+    models: (Sums & {
+        harness: AgentHarness;
+        provider: AgentProvider | null;
+        name: string;
+    })[];
+    projects: (Sums & { id: number | null; name: string })[];
+    series: {
+        t: number;
+        cost: Partial<Record<AgentHarness, number>>;
+        tokens: Partial<Record<AgentHarness, number>>;
+    }[];
+};
+
+const RANGES: { value: Range; label: string }[] = [
+    { value: '24h', label: 'Past 24h' },
+    { value: '7d', label: '7 days' },
+    { value: '30d', label: '30 days' },
+    { value: '90d', label: '90 days' },
+];
+
+const HARNESS_COLORS: Record<AgentHarness, string> = {
+    claude_code: 'var(--viz-2)',
+    opencode: 'var(--viz-1)',
+};
+
+const HARNESS_LABELS: Record<AgentHarness, string> = {
+    claude_code: 'Claude Code',
+    opencode: 'OpenCode',
+};
+
+function formatCost(value: number): string {
+    if (value > 0 && value < 0.01) {
+        return '<$0.01';
+    }
+
+    return value.toLocaleString(undefined, {
+        style: 'currency',
+        currency: 'USD',
+    });
+}
+
+function formatTokens(value: number): string {
+    return value.toLocaleString(undefined, {
+        notation: 'compact',
+        maximumFractionDigits: value >= 1000 ? 2 : 0,
+    });
+}
+
+function formatShare(part: number, whole: number): string {
+    return `${whole > 0 ? ((part / whole) * 100).toFixed(1) : '0.0'}%`;
+}
+
+function formatDay(iso: string): string {
+    return new Date(iso).toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+    });
+}
+
+function Segmented<T extends string>({
+    label,
+    options,
+    value,
+    onChange,
+    href,
+}: {
+    label: string;
+    options: { value: T; label: string }[];
+    value: T;
+    onChange?: (value: T) => void;
+    /** Options that are pages (the range) link there instead. */
+    href?: (value: T) => string;
+}) {
+    const className = (active: boolean) =>
+        cn(
+            'rounded-md px-3 py-1 text-sm transition-colors',
+            active
+                ? 'bg-background font-medium text-foreground shadow-xs'
+                : 'text-muted-foreground hover:text-foreground',
+        );
+
+    return (
+        <div
+            role="group"
+            aria-label={label}
+            className="flex rounded-lg bg-muted p-0.5"
+        >
+            {options.map((option) =>
+                href ? (
+                    <Link
+                        key={option.value}
+                        href={href(option.value)}
+                        preserveScroll
+                        prefetch
+                        aria-current={option.value === value}
+                        className={className(option.value === value)}
+                    >
+                        {option.label}
+                    </Link>
+                ) : (
+                    <button
+                        key={option.value}
+                        type="button"
+                        aria-pressed={option.value === value}
+                        onClick={() => onChange?.(option.value)}
+                        className={className(option.value === value)}
+                    >
+                        {option.label}
+                    </button>
+                ),
+            )}
+        </div>
+    );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+    return (
+        <div>
+            <div className="text-sm text-muted-foreground">{label}</div>
+            <div className="mt-1 text-xl font-medium tabular-nums">{value}</div>
+        </div>
+    );
+}
+
+export default function Usage({
+    range,
+    since,
+    until,
+    bucket,
+    totals,
+    agents,
+    models,
+    projects,
+    series,
+}: Props) {
+    const [metric, setMetric] = useState<Metric>('cost');
+    const [breakdown, setBreakdown] = useState<Breakdown>('model');
+    const [refreshing, setRefreshing] = useState(false);
+    const format = metric === 'cost' ? formatCost : formatTokens;
+    const whole = totals[metric];
+    const harnesses = (
+        agents.length > 0
+            ? agents.map((agent) => agent.harness)
+            : (['claude_code', 'opencode'] as AgentHarness[])
+    ).map((harness) => ({
+        key: harness,
+        label: HARNESS_LABELS[harness],
+        color: HARNESS_COLORS[harness],
+    }));
+    const input = totals.input + totals.cache_read + totals.cache_write;
+
+    const rows: {
+        key: string;
+        name: string;
+        icon?: React.ReactNode;
+        cost: number;
+        tokens: number;
+    }[] =
+        breakdown === 'model'
+            ? models.map((model) => ({
+                  key: `${model.harness}:${model.provider}:${model.name}`,
+                  name: model.name,
+                  icon: model.provider ? (
+                      <ProviderIcon provider={model.provider} />
+                  ) : null,
+                  cost: model.cost,
+                  tokens: model.tokens,
+              }))
+            : breakdown === 'project'
+              ? projects.map((project) => ({
+                    key: String(project.id),
+                    name: project.name,
+                    cost: project.cost,
+                    tokens: project.tokens,
+                }))
+              : series
+                    .map((point) => ({
+                        key: String(point.t),
+                        name: new Date(point.t * 1000).toLocaleString(
+                            undefined,
+                            bucket === 'hour'
+                                ? { hour: 'numeric', minute: '2-digit' }
+                                : {
+                                      weekday: 'short',
+                                      month: 'short',
+                                      day: 'numeric',
+                                  },
+                        ),
+                        cost: Object.values(point.cost).reduce(
+                            (sum, value) => sum + (value ?? 0),
+                            0,
+                        ),
+                        tokens: Object.values(point.tokens).reduce(
+                            (sum, value) => sum + (value ?? 0),
+                            0,
+                        ),
+                    }))
+                    .filter((row) => row.tokens > 0 || row.cost > 0)
+                    .reverse();
+
+    if (breakdown !== 'day') {
+        rows.sort((a, b) => b[metric] - a[metric]);
+    }
+
+    const refresh = () =>
+        router.reload({
+            onStart: () => setRefreshing(true),
+            onFinish: () => setRefreshing(false),
+        });
+
+    return (
+        <>
+            <Head title="Usage" />
+
+            <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-10 p-4 md:p-6">
+                <header className="flex flex-wrap items-center gap-3">
+                    <h1 className="text-lg font-medium">
+                        Usage
+                        <span className="px-2 text-muted-foreground">/</span>
+                        <span className="font-normal text-muted-foreground">
+                            {formatDay(since)} to {formatDay(until)}
+                        </span>
+                    </h1>
+                    <div className="ml-auto flex flex-wrap items-center gap-2">
+                        <Segmented
+                            label="Show"
+                            options={[
+                                { value: 'cost', label: 'Cost' },
+                                { value: 'tokens', label: 'Tokens' },
+                            ]}
+                            value={metric}
+                            onChange={setMetric}
+                        />
+                        <Segmented
+                            label="Period"
+                            options={RANGES}
+                            value={range}
+                            href={(value) =>
+                                index.url({ query: { range: value } })
+                            }
+                        />
+                        <button
+                            type="button"
+                            onClick={refresh}
+                            aria-label="Refresh"
+                            className="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
+                        >
+                            <RefreshCw
+                                className={cn(
+                                    'size-4',
+                                    refreshing && 'animate-spin',
+                                )}
+                            />
+                        </button>
+                    </div>
+                </header>
+
+                <section className="grid gap-10 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+                    <div>
+                        <div
+                            className="text-5xl font-semibold tracking-tight tabular-nums"
+                            data-test="usage-total"
+                        >
+                            {metric === 'cost'
+                                ? formatCost(totals.cost)
+                                : formatTokens(totals.tokens)}
+                        </div>
+                        <div className="mt-1 text-sm text-muted-foreground">
+                            {totals.sessions.toLocaleString()}{' '}
+                            {totals.sessions === 1 ? 'session' : 'sessions'} ·{' '}
+                            {metric === 'cost'
+                                ? 'API estimate'
+                                : 'processed tokens'}
+                        </div>
+
+                        <ul className="mt-8 space-y-5">
+                            {agents.map((agent) => (
+                                <li
+                                    key={agent.harness}
+                                    data-test={`usage-agent-${agent.harness}`}
+                                >
+                                    <div className="flex items-baseline gap-2">
+                                        <span
+                                            className="size-2 shrink-0 self-center rounded-full"
+                                            style={{
+                                                background:
+                                                    HARNESS_COLORS[
+                                                        agent.harness
+                                                    ],
+                                            }}
+                                        />
+                                        <span className="font-medium">
+                                            {agent.label}
+                                        </span>
+                                        <span className="text-sm text-muted-foreground">
+                                            {agent.sessions}{' '}
+                                            {agent.sessions === 1
+                                                ? 'session'
+                                                : 'sessions'}
+                                        </span>
+                                        <span className="ml-auto font-medium tabular-nums">
+                                            {format(agent[metric])}
+                                        </span>
+                                    </div>
+                                    <div className="mt-0.5 pl-4 text-sm text-muted-foreground">
+                                        {formatShare(agent[metric], whole)} of{' '}
+                                        {metric === 'cost' ? 'cost' : 'tokens'}{' '}
+                                        ·{' '}
+                                        {metric === 'cost'
+                                            ? `${formatTokens(agent.tokens)} tokens`
+                                            : formatCost(agent.cost)}
+                                    </div>
+                                </li>
+                            ))}
+                        </ul>
+
+                        {agents.length === 0 && (
+                            <p className="mt-8 text-sm text-muted-foreground">
+                                No agent runs in this period yet. Usage shows up
+                                here after each run.
+                            </p>
+                        )}
+                    </div>
+
+                    <AreaLinesChart
+                        title={
+                            metric === 'cost'
+                                ? bucket === 'hour'
+                                    ? 'Hourly cost'
+                                    : 'Daily cost'
+                                : bucket === 'hour'
+                                  ? 'Hourly tokens'
+                                  : 'Daily tokens'
+                        }
+                        series={harnesses}
+                        points={series.map((point) => ({
+                            t: point.t,
+                            values: point[metric],
+                        }))}
+                        bucketSeconds={bucket === 'hour' ? 3600 : 86400}
+                        format={format}
+                        testId="usage-chart"
+                    />
+                </section>
+
+                <section>
+                    <h2 className="mb-4 font-medium">Totals</h2>
+                    <div className="grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-5">
+                        <Stat
+                            label="Processed tokens"
+                            value={formatTokens(totals.tokens)}
+                        />
+                        <Stat
+                            label="Cached input"
+                            value={formatTokens(totals.cache_read)}
+                        />
+                        <Stat
+                            label="Uncached input"
+                            value={formatTokens(
+                                totals.input + totals.cache_write,
+                            )}
+                        />
+                        <Stat
+                            label="Output"
+                            value={formatTokens(totals.output)}
+                        />
+                        <Stat
+                            label="From cache"
+                            value={formatShare(totals.cache_read, input)}
+                        />
+                    </div>
+                </section>
+
+                <section>
+                    <div className="mb-2 flex items-center">
+                        <h2 className="font-medium">Breakdown</h2>
+                        <div className="ml-auto">
+                            <Segmented
+                                label="Break down by"
+                                options={[
+                                    { value: 'model', label: 'Model' },
+                                    { value: 'project', label: 'Project' },
+                                    {
+                                        value: 'day',
+                                        label:
+                                            bucket === 'hour' ? 'Hour' : 'Day',
+                                    },
+                                ]}
+                                value={breakdown}
+                                onChange={setBreakdown}
+                            />
+                        </div>
+                    </div>
+                    <table
+                        className="w-full text-sm"
+                        data-test="usage-breakdown"
+                    >
+                        <thead className="text-muted-foreground">
+                            <tr className="border-b">
+                                <th className="py-3 text-left font-normal">
+                                    {breakdown === 'model'
+                                        ? 'Model'
+                                        : breakdown === 'project'
+                                          ? 'Project'
+                                          : bucket === 'hour'
+                                            ? 'Hour'
+                                            : 'Day'}
+                                </th>
+                                <th className="py-3 text-right font-normal">
+                                    Cost
+                                </th>
+                                <th className="py-3 text-right font-normal">
+                                    Share
+                                </th>
+                                <th className="py-3 text-right font-normal">
+                                    Tokens
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody className="tabular-nums">
+                            {rows.map((row) => (
+                                <tr key={row.key} className="border-b">
+                                    <td className="py-3">
+                                        <span className="flex items-center gap-2">
+                                            {row.icon}
+                                            {row.name}
+                                        </span>
+                                    </td>
+                                    <td className="py-3 text-right">
+                                        {formatCost(row.cost)}
+                                    </td>
+                                    <td className="py-3 text-right text-muted-foreground">
+                                        {formatShare(row[metric], whole)}
+                                    </td>
+                                    <td className="py-3 text-right text-muted-foreground">
+                                        {formatTokens(row.tokens)}
+                                    </td>
+                                </tr>
+                            ))}
+                            {rows.length === 0 && (
+                                <tr>
+                                    <td
+                                        colSpan={4}
+                                        className="py-6 text-center text-muted-foreground"
+                                    >
+                                        Nothing yet.
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </section>
+            </div>
+        </>
+    );
+}
