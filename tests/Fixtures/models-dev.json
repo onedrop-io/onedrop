@@ -207,6 +207,26 @@
     },
     "google": {
         "id": "google",
-        "models": {}
+        "models": {
+            "gemini-3.8-flash": {
+                "id": "gemini-3.8-flash",
+                "name": "Gemini 3.8 Flash",
+                "tool_call": true,
+                "release_date": "2026-09-02",
+                "limit": {
+                    "context": 1048576,
+                    "output": 65536
+                },
+                "modalities": {
+                    "input": [
+                        "text",
+                        "image"
+                    ],
+                    "output": [
+                        "text"
+                    ]
+                }
+            }
+        }
     }
 }

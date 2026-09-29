@@ -151,3 +151,30 @@ test('the files menu hides dotfiles, creates a file and closes the panel', funct
     $create = collect($provider->executed)->first(fn (array $exec) => str_contains($exec['command'][2] ?? '', 'exit 3'));
     expect($create['command'][4])->toBe('/workspace/src/notes.md');
 })->group('FILE-003');
+
+test('the files panel shows files made outside the agent once the sandbox reports them', function () {
+    $listing = "f package.json\n";
+    $provider = new FakeSandboxProvider;
+    $provider->execUsing = function (array $command) use (&$listing) {
+        return new ExecResult(0, $listing);
+    };
+    app()->instance(SandboxProvider::class, $provider);
+
+    $user = User::factory()->has(AgentConnection::factory())->create();
+    $project = Project::factory()->for($user)->create();
+    $sandbox = Sandbox::factory()->for($project)->create(['preview_url' => null, 'files_version' => 1]);
+    $this->actingAs($user);
+
+    $page = visit("/projects/{$project->id}")
+        ->resize(1600, 900)
+        ->navigate("/projects/{$project->id}")
+        ->assertSeeIn('@files-panel', 'package.json')
+        ->assertDontSee('notes.md');
+
+    // Made in the Shell: the file watcher reports it, and the panel picks it up without a click.
+    $listing = "f notes.md\nf package.json\n";
+    $sandbox->increment('files_version');
+
+    $page->assertSeeIn('@files-panel', 'notes.md')
+        ->assertNoJavaScriptErrors();
+})->group('FILE-004');

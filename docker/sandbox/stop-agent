@@ -1,12 +1,34 @@
 #!/usr/bin/env bash
-# Stop the running agent task (see forwarder.mjs), including anything it started.
+# Stop a running agent task (see forwarder.mjs), including anything it started.
+# With a run name ("main" or "task-<id>"), only that run stops; the project's other chats keep working.
+# Without one, every run stops.
 set -uo pipefail
 
-if [ -f /tmp/zap-agent.pid ]; then
-    kill -TERM "$(cat /tmp/zap-agent.pid)" 2>/dev/null || true
+run="${1:-}"
+
+if [ -n "$run" ]; then
+    if [ "$run" = "main" ]; then
+        pid_file=/tmp/zap-agent.pid
+    else
+        pid_file="/tmp/zap-agent-${run//[^a-z0-9-]/}.pid"
+    fi
+
+    if [ -f "$pid_file" ]; then
+        kill -TERM "$(cat "$pid_file")" 2>/dev/null || true
+    fi
+
+    echo "Agent stopped."
+    exit 0
 fi
+
+for pid_file in /tmp/zap-agent.pid /tmp/zap-agent-*.pid; do
+    if [ -f "$pid_file" ]; then
+        kill -TERM "$(cat "$pid_file")" 2>/dev/null || true
+    fi
+done
 
 # Fallback for a forwarder that died without cleaning up.
 pkill -TERM -f 'opencode run' 2>/dev/null || true
+pkill -TERM -f 'claude -p' 2>/dev/null || true
 
 echo "Agent stopped."

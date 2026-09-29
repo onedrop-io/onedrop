@@ -5,10 +5,13 @@ import {
     Circle,
     CircleCheck,
     EllipsisVertical,
+    FolderOpen,
+    Kanban,
     Link2,
     Pencil,
     Pin,
     PinOff,
+    Plus,
     Share,
     Sparkles,
     Trash2,
@@ -37,11 +40,16 @@ import { Input } from '@/components/ui/input';
 import { SidebarMenuAction } from '@/components/ui/sidebar';
 import { useClipboard } from '@/hooks/use-clipboard';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { destroy, show, update } from '@/routes/projects';
+import { openProject } from '@/lib/open-project';
+import { board, destroy, show, update } from '@/routes/projects';
+import { create as createTask } from '@/routes/projects/tasks';
 import { regenerate } from '@/routes/projects/name';
 import type { SidebarProject } from '@/types';
 
 type Action =
+    | 'open'
+    | 'board'
+    | 'task'
     | 'pin'
     | 'unread'
     | 'rename'
@@ -55,6 +63,9 @@ type DialogAction = Extract<Action, 'rename' | 'share' | 'delete'>;
 
 /** Pressing these while the menu is open runs the action. */
 const SHORTCUTS: Record<string, Action> = {
+    o: 'open',
+    b: 'board',
+    n: 'task',
     p: 'pin',
     u: 'unread',
     r: 'rename',
@@ -64,7 +75,7 @@ const SHORTCUTS: Record<string, Action> = {
 };
 
 /**
- * The "⋮" menu on a project in the sidebar: pin, mark unread, rename, regenerate the title, share, copy link, archive, delete.
+ * The "⋮" menu on a project in the sidebar: open it (TASK-001), its board, a new task, pin, mark unread, rename, regenerate the title, share, copy link, archive, delete.
  */
 export function ProjectMenu({ project }: { project: SidebarProject }) {
     const isMobile = useIsMobile();
@@ -83,6 +94,15 @@ export function ProjectMenu({ project }: { project: SidebarProject }) {
 
     const run = (action: Action) => {
         switch (action) {
+            case 'open':
+                openProject(project.id);
+                break;
+            case 'board':
+                router.visit(board(project.id));
+                break;
+            case 'task':
+                router.visit(createTask(project.id));
+                break;
             case 'pin':
                 change({ pinned: !project.pinned });
                 break;
@@ -166,6 +186,31 @@ export function ProjectMenu({ project }: { project: SidebarProject }) {
                         }
                     }}
                 >
+                    <DropdownMenuItem
+                        onSelect={() => run('open')}
+                        data-test="project-menu-open"
+                    >
+                        <FolderOpen />
+                        Open
+                        <DropdownMenuShortcut>O</DropdownMenuShortcut>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                        onSelect={() => run('board')}
+                        data-test="project-menu-board"
+                    >
+                        <Kanban />
+                        Board
+                        <DropdownMenuShortcut>B</DropdownMenuShortcut>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                        onSelect={() => run('task')}
+                        data-test="project-menu-new-task"
+                    >
+                        <Plus />
+                        New task
+                        <DropdownMenuShortcut>N</DropdownMenuShortcut>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
                     <DropdownMenuItem
                         onSelect={() => run('pin')}
                         disabled={project.archived}

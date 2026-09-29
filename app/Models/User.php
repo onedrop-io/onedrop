@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
@@ -109,6 +110,26 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     public function sshKeys(): HasMany
     {
         return $this->hasMany(SshKey::class);
+    }
+
+    /**
+     * Installations of the platform's GitHub App this user can reach (Tools → Git).
+     *
+     * @return HasMany<GitHubInstallation, $this>
+     */
+    public function githubInstallations(): HasMany
+    {
+        return $this->hasMany(GitHubInstallation::class);
+    }
+
+    /**
+     * The user's sign-in through the platform's GitHub App, if they've connected GitHub.
+     *
+     * @return HasOne<GitHubAuthorization, $this>
+     */
+    public function githubAuthorization(): HasOne
+    {
+        return $this->hasOne(GitHubAuthorization::class);
     }
 
     /**

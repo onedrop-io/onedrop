@@ -1,8 +1,8 @@
 import { Link, usePage } from '@inertiajs/react';
-import { Plus } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
-import { NavMain } from '@/components/nav-main';
-import { NavProjects } from '@/components/nav-projects';
+import { NavOpenProject } from '@/components/nav-open-project';
+import { NavProjects, useSidebarUpdates } from '@/components/nav-projects';
+import { NavSearch } from '@/components/nav-search';
 import { NavUser } from '@/components/nav-user';
 import {
     Sidebar,
@@ -13,19 +13,20 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
+import { useCurrentUrl } from '@/hooks/use-current-url';
+import { isProjectPath } from '@/lib/open-project';
 import { dashboard } from '@/routes';
-import type { NavItem } from '@/types';
-
-const mainNavItems: NavItem[] = [
-    {
-        title: 'New project',
-        href: dashboard(),
-        icon: Plus,
-    },
-];
 
 export function AppSidebar() {
-    const { sidebarProjects } = usePage().props;
+    const { sidebarProjects, openProject } = usePage().props;
+    const { currentUrl } = useCurrentUrl();
+    // An opened project takes over the sidebar while the user is on its pages (TASK-001).
+    const opened =
+        openProject && isProjectPath(currentUrl, openProject.id)
+            ? openProject
+            : null;
+
+    useSidebarUpdates(sidebarProjects, openProject);
 
     return (
         <Sidebar collapsible="icon" variant="inset">
@@ -42,8 +43,14 @@ export function AppSidebar() {
             </SidebarHeader>
 
             <SidebarContent>
-                <NavMain items={mainNavItems} />
-                {sidebarProjects && <NavProjects projects={sidebarProjects} />}
+                <NavSearch />
+                {opened ? (
+                    <NavOpenProject project={opened} />
+                ) : (
+                    sidebarProjects && (
+                        <NavProjects projects={sidebarProjects} />
+                    )
+                )}
             </SidebarContent>
 
             <SidebarFooter>

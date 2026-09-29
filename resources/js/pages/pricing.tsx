@@ -141,7 +141,7 @@ const FAQS = [
     },
     {
         question: 'Can I bring my own AI on every plan?',
-        answer: 'Yes, including the free self-hosted plan. Sign in with your ChatGPT Plus or Pro plan, or paste a key from Anthropic, OpenAI, or OpenRouter. You pay your provider directly, and we add nothing on top.',
+        answer: 'Yes, including the free self-hosted plan. Sign in with your ChatGPT Plus or Pro plan, or paste a key from Anthropic, OpenAI, Google, or OpenRouter. You pay your provider directly, and we add nothing on top.',
     },
     {
         question: 'Who counts as a builder?',

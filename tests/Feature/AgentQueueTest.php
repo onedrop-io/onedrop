@@ -9,6 +9,7 @@ use App\Models\Sandbox;
 use App\Models\User;
 use App\Sandbox\Agents\AgentQueue;
 use App\Sandbox\Agents\AgentRunner;
+use App\Sandbox\Agents\Conversation;
 use App\Sandbox\Agents\FakeAgentRunner;
 use App\Sandbox\Agents\OpenCodeRunner;
 use App\Sandbox\Providers\FakeSandboxProvider;
@@ -23,7 +24,7 @@ beforeEach(function () {
     {
         public int $stops = 0;
 
-        public function stop(Project $project): void
+        public function stop(Conversation $conversation): void
         {
             $this->stops++;
         }
@@ -147,7 +148,7 @@ test('stopping a real run kills it in the sandbox and ignores its later events',
 
     app(OpenCodeRunner::class)->stop($this->project);
 
-    expect($provider->executed[0]['command'])->toBe(['/opt/zap/stop-agent'])
+    expect($provider->executed[0]['command'])->toBe(['/opt/zap/stop-agent', 'main'])
         ->and($sandbox->fresh()->acceptsEventsToken($oldToken))->toBeFalse();
 
     $this->withToken($oldToken)

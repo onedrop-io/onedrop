@@ -1,11 +1,11 @@
-import { useCallback, useState } from "react";
-import ProjectFileController from "@/actions/App/Http/Controllers/ProjectFileController";
-import type { WorkspaceEntry, WorkspaceFile } from "@/types";
+import { useCallback, useEffect, useState } from 'react';
+import ProjectFileController from '@/actions/App/Http/Controllers/ProjectFileController';
+import type { WorkspaceEntry, WorkspaceFile } from '@/types';
 
 async function getJson<T>(url: string): Promise<T> {
     const response = await fetch(url, {
-        headers: { Accept: "application/json" },
-        credentials: "same-origin",
+        headers: { Accept: 'application/json' },
+        credentials: 'same-origin',
     });
     const body = await response.json().catch(() => ({}));
 
@@ -43,6 +43,51 @@ export function useWorkspaceFiles(projectId: number) {
     return { entries, error, loading, refresh };
 }
 
+/** How often the Files panel asks whether files came or went; a database read, not a call into the sandbox. */
+const VERSION_CHECK_MS = 3000;
+
+/**
+ * How many times the sandbox's file watcher has seen files added, removed or renamed (FILE-004); 0 until
+ * one reports. Checked while `enabled` and the page is visible.
+ */
+export function useFilesVersion(projectId: number, enabled: boolean): number {
+    const [version, setVersion] = useState(0);
+
+    useEffect(() => {
+        if (!enabled) {
+            return;
+        }
+
+        let cancelled = false;
+
+        const check = () => {
+            if (document.visibilityState !== 'visible') {
+                return;
+            }
+
+            getJson<{ version: number }>(
+                ProjectFileController.version.url(projectId),
+            )
+                .then((body) => !cancelled && setVersion(body.version))
+                .catch(() => {
+                    // Try again on the next check.
+                });
+        };
+
+        check();
+        const timer = window.setInterval(check, VERSION_CHECK_MS);
+        document.addEventListener('visibilitychange', check);
+
+        return () => {
+            cancelled = true;
+            window.clearInterval(timer);
+            document.removeEventListener('visibilitychange', check);
+        };
+    }, [projectId, enabled]);
+
+    return version;
+}
+
 /**
  * Load one file's contents.
  */
@@ -63,7 +108,7 @@ export async function saveWorkspaceFile(
     path: string,
     content: string,
 ): Promise<void> {
-    await send(ProjectFileController.update.url(projectId), "PUT", {
+    await send(ProjectFileController.update.url(projectId), 'PUT', {
         path,
         content,
     });
@@ -75,9 +120,9 @@ export async function saveWorkspaceFile(
 export async function createWorkspaceEntry(
     projectId: number,
     path: string,
-    type: WorkspaceEntry["type"],
+    type: WorkspaceEntry['type'],
 ): Promise<void> {
-    await send(ProjectFileController.store.url(projectId), "POST", {
+    await send(ProjectFileController.store.url(projectId), 'POST', {
         path,
         type,
     });
@@ -92,10 +137,10 @@ export async function uploadWorkspaceFile(
     file: File,
 ): Promise<void> {
     const body = new FormData();
-    body.append("path", path);
-    body.append("file", file);
+    body.append('path', path);
+    body.append('file', file);
 
-    await send(ProjectFileController.upload.url(projectId), "POST", body);
+    await send(ProjectFileController.upload.url(projectId), 'POST', body);
 }
 
 /**
@@ -104,7 +149,7 @@ export async function uploadWorkspaceFile(
 export async function downloadWorkspaceZip(projectId: number): Promise<void> {
     const response = await fetch(
         ProjectFileController.download.url(projectId),
-        { credentials: "same-origin" },
+        { credentials: 'same-origin' },
     );
 
     if (!response.ok) {
@@ -115,10 +160,10 @@ export async function downloadWorkspaceZip(projectId: number): Promise<void> {
 
     const name =
         /filename="?([^";]+)"?/.exec(
-            response.headers.get("Content-Disposition") ?? "",
-        )?.[1] ?? "project.zip";
+            response.headers.get('Content-Disposition') ?? '',
+        )?.[1] ?? 'project.zip';
     const url = URL.createObjectURL(await response.blob());
-    const link = document.createElement("a");
+    const link = document.createElement('a');
     link.href = url;
     link.download = name;
     link.click();
@@ -127,22 +172,22 @@ export async function downloadWorkspaceZip(projectId: number): Promise<void> {
 
 async function send(
     url: string,
-    method: "POST" | "PUT",
+    method: 'POST' | 'PUT',
     body: Record<string, unknown> | FormData,
 ): Promise<void> {
     const token = document.cookie
-        .split("; ")
-        .find((cookie) => cookie.startsWith("XSRF-TOKEN="))
-        ?.slice("XSRF-TOKEN=".length);
+        .split('; ')
+        .find((cookie) => cookie.startsWith('XSRF-TOKEN='))
+        ?.slice('XSRF-TOKEN='.length);
     const isForm = body instanceof FormData;
     const response = await fetch(url, {
         method,
         headers: {
-            Accept: "application/json",
-            ...(isForm ? {} : { "Content-Type": "application/json" }),
-            "X-XSRF-TOKEN": decodeURIComponent(token ?? ""),
+            Accept: 'application/json',
+            ...(isForm ? {} : { 'Content-Type': 'application/json' }),
+            'X-XSRF-TOKEN': decodeURIComponent(token ?? ''),
         },
-        credentials: "same-origin",
+        credentials: 'same-origin',
         body: isForm ? body : JSON.stringify(body),
     });
 

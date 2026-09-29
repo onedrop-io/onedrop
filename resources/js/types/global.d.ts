@@ -1,5 +1,5 @@
 import type { Auth } from '@/types/auth';
-import type { SidebarProjects } from '@/types/projects';
+import type { OpenProject, SidebarProjects } from '@/types/projects';
 
 declare module 'react' {
     interface InputHTMLAttributes<T> {
@@ -15,6 +15,8 @@ declare module '@inertiajs/core' {
             sidebarOpen: boolean;
             sidebarWidth: number | null;
             sidebarProjects: SidebarProjects | null;
+            /** The project the user opened (TASK-001); the sidebar shows just it on its pages. */
+            openProject: OpenProject | null;
             [key: string]: unknown;
         };
     }

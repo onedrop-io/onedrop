@@ -2,9 +2,11 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\AppTemplate;
 use App\Models\Attachment;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreProjectRequest extends FormRequest
 {
@@ -15,7 +17,10 @@ class StoreProjectRequest extends FormRequest
      */
     public function rules(): array
     {
-        return Attachment::rules('prompt');
+        return [
+            ...Attachment::rules('prompt'),
+            'template' => ['nullable', Rule::enum(AppTemplate::class)],
+        ];
     }
 
     /**

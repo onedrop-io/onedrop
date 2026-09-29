@@ -2,7 +2,6 @@
 
 namespace App\Console\Commands;
 
-use App\Enums\ProjectStatus;
 use App\Enums\SandboxStatus;
 use App\Models\Project;
 use App\Sandbox\SandboxException;
@@ -28,7 +27,7 @@ class UpdateSandboxes extends Command
         $failed = 0;
 
         foreach ($projects as $project) {
-            if ($project->status === ProjectStatus::Working) {
+            if ($project->mainSandboxBusy()) {
                 $this->components->warn("Skipped project {$project->id}: the agent is working on it.");
 
                 continue;

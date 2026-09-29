@@ -1,0 +1,154 @@
+#!/usr/bin/env bash
+# Gives a task its own copy of the app (TASK-003), whatever it's built with, and brings its work back.
+#
+#   fork snapshot DIR PATH...   Copy each PATH into DIR/<index> as it was at one instant, so databases' files are
+#                               consistent (as after a power cut, which they recover from): a live copy first, then a
+#                               second pass with the app's processes frozen, usually for about a second. Writes DIR/.done,
+#                               or DIR/.failed with the reason. Takes a while: run it detached.
+#   fork branch NAME            In a task's copy: start branch NAME at the current commit. Prints the commit.
+#   fork bundle OUT MESSAGE     Commit everything (as MESSAGE), then write the current branch's history to the git bundle OUT.
+#   fork merge BUNDLE MESSAGE   Commit everything, then merge the bundle's branch into the current one.
+#                               Exits 0 when merged (or nothing to merge), 3 on conflicts (left for the agent to resolve).
+#   fork services               List data services the app's settings point at outside the sandbox (host per line):
+#                               a forked copy still shares those.
+set -uo pipefail
+
+export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0="*"
+WORKSPACE="${ZAP_WORKSPACE:-/workspace}"
+AUTHOR=(-c user.name="${ZAP_GIT_AUTHOR_NAME:-OneDrop}" -c user.email="${ZAP_GIT_AUTHOR_EMAIL:-agent@onedrop.io}" -c commit.gpgsign=false)
+
+# Everything under DIR goes, including dependencies (node_modules, vendor, .venv): the copy should run as it is.
+copy() {
+    if command -v rsync >/dev/null 2>&1; then
+        rsync -a --delete "$1/" "$2/"
+    else
+        rm -rf "$2" && mkdir -p "$2" && cp -a "$1/." "$2/"
+    fi
+}
+
+# Whether process $1 is $2 or runs under it.
+descends_from() {
+    local pid="$1" target="$2"
+
+    while [ -n "$pid" ] && [ "$pid" -gt 1 ]; do
+        [ "$pid" = "$target" ] && return 0
+        pid="$(awk '{print $4}' "/proc/$pid/stat" 2>/dev/null)"
+    done
+
+    return 1
+}
+
+snapshot() {
+    local dir="$1"
+    shift
+    rm -rf "$dir" && mkdir -p "$dir" || return 1
+
+    local index=0
+
+    for path in "$@"; do
+        mkdir -p "$dir/$index"
+        [ -d "$path" ] && { copy "$path" "$dir/$index" || return 1; }
+        index=$((index + 1))
+    done
+
+    # Freeze the app's processes (the dev server, databases, workers, agents): everything of this user except this
+    # script, its children, and what started it (the sandbox's own API). A watchdog thaws them if we don't.
+    local me=$$ uid frozen="$dir/.frozen"
+    uid="$(id -u)"
+    : > "$frozen"
+    ( sleep 60; xargs -r kill -CONT < "$frozen" ) >/dev/null 2>&1 &
+    local watchdog=$!
+
+    for proc in /proc/[0-9]*; do
+        local pid="${proc#/proc/}"
+        [ "$pid" = 1 ] && continue
+        [ "$(stat -c %u "$proc" 2>/dev/null)" = "$uid" ] || continue
+        # This script and what it runs, what started it (the sandbox's own API), and the watchdog keep running.
+        descends_from "$pid" "$me" && continue
+        descends_from "$me" "$pid" && continue
+        descends_from "$pid" "$watchdog" && continue
+        kill -STOP "$pid" 2>/dev/null && echo "$pid" >> "$frozen"
+    done
+
+    local status=0
+    index=0
+
+    for path in "$@"; do
+        [ -d "$path" ] && { copy "$path" "$dir/$index" || status=1; }
+        index=$((index + 1))
+    done
+
+    xargs -r kill -CONT < "$frozen" 2>/dev/null
+    pkill -P "$watchdog" 2>/dev/null
+    kill "$watchdog" 2>/dev/null
+    rm -f "$frozen"
+
+    return $status
+}
+
+commit_all() {
+    printf '%s' "$1" | "${ZAP_CHECKPOINT:-/opt/zap/checkpoint}"
+}
+
+case "${1:-}" in
+    snapshot)
+        dir="$2"
+        shift 2
+
+        if error="$(snapshot "$dir" "$@" 2>&1)"; then
+            touch "$dir/.done"
+        else
+            mkdir -p "$dir" && printf '%s' "${error:-copy failed}" > "$dir/.failed"
+        fi
+        ;;
+    branch)
+        cd "$WORKSPACE" || exit 1
+        commit_all "Checkpoint"
+        [ -d .git ] || git init -q -b main || exit 1
+        git rev-parse -q --verify HEAD >/dev/null || git "${AUTHOR[@]}" commit -q --allow-empty -m "Start" || exit 1
+        git switch -q -c "$2" 2>/dev/null || git switch -q "$2" || exit 1
+        git rev-parse HEAD
+        ;;
+    bundle)
+        cd "$WORKSPACE" || exit 1
+        commit_all "$3"
+        git bundle create -q "$2" HEAD || exit 1
+        ;;
+    merge)
+        cd "$WORKSPACE" || exit 1
+
+        if [ -e .git/MERGE_HEAD ]; then
+            echo "A merge is already in progress; finish it first." >&2
+            exit 1
+        fi
+
+        commit_all "Checkpoint before merging"
+        git fetch -q "$2" "HEAD:refs/zap/incoming" --force || exit 1
+
+        if git "${AUTHOR[@]}" merge -q --no-ff --no-edit -m "$3" refs/zap/incoming >/dev/null 2>&1; then
+            exit 0
+        fi
+
+        if [ -e .git/MERGE_HEAD ]; then
+            git diff --name-only --diff-filter=U
+            exit 3
+        fi
+
+        exit 1
+        ;;
+    services)
+        cd "$WORKSPACE" 2>/dev/null || exit 0
+        # URLs of data services (databases, caches, queues, search) and their *_HOST settings in the app's env files.
+        cat .env .env.local .env.development .env.development.local 2>/dev/null \
+            | grep -v '^\s*#' \
+            | grep -oiE '(postgres(ql)?|mysql|mariadb|mongodb(\+srv)?|redis|rediss|amqps?|nats|kafka|clickhouse)://[^/?#[:space:]"]+|^[A-Z0-9_]*(DB|DATABASE|POSTGRES|PG|MYSQL|MONGO|REDIS|CACHE|QUEUE|BROKER|SEARCH|ELASTIC|MEILI)[A-Z0-9_]*_(HOST|SERVER)=[^[:space:]#]+' \
+            | sed -E 's#^[a-z+]+://([^@]*@)?##I; s#^[A-Z0-9_]*_(HOST|SERVER)=##; s#["'"'"']##g; s#:[0-9]+$##; s#^\[##; s#\]$##' \
+            | grep -viE '^(localhost|127\.[0-9.]+|0\.0\.0\.0|::1)?$' \
+            | sort -u
+        exit 0
+        ;;
+    *)
+        echo "usage: fork snapshot|branch|bundle|merge|services ..." >&2
+        exit 2
+        ;;
+esac

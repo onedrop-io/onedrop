@@ -1,6 +1,6 @@
 <?php
 
-use App\Sandbox\Agents\OpenCodeRunner;
+use App\Sandbox\Agents\HarnessRunner;
 
 return [
 
@@ -101,18 +101,20 @@ return [
     | Agent
     |--------------------------------------------------------------------------
     |
-    | The class that starts coding-agent tasks: OpenCode by default. The test
-    | suite uses FakeAgentRunner. Models are OpenCode "provider/model" ids,
+    | The class that starts coding-agent tasks: HarnessRunner hands each run to
+    | the project's agent (OpenCode or Claude Code). The test suite uses
+    | FakeAgentRunner. Models are OpenCode "provider/model" ids,
     | one per AI provider a user can connect.
     |
     */
 
-    'agent' => env('SANDBOX_AGENT', OpenCodeRunner::class),
+    'agent' => env('SANDBOX_AGENT', HarnessRunner::class),
 
     'models' => [
         'claude' => env('SANDBOX_MODEL_CLAUDE', 'anthropic/claude-sonnet-5'),
         'codex' => env('SANDBOX_MODEL_CODEX', 'openai/gpt-5.6'),
         'openrouter' => env('SANDBOX_MODEL_OPENROUTER', 'openrouter/anthropic/claude-sonnet-5'),
+        'gemini' => env('SANDBOX_MODEL_GEMINI', 'google/gemini-3.8-flash'),
     ],
 
     // Shown first in the model picker (catalog ids; ones missing from the catalog are skipped).
@@ -123,10 +125,28 @@ return [
             'anthropic/claude-opus-5.5', 'anthropic/claude-sonnet-5', 'openai/gpt-6-astra',
             'google/gemini-3.8-flash', 'moonshotai/kimi-k3', 'z-ai/glm-5', 'deepseek/deepseek-v4-pro',
         ],
+        'gemini' => ['gemini-3.8-flash', 'gemini-3.1-pro-preview', 'gemini-3.7-flash'],
     ],
 
     // Model catalog used by OpenCode (names, prices, context sizes, reasoning levels). Cached for a day.
     'catalog_url' => env('SANDBOX_MODEL_CATALOG_URL', 'https://models.dev/api.json'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Task Copies
+    |--------------------------------------------------------------------------
+    |
+    | Each task gets its own copy of the project's sandbox (TASK-003): files,
+    | dependencies and databases forked from Main's, with its own preview.
+    | Its work comes back to Main through git. Each copy is a sandbox you pay
+    | for, so a project runs at most `max_task_copies` at once. Turned off,
+    | tasks share Main's sandbox (TASK-001).
+    |
+    */
+
+    'task_copies' => (bool) env('SANDBOX_TASK_COPIES', true),
+
+    'max_task_copies' => (int) env('SANDBOX_MAX_TASK_COPIES', 3),
 
     /*
     |--------------------------------------------------------------------------
@@ -139,6 +159,37 @@ return [
     */
 
     'callback_url' => env('SANDBOX_CALLBACK_URL', 'http://host.docker.internal:8000'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Code Backups
+    |--------------------------------------------------------------------------
+    |
+    | After every agent turn the project's git history is copied out of its
+    | sandbox, as a git bundle, to this filesystem disk (e.g. "s3"), so the
+    | code outlives any sandbox or provider. New sandboxes without the old
+    | one's files get the code back from here.
+    |
+    */
+
+    'backup_disk' => env('SANDBOX_BACKUP_DISK', 'local'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Git Remotes
+    |--------------------------------------------------------------------------
+    |
+    | Tools → Git pushes and pulls from this app (never from the sandbox, so
+    | the remote's token stays out of it). Remotes must be HTTPS hosts on the
+    | public internet unless private ones are allowed, e.g. a self-hosted
+    | Forgejo on your own network.
+    |
+    */
+
+    'git' => [
+        'allow_private_remotes' => (bool) env('SANDBOX_GIT_ALLOW_PRIVATE_REMOTES', false),
+        'protocols' => ['https'],
+    ],
 
     /*
     |--------------------------------------------------------------------------

@@ -4,14 +4,17 @@ use App\Models\Project;
 use App\Models\Sandbox;
 use App\Models\SshKey;
 use App\Models\User;
+use App\Sandbox\ProjectBackups;
 use App\Sandbox\Providers\DockerSandboxProvider;
 use App\Sandbox\SandboxInspector;
 use App\Sandbox\SandboxSpec;
 use App\Sandbox\SandboxUpdater;
 use App\Sandbox\WorkspaceFiles;
+use App\Sandbox\WorkspaceGit;
 use App\Sandbox\WorkspaceSsh;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /*
@@ -156,6 +159,46 @@ test('the host proxy rewrites unknown hostnames to localhost', function () {
         $docker->destroy($id);
     }
 })->group('PUB-001');
+
+test('the host proxy sends routed paths to other local servers, but never to the sandbox\'s own', function () {
+    $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
+    $id = $docker->create(new SandboxSpec('zap-test-'.bin2hex(random_bytes(3))));
+
+    try {
+        $script = 'mkdir -p /workspace/.zap /workspace/public /tmp/rt'
+            .' && echo \'<?php echo "app";\' > /workspace/public/index.php'
+            .' && echo \'<?php echo "realtime|", $_SERVER["HTTP_HOST"], "|", $_SERVER["REQUEST_URI"];\' > /tmp/rt/index.php'
+            .' && printf "#!/usr/bin/env bash\nphp -S 127.0.0.1:8090 /tmp/rt/index.php &\nexec php -S 0.0.0.0:\$PORT /workspace/public/index.php\n" > /workspace/.zap/dev'
+            .' && echo \'{"/rt/": 8090, "/term": 7681, "/ssh": 2222, "/loop": 8081}\' > /workspace/.zap/routes.json'
+            .' && chmod +x /workspace/.zap/dev && /opt/zap/restart';
+        expect($docker->exec($id, ['bash', '-c', $script])->successful())->toBeTrue();
+
+        $get = fn (string $path) => trim($docker->exec($id, ['curl', '-s', '-H', 'Host: my-app.tail1.ts.net', "http://127.0.0.1:8081{$path}"])->output);
+
+        retry(40, fn () => throw_unless(str_starts_with($get('/rt/app/key'), 'realtime'), new RuntimeException('not ready')), 250);
+
+        expect($get('/rt/app/key?protocol=7'))->toBe('realtime|localhost:8090|/rt/app/key?protocol=7')
+            ->and($get('/rt'))->toStartWith('realtime')
+            ->and($get('/rtx'))->toBe('app')
+            ->and($get('/term'))->toBe('app')
+            ->and($get('/ssh'))->toBe('app')
+            ->and($get('/loop'))->toBe('app')
+            ->and($get('/'))->toBe('app');
+    } finally {
+        $docker->destroy($id);
+    }
+})->group('RT-001');
+
+test('the sandbox has the PHP extensions realtime servers and queue workers need', function () {
+    $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
+    $id = $docker->create(new SandboxSpec('zap-test-'.bin2hex(random_bytes(3))));
+
+    try {
+        expect($docker->exec($id, ['php', '-m'])->output)->toContain('pcntl');
+    } finally {
+        $docker->destroy($id);
+    }
+})->group('RT-001');
 
 test('the host proxy points localhost links in pages and redirects at the visitor\'s address', function () {
     $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
@@ -336,6 +379,80 @@ test('the host proxy records custom analytics events without passing them to the
     }
 })->group('GROW-002');
 
+test('the host proxy records server errors, preview browser errors and the app being down', function () {
+    $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
+    $id = $docker->create(new SandboxSpec('zap-test-'.bin2hex(random_bytes(3))));
+    $curl = fn (string ...$args) => $docker->exec($id, ['curl', '-s', ...$args])->output;
+    $errors = function () use ($docker, $id): array {
+        $log = trim($docker->exec($id, ['sh', '-c', 'cat /workspace/.zap/errors.log 2>/dev/null'])->output);
+
+        return $log === '' ? [] : array_map(fn ($line) => json_decode($line, true), explode("\n", $log));
+    };
+
+    try {
+        $app = <<<'PHP'
+            <?php
+            if (str_contains($_SERVER['REQUEST_URI'], 'boom')) {
+                file_put_contents('php://stderr', "stack: BoomException in routes/web.php\n");
+                http_response_code(500);
+                echo '<!doctype html><html><head><title>Oops</title><style>body{}</style></head><body><h1>BoomException</h1><p>Something &amp; broke</p><script>var x = 1;</script></body></html>';
+                return;
+            }
+            echo '<!doctype html><html><head><title>App</title></head><body>ok</body></html>';
+            PHP;
+        $script = 'mkdir -p /workspace/.zap /workspace/public'
+            .' && printf %s "$APP" > /workspace/public/index.php'
+            .' && printf "#!/usr/bin/env bash\nexec php -S 0.0.0.0:\$PORT -t /workspace/public /workspace/public/index.php\n" > /workspace/.zap/dev'
+            .' && chmod +x /workspace/.zap/dev && /opt/zap/restart';
+        expect($docker->exec($id, ['bash', '-c', $script], ['APP' => $app])->successful())->toBeTrue();
+
+        retry(40, fn () => throw_unless(
+            str_contains($curl('http://127.0.0.1:8081/'), '<body>ok'),
+            new RuntimeException('app not up'),
+        ), 250);
+
+        // Preview pages get the error reporter first thing in their head; published pages don't.
+        expect($curl('http://127.0.0.1:8081/'))->toContain('<head><script src="/__zap/errors.js"></script><title>App</title>')
+            ->and($curl('-H', 'Host: my-app.tail1.ts.net', 'http://127.0.0.1:8081/'))->not->toContain('/__zap/errors.js')
+            ->and($curl('http://127.0.0.1:8081/__zap/errors.js'))->toContain("navigator.sendBeacon('/__zap/error'");
+
+        // A 5xx is logged with the page's text and the end of the server's output, and its page says so to the app builder.
+        expect($curl('http://127.0.0.1:8081/boom?id=1'))->toContain('<script src="/__zap/errors.js" data-status="500"></script>');
+        $server = retry(20, function () use ($errors) {
+            $found = collect($errors())->firstWhere('k', 'server');
+            throw_unless($found, new RuntimeException('not logged yet'));
+
+            return $found;
+        }, 250);
+        expect($server)->toMatchArray(['s' => 500, 'm' => 'GET', 'p' => '/boom?id=1', 'text' => 'BoomException Something & broke', 'pub' => false])
+            ->and($server['log'])->toContain('stack: BoomException in routes/web.php');
+
+        // Browser errors are taken from the preview only, and must look like one.
+        $post = fn (string $body, string ...$headers) => trim($curl(...['-o', '/dev/null', '-w', '%{http_code}', '-X', 'POST', ...$headers, '-d', $body, 'http://127.0.0.1:8081/__zap/error']));
+        $report = json_encode(['type' => 'error', 'message' => 'x is not defined', 'stack' => 'at App (app.js:1:1)', 'page' => '/dashboard']);
+        expect($post($report))->toBe('204')
+            ->and($post($report, '-H', 'Host: my-app.tail1.ts.net'))->toBe('400')
+            ->and($post('{"type":"server","message":"nope"}'))->toBe('400')
+            ->and($post('not json'))->toBe('400');
+
+        // The app going away (here: crashing on start) is logged too.
+        $docker->exec($id, ['sh', '-c', 'printf "#!/usr/bin/env bash\nexit 1\n" > /workspace/.zap/dev && /opt/zap/restart']);
+        retry(20, fn () => throw_unless(str_contains($curl('http://127.0.0.1:8081/'), 'starting'), new RuntimeException('still up')), 250);
+
+        $logged = retry(20, function () use ($errors) {
+            $all = collect($errors());
+            throw_unless($all->contains('k', 'down') && $all->contains('k', 'browser'), new RuntimeException('not logged yet'));
+
+            return $all;
+        }, 250);
+        expect($logged->firstWhere('k', 'browser'))->toMatchArray(['type' => 'error', 'msg' => 'x is not defined', 'stack' => 'at App (app.js:1:1)', 'page' => '/dashboard', 'pub' => false])
+            ->and($logged->where('k', 'browser'))->toHaveCount(1)
+            ->and($logged->firstWhere('k', 'down'))->toMatchArray(['m' => 'GET', 'p' => '/']);
+    } finally {
+        $docker->destroy($id);
+    }
+})->group('ERR-001');
+
 test('files can be created, uploaded and downloaded as a zip in a real container', function () {
     $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
     $id = $docker->create(new SandboxSpec('zap-test-'.bin2hex(random_bytes(3))));
@@ -416,3 +533,70 @@ test('developer tools read ports, usage and storage, and SSH takes the owner\'s 
         @unlink("{$keyFile}.pub");
     }
 })->group('DEVTOOLS-001');
+
+test('a checkpoint is backed up and restored, with its branches, into a fresh sandbox', function () {
+    $this->artisan('migrate:fresh');
+    Storage::fake('backups');
+    config(['sandbox.backup_disk' => 'backups']);
+
+    $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
+    $backups = new ProjectBackups($docker);
+    $project = Project::factory()->create();
+    $old = $docker->create(new SandboxSpec('zap-test-'.bin2hex(random_bytes(3))));
+    $new = $docker->create(new SandboxSpec('zap-test-'.bin2hex(random_bytes(3))));
+    $sandbox = Sandbox::factory()->for($project)->create(['external_id' => $old]);
+
+    try {
+        $script = 'cd /workspace && echo "<h1>Timer</h1>" > index.html && echo SECRET=1 > .env'
+            .' && echo "Build a timer" | /opt/zap/checkpoint && git branch experiment';
+        expect($docker->exec($old, ['bash', '-c', $script])->successful())->toBeTrue()
+            ->and($backups->backUp($project))->toBeTrue()
+            ->and($backups->backUp($project->fresh()))->toBeFalse();
+
+        $head = $project->fresh()->backup_commit;
+        expect($head)->toMatch('/^[0-9a-f]{40}$/');
+
+        $sandbox->update(['external_id' => $new]);
+        expect($backups->restore($project, $sandbox))->toBeTrue();
+
+        $git = fn (string $command) => trim($docker->exec($new, ['bash', '-c', "cd /workspace && {$command}"])->output);
+
+        expect($git('cat index.html'))->toBe('<h1>Timer</h1>')
+            ->and($git('git rev-parse HEAD'))->toBe($head)
+            ->and($git('git log --format=%s'))->toBe('Build a timer')
+            ->and($git('git branch --show-current'))->toBe('main')
+            ->and($git('git branch --format="%(refname:short)" | sort | tr "\n" " "'))->toBe('experiment main')
+            ->and($git('git remote'))->toBe('')
+            ->and($git('git status --porcelain'))->toBe('')
+            ->and($git('test -e .env && echo yes || echo no'))->toBe('no');
+    } finally {
+        $docker->destroy($old);
+        $docker->destroy($new);
+    }
+})->group('SBX-006');
+
+test('the git tool commits, lists and restores in a real container', function () {
+    $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
+    $id = $docker->create(new SandboxSpec('zap-test-'.bin2hex(random_bytes(3))));
+    $sandbox = new Sandbox(['external_id' => $id]);
+    $git = new WorkspaceGit($docker);
+    $user = new User(['name' => 'Dev User', 'email' => 'dev@example.com']);
+
+    try {
+        $docker->exec($id, ['bash', '-c', 'cd /workspace && echo one > a.txt && echo "Build a timer" | /opt/zap/checkpoint && echo two > a.txt']);
+
+        expect($git->status($sandbox))->toMatchArray(['branch' => 'main', 'changes' => [['path' => 'a.txt', 'status' => 'M']]]);
+
+        $git->commit($sandbox, 'Second', $user);
+        $commits = $git->log($sandbox);
+
+        expect(collect($commits)->map(fn (array $commit) => [$commit['subject'], $commit['agent']])->all())->toBe([['Second', false], ['Build a timer', true]]);
+
+        $git->restore($sandbox, $commits[1]['sha'], $user);
+
+        expect(trim($docker->exec($id, ['cat', '/workspace/a.txt'])->output))->toBe('one')
+            ->and($git->log($sandbox)[0]['subject'])->toStartWith('Restore "Build a timer"');
+    } finally {
+        $docker->destroy($id);
+    }
+})->group('GIT-003');

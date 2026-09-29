@@ -1,0 +1,96 @@
+---
+title: 'Git'
+description: "See your app's history, commit changes, go back to an earlier version, and push to GitHub or another git host."
+---
+
+Every project is a git repository. The agent commits everything after each turn, with your message as the commit message (see [Your code is saved after every turn](/guides/build-a-project#your-code-is-saved-after-every-turn)). **Tools → Git** shows that history and lets you work with it without the Shell.
+
+## History
+
+The history lists the project's commits, newest first, with who made each one (the agent's turns are marked **Agent**), how long ago, and its short id. The note under it shows when the history was last backed up outside the sandbox.
+
+Search the history with the box next to **History**: it looks through every commit's message and author (type `agent` for the agent's turns), or finds a commit by its id. **Show more** lists older commits, 50 at a time.
+
+Click a commit to see its full message, author and email, the exact date and time, and its full id (with a copy button), plus the files it changed with the lines added and removed. Click a file to see its diff: added lines in green, removed in red. Click the commit again to close it.
+
+### Restore an earlier version
+
+Open the **⋮** menu on a commit and choose **Restore this version**. Every file goes back to how it was at that commit, and the app restarts.
+
+A restore is saved as a new commit, so nothing is lost: to undo it, restore the version before it the same way. Any uncommitted changes are committed first, as **Changes before restoring …**.
+
+## Commit your own changes
+
+Changes you make in the Shell or the Files panel, or that the agent made before you stopped it, show up under **Commit** with their state: **M** modified, **A** added, **D** deleted, **R** renamed, **U** new (untracked), **!** conflicted.
+
+Write a summary and click **Commit all changes**, or press ⌘/Ctrl+Enter. The commit is made as you. As with the agent's commits, `node_modules`, `vendor`, `.cache` and `.env` files (except `.env.example`) are never committed.
+
+To throw changes away, click the undo icon next to a file, or **Discard all**. Files go back to the last commit and new files are deleted. Ignored files like `node_modules` and `.env` are kept. This can't be undone.
+
+While the agent is working, committing, discarding, switching branches and restoring wait until it finishes.
+
+## Branches
+
+The branch menu at the top shows the current branch. Pick another to switch to it, or choose **New branch…** to start one from the current commit. The app restarts on the new branch.
+
+## Push to GitHub or another git host
+
+Connect a remote repository to push your commits to it and pull commits others made.
+
+### Connect GitHub
+
+If your OneDrop has a [GitHub App](/self-hosting/github-app) set up, click **Connect to GitHub**. A dialog walks you through it.
+
+**The first time**, click **Continue to GitHub**. On GitHub, pick your account or an organization, choose all repositories or only the ones OneDrop may use, and approve. GitHub brings you back with the dialog open.
+
+**Then pick an owner** (your account or an organization) at the top of the dialog, and either:
+
+<Tabs>
+    <Tab title="New repository">
+        The name is suggested from your project, and OneDrop checks as you type that it's free. Choose **Private** or **Public**.
+
+        - **In an organization**, click **Create and push**. OneDrop creates the repository and pushes your project to it.
+        - **On your personal account**, click **Create it on GitHub**. GitHub doesn't let apps create repositories on personal accounts, so GitHub's new-repository page opens with the name and visibility filled in. Create it there and come back: OneDrop finds it and offers **Connect and push**. If OneDrop only reaches the repositories you chose, give it access to the new one first; the dialog links to the right page.
+    </Tab>
+    <Tab title="Existing repository">
+        Search the owner's repositories, newest activity first, click one and choose a branch.
+
+        - In a project with commits, click **Connect** (or **Connect and push** for an empty repository).
+        - In a project with no commits yet, click **Connect and bring it in** to start from that repository's code.
+
+        Don't see a repository? Click **Choose which repositories OneDrop can reach**, change it on GitHub, and come back. The list updates by itself.
+    </Tab>
+</Tabs>
+
+The dialog opens on **New repository** when your project has commits, and on **Existing repository** when it doesn't. **Add account or organization** installs the app somewhere else.
+
+You only see repositories that both you and the app can reach. No token is stored for the project: OneDrop gets a short-lived one from GitHub each time it pushes or pulls. If your GitHub sign-in expires, the dialog asks you to reconnect.
+
+### Connect with a token
+
+Without the GitHub App, or for another git host (**Other git host**), connect with an access token:
+
+<Tabs>
+    <Tab title="Create on GitHub">
+        1. Click **Create on GitHub**.
+        2. Enter a repository name and a GitHub [personal access token](https://github.com/settings/tokens) that can create repositories (a fine-grained token with **Administration** and **Contents** read and write, or a classic token with the `repo` scope).
+        3. Leave **Private repository** checked, or uncheck it for a public one.
+        4. Click **Create and push**. The repository is made on your account and the current branch is pushed to it.
+    </Tab>
+    <Tab title="Connect existing">
+        1. Click **Connect existing**.
+        2. Enter the repository's HTTPS URL, for example `https://gitlab.com/you/my-app.git`.
+        3. Enter an access token that can read and write the repository. Some hosts also need your username (Forgejo and Gitea, for example); GitHub and GitLab don't.
+        4. Click **Connect**, then **Push**.
+    </Tab>
+</Tabs>
+
+**Push** sends the current branch to the remote. **Pull** brings in commits the remote has that the project doesn't. Both run in the background; the card shows **Pushing…** or **Pulling…**, then how many commits there are to push or pull.
+
+- A push the remote refuses because it has newer commits says **Pull first**.
+- A pull only fast-forwards. If the project and the remote both have new commits, ask the agent to merge them.
+- **Disconnect** in the **⋮** menu forgets the remote and its token. The repository itself is untouched.
+
+<Note>
+    The token is stored encrypted by OneDrop and never shown again. It never goes into the sandbox: pushes and pulls run on OneDrop's server, which carries commits in and out of the sandbox. Remotes must use HTTPS, and on the public internet unless your admin allows private networks (see [configuration](/self-hosting/configuration)).
+</Note>

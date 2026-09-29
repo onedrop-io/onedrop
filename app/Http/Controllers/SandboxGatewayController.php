@@ -23,11 +23,16 @@ class SandboxGatewayController extends Controller
     {
         Gate::authorize('view', $project);
 
-        abort_unless($gateway->enabled() && in_array($kind, Gateway::KINDS, true) && $project->sandbox, 404);
+        // A task's own copy of the app (TASK-003), when asked for one.
+        $sandbox = $request->filled('task')
+            ? $project->sandboxes()->where('task_id', (int) $request->query('task'))->first()
+            : $project->sandbox;
+
+        abort_unless($gateway->enabled() && in_array($kind, Gateway::KINDS, true) && $sandbox, 404);
 
         $path = (string) $request->query('path', '/');
 
-        return redirect()->away($gateway->enterUrl($project->sandbox, $kind, $request->user(), self::safePath($path)));
+        return redirect()->away($gateway->enterUrl($sandbox, $kind, $request->user(), self::safePath($path)));
     }
 
     /**

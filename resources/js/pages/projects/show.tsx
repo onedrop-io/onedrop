@@ -1,7 +1,21 @@
-import { Head, router, setLayoutProps, usePoll } from '@inertiajs/react';
+import {
+    Head,
+    Link,
+    router,
+    setLayoutProps,
+    usePage,
+    usePoll,
+} from '@inertiajs/react';
 import {
     Ban,
+    Check,
+    ChevronDown,
+    Copy,
     ExternalLink,
+    FileText,
+    GitMerge,
+    Kanban,
+    Pencil,
     Monitor,
     PanelRight,
     Plus,
@@ -9,6 +23,7 @@ import {
     RotateCw,
     SquareTerminal,
     Terminal,
+    Trash2,
     Wrench,
     X,
 } from 'lucide-react';
@@ -16,10 +31,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import ProjectAgentController from '@/actions/App/Http/Controllers/ProjectAgentController';
 import ProjectMessageController from '@/actions/App/Http/Controllers/ProjectMessageController';
+import TaskController from '@/actions/App/Http/Controllers/TaskController';
+import TaskMessageController from '@/actions/App/Http/Controllers/TaskMessageController';
 import AgentModelPicker from '@/components/agent-model-picker';
 import HeaderActions from '@/components/header-actions';
 import Markdown from '@/components/markdown';
 import MessageAttachments from '@/components/message-attachments';
+import NotificationsPrompt from '@/components/notifications-prompt';
 import type { AttachmentPreview } from '@/components/message-attachments';
 import PromptComposer from '@/components/prompt-composer';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -27,12 +45,19 @@ import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { TaskStatusIcon } from '@/components/task-status-icon';
 import ConsoleView, { Notice } from '@/components/workspace/console-view';
 import FileIcon from '@/components/workspace/file-icon';
 import FileTree from '@/components/workspace/file-tree';
 import FilesMenu from '@/components/workspace/files-menu';
+import {
+    fixRequest,
+    PreviewErrorBar,
+    usePreviewErrors,
+} from '@/components/workspace/preview-errors';
 import PublishMenu from '@/components/workspace/publish-menu';
 import ToolsPanel from '@/components/workspace/tools-panel';
 import FileViewer from '@/components/workspace/file-viewer';
@@ -41,10 +66,17 @@ import { isLocalHostname, useIsRemote } from '@/hooks/use-is-remote';
 import { useResizableWidth } from '@/hooks/use-resizable-width';
 import {
     fetchWorkspaceFile,
+    useFilesVersion,
     useWorkspaceFiles,
 } from '@/hooks/use-workspace-files';
 import { cn } from '@/lib/utils';
-import { show } from '@/routes/projects';
+import { setWorkspaceView, viewFromUrl } from '@/lib/workspace-view';
+import { board, show } from '@/routes/projects';
+import {
+    create as createTask,
+    show as showTask,
+} from '@/routes/projects/tasks';
+import type { RouteDefinition } from '@/wayfinder';
 import type {
     AgentSelection,
     ChatMessage,
@@ -53,11 +85,60 @@ import type {
     Project,
     Publication,
     SandboxState,
+    TaskDetail,
+    TaskStage,
     WorkspaceFile,
 } from '@/types';
 
+/**
+ * Where the chat on screen sends things: the project"s main chat, a task"s (TASK-001), or,
+ * for a new task, the first message creates the task.
+ */
+type ChatRoutes = {
+    send: RouteDefinition<'post'>;
+    stop: string | null;
+    removeQueued: (messageId: number) => string;
+};
+
+function chatRoutes(
+    project: Project,
+    task: TaskDetail | null,
+    newTask: boolean,
+): ChatRoutes {
+    if (task) {
+        const ids = { project: project.id, task: task.id };
+
+        return {
+            send: TaskMessageController.store(ids),
+            stop: TaskMessageController.stop.url(ids),
+            removeQueued: (message) =>
+                TaskMessageController.destroy.url({ ...ids, message }),
+        };
+    }
+
+    if (newTask) {
+        return {
+            send: TaskController.store(project.id),
+            stop: null,
+            removeQueued: () => '',
+        };
+    }
+
+    return {
+        send: ProjectMessageController.store(project.id),
+        stop: ProjectAgentController.stop.url(project.id),
+        removeQueued: (message) =>
+            ProjectMessageController.destroy.url({
+                project: project.id,
+                message,
+            }),
+    };
+}
+
 export default function ShowProject({
     project,
+    task,
+    newTask,
     agent,
     sandbox,
     messages,
@@ -65,17 +146,26 @@ export default function ShowProject({
     publication,
 }: {
     project: Project;
+    /** The task whose chat this is, or null for the main chat (or a new task). */
+    task: TaskDetail | null;
+    /** An empty chat whose first message starts a new task. */
+    newTask: boolean;
     agent: AgentSelection | null;
     sandbox: SandboxState | null;
     messages: ChatMessage[];
     queued: QueuedMessage[];
     publication: Publication;
 }) {
-    const working = project.status === 'working';
+    const working = task
+        ? task.status === 'working'
+        : !newTask && project.status === 'working';
+    const routes = chatRoutes(project, task, newTask);
+    const title = task ? task.title : newTask ? 'New task' : null;
     const busy =
         working ||
         sandbox?.status === 'creating' ||
         sandbox?.updating ||
+        !!task?.sync_status ||
         publication.status === 'publishing';
 
     const [chatWidth, setChatWidth] = useResizableWidth(
@@ -84,13 +174,29 @@ export default function ShowProject({
     );
 
     setLayoutProps({
-        breadcrumbs: [{ title: project.name, href: show(project.id) }],
+        breadcrumbs: [
+            { title: project.name, href: show(project.id) },
+            ...(task
+                ? [
+                      {
+                          title: task.title,
+                          href: showTask({
+                              project: project.id,
+                              task: task.id,
+                          }),
+                      },
+                  ]
+                : newTask
+                  ? [{ title: 'New task', href: createTask(project.id) }]
+                  : []),
+        ],
     });
     const { start, stop } = usePoll(
         1000,
         {
             only: [
                 'project',
+                'task',
                 'agent',
                 'sandbox',
                 'messages',
@@ -114,14 +220,18 @@ export default function ShowProject({
 
     return (
         <>
-            <Head title={project.name} />
+            <Head title={title ? `${title} · ${project.name}` : project.name} />
             <HeaderActions>
                 <PublishMenu projectId={project.id} publication={publication} />
             </HeaderActions>
 
             <div className="flex h-[calc(100svh-4rem)] min-h-0 flex-col md:h-[calc(100svh-5rem)] lg:flex-row">
                 <ChatPanel
+                    key={task?.id ?? (newTask ? 'new' : 'main')}
                     project={project}
+                    task={task}
+                    newTask={newTask}
+                    routes={routes}
                     agent={agent}
                     queued={queued}
                     messages={messages}
@@ -139,8 +249,10 @@ export default function ShowProject({
                 />
                 <WorkspacePanel
                     project={project}
+                    sendMessage={routes.send.url}
                     publication={publication}
                     sandbox={sandbox}
+                    copy={task?.own_copy ?? false}
                     working={working}
                     activity={messages.length}
                 />
@@ -151,6 +263,9 @@ export default function ShowProject({
 
 function ChatPanel({
     project,
+    task,
+    newTask,
+    routes,
     agent,
     queued,
     messages,
@@ -158,6 +273,9 @@ function ChatPanel({
     width,
 }: {
     project: Project;
+    task: TaskDetail | null;
+    newTask: boolean;
+    routes: ChatRoutes;
     agent: AgentSelection | null;
     queued: QueuedMessage[];
     messages: ChatMessage[];
@@ -169,8 +287,9 @@ function ChatPanel({
 
     // Stop the agent; any queued messages come back into the box for editing.
     const stop = () =>
+        routes.stop &&
         router.post(
-            ProjectAgentController.stop.url(project.id),
+            routes.stop,
             {},
             {
                 preserveScroll: true,
@@ -196,21 +315,48 @@ function ChatPanel({
             className="flex min-h-0 flex-1 flex-col lg:w-(--chat-width) lg:max-w-[calc(100%-20rem)] lg:flex-none"
             style={{ '--chat-width': `${width}px` } as CSSProperties}
         >
+            {(task || newTask) && (
+                <TaskHeader projectId={project.id} task={task} />
+            )}
+            {task?.own_copy && (
+                <TaskCopyBar
+                    projectId={project.id}
+                    task={task}
+                    working={working}
+                />
+            )}
             <div className="flex-1 space-y-5 overflow-y-auto p-4">
-                {messages.map((message) => (
-                    <MessageItem key={message.id} message={message} />
+                {(newTask || task) && messages.length === 0 && !working && (
+                    <TaskEmptyState
+                        task={task}
+                        onStart={(content) =>
+                            router.post(
+                                routes.send.url,
+                                { content },
+                                { preserveScroll: true },
+                            )
+                        }
+                    />
+                )}
+                {messages.map((message, index) => (
+                    <MessageItem
+                        key={message.id}
+                        message={message}
+                        live={working && index === messages.length - 1}
+                    />
                 ))}
                 {working && (
                     <p
                         className="flex items-center gap-2 text-sm text-muted-foreground"
                         data-test="agent-working"
                     >
-                        <span className="size-2 animate-pulse rounded-full bg-current" />
+                        <span className="size-2 animate-pulse rounded-full bg-emerald-500" />
                         {messages.at(-1)?.role === 'user'
                             ? 'Thinking…'
                             : 'Working…'}
                     </p>
                 )}
+                {working && <NotificationsPrompt />}
                 {queued.map((message) => (
                     <div
                         key={message.id}
@@ -233,12 +379,7 @@ function ChatPanel({
                                     type="button"
                                     onClick={() =>
                                         router.delete(
-                                            ProjectMessageController.destroy.url(
-                                                {
-                                                    project: project.id,
-                                                    message: message.id,
-                                                },
-                                            ),
+                                            routes.removeQueued(message.id),
                                             { preserveScroll: true },
                                         )
                                     }
@@ -256,7 +397,7 @@ function ChatPanel({
             </div>
             <div className="p-3">
                 <PromptComposer
-                    action={ProjectMessageController.store(project.id)}
+                    action={routes.send}
                     field="content"
                     working={working}
                     onStop={stop}
@@ -270,30 +411,42 @@ function ChatPanel({
                         .map((message) => message.content)}
                     value={draft}
                     onValueChange={(next) => setDraft(next)}
+                    autoFocus={newTask}
                     placeholder={
                         working
                             ? 'Queue a message, or ⌘/Ctrl+Enter to send now…'
-                            : 'Message the agent…'
+                            : newTask
+                              ? 'Describe the task…'
+                              : 'Message the agent…'
                     }
                     footer={
-                        agent && (
-                            <AgentModelPicker
-                                selection={agent}
-                                onChange={(next) =>
-                                    router.patch(
-                                        ProjectAgentController.update.url(
-                                            project.id,
-                                        ),
-                                        {
-                                            agent_provider: next.provider,
-                                            agent_model: next.model,
-                                            agent_variant: next.variant,
-                                        },
-                                        { preserveScroll: true },
-                                    )
-                                }
-                            />
-                        )
+                        <>
+                            {agent && (
+                                <AgentModelPicker
+                                    selection={agent}
+                                    harnessLocked={
+                                        working
+                                            ? 'Stop the agent or wait for it to finish to switch agents'
+                                            : null
+                                    }
+                                    onChange={(next) =>
+                                        router.patch(
+                                            ProjectAgentController.update.url(
+                                                project.id,
+                                            ),
+                                            {
+                                                agent_harness: next.harness,
+                                                agent_provider: next.provider,
+                                                agent_model: next.model,
+                                                agent_variant: next.variant,
+                                            },
+                                            { preserveScroll: true },
+                                        )
+                                    }
+                                />
+                            )}
+                            <AutofixToggle project={project} />
+                        </>
                     }
                 />
             </div>
@@ -312,7 +465,14 @@ function sentAttachments(
     }));
 }
 
-function MessageItem({ message }: { message: ChatMessage }) {
+function MessageItem({
+    message,
+    live = false,
+}: {
+    message: ChatMessage;
+    /** The agent's current step: its dot pulses green. */
+    live?: boolean;
+}) {
     if (message.role === 'user') {
         return (
             <div
@@ -338,7 +498,12 @@ function MessageItem({ message }: { message: ChatMessage }) {
                 className="flex items-center gap-2 text-sm text-muted-foreground"
                 data-test="message-activity"
             >
-                <span className="size-1.5 rounded-full bg-current" />
+                <span
+                    className={cn(
+                        'size-1.5 rounded-full',
+                        live ? 'animate-pulse bg-emerald-500' : 'bg-current',
+                    )}
+                />
                 {message.content}
             </p>
         );
@@ -355,14 +520,20 @@ function MessageItem({ message }: { message: ChatMessage }) {
 
 function WorkspacePanel({
     project,
+    sendMessage,
     publication,
     sandbox,
+    copy,
     working,
     activity,
 }: {
     project: Project;
+    /** Where the chat on screen sends messages. */
+    sendMessage: string;
     publication: Publication;
     sandbox: SandboxState | null;
+    /** The sandbox is a task's own copy of the app (TASK-003). */
+    copy: boolean;
     working: boolean;
     /** Changes whenever the agent does something (message count). */
     activity: number;
@@ -387,9 +558,27 @@ function WorkspacePanel({
             : null;
     const [reloadKey, setReloadKey] = useState(0);
     const [wasWorking, setWasWorking] = useState(working);
+    const previewFrame = useRef<HTMLIFrameElement>(null);
+    const previewErrors = usePreviewErrors(previewFrame);
     const shellFrame = useRef<HTMLIFrameElement>(null);
-    const [tab, setTab] = useState<ActiveTab>('preview');
-    const [extraTabs, setExtraTabs] = useState<ToolTab[]>([]);
+    // The URL says what to show (TASK-004): `?tab=tools&tool=database`, `?tab=file&file=…`, `?tab=console`.
+    // `?tool=git` alone (e.g. back from connecting GitHub) opens that Tools section.
+    const { url: pageUrl } = usePage();
+    const [initialView] = useState(() => viewFromUrl(pageUrl));
+    const [tool, setTool] = useState<string | null>(initialView.tool);
+    const [tab, setTab] = useState<ActiveTab>(() => {
+        const asked = initialView.tab ?? (initialView.tool ? 'tools' : null);
+
+        return asked === 'file' && !initialView.file
+            ? 'preview'
+            : ACTIVE_TABS.includes(asked as ActiveTab)
+              ? (asked as ActiveTab)
+              : 'preview';
+    });
+    const [extraTabs, setExtraTabs] = useState<MovableTab[]>(() =>
+        tab === 'console' || tab === 'shell' || tab === 'file' ? [tab] : [],
+    );
+    const [draggedTab, setDraggedTab] = useState<MovableTab | null>(null);
 
     // Put the cursor in the terminal whenever the Shell tab is shown.
     useEffect(() => {
@@ -400,11 +589,22 @@ function WorkspacePanel({
     const [consoleClears, setConsoleClears] = useState(0);
     const [filesOpen, setFilesOpen] = useState(false);
     const [hideHidden, setHideHidden] = useState(false);
-    const [openPath, setOpenPath] = useState<string | null>(null);
+    const [openPath, setOpenPath] = useState<string | null>(
+        tab === 'file' ? initialView.file : null,
+    );
+
+    // Keep the address bar (and links to the project's other pages) on what's showing.
+    useEffect(() => {
+        setWorkspaceView(project.id, { tab, tool, file: openPath });
+    }, [project.id, tab, tool, openPath]);
     const [file, setFile] = useState<WorkspaceFile | null>(null);
     const [fileError, setFileError] = useState<string | null>(null);
     const [fileDirty, setFileDirty] = useState(false);
     const files = useWorkspaceFiles(project.id);
+    const filesVersion = useFilesVersion(project.id, running && filesOpen);
+    // The sandbox has a file watcher (FILE-004), so the tree reloads only when files come or go.
+    const watchingFiles = filesVersion > 0;
+    const seenFilesVersion = useRef(0);
     const [filesWidth, setFilesWidth] = useResizableWidth(
         FILES_WIDTH_KEY,
         FILES_WIDTH,
@@ -442,14 +642,29 @@ function WorkspacePanel({
           )
         : files.entries;
 
+    const reloadPreview = () => {
+        previewErrors.clear();
+        setReloadKey((key) => key + 1);
+    };
+
     // Reload once the agent finishes so a newly started dev server shows up.
     if (wasWorking !== working) {
         setWasWorking(working);
 
         if (!working) {
-            setReloadKey((key) => key + 1);
+            reloadPreview();
         }
     }
+
+    // Ask the agent to fix what the preview reported (queued if it's busy).
+    const fixPreviewErrors = () => {
+        router.post(
+            sendMessage,
+            { content: fixRequest(previewErrors.errors) },
+            { preserveScroll: true },
+        );
+        previewErrors.clear();
+    };
 
     const loadFile = useCallback(
         (path: string) => {
@@ -463,13 +678,13 @@ function WorkspacePanel({
         [project.id],
     );
 
-    // Keep the tree (and the open file) current as the agent works.
+    // Keep the open file (and, without a file watcher, the tree) current as the agent works.
     useEffect(() => {
         if (!running) {
             return;
         }
 
-        if (filesOpen) {
+        if (filesOpen && !watchingFiles) {
             void files.refresh();
         }
 
@@ -479,12 +694,25 @@ function WorkspacePanel({
     }, [
         running,
         filesOpen,
+        watchingFiles,
         activity,
         working,
         openPath,
         files.refresh,
         loadFile,
     ]);
+
+    // Reload the tree when files were added, removed or renamed by anything: the agent, the Shell, the app.
+    useEffect(() => {
+        if (
+            seenFilesVersion.current !== 0 &&
+            filesVersion !== seenFilesVersion.current
+        ) {
+            void files.refresh();
+        }
+
+        seenFilesVersion.current = filesVersion;
+    }, [filesVersion, files.refresh]);
 
     const openFile = (path: string) => {
         if (
@@ -501,6 +729,9 @@ function WorkspacePanel({
         }
 
         setOpenPath(path);
+        setExtraTabs((tabs) =>
+            tabs.includes('file') ? tabs : [...tabs, 'file'],
+        );
         setTab('file');
     };
 
@@ -509,7 +740,7 @@ function WorkspacePanel({
         setTab(kind);
     };
 
-    const closeTab = (kind: ToolTab) => {
+    const closeTab = (kind: MovableTab) => {
         setExtraTabs((tabs) => tabs.filter((t) => t !== kind));
 
         if (tab === kind) {
@@ -517,10 +748,77 @@ function WorkspacePanel({
         }
     };
 
+    const closeFile = () => {
+        if (fileDirty && !window.confirm('Discard unsaved changes?')) {
+            return;
+        }
+
+        setOpenPath(null);
+        closeTab('file');
+    };
+
+    /**
+     * Drag-to-reorder props for a closable tab. The dragged tab takes a
+     * neighbour's place once the pointer passes that neighbour's middle,
+     * or when it's dropped on it.
+     */
+    const sortable = (kind: MovableTab) => {
+        const moveOnto = (
+            event: React.DragEvent<HTMLElement>,
+            always: boolean,
+        ) => {
+            if (!draggedTab) {
+                return;
+            }
+
+            event.preventDefault();
+
+            if (draggedTab === kind) {
+                return;
+            }
+
+            const rect = event.currentTarget.getBoundingClientRect();
+            const middle = rect.left + rect.width / 2;
+
+            setExtraTabs((tabs) => {
+                const from = tabs.indexOf(draggedTab);
+                const to = tabs.indexOf(kind);
+                const passed =
+                    from < to
+                        ? event.clientX >= middle
+                        : event.clientX <= middle;
+
+                if (from < 0 || to < 0 || !(passed || always)) {
+                    return tabs;
+                }
+
+                const next = tabs.filter((t) => t !== draggedTab);
+                next.splice(to, 0, draggedTab);
+
+                return next;
+            });
+        };
+
+        return {
+            draggable: true,
+            dragging: draggedTab === kind,
+            onDragStart: (event: React.DragEvent) => {
+                event.dataTransfer.effectAllowed = 'move';
+                event.dataTransfer.setData('text/plain', kind);
+                setDraggedTab(kind);
+            },
+            onDragOver: (event: React.DragEvent<HTMLElement>) =>
+                moveOnto(event, false),
+            onDrop: (event: React.DragEvent<HTMLElement>) =>
+                moveOnto(event, true),
+            onDragEnd: () => setDraggedTab(null),
+        };
+    };
+
     const statusText = sandbox?.updating
         ? 'Updating sandbox…'
         : {
-              creating: 'Starting sandbox…',
+              creating: copy ? 'Copying the app…' : 'Starting sandbox…',
               running: url ?? 'Running',
               paused: 'Paused',
               failed: 'Sandbox failed to start',
@@ -549,46 +847,45 @@ function WorkspacePanel({
                         <Monitor className="size-4" />
                         Preview
                     </TabButton>
-                    {extraTabs.map((kind) => (
-                        <TabButton
-                            key={kind}
-                            active={tab === kind}
-                            onClick={() => setTab(kind)}
-                            onClose={() => closeTab(kind)}
-                            testId={`tab-${kind}`}
-                        >
-                            {TOOL_TABS[kind].icon}
-                            {TOOL_TABS[kind].label}
-                        </TabButton>
-                    ))}
-                    {openPath && (
-                        <TabButton
-                            active={tab === 'file'}
-                            onClick={() => setTab('file')}
-                            onClose={() => {
-                                if (
-                                    fileDirty &&
-                                    !window.confirm('Discard unsaved changes?')
-                                ) {
-                                    return;
-                                }
-
-                                setOpenPath(null);
-                                setTab('preview');
-                            }}
-                        >
-                            <FileIcon name={openPath.split('/').pop() ?? ''} />
-                            <span className="max-w-48 truncate">
-                                {openPath.split('/').pop()}
-                            </span>
-                            {fileDirty && (
-                                <span
-                                    className="size-1.5 rounded-full bg-current"
-                                    aria-label="Unsaved changes"
-                                    data-test="file-dirty"
-                                />
-                            )}
-                        </TabButton>
+                    {extraTabs.map((kind) =>
+                        kind === 'file' ? (
+                            openPath && (
+                                <TabButton
+                                    key={kind}
+                                    active={tab === 'file'}
+                                    onClick={() => setTab('file')}
+                                    onClose={closeFile}
+                                    testId="tab-file"
+                                    {...sortable(kind)}
+                                >
+                                    <FileIcon
+                                        name={openPath.split('/').pop() ?? ''}
+                                    />
+                                    <span className="max-w-48 truncate">
+                                        {openPath.split('/').pop()}
+                                    </span>
+                                    {fileDirty && (
+                                        <span
+                                            className="size-1.5 rounded-full bg-current"
+                                            aria-label="Unsaved changes"
+                                            data-test="file-dirty"
+                                        />
+                                    )}
+                                </TabButton>
+                            )
+                        ) : (
+                            <TabButton
+                                key={kind}
+                                active={tab === kind}
+                                onClick={() => setTab(kind)}
+                                onClose={() => closeTab(kind)}
+                                testId={`tab-${kind}`}
+                                {...sortable(kind)}
+                            >
+                                {TOOL_TABS[kind].icon}
+                                {TOOL_TABS[kind].label}
+                            </TabButton>
+                        ),
                     )}
                     <DropdownMenu modal={false}>
                         <DropdownMenuTrigger asChild>
@@ -645,7 +942,7 @@ function WorkspacePanel({
                         <>
                             <IconButton
                                 label="Reload preview"
-                                onClick={() => setReloadKey((key) => key + 1)}
+                                onClick={reloadPreview}
                             >
                                 <RotateCw className="size-4" />
                             </IconButton>
@@ -678,18 +975,30 @@ function WorkspacePanel({
                 </div>
 
                 {url ? (
-                    <iframe
-                        key={reloadKey}
-                        src={url}
-                        title="App preview"
+                    <div
                         className={cn(
-                            'flex-1 bg-white',
+                            'relative flex flex-1 flex-col',
                             tab !== 'preview' && 'hidden',
                         )}
-                    />
+                    >
+                        <iframe
+                            ref={previewFrame}
+                            key={reloadKey}
+                            src={url}
+                            title="App preview"
+                            className="flex-1 bg-white"
+                        />
+                        {!working && previewErrors.errors.length > 0 && (
+                            <PreviewErrorBar
+                                errors={previewErrors.errors}
+                                onFix={fixPreviewErrors}
+                                onDismiss={previewErrors.clear}
+                            />
+                        )}
+                    </div>
                 ) : (
                     tab === 'preview' && (
-                        <PreviewPlaceholder sandbox={sandbox} />
+                        <PreviewPlaceholder sandbox={sandbox} copy={copy} />
                     )
                 )}
                 {tab === 'tools' && (
@@ -698,6 +1007,8 @@ function WorkspacePanel({
                         running={running}
                         working={working}
                         publication={publication}
+                        initialSection={tool}
+                        onSectionChange={setTool}
                     />
                 )}
                 {tab === 'file' && openPath && (
@@ -821,7 +1132,17 @@ function WorkspacePanel({
 }
 
 type ToolTab = 'console' | 'shell';
-type ActiveTab = 'tools' | 'preview' | 'file' | ToolTab;
+/** Tabs that can be closed and dragged into a different order; Tools and Preview stay put. */
+type MovableTab = ToolTab | 'file';
+type ActiveTab = 'tools' | 'preview' | MovableTab;
+
+const ACTIVE_TABS: ActiveTab[] = [
+    'tools',
+    'preview',
+    'console',
+    'shell',
+    'file',
+];
 
 /** localStorage key for whether the files panel was last left open. */
 const FILES_OPEN_KEY = 'zap.files-open';
@@ -845,21 +1166,29 @@ function TabButton({
     onClick,
     onClose,
     testId,
+    dragging = false,
     children,
+    ...dragProps
 }: {
     active: boolean;
     onClick: () => void;
     onClose?: () => void;
     testId?: string;
+    dragging?: boolean;
     children: React.ReactNode;
-}) {
+} & Pick<
+    React.HTMLAttributes<HTMLDivElement>,
+    'draggable' | 'onDragStart' | 'onDragOver' | 'onDrop' | 'onDragEnd'
+>) {
     return (
         <div
+            {...dragProps}
             className={cn(
                 'flex items-center rounded-md transition-colors',
                 active
                     ? 'bg-muted font-medium'
                     : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                dragging && 'opacity-50',
             )}
         >
             <button
@@ -881,6 +1210,38 @@ function TabButton({
                 </button>
             )}
         </div>
+    );
+}
+
+/** Whether errors the preview shows after a turn go back to the agent automatically (ERR-001). */
+function AutofixToggle({ project }: { project: Project }) {
+    return (
+        <button
+            type="button"
+            aria-pressed={project.autofix}
+            onClick={() =>
+                router.patch(
+                    ProjectAgentController.autofix.url(project.id),
+                    { autofix: !project.autofix },
+                    { preserveScroll: true },
+                )
+            }
+            title={
+                project.autofix
+                    ? 'Autofix is on: errors the preview shows after a turn go back to the agent. Click to turn off.'
+                    : 'Autofix is off. Click to send errors the preview shows after a turn back to the agent.'
+            }
+            data-test="composer-autofix"
+            className={cn(
+                'flex h-7 shrink-0 items-center gap-1 rounded-full px-2 text-xs hover:bg-muted',
+                project.autofix
+                    ? 'bg-muted text-foreground'
+                    : 'text-muted-foreground',
+            )}
+        >
+            <Wrench className="size-3.5" />
+            Autofix
+        </button>
     );
 }
 
@@ -909,8 +1270,33 @@ function IconButton({
     );
 }
 
-function PreviewPlaceholder({ sandbox }: { sandbox: SandboxState | null }) {
+function PreviewPlaceholder({
+    sandbox,
+    copy,
+}: {
+    sandbox: SandboxState | null;
+    /** A task's own copy of the app (TASK-003). */
+    copy: boolean;
+}) {
     const failed = sandbox?.status === 'failed';
+    const title = failed
+        ? "Sandbox didn't start"
+        : copy && !sandbox
+          ? 'No copy of the app yet'
+          : copy
+            ? 'Copying the app…'
+            : sandbox?.updating
+              ? 'Updating sandbox…'
+              : 'Starting sandbox…';
+    const detail = failed
+        ? sandbox.error
+        : copy && !sandbox
+          ? "This task gets its own copy of Main's app when its agent starts, so its changes don't touch Main until you apply them."
+          : copy
+            ? 'Its files, packages and data, as Main has them now. Main keeps running.'
+            : sandbox?.updating
+              ? 'Getting the latest tools. Your files are kept, and your app will be back in a moment.'
+              : 'Your app will appear here in a moment.';
 
     return (
         <div
@@ -932,13 +1318,7 @@ function PreviewPlaceholder({ sandbox }: { sandbox: SandboxState | null }) {
             </div>
             <div className="absolute inset-0 flex items-center justify-center p-6">
                 <div className="max-w-xs rounded-xl border border-sidebar-border/70 bg-background/95 p-5 text-center text-sm shadow-sm dark:border-sidebar-border">
-                    <p className="font-medium">
-                        {failed
-                            ? "Sandbox didn't start"
-                            : sandbox?.updating
-                              ? 'Updating sandbox…'
-                              : 'Starting sandbox…'}
-                    </p>
+                    <p className="font-medium">{title}</p>
                     <p
                         className={cn(
                             'mt-1',
@@ -946,14 +1326,329 @@ function PreviewPlaceholder({ sandbox }: { sandbox: SandboxState | null }) {
                         )}
                         data-test="sandbox-message"
                     >
-                        {failed
-                            ? sandbox.error
-                            : sandbox?.updating
-                              ? 'Getting the latest tools. Your files are kept, and your app will be back in a moment.'
-                              : 'Your app will appear here in a moment.'}
+                        {detail}
                     </p>
                 </div>
             </div>
+        </div>
+    );
+}
+
+const STAGE_LABELS: Record<TaskStage, string> = {
+    todo: 'To do',
+    in_progress: 'In progress',
+    review: 'Review',
+    done: 'Done',
+};
+
+/** Above a task's chat: its title and column, with rename, move and delete (TASK-001). */
+function TaskHeader({
+    projectId,
+    task,
+}: {
+    projectId: number;
+    task: TaskDetail | null;
+}) {
+    const [renaming, setRenaming] = useState(false);
+    const [name, setName] = useState(task?.title ?? '');
+    const ids = task ? { project: projectId, task: task.id } : null;
+
+    const save = () => {
+        setRenaming(false);
+
+        if (ids && name.trim() !== '' && name !== task?.title) {
+            router.patch(
+                TaskController.update.url(ids),
+                { title: name },
+                { preserveScroll: true },
+            );
+        }
+    };
+
+    return (
+        <div
+            className="flex h-11 shrink-0 items-center gap-2 border-b border-sidebar-border/70 px-4 text-sm dark:border-sidebar-border"
+            data-test="task-header"
+        >
+            {task && (
+                <TaskStatusIcon
+                    stage={task.stage}
+                    working={task.status === 'working'}
+                />
+            )}
+            {renaming && task ? (
+                <input
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    onBlur={save}
+                    onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                            save();
+                        } else if (event.key === 'Escape') {
+                            setName(task.title);
+                            setRenaming(false);
+                        }
+                    }}
+                    onFocus={(event) => event.target.select()}
+                    maxLength={80}
+                    aria-label="Task title"
+                    autoFocus
+                    className="min-w-0 flex-1 rounded border border-input bg-transparent px-2 py-0.5"
+                    data-test="task-rename-input"
+                />
+            ) : (
+                <span
+                    className="min-w-0 truncate font-medium"
+                    data-test="task-title"
+                >
+                    {task?.title ?? 'New task'}
+                </span>
+            )}
+            {task && ids && !renaming && (
+                <DropdownMenu modal={false}>
+                    <DropdownMenuTrigger asChild>
+                        <button
+                            type="button"
+                            aria-label="Task actions"
+                            className="rounded p-0.5 text-muted-foreground hover:bg-muted"
+                            data-test="task-menu"
+                        >
+                            <ChevronDown className="size-4" />
+                        </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-48">
+                        <DropdownMenuItem
+                            onSelect={() => {
+                                setName(task.title);
+                                setRenaming(true);
+                            }}
+                            data-test="task-menu-rename"
+                        >
+                            <Pencil />
+                            Rename
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        {(Object.keys(STAGE_LABELS) as TaskStage[]).map(
+                            (stage) => (
+                                <DropdownMenuItem
+                                    key={stage}
+                                    disabled={stage === task.stage}
+                                    onSelect={() =>
+                                        router.patch(
+                                            TaskController.update.url(ids),
+                                            { stage },
+                                            { preserveScroll: true },
+                                        )
+                                    }
+                                    data-test={`task-menu-stage-${stage}`}
+                                >
+                                    {stage === task.stage ? (
+                                        <Check />
+                                    ) : (
+                                        <TaskStatusIcon
+                                            stage={stage}
+                                            working={false}
+                                        />
+                                    )}
+                                    {STAGE_LABELS[stage]}
+                                </DropdownMenuItem>
+                            ),
+                        )}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                            variant="destructive"
+                            onSelect={() => {
+                                if (
+                                    window.confirm(
+                                        `Delete “${task.title}” and its chat?`,
+                                    )
+                                ) {
+                                    router.delete(
+                                        TaskController.destroy.url(ids),
+                                    );
+                                }
+                            }}
+                            data-test="task-menu-delete"
+                        >
+                            <Trash2 />
+                            Delete
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            )}
+            {task && (
+                <span
+                    className="ml-auto shrink-0 text-xs text-muted-foreground"
+                    data-test="task-stage"
+                >
+                    {STAGE_LABELS[task.stage]}
+                </span>
+            )}
+            <Link
+                href={board(projectId)}
+                className={cn(
+                    'flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-muted',
+                    !task && 'ml-auto',
+                )}
+                data-test="task-board-link"
+            >
+                <Kanban className="size-3.5" />
+                Board
+            </Link>
+        </div>
+    );
+}
+
+/**
+ * Under a task's title when it has its own copy of the app (TASK-003): what the preview shows, and
+ * buttons to apply its work to Main or bring Main's newer work in.
+ */
+function TaskCopyBar({
+    projectId,
+    task,
+    working,
+}: {
+    projectId: number;
+    task: TaskDetail;
+    working: boolean;
+}) {
+    const ids = { project: projectId, task: task.id };
+    const syncing = task.sync_status !== null;
+    const disabled = working || syncing;
+
+    const apply = () => {
+        if (
+            window.confirm(
+                `Apply “${task.title}” to Main? Its work is merged into Main, and Main's agent finishes the job. This task's copy of the app is removed.`,
+            )
+        ) {
+            router.post(
+                TaskController.apply.url(ids),
+                {},
+                { preserveScroll: true },
+            );
+        }
+    };
+
+    return (
+        <div
+            className="flex min-h-9 shrink-0 flex-wrap items-center gap-2 border-b border-sidebar-border/70 px-4 py-1.5 text-xs text-muted-foreground dark:border-sidebar-border"
+            data-test="task-copy-bar"
+        >
+            <Copy className="size-3.5 shrink-0" />
+            <span
+                className="min-w-0 flex-1 truncate"
+                data-test="task-copy-status"
+            >
+                {task.sync_status === 'applying'
+                    ? 'Applying to Main…'
+                    : task.sync_status === 'updating'
+                      ? 'Bringing in the latest from Main…'
+                      : task.has_copy
+                        ? 'Working in its own copy of the app'
+                        : task.applied_at
+                          ? 'Applied to Main'
+                          : 'Gets its own copy of the app when it starts'}
+            </span>
+            {task.sync_error && (
+                <span
+                    className="basis-full text-red-600 dark:text-red-400"
+                    data-test="task-copy-error"
+                >
+                    {task.sync_error}
+                </span>
+            )}
+            {task.has_copy && (
+                <>
+                    <button
+                        type="button"
+                        onClick={() =>
+                            router.post(
+                                TaskController.updateFromMain.url(ids),
+                                {},
+                                { preserveScroll: true },
+                            )
+                        }
+                        disabled={disabled}
+                        title="Merge Main's newer work into this task's copy"
+                        className="flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-muted disabled:opacity-50"
+                        data-test="task-update-from-main"
+                    >
+                        <RefreshCw
+                            className={cn(
+                                'size-3.5',
+                                task.sync_status === 'updating' &&
+                                    'animate-spin',
+                            )}
+                        />
+                        Update from Main
+                    </button>
+                    <button
+                        type="button"
+                        onClick={apply}
+                        disabled={disabled}
+                        title="Merge this task's work into Main"
+                        className="flex items-center gap-1 rounded bg-primary px-2 py-0.5 font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                        data-test="task-apply"
+                    >
+                        <GitMerge className="size-3.5" />
+                        Apply to Main
+                    </button>
+                </>
+            )}
+        </div>
+    );
+}
+
+/** A task with nothing in its chat yet: what to do for a new one, or a board card's notes and Start. */
+function TaskEmptyState({
+    task,
+    onStart,
+}: {
+    task: TaskDetail | null;
+    onStart: (content: string) => void;
+}) {
+    if (!task) {
+        return (
+            <div
+                className="mx-auto flex max-w-sm flex-col items-center gap-2 pt-24 text-center"
+                data-test="task-empty"
+            >
+                <FileText className="size-10 text-muted-foreground" />
+                <p className="text-lg font-medium">Plan a new task</p>
+                <p className="text-sm text-muted-foreground">
+                    Describe what you want done. A fresh agent works on it
+                    alongside your other tasks, in the same app, so you can get
+                    more done at once.
+                </p>
+            </div>
+        );
+    }
+
+    const content = [task.title, task.description].filter(Boolean).join('\n\n');
+
+    return (
+        <div
+            className="mx-auto flex max-w-sm flex-col items-center gap-3 pt-24 text-center"
+            data-test="task-empty"
+        >
+            <p className="text-lg font-medium">{task.title}</p>
+            {task.description && (
+                <p className="text-sm whitespace-pre-wrap text-muted-foreground">
+                    {task.description}
+                </p>
+            )}
+            <button
+                type="button"
+                onClick={() => onStart(content)}
+                className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                data-test="task-start"
+            >
+                Start task
+            </button>
+            <p className="text-xs text-muted-foreground">
+                Or write your own first message below.
+            </p>
         </div>
     );
 }

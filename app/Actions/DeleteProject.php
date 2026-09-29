@@ -5,16 +5,18 @@ namespace App\Actions;
 use App\Jobs\DestroySandbox;
 use App\Models\Attachment;
 use App\Models\Project;
+use App\Sandbox\ProjectBackups;
+use App\Sandbox\ProjectIcons;
 use App\Sandbox\Publishing\Publisher;
 use App\Sandbox\Publishing\PublishException;
 use Illuminate\Support\Facades\Storage;
 
 class DeleteProject
 {
-    public function __construct(protected Publisher $publisher) {}
+    public function __construct(protected Publisher $publisher, protected ProjectBackups $backups, protected ProjectIcons $icons) {}
 
     /**
-     * Delete the project: take its app offline, then remove its chat, attachments, and sandbox.
+     * Delete the project: take its app offline, then remove its chat, attachments, code backup, icon, and sandbox.
      */
     public function handle(Project $project): void
     {
@@ -26,13 +28,18 @@ class DeleteProject
             }
         }
 
-        $sandbox = $project->sandbox;
+        // The main sandbox and every task's copy of the app (TASK-003).
+        $sandboxes = $project->sandboxes()->get();
 
         $project->delete();
         Storage::disk(Attachment::DISK)->deleteDirectory("attachments/{$project->id}");
+        $this->backups->delete($project);
+        $this->icons->delete($project);
 
-        if ($sandbox?->external_id) {
-            DestroySandbox::dispatch($sandbox->external_id, $sandbox->provider);
+        foreach ($sandboxes as $sandbox) {
+            if ($sandbox->external_id) {
+                DestroySandbox::dispatch($sandbox->external_id, $sandbox->provider);
+            }
         }
     }
 }

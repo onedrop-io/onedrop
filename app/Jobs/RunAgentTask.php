@@ -27,15 +27,17 @@ class RunAgentTask implements ShouldQueue
     public function __construct(public Project $project, public Message $message) {}
 
     /**
-     * Mark the project busy, bring its sandbox up to date (so the agent has the current guides and tools),
-     * and hand the message to the agent.
+     * Mark the message's conversation (the main chat or its task) busy, bring the sandbox up to date (so the agent
+     * has the current guides and tools) unless another of the project's agents is running in it, and hand the message to the agent.
      */
     public function handle(AgentRunner $agent, SandboxUpdater $updater): void
     {
-        $this->project->update(['status' => ProjectStatus::Working]);
+        $conversation = $this->message->conversation();
+        $conversation->update(['status' => ProjectStatus::Working]);
 
         try {
-            if ($updater->updateIfOutdated($this->project)) {
+            // A task's own copy is new; only the main sandbox is brought up to date here.
+            if ($conversation->agentSandbox()?->task_id === null && ! $this->project->mainSandboxBusy(except: $conversation) && $updater->updateIfOutdated($this->project)) {
                 $this->project->unsetRelation('sandbox');
             }
         } catch (SandboxException $e) {
@@ -51,10 +53,12 @@ class RunAgentTask implements ShouldQueue
      */
     public function failed(?Throwable $exception): void
     {
-        $this->project->messages()->create([
+        $conversation = $this->message->conversation();
+
+        $conversation->messages()->create([
             'role' => MessageRole::Assistant,
             'content' => "The agent couldn't start. Please try again.",
         ]);
-        app(AgentQueue::class)->finished($this->project);
+        app(AgentQueue::class)->finished($conversation);
     }
 }

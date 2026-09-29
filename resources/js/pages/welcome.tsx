@@ -52,45 +52,131 @@ const INTEGRATIONS = [
     {
         role: "Your AI",
         tools: [
-            { name: "Claude", logo: "/images/logos/claude.svg" },
-            { name: "OpenAI", logo: "/images/logos/openai.svg" },
-            { name: "OpenRouter", logo: "/images/logos/openrouter.svg" },
+            {
+                name: "Claude",
+                logo: "/images/logos/claude.svg",
+                url: "https://claude.com",
+            },
+            {
+                name: "OpenAI",
+                logo: "/images/logos/openai.svg",
+                url: "https://openai.com",
+            },
+            {
+                name: "Gemini",
+                logo: "/images/logos/gemini.svg",
+                url: "https://ai.google.dev",
+            },
+            {
+                name: "OpenRouter",
+                logo: "/images/logos/openrouter.svg",
+                url: "https://openrouter.ai",
+            },
         ],
     },
     {
         role: "The builder",
-        tools: [{ name: "OpenCode", logo: "/images/logos/opencode.svg" }],
+        tools: [
+            {
+                name: "OpenCode",
+                logo: "/images/logos/opencode.svg",
+                url: "https://opencode.ai",
+            },
+        ],
     },
     {
         role: "Sandboxes",
         tools: [
-            { name: "Docker", logo: "/images/logos/docker.svg" },
-            { name: "Blaxel", logo: "/images/logos/blaxel.svg" },
-            { name: "E2B", logo: "/images/logos/e2b.png" },
-            { name: "Daytona", logo: "/images/logos/daytona.svg" },
-            { name: "Vercel", logo: "/images/logos/vercel.svg" },
+            {
+                name: "Docker",
+                logo: "/images/logos/docker.svg",
+                url: "https://www.docker.com",
+            },
+            {
+                name: "Blaxel",
+                logo: "/images/logos/blaxel.svg",
+                url: "https://blaxel.ai",
+            },
+            {
+                name: "Runtime",
+                logo: "/images/logos/runtime.svg",
+                url: "https://withruntime.com",
+            },
+            {
+                name: "E2B",
+                logo: "/images/logos/e2b.png",
+                url: "https://e2b.dev",
+            },
+            {
+                name: "Daytona",
+                logo: "/images/logos/daytona.svg",
+                url: "https://www.daytona.io",
+            },
+            {
+                name: "Vercel",
+                logo: "/images/logos/vercel.svg",
+                url: "https://vercel.com",
+            },
         ],
     },
     {
         role: "Instant links",
-        tools: [{ name: "Tailscale", logo: "/images/logos/tailscale.svg" }],
+        tools: [
+            {
+                name: "Tailscale",
+                logo: "/images/logos/tailscale.svg",
+                url: "https://tailscale.com",
+            },
+        ],
     },
     {
         role: "Your laptop",
         tools: [
-            { name: "macOS", logo: "/images/logos/apple.svg" },
-            { name: "Linux", logo: "/images/logos/linux.svg" },
+            {
+                name: "macOS",
+                logo: "/images/logos/apple.svg",
+                url: "https://www.apple.com/macos/",
+            },
+            {
+                name: "Linux",
+                logo: "/images/logos/linux.svg",
+                url: "https://www.kernel.org",
+            },
         ],
     },
     {
         role: "Your servers",
         tools: [
-            { name: "AWS", logo: "/images/logos/aws.svg" },
-            { name: "Google Cloud", logo: "/images/logos/googlecloud.svg" },
-            { name: "Hetzner", logo: "/images/logos/hetzner.svg" },
-            { name: "DigitalOcean", logo: "/images/logos/digitalocean.svg" },
-            { name: "Vultr", logo: "/images/logos/vultr.svg" },
-            { name: "Ubuntu", logo: "/images/logos/ubuntu.svg" },
+            {
+                name: "AWS",
+                logo: "/images/logos/aws.svg",
+                url: "https://aws.amazon.com",
+            },
+            {
+                name: "Google Cloud",
+                logo: "/images/logos/googlecloud.svg",
+                url: "https://cloud.google.com",
+            },
+            {
+                name: "Hetzner",
+                logo: "/images/logos/hetzner.svg",
+                url: "https://www.hetzner.com",
+            },
+            {
+                name: "DigitalOcean",
+                logo: "/images/logos/digitalocean.svg",
+                url: "https://www.digitalocean.com",
+            },
+            {
+                name: "Vultr",
+                logo: "/images/logos/vultr.svg",
+                url: "https://www.vultr.com",
+            },
+            {
+                name: "Ubuntu",
+                logo: "/images/logos/ubuntu.svg",
+                url: "https://ubuntu.com",
+            },
         ],
     },
 ];
@@ -98,7 +184,7 @@ const INTEGRATIONS = [
 const STEPS = [
     {
         title: "Connect your AI",
-        body: "Sign in with your ChatGPT Plus or Pro plan, or paste a key from Anthropic, OpenAI, or OpenRouter. It takes a minute, and you only do it once.",
+        body: "Sign in with your ChatGPT Plus or Pro plan, or paste a key from Anthropic, OpenAI, Google, or OpenRouter. It takes a minute, and you only do it once.",
     },
     {
         title: "Say what you need",
@@ -149,7 +235,7 @@ const FAQS = [
     },
     {
         question: "Which AI does it use?",
-        answer: "Yours. Sign in with your ChatGPT Plus or Pro plan, paste an Anthropic or OpenAI API key, or sign in with OpenRouter for hundreds of other models. You pay your provider directly, with no markup.",
+        answer: "Yours. Sign in with your ChatGPT Plus or Pro plan, paste an Anthropic, OpenAI, or Gemini API key, or sign in with OpenRouter for hundreds of other models. You pay your provider directly, with no markup.",
     },
     {
         question: "Is it really ready for production?",
@@ -802,16 +888,18 @@ export default function Welcome() {
                                             </p>
                                             <ul className="mt-3 flex flex-wrap gap-x-6 gap-y-3">
                                                 {group.tools.map((tool) => (
-                                                    <li
-                                                        key={tool.name}
-                                                        className="flex items-center gap-2 font-display text-lg font-bold text-[#F5EFEA]"
-                                                    >
-                                                        <img
-                                                            src={tool.logo}
-                                                            alt=""
-                                                            className="size-6"
-                                                        />
-                                                        {tool.name}
+                                                    <li key={tool.name}>
+                                                        <a
+                                                            href={tool.url}
+                                                            className="flex items-center gap-2 font-display text-lg font-bold text-[#F5EFEA] transition-colors hover:text-white"
+                                                        >
+                                                            <img
+                                                                src={tool.logo}
+                                                                alt=""
+                                                                className="size-6"
+                                                            />
+                                                            {tool.name}
+                                                        </a>
                                                     </li>
                                                 ))}
                                             </ul>

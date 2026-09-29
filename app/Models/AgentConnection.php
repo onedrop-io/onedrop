@@ -75,6 +75,7 @@ class AgentConnection extends Model
                 : 'ANTHROPIC_API_KEY',
             AgentProvider::Codex => 'OPENAI_API_KEY',
             AgentProvider::OpenRouter => 'OPENROUTER_API_KEY',
+            AgentProvider::Gemini => 'GOOGLE_GENERATIVE_AI_API_KEY',
         };
 
         return [$variable => $this->credential];

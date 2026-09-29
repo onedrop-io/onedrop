@@ -20,6 +20,20 @@ touch /tmp/zap-server.log
     done
 ) &
 
+# Tells the Files panel when files are added, removed or renamed. Its address may only arrive in ~/.zap-env after start.
+(
+    while true; do
+        [ -f ~/.zap-env ] && set -a && . ~/.zap-env && set +a
+
+        if [ -n "${APP_FILES_CHANGED_URL:-}" ]; then
+            node /opt/zap/file-watcher.mjs >>/tmp/zap-watcher.log 2>&1
+            sleep 5
+        else
+            sleep 30
+        fi
+    done
+) &
+
 # Shell tab colors: One Dark on the workspace's near-black background.
 SHELL_THEME='{"background":"#0a0a0a","foreground":"#abb2bf","cursor":"#528bff","cursorAccent":"#0a0a0a","selectionBackground":"#3e4451",'
 SHELL_THEME+='"black":"#3f4451","red":"#e06c75","green":"#98c379","yellow":"#e5c07b","blue":"#61afef","magenta":"#c678dd","cyan":"#56b6c2","white":"#d7dae0",'

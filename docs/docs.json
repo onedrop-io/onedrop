@@ -55,12 +55,15 @@
                         "pages": [
                             "guides/set-up-ai",
                             "guides/build-a-project",
+                            "guides/tasks",
                             "guides/workspace",
                             "guides/users-and-auth",
                             "guides/secrets",
                             "guides/feature-flags",
                             "guides/app-storage",
+                            "guides/app-icon",
                             "guides/developer-tools",
+                            "guides/git",
                             "guides/publish"
                         ]
                     },
@@ -89,6 +92,7 @@
                             "self-hosting/server-mode",
                             "self-hosting/configuration",
                             "self-hosting/social-login",
+                            "self-hosting/github-app",
                             "self-hosting/sandboxes",
                             "self-hosting/tailscale"
                         ]

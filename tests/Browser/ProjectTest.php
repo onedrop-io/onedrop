@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\AppTemplate;
 use App\Models\AgentConnection;
 use App\Models\Project;
 use App\Models\User;
@@ -17,8 +18,7 @@ test('describing an app creates a project and opens the chat + preview workspace
         ->press('@login-button')
         ->assertPathIs('/dashboard')
         ->assertSee('Dev, what are we working on today?')
-        ->click('A time-off tracker for my team')
-        ->assertValue('#composer-prompt', 'A time-off tracker for my team')
+        ->fill('#composer-prompt', 'A time-off tracker for my team')
         ->press('@composer-send')
         ->assertSee('Your app will appear here in a moment.');
 
@@ -38,3 +38,24 @@ test('describing an app creates a project and opens the chat + preview workspace
 
     expect($project->messages()->where('content', 'add tags too')->exists())->toBeTrue();
 })->group('PRJ-001', 'PRJ-002');
+
+test('picking a template fills in the prompt and names the project after it', function () {
+    $page = visit('/login')
+        ->fill('email', 'dev@example.com')
+        ->fill('password', 'password')
+        ->press('@login-button')
+        ->assertSee('Or start from a template')
+        ->assertSee('Hiring Pipeline')
+        ->click('Sales CRM')
+        ->assertValue('#composer-prompt', AppTemplate::Crm->prompt())
+        ->press('@composer-send')
+        ->assertSee('Your app will appear here in a moment.');
+
+    $project = Project::sole();
+
+    $page->assertPathIs("/projects/{$project->id}")
+        ->assertSeeIn('[data-sidebar="sidebar"]', 'Sales CRM')
+        ->assertNoJavaScriptErrors();
+
+    expect($project->prompt)->toBe(AppTemplate::Crm->prompt());
+})->group('PRJ-004');

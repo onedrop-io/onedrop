@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useClipboard } from '@/hooks/use-clipboard';
 import { jsonRequest } from '@/lib/json-request';
+import { cn } from '@/lib/utils';
 import { dashboard } from '@/routes';
 import { redirect as openRouterRedirect } from '@/routes/openrouter';
 import type { AgentConnection, AgentProvider } from '@/types';
@@ -28,6 +29,9 @@ type Method =
 type ProviderInfo = {
     id: AgentProvider;
     name: string;
+    /** A one-colour mark in /images/logos, drawn white on the provider's colour. */
+    logo: string;
+    tile: string;
     tagline: string;
     primary: Method;
     alternate?: Method & { switchLabel: string; backLabel: string };
@@ -37,6 +41,8 @@ const providers: ProviderInfo[] = [
     {
         id: 'claude',
         name: 'Claude',
+        logo: '/images/logos/claude.svg',
+        tile: 'bg-[#D97757]',
         tagline: "Anthropic's models, used by the agent in your sandboxes.",
         primary: {
             kind: 'paste',
@@ -60,9 +66,10 @@ const providers: ProviderInfo[] = [
             placeholder: 'sk-ant-oat…',
             help: (
                 <>
-                    From <CopyCommand command="claude setup-token" />. Only
-                    works with the Claude Code agent, which isn't available yet;
-                    the current agent needs an API key or OpenRouter.
+                    From <CopyCommand command="claude setup-token" />. Uses your
+                    Claude Pro or Max plan with the Claude Code agent (choose it
+                    under the chat box); runs draw on your plan's monthly Agent
+                    SDK credit.
                 </>
             ),
         },
@@ -70,6 +77,8 @@ const providers: ProviderInfo[] = [
     {
         id: 'codex',
         name: 'Codex',
+        logo: '/images/logos/openai.svg',
+        tile: 'bg-neutral-900 dark:bg-neutral-700',
         tagline: "OpenAI's models, used by the agent in your sandboxes.",
         primary: {
             kind: 'chatgpt',
@@ -96,6 +105,8 @@ const providers: ProviderInfo[] = [
     {
         id: 'openrouter',
         name: 'OpenRouter',
+        logo: '/images/logos/openrouter.svg',
+        tile: 'bg-[#6467F2]',
         tagline: 'One account for hundreds of models.',
         primary: {
             kind: 'signin',
@@ -115,6 +126,28 @@ const providers: ProviderInfo[] = [
                         openrouter.ai
                     </ExternalLink>
                     .
+                </>
+            ),
+        },
+    },
+    {
+        id: 'gemini',
+        name: 'Gemini',
+        logo: '/images/logos/gemini.svg',
+        tile: 'bg-linear-to-br from-[#4285F4] to-[#9B72CB]',
+        tagline: "Google's models, used by the agent in your sandboxes.",
+        primary: {
+            kind: 'paste',
+            label: 'Gemini API key',
+            placeholder: 'AIza…',
+            help: (
+                <>
+                    Billed to your Google AI Studio account, which has a free
+                    tier. Create one at{' '}
+                    <ExternalLink href="https://aistudio.google.com/app/apikey">
+                        aistudio.google.com
+                    </ExternalLink>
+                    . Google doesn't let other apps use a Gemini subscription.
                 </>
             ),
         },
@@ -178,11 +211,14 @@ function ProviderCard({
             data-test={`provider-${provider.id}`}
         >
             <header className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                    <h3 className="font-medium">{provider.name}</h3>
-                    <p className="text-sm text-muted-foreground">
-                        {provider.tagline}
-                    </p>
+                <div className="flex items-center gap-3">
+                    <ProviderLogo provider={provider} />
+                    <div>
+                        <h3 className="font-medium">{provider.name}</h3>
+                        <p className="text-sm text-muted-foreground">
+                            {provider.tagline}
+                        </p>
+                    </div>
                 </div>
                 {connection && (
                     <div className="flex items-center gap-2">
@@ -501,6 +537,25 @@ function ChatGptSignIn({
                 workspace, an admin may need to allow it first.
             </p>
         </div>
+    );
+}
+
+function ProviderLogo({ provider }: { provider: ProviderInfo }) {
+    const mask = `url(${provider.logo}) center / contain no-repeat`;
+
+    return (
+        <span
+            className={cn(
+                'flex size-10 shrink-0 items-center justify-center rounded-lg shadow-sm',
+                provider.tile,
+            )}
+            aria-hidden
+        >
+            <span
+                className="size-5 bg-white"
+                style={{ mask, WebkitMask: mask }}
+            />
+        </span>
     );
 }
 

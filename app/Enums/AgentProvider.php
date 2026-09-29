@@ -7,6 +7,7 @@ enum AgentProvider: string
     case Claude = 'claude';
     case Codex = 'codex';
     case OpenRouter = 'openrouter';
+    case Gemini = 'gemini';
 
     /**
      * Human-readable name.
@@ -17,6 +18,7 @@ enum AgentProvider: string
             self::Claude => 'Claude',
             self::Codex => 'Codex',
             self::OpenRouter => 'OpenRouter',
+            self::Gemini => 'Gemini',
         };
     }
 
@@ -29,6 +31,7 @@ enum AgentProvider: string
             self::Claude => 'anthropic',
             self::Codex => 'openai',
             self::OpenRouter => 'openrouter',
+            self::Gemini => 'google',
         };
     }
 
@@ -41,6 +44,7 @@ enum AgentProvider: string
             self::Claude => 'Anthropic',
             self::Codex => 'OpenAI',
             self::OpenRouter => 'OpenRouter',
+            self::Gemini => 'Google',
         };
     }
 

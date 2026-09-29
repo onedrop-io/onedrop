@@ -81,4 +81,27 @@ return [
         'redirect' => '/login/oidc/callback',
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | GitHub App (Tools → Git)
+    |--------------------------------------------------------------------------
+    |
+    | Lets people connect repositories by installing your GitHub App instead of
+    | pasting tokens. Create it at github.com/settings/apps/new with:
+    | Callback URL and Setup URL https://your-domain/github/callback
+    | ("Redirect on update" and "Request user authorization during
+    | installation" on), no webhook, and repository permissions Contents
+    | (read and write) and Metadata (read). The private key is the PEM
+    | GitHub generates (newlines may be written as \n).
+    |
+    */
+
+    'github_app' => [
+        'id' => env('GITHUB_APP_ID'),
+        'slug' => env('GITHUB_APP_SLUG'),
+        'client_id' => env('GITHUB_APP_CLIENT_ID'),
+        'client_secret' => env('GITHUB_APP_CLIENT_SECRET'),
+        'private_key' => env('GITHUB_APP_PRIVATE_KEY'),
+    ],
+
 ];

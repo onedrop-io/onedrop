@@ -90,11 +90,17 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be told to sign in again when their ChatGPT sign-in can no longer be refreshed.
 - User should only be offered models OpenAI includes with Codex when signed in with ChatGPT, and projects should start on one of those.
 
+## AI-004: Connect Gemini with a Google AI Studio key
+
+- User should be able to connect Gemini by pasting a Gemini API key, with a link to create one in Google AI Studio.
+- The key should be checked with Google before it's stored, and user should see an error when Google rejects it.
+- User should be able to pick Google's Gemini models in the model picker, and the agent should run on their key.
+- Signing in with a Gemini (Google AI Pro/Ultra) subscription isn't offered: Google forbids third-party apps from using it.
+
 ## PRJ-001: Start a new project
 
 - After logging in, user should see a "what are we working on today?" prompt with suggestions.
 - User should be able to describe an app and submit it to create a project.
-- User should be able to pick a suggestion to fill in the prompt.
 - User should be taken to the project workspace after creating it.
 - The project should be named from the description.
 
@@ -124,6 +130,50 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Admins opening someone's project should not mark it read for its owner.
 - User should not be able to change or delete someone else's project.
 
+## PRJ-004: Start from a template
+
+- User should see templates for common business apps (CRM, project tracker, content calendar, inventory, hiring, events, help desk, time off, expenses) under the new-project prompt.
+- User should be able to pick a template to fill in the prompt with a full description, then change it before sending.
+- A project started from a template should be named after the template.
+- Clearing the prompt should drop the template, so the project is named from what they type instead.
+
+## PRJ-005: Search projects from the sidebar
+
+- User should see a "Search" row at the top of the sidebar with a new-project button (pencil icon) beside it.
+- User should be able to click Search to open a dialog, type part of a project's name, and see their matching projects (archived ones included), most recently updated first.
+- User should be able to pick a result with the arrow keys and Enter, or click it, to open the project.
+- User should only find their own projects.
+- User should see icons beside the "Pinned", "Recent", and "Archived" headings.
+
+## PRJ-006: See what each project is doing from the sidebar
+
+- User should see a small colored tile with the project's initial beside each project in the sidebar; the same project always gets the same color.
+- User should see a pulsing badge on a project's tile while its agent is working, a green badge when the app is published, and a red badge when its sandbox failed.
+- User should see the agent's latest step (e.g. "Editing routes/web.php") under the project's name while it works, or "Working…" before its first step, updating without reloading.
+- User should see "Sandbox failed" under the name when the project's sandbox failed.
+- User should still see their pinned and recent projects as tiles when the sidebar is collapsed to icons, with the name on hover.
+
+## NOTIF-001: Desktop notifications when a project is ready to review
+
+- User should be able to turn on desktop notifications under Settings → Notifications; turning them on asks the browser for permission and then shows a "Notifications are on" notification, so they can see notifications get through.
+- While the agent is working, user should see a prompt in the chat offering desktop notifications ("Turn on" / "Not now"), until they're turned on or the user picks "Not now" (remembered in their browser).
+- User should get a desktop notification with the project's name when its agent finishes working, even while they're on another page or another tab.
+- User should not be notified about the project they're looking at in a focused window.
+- User should be able to click the notification to open the project.
+- User should see why notifications can't be turned on when their browser doesn't support them or has blocked them for the app, and how to unblock them.
+- User should be able to turn notifications off again; the choice is remembered in their browser.
+- User should see the sidebar's unread dots update while any of their projects' agents are working, without reloading.
+
+## PRJ-007: Project icons
+
+- User should see their app's favicon on the project's tile in the sidebar (instead of its initial), with the status badge still on top.
+- After each agent run, the icon should follow the app: if the agent added or changed the favicon (for example after the user pasted an image and asked for it to be the favicon), the sidebar shows the new one.
+- When the app has no favicon of its own (none, an empty one, or the Laravel starter kit's logo), the project's AI should draw a simple icon for it, which is shown in the sidebar and installed in the app as `public/favicon.svg`.
+- Drawn icons should be cleaned of anything that could run code (scripts, event handlers, external links) before they're stored or installed.
+- User should be able to see the app's icon under Tools → App Icon, upload a PNG, JPEG, WebP or SVG to replace it, or have the AI draw a new one; the new icon is installed in the app and shown in the sidebar.
+- Projects whose AI can't be asked (sandbox not running, no usable AI) should keep the initial until an icon is added.
+- User should only be able to see and change icons of projects they can see and change.
+
 ## SBX-001: A sandbox per project
 
 - Each new project should get its own sandbox, started automatically.
@@ -140,8 +190,8 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Updating keeps the app's files, App Storage, the agent's history, and everything in the sandbox user's home folder (such as a database or tools the agent installed there); the app restarts, and a published project is published again.
 - Updated sandboxes should get the image's current shell setup (banner, prompt, aliases, prompt theme) even though the home folder is kept; lines the user added to `~/.bashrc` below the loader line, and a `~/.config/starship.toml` the user made, stay.
 - User should see the sandbox updating in the preview, then the app again.
-- Two updates of the same sandbox should never run at once.
 - An update that fails or is cut off partway (a deploy, a queue timeout) should leave the project on its old sandbox with every file; the old sandbox is only removed once the new one has them all.
+- Two updates of the same sandbox should never run at once.
 - An admin should be able to update outdated sandboxes with `php artisan sandbox:update` (all, or one project).
 
 ## SBX-003: Sandboxes on Runtime Cloud
@@ -161,6 +211,22 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - While an update copies a Blaxel sandbox's files, the app's processes should be frozen, so a database the agent set up is copied in a consistent state; if copying fails, or the update is cut off (e.g. by a deploy), they should carry on where they were.
 - Blaxel's errors (such as account limits) should reach the user in Blaxel's words.
 
+## SBX-005: Switch sandbox providers
+- An admin should be able to switch where new sandboxes run by changing `SANDBOX_PROVIDER`, without breaking existing projects: each sandbox keeps being driven by the provider it was created on.
+- Sandboxes on several providers should work side by side.
+- A project whose sandbox is on another provider than the configured one should count as outdated, so it moves to the configured provider the way SBX-002 updates do (files, App Storage and home folder kept; the old sandbox removed only once the new one has them).
+- An admin should be able to move every project now with `php artisan sandbox:update`, or one with `php artisan sandbox:update {project}`.
+- Provider-specific behavior (renewing private preview links, the SSH notice) should follow each sandbox's own provider.
+
+## SBX-006: Checkpoints and code backups
+- User's changes should be committed to git in `/workspace` after every agent turn (finished or stopped), whichever agent ran it, with the prompt as the commit message; a turn that changed nothing makes no commit.
+- A project without a git repository should get one (branch `main`) on its first checkpoint; one that already has a repository keeps its branch and history.
+- Checkpoints should never include `node_modules`, `vendor`, `.cache` or `.env` files (except `.env.example`), whatever the app's `.gitignore` says.
+- A repository in the middle of a merge or rebase should be left alone.
+- After each turn the platform should copy the project's whole git history (a verified git bundle) to its backup disk (`SANDBOX_BACKUP_DISK`), outside any sandbox provider, and remember which commit it holds; a turn with no new commit copies nothing.
+- A sandbox that gets a fresh workspace (recreated without its files, or its old sandbox is gone) should get the project's code back from the backup, with its branches, and start the app.
+- Deleting a project should delete its backup.
+
 ## AGT-001: Real coding agent
 
 - When user sends a message, OpenCode should run inside the project's sandbox using the user's default AI (Anthropic key, OpenAI key, or OpenRouter).
@@ -168,7 +234,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - The agent should remember the conversation across messages in the same project.
 - Only one agent run should happen at a time per project; messages sent while it works are queued (see AGT-003).
 - The preview should switch from the placeholder to the app's dev server once the agent sets one up, and restart when the agent asks.
-- User should see a clear message if the agent fails or their AI can't be used (e.g. Codex, not supported yet).
+- User should see a clear message if the agent fails or their AI can't be used.
 - User should see a plain explanation with a link to add credits when their AI account's balance is too low.
 - Agent events should only be accepted from the project's own sandbox (per-sandbox secret token).
 
@@ -177,13 +243,6 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see the project's files in a panel on the right of the workspace, as a folder tree.
 - User should see a colored icon for each file and folder that shows its type (JavaScript, JSON, images, config, etc.).
 - User should be able to open a file and read its contents in a tab next to the preview.
-## SBX-005: Switch sandbox providers
-- An admin should be able to switch where new sandboxes run by changing `SANDBOX_PROVIDER`, without breaking existing projects: each sandbox keeps being driven by the provider it was created on.
-- Sandboxes on several providers should work side by side.
-- A project whose sandbox is on another provider than the configured one should count as outdated, so it moves to the configured provider the way SBX-002 updates do (files, App Storage and home folder kept; the old sandbox removed only once the new one has them).
-- An admin should be able to move every project now with `php artisan sandbox:update`, or one with `php artisan sandbox:update {project}`.
-- Provider-specific behavior (renewing private preview links, the SSH notice) should follow each sandbox's own provider.
-
 - User should see new files appear while the agent works, and be able to refresh the list.
 - User should be able to hide and show the files panel; it starts open only on wide screens.
 - User's choice to hide or show the files panel should be remembered in their browser across reloads.
@@ -212,9 +271,18 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be able to close the files panel from the menu.
 - Only the project's owner (or an admin) should be able to create, upload or download files, and only inside the project's workspace.
 
+## FILE-004: Files panel follows changes from anywhere
+
+- User should see files that are added, removed or renamed appear in the Files panel within a few seconds, whether the agent, the Shell or the running app made them.
+- The sandbox should watch its files and tell the platform when files come or go; files inside `node_modules`, `.git`, `vendor` and `.cache`, SQLite journals and editor swap files shouldn't count, and neither should a file made and removed again straight away.
+- The Files panel should only reload the tree after such a change, and should check for changes without calling into the sandbox, only while the panel is open and the page is visible.
+- Sandboxes made before the watcher should keep reloading the tree as the agent works.
+- Only the sandbox itself (through the signed address it was created with) should be able to report changes, and only for itself; only the project's owner (or an admin) should be able to check them.
+
 ## TAB-001: Workspace tabs
 
 - User should be able to add tabs next to Preview from a "+" menu, and close them.
+- User should be able to drag Console, Shell and file tabs into a different order; Tools and Preview stay first.
 - User should be able to open a Console tab showing the app's dev-server output as it happens.
 - User should be able to clear the console view.
 - User should be able to open a Shell tab with an interactive terminal in the project's workspace.
@@ -248,7 +316,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 ## TOOL-001: Tools tab
 
 - User should see a Tools tab next to Preview; neither can be closed.
-- User should see a menu of tool sections: Publishing, Domains, Monitoring, Database, Users & Auth, Growth, Feature Flags, Security, App Storage, Secrets, Integrations, Git, Agent Skills.
+- User should see a menu of tool sections: Publishing, Domains, Monitoring, Database, Users & Auth, Growth, Feature Flags, Security, App Storage, App Icon, Secrets, Integrations, Git, Agent Skills.
 - User should be able to switch between sections; each shows what it's for.
 - The Publishing section should show the project's current publish status, who can open it, and its URL.
 - Sections not built yet should say they're coming soon.
@@ -296,7 +364,8 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Visitor should see small stars twinkle over the headline.
 - Visitor should see the droplet in the header logo pop into a small burst of particles when hovering over it (never on its own), then bounce back, once the hero's drop has landed.
 - None of the drop, particle, black hole, or twinkle motion should play when reduced motion is on.
-- Visitor should see the tools it works with: Claude, OpenAI, OpenRouter, OpenCode, Docker, Blaxel, E2B, Daytona, Vercel, Tailscale, macOS and Linux laptops, and servers on AWS, Google Cloud, Hetzner, DigitalOcean, Vultr, or any Ubuntu machine.
+- Visitor should see the tools it works with: Claude, OpenAI, OpenRouter, OpenCode, Docker, Blaxel, Runtime, E2B, Daytona, Vercel, Tailscale, macOS and Linux laptops, and servers on AWS, Google Cloud, Hetzner, DigitalOcean, Vultr, or any Ubuntu machine.
+- Visitor should be able to click any of those tools to go to its website.
 - Visitor should see how it works in four steps and the main features in plain language.
 - Visitor should see answers to common questions (coding knowledge, which AI, whether it's ready for production, where apps run, who can see them, cost).
 - Visitor should be able to open a Product menu in the top bar (on hover or click) that lists each feature with a one-line summary, plus links to the demo, how it works, the tools it works with, and the self-hosting comparison; picking an item should close the menu and jump to that part of the page.
@@ -314,7 +383,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be able to click their name at the bottom of the sidebar to open an account menu with Settings, Invite people, Theme, Help, and Log out.
 - User should be able to switch between light, dark, and system theme from the Theme submenu, and see the current theme next to it.
 - User should find Documentation and Repository links under Help.
-- User should see settings open in a modal with a left-hand list of sections: Account (Profile, Security, AI, Appearance), People (Groups, Invite people), and, for admins only, Admin (Users).
+- User should see settings open in a modal with a left-hand list of sections: Account (Profile, Security, AI, Appearance, Notifications), People (Groups, Invite people), and, for admins only, Admin (Users).
 - User should be able to move between sections without the modal closing, and link straight to any section.
 - User should be able to close the modal with the close button or Escape and land back on the page they opened it from (the dashboard if they arrived by a direct link).
 - Groups, Invite people, and Users should no longer be in the sidebar.
@@ -335,6 +404,16 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be able to pick the model when starting a new project, and change it in the project's chat at any time; the next message uses the new choice.
 - The agent should use the key for the chosen model's provider, not just the default connection.
 - The model list should come from the models.dev catalog (the one OpenCode uses), cached, and still work with the configured defaults if the catalog is unreachable.
+
+## AGT-007: Choose the agent (OpenCode or Claude Code)
+
+- User should be able to choose which agent works on a project, OpenCode or Claude Code, next to the model picker when starting a project and in the project's chat.
+- User should only be offered Claude Code once they've connected Claude (an Anthropic API key or a Claude subscription token), and only Claude models while it's chosen.
+- User should be able to build on their Claude Pro/Max subscription with Claude Code, using a token from `claude setup-token`; OpenCode still can't use subscription tokens.
+- Projects should start on OpenCode, or on Claude Code when Claude Code is the only agent the user's connections can run.
+- User should see Claude Code's thinking, steps and replies in the chat the same way as OpenCode's, and be able to stop it and queue messages.
+- Claude Code should remember the conversation across messages; switching agents starts a fresh conversation (the project's files are kept) and the chat says so.
+- User should see a plain explanation when Claude rejects the token or their plan's usage limit or credit is used up.
 
 ## AGT-003: Stop, queue, and send now
 
@@ -369,6 +448,21 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - The agent should see attached images along with the text, using a vision-capable model: the chosen model if it can read images, otherwise one from the same provider for that message (the chat says which). If none can, the agent works from the text and still has the files.
 - The agent should get every attachment as a file in the sandbox, so when the user asks to use one in the app it copies it to the right place: the app's assets for fixed parts of the UI (logo, icons, backgrounds), or App Storage for content the app's users manage.
 - Queued messages should keep their attachments when they run; stopping the agent drops attachments on queued messages and tells the user.
+
+## AGT-008: Laravel by default
+
+- When the user doesn't name a stack, the agent should build the app on Laravel's React starter kit (sign-in, SQLite database, queues, realtime with Reverb, file storage), so it can grow without a rewrite.
+- Asking for React, TypeScript, Tailwind, a website or a landing page should still get the Laravel starter kit (it uses them).
+- When the user asks for a different framework by name or says they want no server, or the project already has an app, the agent should use that instead.
+- The Laravel app should run in the preview on its one port, with its queue worker and Reverb, and the preview should show changes when the agent finishes.
+
+## RT-001: Realtime in apps
+
+- Visitors to an app should see live updates (WebSockets) in the preview and at its published address, whatever the framework.
+- Servers that handle WebSockets on the app's own port should work with no setup.
+- An app should be able to put a second local server (e.g. Laravel Reverb on 8080) behind the same address by mapping path prefixes to ports in `/workspace/.zap/routes.json`; HTTP requests and WebSockets under a prefix go to that port.
+- Routes should never reach the sandbox's own services (the proxy, the web terminal, SSH), so they stay behind the platform's sign-in.
+- The sandbox's PHP should have the extensions Reverb and queue workers need (`pcntl`).
 
 ## MON-001: Monitoring
 
@@ -457,6 +551,47 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - A flag the app checks but that isn't in `.zap/flags.json` should count as off.
 - User should see a clear empty state when there are no flags yet, and a clear message when the sandbox isn't running or a flag no longer exists.
 
+## GIT-001: Git history
+- User should see a Git section under Tools with the current branch and the project's commits, newest first: each with its message, who made it (the agent's turns marked as the agent's, see SBX-006), how long ago, and its short id.
+- User should see the last backup time, and that dependencies, caches and `.env` secrets are never committed.
+- User should be able to click a commit to see more: its full message, author and email, exact date and time, full id (with a copy button), and the files it changed with lines added and removed (binary files marked); clicking again closes it.
+- User should be able to search the whole history by message, author ("agent" finds the agent's turns) or commit id, and see older commits with "Show more", 50 at a time.
+- User should be able to click a changed file to see its diff in that commit, added lines in green and removed in red; very large diffs are cut short and say so.
+- A project with no repository yet should show an empty history until its first commit.
+- Only the project's owner should be able to see or change its git; the section should say so when the sandbox isn't running.
+
+## GIT-002: Commit, discard and branches
+- User should see uncommitted changes (made in the Shell, the Files panel, or while the agent was stopped) with their state: modified, added, deleted, renamed, new or conflicted.
+- User should be able to write a message and commit every change (⌘/Ctrl+Enter or the button) as themselves; dependencies and secrets stay out as with checkpoints. Committing with no changes or no message should say why it can't.
+- User should be able to discard the changes to one file, or all of them, after confirming; new files are deleted, ignored files (`node_modules`, `.env`) are kept.
+- User should be able to switch branches and create a new one from the current commit; invalid branch names are refused, and the app restarts on the new branch.
+- Committing, discarding, switching and restoring should wait while the agent is working.
+- A repository in the middle of a merge or rebase should be pointed out.
+
+## GIT-003: Restore an earlier version
+- User should be able to pick "Restore this version" on any earlier commit and confirm; every file goes back to how it was then, saved as a new commit, so nothing is lost and today's version can be restored the same way.
+- Uncommitted changes should be committed first ("Changes before restoring …"), the app restarts, and the project is backed up.
+
+## GIT-004: Push to and pull from a remote
+- With no remote, user should be able to create a new private (or public) repository on GitHub with a token, which connects it and pushes to it, or connect an existing repository on GitHub, GitLab, Forgejo or any HTTPS git host with its URL, an access token and an optional username.
+- Remote URLs should be HTTPS without credentials in them, on the public internet unless the admin allows private networks (`SANDBOX_GIT_ALLOW_PRIVATE_REMOTES`).
+- The token should be stored encrypted, never shown again, never sent to the browser, and never put in the sandbox: pushes and pulls run on the platform, carrying commits in and out of the sandbox as git bundles.
+- User should be able to push the current branch and pull its new commits from the remote, in the background; the section shows Pushing…/Pulling…, then how many commits there are to push or pull, or why it failed (the remote has newer commits, a rejected token, a missing repository or branch).
+- Pulls should only fast-forward; when both sides have new commits, user should be told to ask the agent to merge them. Pulling waits while the agent is working.
+- User should be able to disconnect the remote (the repository itself is untouched).
+
+## GIT-005: Connect GitHub with the GitHub App
+- When the admin has set up a GitHub App (`GITHUB_APP_*`), user should see "Connect to GitHub" in Tools → Git, which opens a dialog instead of asking for a token.
+- The first time, the dialog explains and sends the user to GitHub to install the app on their account or an organization and choose which repositories it can reach; GitHub sends them back to the project's Git section with the dialog open again.
+- The platform should sign the user in through the app and keep their GitHub token encrypted (refreshing it when it expires), and remember only the installations GitHub says they can reach. When the token can't be refreshed, the dialog asks them to reconnect.
+- Repositories should be listed and connected with the user's own token, so they only see and connect repositories both they and the app can reach; someone else's installation is refused.
+- In the dialog, user should pick an owner (their account or an organization, with its avatar), then either:
+  - **New repository:** a name suggested from the project, checked live for being free, and private or public. For an organization whose app can create repositories (Administration: write), "Create and push" creates it and pushes the current branch. For a personal account (GitHub Apps can't create those), "Create it on GitHub" opens GitHub's new-repository page filled in; when the user comes back, the new repository is found, selected and offered as "Connect and push" (with a link to give the app access to it first when the installation only reaches selected repositories).
+  - **Existing repository:** search the owner's repositories, most recently updated first, marked private or public, pick a branch, and connect; a project with no commits brings the branch in (an import). The list refreshes when the user comes back from GitHub.
+- The dialog should open on "New repository" for a project with commits and "Existing repository" for one without.
+- Pushes and pulls for a GitHub-connected repository should use a short-lived installation token made on the platform when needed; no token is stored for the project, and none enters the sandbox. The connected remote shows as the GitHub repository with a link to it.
+- Admins should see in Tools → Git what's wrong with the GitHub App setup (missing settings, missing Contents or Metadata permission, creating repositories unavailable without Administration permission), with a link to the app's permission settings. Other users fall back to the token-based ways (GIT-004), which stay available as "Other git host".
+
 ## STORE-001: App Storage
 - User should see an App Storage section under Tools for files the app keeps, like uploaded photos, videos and documents, organized in buckets.
 - With no buckets yet, user should see what App Storage is for and a Create bucket button; the dialog suggests a name they can change.
@@ -504,3 +639,39 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Someone not allowed in should see a clear explanation and not be signed in to the app.
 - It should follow OAuth 2.0 (authorization code, optional PKCE) with a user-info endpoint, so any stack's auth library can use it; codes work once and expire quickly, and only the app's own callback addresses are accepted.
 - Turning it off should stop new sign-ins through OneDrop right away.
+
+## ERR-001: The agent sees the app's errors
+- Errors should be recorded inside the sandbox in `/workspace/.zap/errors.log`, whatever the app's stack: server errors (5xx answers, with the page's text and the end of the dev server's log), errors in the preview's browser (uncaught exceptions, unhandled promise rejections, `console.error`, scripts or styles that fail to load), and the app not answering.
+- Browser errors should only be accepted from the preview, never from the published address.
+- The agent should be told where the log is and to check it before it finishes and when the user says something is broken.
+- User should see a bar over the preview when the page hits an error, with the error and a "Fix it" button that sends it to the agent (queued if the agent is busy), and be able to dismiss it.
+- After the agent finishes, the platform should load the app's home page and check for new errors from the preview; if there are any, it should send them to the agent once, automatically. A run started by that automatic message shouldn't trigger another.
+- User should be able to turn this automatic fixing on or off per project with an Autofix button in the chat's controls. It's on for new projects.
+- Rebuilding a Laravel app's assets shouldn't break the preview while the build runs.
+
+## TASK-001: Tasks that run in parallel
+- User should be able to start a new task in a project; each task gets a fresh agent with its own chat, separate from the project's main chat.
+- User should be able to message a task's agent while the main chat's agent, or other tasks' agents, are still working: they run at the same time in the project's sandbox, on the same files and preview.
+- Messages sent to a task while its own agent is working should wait in that task's queue; stopping a task stops only that task's agent.
+- User should see a project's open tasks under it in the sidebar, each showing when its agent is working, and a "+" to start a new task.
+- User should be able to "Open" a project: the sidebar then shows just that project (Back, Main, Board, New task and its tasks by column) until they go back.
+- User should be able to rename or delete a task; deleting a working task stops its agent first.
+
+## TASK-002: Kanban board
+- User should be able to see a project's tasks on a board with To do, In progress, Review and Done columns.
+- User should be able to add a card to To do with a title (and optional notes) without starting an agent, then start it later; starting sends the card's title and notes to a fresh agent.
+- A task should move to In progress when its agent starts, and to Review when the agent finishes a turn.
+- User should be able to move a card to another column by dragging it or from its menu, and open a card to see its chat.
+
+## TASK-003: Each task gets its own copy of the app
+- A task's first message should make it its own copy of the app from Main's sandbox, whatever the app is built with: its files, dependencies and any databases kept in the sandbox, copied as they were at one instant so databases stay consistent. Main keeps running while it's copied (its processes pause for about a second).
+- User should see the task's own preview, files, shell and tools on the task's page; changes there don't touch Main until they're applied.
+- User should be warned in the task's chat when the app's settings point at a database or other data service outside the sandbox, which the copy still shares with Main.
+- User should be able to apply a task's work to Main: it's merged with git, Main's agent is asked to do what the app needs (install dependencies, run migrations, restart) and to resolve any conflicts, the task moves to Done, and its copy is removed. A later message to the task makes a fresh copy from Main.
+- User should be able to update a task from Main: Main's newer work is merged into the task's copy and the task's agent brings it up to date.
+- User shouldn't be able to apply while the task's or Main's agent is working, or run more task copies at once than the project allows (3 by default).
+- Deleting a task, or its project, removes its copy.
+
+## TASK-004: Switching tasks keeps the workspace view
+- The page's URL should say what the workspace shows: its tab, the Tools section, and the open file (e.g. `?tab=tools&tool=database`), so a reload or a shared link opens the same view.
+- User should be able to switch between Main and a project's tasks (from the sidebar or the board) and see the same tab and tool on each, e.g. the Database tool, on that chat's own copy of the app.

@@ -1,0 +1,31 @@
+---
+title: 'App Icon'
+description: "Your app's favicon, which also marks the project in your sidebar."
+---
+
+Every project gets an icon. It's your app's favicon, the one browsers show in tabs and bookmarks, and it also appears on the project's tile in your sidebar, so you can spot projects at a glance.
+
+## Where the icon comes from
+
+After each agent run, OneDrop checks the app for a favicon (such as `public/favicon.svg`, `public/favicon.png` or `public/favicon.ico`) and shows the newest one in the sidebar.
+
+If the app has no favicon of its own, the project's AI draws one: a simple symbol for what the app does, on a colored rounded square. It's saved in your app as `public/favicon.svg`, so the published app uses it too. An empty favicon or the Laravel logo from the starter kit doesn't count as the app's own.
+
+<Note>
+    Drawing an icon needs the sandbox to be running and an AI connected with an
+    API key or ChatGPT sign-in. Until the project has an icon, its tile shows
+    the project's first letter.
+</Note>
+
+## Change the icon
+
+**Tools → App Icon** shows the current icon. From there you can:
+
+- **Upload image:** use a PNG, JPEG, WebP or SVG (up to 512 KB). It's installed in the app as `public/favicon.svg`.
+- **Draw a new one:** have the AI draw a different icon. The sidebar tile pulses until it's ready.
+
+You can also ask in the chat. Paste or attach an image and say "make this the favicon". The agent saves it in the app, and the sidebar picks it up when the agent finishes.
+
+## Safety
+
+Icons the AI draws and SVGs you upload are cleaned before they're saved: scripts, event handlers, styles and links to other sites are removed. OneDrop serves icons so they can't run anything, even when they come from the app's own files.

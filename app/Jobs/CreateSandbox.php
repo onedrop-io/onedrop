@@ -4,12 +4,14 @@ namespace App\Jobs;
 
 use App\Enums\SandboxStatus;
 use App\Models\Project;
+use App\Models\Task;
 use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxProvider;
 use App\Sandbox\SandboxSpec;
 use App\Sandbox\WorkspaceSsh;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Support\Facades\URL;
 
 class CreateSandbox implements ShouldQueue
 {
@@ -18,14 +20,14 @@ class CreateSandbox implements ShouldQueue
     /**
      * Create a new job instance.
      */
-    public function __construct(public Project $project) {}
+    public function __construct(public Project $project, public ?Task $task = null) {}
 
     /**
-     * Start the project's sandbox with the owner's AI credential injected.
+     * Start the project's sandbox (or, with a task, the task's own copy's; TASK-003) with the owner's AI credential injected.
      */
     public function handle(SandboxProvider $provider, WorkspaceSsh $ssh): void
     {
-        $sandbox = $this->project->sandbox()->firstOrCreate([], [
+        $sandbox = ($this->task?->sandbox() ?? $this->project->sandbox())->firstOrCreate([], [
             'provider' => config('sandbox.provider'),
             'status' => SandboxStatus::Creating,
         ]);
@@ -34,16 +36,19 @@ class CreateSandbox implements ShouldQueue
         $connection = $this->project->user->agentConnections()->firstWhere('is_default', true);
 
         $spec = new SandboxSpec(
-            name: "zap-project-{$this->project->id}-".strtolower(str()->random(6)),
+            name: "zap-project-{$this->project->id}-".($this->task ? "task-{$this->task->id}-" : '').strtolower(str()->random(6)),
             env: [
                 'APP_PROJECT_NAME' => $this->project->name,
+                // Where the file watcher reports added, removed or renamed files (FILE-004).
+                'APP_FILES_CHANGED_URL' => rtrim(config('sandbox.callback_url'), '/').URL::signedRoute('sandbox-events.files', $sandbox, absolute: false),
                 ...($connection?->sandboxEnvironment() ?? []),
             ],
             port: $port,
             shellPort: config('sandbox.shell_port'),
             proxyPort: config('sandbox.proxy_port'),
             sshPort: config('sandbox.ssh_port'),
-            storageKey: "project-{$this->project->id}",
+            // A task's copy keeps its App Storage buckets apart from Main's.
+            storageKey: "project-{$this->project->id}".($this->task ? "-task-{$this->task->id}" : ''),
         );
 
         try {

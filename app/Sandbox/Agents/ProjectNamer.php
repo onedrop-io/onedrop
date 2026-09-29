@@ -2,26 +2,22 @@
 
 namespace App\Sandbox\Agents;
 
-use App\Enums\CredentialType;
 use App\Enums\MessageRole;
-use App\Enums\SandboxStatus;
 use App\Models\Message;
 use App\Models\Project;
 use App\Sandbox\SandboxException;
-use App\Sandbox\SandboxProvider;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
 /**
- * Asks the project's AI for a short title from its chat, with a one-off OpenCode run in the sandbox
- * (where the user's AI credentials already go). The run gets no tools and doesn't touch the agent's session.
+ * Asks the project's AI for a short title from its chat.
  */
 class ProjectNamer
 {
     /** Keep the chat excerpt small: the title only needs the gist. */
     protected const MAX_PROMPT_CHARACTERS = 6000;
 
-    public function __construct(protected SandboxProvider $provider, protected ModelCatalog $catalog, protected ChatGptAuth $chatGpt) {}
+    public function __construct(protected OneOffPrompt $ai) {}
 
     /**
      * Mark the project as being named, so the sidebar shows it and polls for the result.
@@ -61,40 +57,14 @@ class ProjectNamer
      */
     public function suggest(Project $project): string
     {
-        $sandbox = $project->sandbox;
-        $selection = $this->catalog->selectionFor($project);
-        $connection = $selection ? $project->user->agentConnections()->firstWhere('provider', $selection['provider']) : null;
-
-        if ($sandbox?->status !== SandboxStatus::Running || $sandbox->external_id === null) {
-            throw new SandboxException("The project's sandbox isn't running.");
+        try {
+            $title = $this->titleFrom($this->ai->ask($project, $this->prompt($project)));
+        } catch (SandboxException $e) {
+            throw new SandboxException("Couldn't come up with a title: ".$e->getMessage(), previous: $e);
         }
 
-        if ($selection === null || $connection === null || $connection->credential_type === CredentialType::OAuthToken) {
-            throw new SandboxException('No connected AI can name the project.');
-        }
-
-        if ($connection->credential_type === CredentialType::ChatGpt) {
-            $connection = $this->chatGpt->ensureFresh($connection);
-        }
-
-        $result = $this->provider->exec($sandbox->external_id, [
-            'bash', '-c', 'cd /tmp && exec opencode run --format json -m "$APP_MODEL" -- "$APP_PROMPT"',
-        ], [
-            ...$connection->sandboxEnvironment(),
-            'APP_MODEL' => $this->catalog->opencodeId($selection['provider'], $selection['model']),
-            'APP_PROMPT' => $this->prompt($project),
-            // No project instructions and no tools: just answer.
-            'OPENCODE_CONFIG_CONTENT' => json_encode([
-                'autoupdate' => false,
-                'share' => 'disabled',
-                'permission' => ['edit' => 'deny', 'bash' => 'deny', 'webfetch' => 'deny'],
-            ]),
-        ]);
-
-        $title = $this->titleFrom($result->output);
-
-        if (! $result->successful() || $title === '') {
-            throw new SandboxException("Couldn't come up with a title: ".(strtok(trim($result->errorOutput), "\n") ?: 'no answer'));
+        if ($title === '') {
+            throw new SandboxException("Couldn't come up with a title: no answer");
         }
 
         return $title;
@@ -131,16 +101,10 @@ class ProjectNamer
     }
 
     /**
-     * The model's answer from OpenCode's JSON events, cleaned up into a title.
+     * The model's answer cleaned up into a title.
      */
-    protected function titleFrom(string $output): string
+    protected function titleFrom(string $text): string
     {
-        $text = collect(explode("\n", $output))
-            ->map(fn (string $line) => json_decode($line, true))
-            ->filter(fn ($event) => is_array($event) && ($event['type'] ?? null) === 'text')
-            ->map(fn (array $event) => (string) ($event['part']['text'] ?? ''))
-            ->implode('');
-
         $line = collect(preg_split('/\R/', $text) ?: [])->map(fn (string $line) => trim($line))->first(fn (string $line) => $line !== '') ?? '';
         $title = Str::of($line)->replaceMatches('/^(title:\s*)/i', '')->trim(" \t\"'`*#.")->squish()->toString();
 

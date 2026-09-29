@@ -1,0 +1,56 @@
+---
+title: 'GitHub App for Tools → Git'
+sidebarTitle: 'GitHub App'
+description: 'Let people connect GitHub repositories to their projects without pasting tokens.'
+---
+
+With a GitHub App set up, **Tools → Git** shows **Connect to GitHub**. People install your app on their GitHub account or an organization, choose which repositories it can reach, and then pick a repository and branch for their project. Without one, they can still connect repositories by pasting an access token (see [Git](/guides/git)).
+
+## How it works
+
+- **Installing** sends the person to GitHub, where they choose the account or organization and the repositories. GitHub then sends them back to the project's Git section.
+- **Only their own installations.** On the way back, the person also signs in through the app, and OneDrop asks GitHub which installations they can reach. Only those are remembered for them, so nobody can use an installation id they found somewhere else.
+- **The person's own token for browsing.** Repositories and branches are listed with the token from their sign-in (kept encrypted and refreshed), so people only see and connect repositories they can reach themselves, even in organizations where the app reaches more.
+- **Short-lived tokens for code.** To push and pull, and to create organization repositories, OneDrop signs in as the app with its private key and gets an installation token from GitHub. It's made on your server when needed and never goes into a sandbox.
+- **Creating repositories** works in organizations when the app has the Administration permission. GitHub doesn't let apps create repositories on personal accounts, so for those OneDrop opens GitHub's new-repository page filled in and connects the repository when the person comes back.
+- **Importing.** Connecting a repository to a project with no commits yet pulls the chosen branch into it.
+
+## Create the app
+
+<Steps>
+    <Step title="Register it on GitHub">
+        Go to [github.com/settings/apps/new](https://github.com/settings/apps/new) (or your organization's **Settings → Developer settings → GitHub Apps** to own it as the organization) and fill in:
+
+        | Field | Value |
+        | ----- | ----- |
+        | GitHub App name | Anything, e.g. `OneDrop for Acme`. Its URL name becomes the slug. |
+        | Homepage URL | Your `APP_URL` |
+        | Callback URL | `https://your-domain/github/callback` |
+        | Request user authorization (OAuth) during installation | On |
+        | Setup URL | `https://your-domain/github/callback`, with **Redirect on update** on |
+        | Webhook | Off (uncheck **Active**) |
+        | Repository permissions | **Contents:** Read and write. **Metadata:** Read-only (set automatically). **Administration:** Read and write, to create organization repositories from OneDrop (optional). |
+        | Expire user authorization tokens | On (OneDrop refreshes them) |
+        | Where can this GitHub App be installed? | **Any account**, so people can install it on their own accounts and organizations |
+    </Step>
+    <Step title="Get its keys">
+        On the app's page, note the **App ID** and **Client ID**, click **Generate a new client secret**, and under **Private keys** click **Generate a private key**. GitHub downloads a `.pem` file.
+    </Step>
+    <Step title="Add them to .env">
+        ```bash .env
+        GITHUB_APP_ID=123456
+        GITHUB_APP_SLUG=onedrop-for-acme
+        GITHUB_APP_CLIENT_ID=Iv23liABCDEF
+        GITHUB_APP_CLIENT_SECRET=your-client-secret
+        GITHUB_APP_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\nMIIE...\n-----END RSA PRIVATE KEY-----\n"
+        ```
+
+        The slug is the last part of the app's public URL, `github.com/apps/<slug>`. Put the private key in double quotes, either on one line with each line break written as `\n` or pasted as it is across several lines. Then run `php artisan config:cache` (the deploy script does this).
+    </Step>
+</Steps>
+
+**Connect to GitHub** appears in Tools → Git once all five values are set. Until the setup is complete (a missing value, or a missing permission), admins see what's wrong at the top of Tools → Git, with a link to the app's permission settings.
+
+<Note>
+    This app is separate from the OAuth app used for [logging in with GitHub](/self-hosting/social-login), and needs its own settings.
+</Note>

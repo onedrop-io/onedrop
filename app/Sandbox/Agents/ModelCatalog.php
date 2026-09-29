@@ -2,6 +2,7 @@
 
 namespace App\Sandbox\Agents;
 
+use App\Enums\AgentHarness;
 use App\Enums\AgentProvider;
 use App\Enums\CredentialType;
 use App\Models\Project;
@@ -98,12 +99,17 @@ class ModelCatalog
     }
 
     /**
-     * Providers the user can actually run the agent with (OpenCode can't use Claude subscription tokens).
+     * Providers the user can run with an agent: OpenCode can't use Claude subscription tokens, and
+     * Claude Code only runs Claude (with an API key or a subscription token).
      *
      * @return list<AgentProvider>
      */
-    public function usableProviders(User $user): array
+    public function usableProviders(User $user, AgentHarness $harness = AgentHarness::OpenCode): array
     {
+        if ($harness === AgentHarness::ClaudeCode) {
+            return $user->agentConnections()->where('provider', AgentProvider::Claude)->exists() ? [AgentProvider::Claude] : [];
+        }
+
         return $user->agentConnections()
             ->where('credential_type', '!=', CredentialType::OAuthToken)
             ->orderByDesc('is_default')
@@ -114,20 +120,49 @@ class ModelCatalog
     }
 
     /**
+     * The agents the user's connections can run, OpenCode first.
+     *
+     * @return list<AgentHarness>
+     */
+    public function harnesses(User $user): array
+    {
+        return array_values(array_filter(AgentHarness::cases(), fn (AgentHarness $harness) => $this->usableProviders($user, $harness) !== []));
+    }
+
+    /**
+     * The agent new projects start on: OpenCode, unless Claude Code is the only one the user can run.
+     */
+    public function defaultHarness(User $user): AgentHarness
+    {
+        return $this->harnesses($user)[0] ?? AgentHarness::OpenCode;
+    }
+
+    /**
+     * The agent a project runs: its saved choice while the owner can still run it, otherwise their default.
+     */
+    public function harnessFor(Project $project): AgentHarness
+    {
+        return $project->agent_harness && in_array($project->agent_harness, $this->harnesses($project->user), true)
+            ? $project->agent_harness
+            : $this->defaultHarness($project->user);
+    }
+
+    /**
      * What the agent will run for a project: its saved choice, or the owner's default provider's default model.
      *
      * @return array{provider: AgentProvider, model: string, variant: string|null}|null
      */
     public function selectionFor(Project $project): ?array
     {
-        $usable = $this->usableProviders($project->user);
+        $harness = $this->harnessFor($project);
+        $usable = $this->usableProviders($project->user, $harness);
 
         if ($project->agent_provider && in_array($project->agent_provider, $usable, true) && $project->agent_model
             && (! $this->signedInWithChatGpt($project->agent_provider, $project->user) || $this->includedWithChatGpt($project->agent_model))) {
             return ['provider' => $project->agent_provider, 'model' => $project->agent_model, 'variant' => $project->agent_variant];
         }
 
-        return $this->defaultSelection($project->user);
+        return $this->defaultSelection($project->user, $harness);
     }
 
     /**
@@ -135,9 +170,9 @@ class ModelCatalog
      *
      * @return array{provider: AgentProvider, model: string, variant: null}|null
      */
-    public function defaultSelection(User $user): ?array
+    public function defaultSelection(User $user, ?AgentHarness $harness = null): ?array
     {
-        $provider = $this->usableProviders($user)[0] ?? null;
+        $provider = $this->usableProviders($user, $harness ?? $this->defaultHarness($user))[0] ?? null;
 
         return $provider ? ['provider' => $provider, 'model' => $this->defaultModel($provider, $user), 'variant' => null] : null;
     }
@@ -196,13 +231,14 @@ class ModelCatalog
      * The picker's label for a selection.
      *
      * @param  array{provider: AgentProvider, model: string, variant: string|null}  $selection
-     * @return array{provider: string, model: string, variant: string|null, name: string, efforts: list<string>}
+     * @return array{harness: string, provider: string, model: string, variant: string|null, name: string, efforts: list<string>}
      */
-    public function describe(array $selection): array
+    public function describe(array $selection, AgentHarness $harness = AgentHarness::OpenCode): array
     {
         $model = $this->find($selection['provider'], $selection['model']);
 
         return [
+            'harness' => $harness->value,
             'provider' => $selection['provider']->value,
             'model' => $selection['model'],
             'variant' => $selection['variant'],

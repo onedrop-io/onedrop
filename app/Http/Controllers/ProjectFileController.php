@@ -28,6 +28,17 @@ class ProjectFileController extends Controller
     }
 
     /**
+     * How many times the sandbox's file watcher has seen files added, removed or renamed (FILE-004). The Files panel
+     * checks this cheaply, without touching the sandbox, and reloads the tree only when it goes up; 0 means no watcher yet.
+     */
+    public function version(Project $project): JsonResponse
+    {
+        Gate::authorize('view', $project);
+
+        return response()->json(['version' => $project->sandbox?->files_version ?? 0]);
+    }
+
+    /**
      * Show one file's contents.
      */
     public function show(Request $request, Project $project, WorkspaceFiles $files): JsonResponse

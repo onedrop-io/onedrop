@@ -12,6 +12,7 @@ use App\Models\Project;
 use App\Models\Sandbox;
 use App\Models\User;
 use App\Sandbox\Agents\AgentRunner;
+use App\Sandbox\Agents\Conversation;
 use App\Sandbox\Providers\FakeSandboxProvider;
 use App\Sandbox\Publishing\FakePublisher;
 use App\Sandbox\Publishing\Publisher;
@@ -242,7 +243,7 @@ test('the agent runs in an up-to-date sandbox', function () {
             $this->sandboxId = $project->sandbox->external_id;
         }
 
-        public function stop(Project $project): void {}
+        public function stop(Conversation $conversation): void {}
     };
 
     (new RunAgentTask($this->project, $message))->handle($runner, app(SandboxUpdater::class));

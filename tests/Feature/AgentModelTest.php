@@ -245,3 +245,36 @@ test('a ChatGPT sign-in gets a filtered picker and a default it can run', functi
     $project = Project::factory()->for($this->user)->create(['agent_provider' => AgentProvider::Codex, 'agent_model' => 'gpt-5.6']);
     expect($this->catalog->selectionFor($project)['model'])->toBe('gpt-5.5');
 })->group('AI-003');
+
+test('a Gemini key runs Google models through OpenCode with that key', function () {
+    $provider = new class extends FakeSandboxProvider
+    {
+        /** @var list<array<string, string>> */
+        public array $envs = [];
+
+        public function exec(string $id, array $command, array $env = [], bool $detach = false): ExecResult
+        {
+            $this->envs[] = $env;
+
+            return parent::exec($id, $command, $env, $detach);
+        }
+    };
+    app()->instance(SandboxProvider::class, $provider);
+    AgentConnection::factory()->for($this->user)->provider(AgentProvider::Gemini)->create(['is_default' => false, 'credential' => 'AIza-gemini-key']);
+
+    $project = Project::factory()->for($this->user)->create([
+        'status' => ProjectStatus::Working,
+        'agent_provider' => AgentProvider::Gemini,
+        'agent_model' => 'gemini-3.8-flash',
+    ]);
+    Sandbox::factory()->for($project)->create(['external_id' => 'ctr-1']);
+    $message = $project->messages()->create(['role' => MessageRole::User, 'content' => 'go']);
+
+    app(OpenCodeRunner::class)->start($project, $message);
+
+    expect(array_column($this->catalog->models(AgentProvider::Gemini), 'id'))->toBe(['gemini-3.8-flash'])
+        ->and($provider->envs[0])->toMatchArray([
+            'APP_MODEL' => 'google/gemini-3.8-flash',
+            'GOOGLE_GENERATIVE_AI_API_KEY' => 'AIza-gemini-key',
+        ]);
+})->group('AI-004');

@@ -5,15 +5,27 @@ description: 'Describe an app, watch the agent build it, and keep improving it t
 
 ## Start a project
 
-After logging in you see **"what are we working on today?"** Type a description of the app you want, or pick a suggestion, and press Enter.
+After logging in you see **"what are we working on today?"** Type a description of the app you want, or pick a template, and press Enter.
 
 OneDrop then:
 
-1. Creates a project named after your description
+1. Creates a project named after your description (or the template)
 2. Starts a sandbox for it (the preview shows "Starting sandbox…")
 3. Sends your description to the agent
 
 You land in the project's workspace: chat on the left, preview on the right.
+
+### Start from a template
+
+Under the message box are templates for apps teams usually keep in spreadsheets: **Sales CRM**, **Project Tracker**, **Content Calendar**, **Inventory**, **Hiring Pipeline**, **Event Planner**, **Help Desk**, **Time-Off Tracker**, and **Expense Approvals**.
+
+Picking one fills the message box with a full description: the records the app keeps, the views it shows (tables, boards, calendars, public forms), who signs in, and sample data to try it with. Change anything you like before sending, such as "for our three warehouses" or "add a field for the lead source". The project is named after the template; rename it from the sidebar any time.
+
+### What your app is built with
+
+Unless you ask for something else, the agent builds every app on [Laravel](https://laravel.com) with React. Even a simple app starts with sign-in, a database, background jobs, live updates, and file storage in place, so when you later ask for accounts, email, uploads, or "show new orders without refreshing", the agent adds them to the app you have instead of rebuilding it.
+
+Asking for React, Tailwind, a website, or a landing page still gets this setup, since it already uses React and Tailwind. If you want a different framework, name it in your first message, for example "use Next.js" or "a static site with no server".
 
 ## Watch the agent work
 
@@ -35,6 +47,10 @@ Send follow-up messages to change the app, for example "make the Start button bl
 </Tip>
 
 Messages you send while the agent is working are queued and run when it finishes. Press ⌘/Ctrl+Enter to stop the current run and send yours right away.
+
+### Your code is saved after every turn
+
+When the agent finishes or you stop it, OneDrop commits everything in the project to git, with your message as the commit message, and backs up the project's history outside its sandbox. Projects without a git repository get one on branch `main`; a project that already has one keeps its branches and history. Dependencies (`node_modules`, `vendor`), caches and `.env` secrets are never committed. If a project's sandbox is ever replaced without its files, the code comes back from the backup. See the history, go back to an earlier version, or push to GitHub in [Tools → Git](/guides/git).
 
 ## Attach images and files
 
@@ -59,7 +75,19 @@ Attachments stay in the chat, and only people who can see the project can open t
 
 Your projects are listed in the sidebar: pinned ones under **Pinned**, your 10 most recent others under **Recent**, and archived ones under **Archived** (click it to expand). Only you (and admins) can see your projects.
 
+Click **Search** at the top of the sidebar to find any of your projects by name, archived ones included. Use the arrow keys and Enter to open one. The pencil icon next to **Search** starts a new project.
+
 A dot and bold name mean the agent replied since you last opened the project.
+
+Each project has a tile showing its [app icon](/guides/app-icon), or its first letter until it has one. The badge on the tile's corner shows what the project is doing:
+
+| Badge | Meaning |
+| --- | --- |
+| Pulsing amber | The agent is working. The step it's on shows under the name, such as "Editing routes/web.php", and updates as it goes. |
+| Green | The app is [published](/guides/publish). |
+| Red | The sandbox failed. "Sandbox failed" shows under the name; open the project to see the error. |
+
+When you collapse the sidebar, your pinned and recent projects stay as tiles with their badges. Hover a tile to see the project's name.
 
 ### Project menu
 

@@ -4,6 +4,7 @@ use App\Http\Middleware\EnsureAgentConnected;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\UseBuiltAssetsForRemoteRequests;
+use App\Http\Middleware\UseTaskSandbox;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -17,7 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->encryptCookies(except: ['appearance', 'sidebar_state', 'sidebar_width']);
+        $middleware->encryptCookies(except: ['appearance', 'sidebar_state', 'sidebar_width', 'open_project']);
         $middleware->validateCsrfTokens(except: ['sandbox-events/*']);
 
         // Saved file contents must reach the sandbox byte for byte (trailing newlines included).
@@ -45,6 +46,7 @@ return Application::configure(basePath: dirname(__DIR__))
             UseBuiltAssetsForRemoteRequests::class,
             HandleAppearance::class,
             HandleInertiaRequests::class,
+            UseTaskSandbox::class,
             AddLinkHeadersForPreloadedAssets::class,
         ]);
     })

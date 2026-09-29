@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\MessageRole;
+use App\Enums\ProjectStatus;
 use App\Enums\PublishStatus;
 use App\Enums\PublishVisibility;
 use App\Enums\SandboxStatus;
@@ -241,3 +242,30 @@ test('the name is kept when the AI can\'t be asked', function () {
     expect($this->project->fresh()->name)->toBe('Todo App')
         ->and(ProjectNamer::naming([$this->project->id]))->toBe([]);
 })->group('PRJ-003');
+
+test('the sidebar shows the agent\'s latest step in its current run', function () {
+    $this->project->messages()->create(['role' => MessageRole::User, 'content' => 'Build a todo app']);
+    $this->project->messages()->create(['role' => MessageRole::Activity, 'content' => 'Planning app development']);
+    $this->project->messages()->create(['role' => MessageRole::Activity, 'content' => 'Editing routes/web.php']);
+    $this->project->update(['status' => ProjectStatus::Working]);
+
+    expect(sidebarProjects($this->user)['recent'][0])
+        ->toMatchArray(['working' => true, 'activity' => 'Editing routes/web.php', 'failed' => false]);
+
+    // A new prompt starts a new run, so the previous run's steps no longer apply.
+    $this->project->messages()->create(['role' => MessageRole::User, 'content' => 'Add due dates']);
+
+    expect(sidebarProjects($this->user)['recent'][0])->toMatchArray(['working' => true, 'activity' => null]);
+
+    $this->project->update(['status' => ProjectStatus::Idle]);
+
+    expect(sidebarProjects($this->user)['recent'][0])->toMatchArray(['working' => false, 'activity' => null]);
+})->group('PRJ-006');
+
+test('the sidebar shows when a project\'s sandbox failed', function () {
+    expect(sidebarProjects($this->user)['recent'][0]['failed'])->toBeFalse();
+
+    Sandbox::factory()->for($this->project)->create(['status' => SandboxStatus::Failed]);
+
+    expect(sidebarProjects($this->user)['recent'][0]['failed'])->toBeTrue();
+})->group('PRJ-006');

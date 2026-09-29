@@ -10,10 +10,11 @@ Each project runs in its own sandbox. Locally that's a Docker container made fro
 The image is defined in `docker/sandbox/`:
 
 - PHP 8.4 (with SQLite, PostgreSQL and MySQL drivers), Composer, Node.js 22, SQLite
-- OpenCode (the agent, pinned version), plus the Claude Code and Codex CLIs
+- OpenCode and Claude Code (the two agents a project can use, both pinned), plus the Codex CLI
 - `ttyd`, the web terminal behind the Shell tab
 - `start.sh`, which keeps three processes running: the app's dev server (or a placeholder page), the host-rewriting proxy, and the terminal
 - `forwarder.mjs`, which runs an agent task and streams its events back to OneDrop
+- `file-watcher.mjs` (with `inotify-tools`), which `start.sh` keeps running. When files in `/workspace` are added, removed or renamed, it POSTs to a signed address the sandbox got when it was created (`APP_FILES_CHANGED_URL`), so the Files panel reloads its tree only after a change. It skips `node_modules`, `.git`, `vendor`, `.cache`, SQLite journals and editor swap files. Sandboxes made before it keep reloading the tree as the agent works, until they update
 - `db.php`, which finds the app's databases and runs the queries behind **Tools → Database**
 - `auth.php` and `guides/auth.md`, behind **Tools → Users & Auth**: the tool that lists the app's users and saves provider keys, and the guide the agent follows to add sign-in
 - `instructions.md`, the rules the agent follows (plain language, how to start a dev server, default stacks)
@@ -121,6 +122,8 @@ Build the image on the new provider first (`php artisan sandbox:build-image` wit
 
 The agent creates an executable `/workspace/.zap/dev` script that starts the app's dev server on `$PORT`, then runs `/opt/zap/restart`. The container's loop starts that script instead of the placeholder. Output goes to `/tmp/zap-server.log`, which the Console tab shows.
 
+The sandbox's proxy (`docker/sandbox/host-proxy.mjs`) records the app's errors in `/workspace/.zap/errors.log`: 5xx responses, the app not answering, and browser errors. It adds a small script, `/__zap/errors.js`, to HTML pages served on the preview address only. That script reports browser errors to `/__zap/error` and to the app builder around the preview. Reports are only accepted from the preview address, which sits behind the app builder's sign-in. See [When the app hits an error](/guides/workspace#when-the-app-hits-an-error).
+
 ## Sandboxes update themselves
 
 The guides the agent follows, the tools behind panels like Database and Growth, and the proxy all ship in the sandbox image. After you change anything in `docker/sandbox/`, rebuild the image (`php artisan sandbox:build-image`; the server deploy script does this when those files change). Existing sandboxes then move to the new image on their own:
@@ -147,7 +150,19 @@ To replace a sandbox even when it's up to date (for example, one that's broken):
 php artisan sandbox:recreate 12 --keep-files
 ```
 
-`--keep-files` copies the app (`/workspace`), App Storage and the sandbox user's home folder (with the agent's conversation history) into the new sandbox. Without it, the project starts from an empty workspace. Published projects are published again automatically.
+`--keep-files` copies the app (`/workspace`), App Storage and the sandbox user's home folder (with the agent's conversation history) into the new sandbox. Without it, the project's code is restored from its [backup](#code-backups), and App Storage and the agent's conversation history start empty. Published projects are published again automatically.
+
+## Code backups
+
+After every agent turn, `/opt/zap/checkpoint` commits the workspace to git (the forwarder runs it, whichever agent ran the turn), and a `BackupProject` job copies the whole history out of the sandbox as a verified git bundle. Bundles are stored at `project-backups/<project id>/repo.bundle` on the filesystem disk named by `SANDBOX_BACKUP_DISK` (`local`, which is `storage/app/private`, by default). The sandbox never gets credentials for that disk: the platform copies the bundle out through the provider.
+
+Checkpoints never include `node_modules`, `vendor`, `.cache` or `.env` files (except `.env.example`), and a repository in the middle of a merge or rebase is left alone. Backups hold code and its history only; App Storage buckets and databases outside git aren't in them.
+
+When a sandbox is replaced without its files, the backup is cloned into the new one, with every branch, and the app starts. That covers a sandbox that's broken or gone, including one on a provider you've stopped using: if a [provider switch](#switch-providers) can't copy files out of the old sandbox, run `php artisan sandbox:recreate <project>` to start the project on the new provider from its backup. Deleting a project deletes its backup.
+
+<Tip>
+    In production, point `SANDBOX_BACKUP_DISK` at object storage (an `s3` disk in `config/filesystems.php`, which needs the `league/flysystem-aws-s3-v3` package) so backups outlive the server.
+</Tip>
 
 ## Clean up
 

@@ -7,8 +7,12 @@
 // redirects); text responses get those links pointed back at the address the visitor used.
 import {
     appendFile,
+    closeSync,
+    fstatSync,
     mkdirSync,
+    openSync,
     readFileSync,
+    readSync,
     renameSync,
     statSync,
 } from 'node:fs';
@@ -18,6 +22,59 @@ import net from 'node:net';
 const appPort = Number(process.env.PORT || 8000);
 const listenPort = Number(process.env.PROXY_PORT || 8081);
 const appHost = `localhost:${appPort}`;
+
+// Extra servers behind the same address (a realtime server like Laravel Reverb, a separate WebSocket
+// server): /workspace/.zap/routes.json maps path prefixes to local ports, e.g. {"/app": 8080}. Requests
+// and WebSockets under a prefix go to its port instead of the app's. The sandbox's own services
+// (this proxy, the web terminal, SSH) can never be routed to, so they stay behind the platform's auth.
+const ROUTES_FILE = process.env.ZAP_ROUTES_FILE || '/workspace/.zap/routes.json';
+const RESERVED_PORTS = new Set(
+    [listenPort, process.env.SHELL_PORT || 7681, process.env.SSH_PORT || 2222].map(Number),
+);
+const ROUTES_TTL_MS = 1000;
+let routes = { at: 0, list: [] };
+
+/** The routes in routes.json, longest prefix first; invalid entries are skipped. */
+function readRoutes() {
+    let config;
+
+    try {
+        config = JSON.parse(readFileSync(ROUTES_FILE, 'utf8'));
+    } catch {
+        return [];
+    }
+
+    if (!config || typeof config !== 'object' || Array.isArray(config)) {
+        return [];
+    }
+
+    return Object.entries(config)
+        .map(([prefix, port]) => [prefix.replace(/\/+$/, ''), Number(port)])
+        .filter(
+            ([prefix, port]) =>
+                /^\/[\w\-.~/]+$/.test(prefix) &&
+                Number.isInteger(port) &&
+                port > 0 &&
+                port < 65536 &&
+                port !== appPort &&
+                !RESERVED_PORTS.has(port),
+        )
+        .sort(([a], [b]) => b.length - a.length);
+}
+
+/** The local port a request goes to: a routed server's, or the app's. */
+function targetPort(url) {
+    if (Date.now() - routes.at > ROUTES_TTL_MS) {
+        routes = { at: Date.now(), list: readRoutes() };
+    }
+
+    const path = String(url ?? '/').split('?')[0];
+    const route = routes.list.find(
+        ([prefix]) => path === prefix || path.startsWith(`${prefix}/`),
+    );
+
+    return route ? route[1] : appPort;
+}
 
 /** Point a same-site URL header (Origin/Referer) at localhost, leaving other sites alone. */
 function localize(value, originalHost) {
@@ -55,13 +112,13 @@ function isForeignHost(host) {
     return host !== '' && host !== appHost && host !== `127.0.0.1:${appPort}`;
 }
 
-function rewrite(req) {
+function rewrite(req, port = appPort) {
     const headers = { ...req.headers };
     const originalHost = req.headers.host ?? '';
 
     headers['x-forwarded-host'] = originalHost;
     headers['x-forwarded-proto'] = visitorProto(req);
-    headers.host = appHost;
+    headers.host = `localhost:${port}`;
 
     // Uncompressed answers, so links to localhost in them can be pointed at the visitor's address.
     if (isForeignHost(originalHost)) {
@@ -126,6 +183,10 @@ function relay(req, res, response) {
         headers.location = toVisitor(String(headers.location), req);
     }
 
+    if ((response.statusCode ?? 502) >= 500) {
+        watchServerError(req, response);
+    }
+
     const rewritable =
         foreign &&
         REWRITABLE.test(String(headers['content-type'] ?? '')) &&
@@ -147,10 +208,17 @@ function relay(req, res, response) {
         chunks.push(chunk);
     });
     response.on('end', () => {
-        const body =
-            size > MAX_REWRITE_BYTES
-                ? Buffer.concat(chunks)
-                : Buffer.from(toVisitor(Buffer.concat(chunks).toString('utf8'), req), 'utf8');
+        let body = Buffer.concat(chunks);
+
+        if (size <= MAX_REWRITE_BYTES) {
+            let text = toVisitor(body.toString('utf8'), req);
+
+            if (isPreview(host) && /^text\/html/i.test(String(headers['content-type']))) {
+                text = withErrorReporter(text, response.statusCode ?? 502);
+            }
+
+            body = Buffer.from(text, 'utf8');
+        }
 
         delete headers['transfer-encoding'];
         headers['content-length'] = String(body.length);
@@ -305,17 +373,22 @@ function parseEvent(body) {
     return { name: event.name, props };
 }
 
-function recordEvent(req, res) {
+/** Read a small request body; `done` gets null when it's larger than `max` bytes. */
+function readBody(req, max, done) {
     let body = '';
     let tooLarge = false;
 
     req.setEncoding('utf8');
     req.on('data', (chunk) => {
-        tooLarge ||= body.length + chunk.length > MAX_EVENT_BYTES;
+        tooLarge ||= body.length + chunk.length > max;
         body = tooLarge ? '' : body + chunk;
     });
-    req.on('end', () => {
-        const event = tooLarge ? null : parseEvent(body);
+    req.on('end', () => done(tooLarge ? null : body));
+}
+
+function recordEvent(req, res) {
+    readBody(req, MAX_EVENT_BYTES, (body) => {
+        const event = body === null ? null : parseEvent(body);
         const host = String(req.headers.host ?? '');
 
         if (event) {
@@ -331,6 +404,258 @@ function recordEvent(req, res) {
         }
 
         res.writeHead(event ? 204 : 400, { 'cache-control': 'no-store' });
+        res.end();
+    });
+    req.on('error', () => res.destroy());
+}
+
+// Errors, whatever the app's stack (instructions.md, "When something breaks"): 5xx answers (with the page's
+// text and the end of the dev server's log), errors in the preview's browser (reported by a small script added
+// to preview pages), and the app not answering. The agent reads them in errors.log; the app builder shows the
+// browser's over the preview. Browser reports are only taken from the preview, which is behind the platform's auth.
+const ERRORS_LOG = `${MONITOR_DIR}/errors.log`;
+const ERROR_PATH = '/__zap/error';
+const ERROR_SCRIPT_PATH = '/__zap/errors.js';
+const SERVER_LOG = '/tmp/zap-server.log';
+const BROWSER_ERROR_TYPES = new Set(['error', 'rejection', 'console', 'resource']);
+const MAX_ERROR_REPORT_BYTES = 16_384;
+const MAX_ERROR_BODY_BYTES = 200_000;
+const MAX_ERROR_TEXT = 2000;
+const MAX_LOG_TAIL_BYTES = 4000;
+// The same error again within this window isn't logged twice; the app being down is logged at most this often.
+const ERROR_REPEAT_MS = 5000;
+const DOWN_REPEAT_MS = 30_000;
+const ANSI = /\x1b\[[0-9;?]*[A-Za-z]/g;
+const lastErrors = new Map();
+
+// Added to preview pages. Reports to the proxy (for errors.log) and to the app builder around the preview.
+// Server errors (the page itself, or fetch/XHR answers) are already logged by the proxy, so they're only shown.
+const ERROR_REPORTER = `(() => {
+    if (window.__zapErrors) return;
+    window.__zapErrors = true;
+    const script = document.currentScript;
+    const seen = new Set();
+    let count = 0;
+    const describe = (value) => {
+        if (value instanceof Error) return value.message || String(value);
+        if (typeof value === 'string') return value;
+        try { return JSON.stringify(value); } catch { return String(value); }
+    };
+    const report = (type, message, stack, source) => {
+        message = String(message || '').slice(0, 1000);
+        if (!message || seen.has(type + message) || count >= 20) return;
+        seen.add(type + message);
+        count++;
+        const error = { type, message, stack: stack ? String(stack).slice(0, 4000) : undefined, source, page: location.pathname };
+        if (type !== 'server') {
+            try { navigator.sendBeacon('${ERROR_PATH}', JSON.stringify(error)); } catch {}
+        }
+        if (type !== 'console' && window.parent !== window) {
+            try { window.parent.postMessage({ zap: 'error', error }, '*'); } catch {}
+        }
+    };
+    const status = Number(script && script.dataset.status);
+    if (status) {
+        const show = () => report('server', status + ' ' + (document.title || 'Server error') + ': '
+            + (document.body ? document.body.innerText : '').replace(/\\s+/g, ' ').slice(0, 300), undefined, location.pathname);
+        document.readyState === 'loading' ? addEventListener('DOMContentLoaded', show) : show();
+    }
+    addEventListener('error', (event) => {
+        const target = event.target;
+        if (target instanceof HTMLScriptElement || target instanceof HTMLLinkElement) {
+            report('resource', "Couldn't load " + (target.src || target.href), undefined, target.src || target.href);
+        } else if (target === window || !(target instanceof Element)) {
+            report('error', event.message || describe(event.error), event.error && event.error.stack,
+                event.filename ? event.filename + ':' + event.lineno + ':' + event.colno : undefined);
+        }
+    }, true);
+    addEventListener('unhandledrejection', (event) => report('rejection', describe(event.reason), event.reason && event.reason.stack));
+    const consoleError = console.error;
+    console.error = function (...args) {
+        const error = args.find((arg) => arg instanceof Error);
+        report('console', args.map(describe).join(' '), error && error.stack);
+        return consoleError.apply(this, args);
+    };
+    const failed = (code, method, url) => {
+        if (code >= 500) report('server', code + ' from ' + String(method || 'GET').toUpperCase() + ' ' + url, undefined, url);
+    };
+    const originalFetch = window.fetch;
+    if (originalFetch) {
+        window.fetch = function (input, init) {
+            const url = input instanceof Request ? input.url : String(input);
+            const method = (init && init.method) || (input instanceof Request ? input.method : 'GET');
+            return originalFetch.apply(this, arguments).then((response) => {
+                failed(response.status, method, url);
+                return response;
+            });
+        };
+    }
+    const open = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function (method, url) {
+        this.addEventListener('loadend', () => failed(this.status, method, String(url)));
+        return open.apply(this, arguments);
+    };
+})();
+`;
+
+/** Add the error reporter to a preview page, first thing in its head (or body), so it sees the app's first errors. */
+function withErrorReporter(html, status) {
+    const tag = `<script src="${ERROR_SCRIPT_PATH}"${status >= 500 ? ` data-status="${status}"` : ''}></script>`;
+    const opening = /<head\b[^>]*>/i.exec(html) ?? /<body\b[^>]*>/i.exec(html);
+
+    if (!opening) {
+        return html;
+    }
+
+    const at = opening.index + opening[0].length;
+
+    return html.slice(0, at) + tag + html.slice(at);
+}
+
+/** An error page's readable text: HTML without its tags, scripts and styles; other types as they are. */
+function pageText(raw, type) {
+    const text = /html/i.test(type)
+        ? raw
+              .replace(/<(head|script|style|svg)\b[\s\S]*?<\/\1>/gi, ' ')
+              .replace(/<[^>]+>/g, ' ')
+              .replace(/&nbsp;/g, ' ')
+              .replace(/&lt;/g, '<')
+              .replace(/&gt;/g, '>')
+              .replace(/&quot;/g, '"')
+              .replace(/&#0?39;/g, "'")
+              .replace(/&amp;/g, '&')
+        : raw;
+
+    return text.replace(/\s+/g, ' ').trim().slice(0, MAX_ERROR_TEXT) || undefined;
+}
+
+/** The end of the dev server's output, where most stacks print what went wrong. */
+function serverLogTail() {
+    try {
+        const fd = openSync(SERVER_LOG, 'r');
+
+        try {
+            const size = fstatSync(fd).size;
+            const length = Math.min(size, MAX_LOG_TAIL_BYTES);
+            const buffer = Buffer.alloc(length);
+
+            readSync(fd, buffer, 0, length, size - length);
+
+            const lines = buffer.toString('utf8').replace(ANSI, '').split('\n');
+
+            // Drop the partial first line.
+            if (length < size) {
+                lines.shift();
+            }
+
+            return lines.join('\n').trim() || undefined;
+        } finally {
+            closeSync(fd);
+        }
+    } catch {
+        return undefined;
+    }
+}
+
+function recordError(req, entry, key, repeatMs = ERROR_REPEAT_MS) {
+    const now = Date.now();
+
+    if (now - (lastErrors.get(key) ?? 0) < repeatMs) {
+        return;
+    }
+
+    if (lastErrors.size > 200) {
+        lastErrors.clear();
+    }
+
+    lastErrors.set(key, now);
+    record(ERRORS_LOG, {
+        t: now,
+        ...entry,
+        pub: !isPreview(String(req.headers.host ?? '')),
+    });
+}
+
+function requestPath(req) {
+    return String(req.url ?? '/').slice(0, 200);
+}
+
+/** Log a 5xx answer with its text once it has arrived (the answer itself goes on unchanged). */
+function watchServerError(req, response) {
+    const chunks = [];
+    let size = 0;
+
+    response.on('data', (chunk) => {
+        if (size < MAX_ERROR_BODY_BYTES) {
+            chunks.push(chunk);
+            size += chunk.length;
+        }
+    });
+    response.on('end', () => {
+        const type = String(response.headers['content-type'] ?? '');
+        // Compressed answers (to requests from inside the sandbox) can't be read here; the log still helps.
+        const text = response.headers['content-encoding']
+            ? undefined
+            : pageText(Buffer.concat(chunks).toString('utf8').slice(0, MAX_ERROR_BODY_BYTES), type);
+        const path = requestPath(req);
+
+        recordError(
+            req,
+            { k: 'server', s: response.statusCode, m: req.method, p: path, text, log: serverLogTail() },
+            `server ${response.statusCode} ${path} ${text?.slice(0, 200)}`,
+        );
+    });
+}
+
+/** The app didn't answer (not started, restarting, or crashed). */
+function recordDown(req) {
+    recordError(req, { k: 'down', m: req.method, p: requestPath(req), log: serverLogTail() }, 'down', DOWN_REPEAT_MS);
+}
+
+/** A browser error from the preview's reporter, or null when it doesn't look like one. */
+function parseBrowserError(body) {
+    let error;
+
+    try {
+        error = JSON.parse(body);
+    } catch {
+        return null;
+    }
+
+    if (
+        !error ||
+        typeof error !== 'object' ||
+        !BROWSER_ERROR_TYPES.has(error.type) ||
+        typeof error.message !== 'string' ||
+        error.message === ''
+    ) {
+        return null;
+    }
+
+    const text = (value, max) =>
+        typeof value === 'string' && value !== '' ? value.slice(0, max) : undefined;
+
+    return {
+        type: error.type,
+        msg: error.message.slice(0, 1000),
+        stack: text(error.stack, 4000),
+        src: text(error.source, 500),
+        page: text(error.page, 200),
+    };
+}
+
+function recordBrowserError(req, res) {
+    readBody(req, MAX_ERROR_REPORT_BYTES, (body) => {
+        const error =
+            body !== null && isPreview(String(req.headers.host ?? ''))
+                ? parseBrowserError(body)
+                : null;
+
+        if (error) {
+            recordError(req, { k: 'browser', ...error }, `browser ${error.type} ${error.msg.slice(0, 200)}`);
+        }
+
+        res.writeHead(error ? 204 : 400, { 'cache-control': 'no-store' });
         res.end();
     });
     req.on('error', () => res.destroy());
@@ -383,11 +708,26 @@ setInterval(
 ).unref();
 
 const server = http.createServer((req, res) => {
-    if (
-        req.method === 'POST' &&
-        String(req.url ?? '').split('?')[0] === EVENT_PATH
-    ) {
+    const path = String(req.url ?? '').split('?')[0];
+
+    if (req.method === 'POST' && path === EVENT_PATH) {
         recordEvent(req, res);
+
+        return;
+    }
+
+    if (req.method === 'POST' && path === ERROR_PATH) {
+        recordBrowserError(req, res);
+
+        return;
+    }
+
+    if (req.method === 'GET' && path === ERROR_SCRIPT_PATH) {
+        res.writeHead(200, {
+            'content-type': 'text/javascript; charset=utf-8',
+            'cache-control': 'no-cache',
+        });
+        res.end(ERROR_REPORTER);
 
         return;
     }
@@ -395,18 +735,21 @@ const server = http.createServer((req, res) => {
     const startedAt = performance.now();
     res.on('finish', () => logRequest(req, res.statusCode, startedAt));
 
+    const port = targetPort(req.url);
     const upstream = http.request(
         {
             host: '127.0.0.1',
-            port: appPort,
+            port,
             method: req.method,
             path: req.url,
-            headers: rewrite(req),
+            headers: rewrite(req, port),
         },
         (response) => relay(req, res, response),
     );
 
     upstream.on('error', () => {
+        recordDown(req);
+
         if (!res.headersSent) {
             res.writeHead(502, { 'content-type': 'text/html; charset=utf-8' });
         }
@@ -418,10 +761,11 @@ const server = http.createServer((req, res) => {
 });
 
 server.on('upgrade', (req, socket, head) => {
-    const upstream = net.connect(appPort, '127.0.0.1', () => {
+    const port = targetPort(req.url);
+    const upstream = net.connect(port, '127.0.0.1', () => {
         const lines = [`${req.method} ${req.url} HTTP/${req.httpVersion}`];
 
-        for (const [name, value] of Object.entries(rewrite(req))) {
+        for (const [name, value] of Object.entries(rewrite(req, port))) {
             for (const item of Array.isArray(value) ? value : [value]) {
                 lines.push(`${name}: ${String(item)}`);
             }

@@ -28,6 +28,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('settings/connected-accounts/{socialAccount}', [SocialAccountController::class, 'destroy'])->name('social-accounts.destroy');
 
     Route::inertia('settings/appearance', 'settings/appearance')->name('appearance.edit');
+    Route::inertia('settings/notifications', 'settings/notifications')->name('notifications.edit');
 
     Route::get('settings/ai', [AgentConnectionController::class, 'index'])->name('agent-connections.index');
     Route::post('settings/ai', [AgentConnectionController::class, 'store'])->name('agent-connections.store');

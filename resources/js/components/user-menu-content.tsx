@@ -59,24 +59,24 @@ export function UserMenuContent({ user }: Props) {
             <DropdownMenuGroup>
                 <DropdownMenuItem asChild>
                     <Link
-                        className="block w-full cursor-pointer"
+                        className="w-full cursor-pointer"
                         href={edit()}
                         prefetch
                         onClick={cleanup}
                         data-test="settings-link"
                     >
-                        <Settings className="mr-2" />
+                        <Settings />
                         Settings
                     </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                     <Link
-                        className="block w-full cursor-pointer"
+                        className="w-full cursor-pointer"
                         href={invitationsIndex()}
                         prefetch
                         onClick={cleanup}
                     >
-                        <UserPlus className="mr-2" />
+                        <UserPlus />
                         Invite people
                     </Link>
                 </DropdownMenuItem>
@@ -147,13 +147,13 @@ export function UserMenuContent({ user }: Props) {
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
                 <Link
-                    className="block w-full cursor-pointer"
+                    className="w-full cursor-pointer"
                     href={logout()}
                     as="button"
                     onClick={handleLogout}
                     data-test="logout-button"
                 >
-                    <LogOut className="mr-2" />
+                    <LogOut />
                     Log out
                 </Link>
             </DropdownMenuItem>

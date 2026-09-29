@@ -17,6 +17,7 @@ test('each connection maps to the env var its agent CLI reads', function (AgentP
     'claude subscription token' => [AgentProvider::Claude, CredentialType::OAuthToken, 'CLAUDE_CODE_OAUTH_TOKEN'],
     'codex' => [AgentProvider::Codex, CredentialType::ApiKey, 'OPENAI_API_KEY'],
     'openrouter' => [AgentProvider::OpenRouter, CredentialType::ApiKey, 'OPENROUTER_API_KEY'],
+    'gemini' => [AgentProvider::Gemini, CredentialType::ApiKey, 'GOOGLE_GENERATIVE_AI_API_KEY'],
 ])->group('AI-001');
 
 test('claude tokens from setup-token are detected as subscription tokens', function () {

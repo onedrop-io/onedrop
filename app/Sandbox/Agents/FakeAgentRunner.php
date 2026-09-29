@@ -33,7 +33,7 @@ class FakeAgentRunner implements AgentRunner
         ];
 
         foreach ($events as $step => [$role, $content]) {
-            AppendAgentEvent::dispatch($project, $role, $content, finished: $step === array_key_last($events))
+            AppendAgentEvent::dispatch($message->conversation(), $role, $content, finished: $step === array_key_last($events))
                 ->delay(now()->addSeconds(($step + 1) * self::STEP_SECONDS));
         }
     }
@@ -41,5 +41,5 @@ class FakeAgentRunner implements AgentRunner
     /**
      * Nothing runs outside the queue, so there's nothing to stop.
      */
-    public function stop(Project $project): void {}
+    public function stop(Conversation $conversation): void {}
 }

@@ -3,6 +3,7 @@
 use App\Http\Controllers\AcceptInvitationController;
 use App\Http\Controllers\AgentModelController;
 use App\Http\Controllers\ChatGptAuthController;
+use App\Http\Controllers\GitHubAppController;
 use App\Http\Controllers\GroupController;
 use App\Http\Controllers\GroupMemberController;
 use App\Http\Controllers\InvitationController;
@@ -17,17 +18,22 @@ use App\Http\Controllers\ProjectDatabaseController;
 use App\Http\Controllers\ProjectDeveloperController;
 use App\Http\Controllers\ProjectFileController;
 use App\Http\Controllers\ProjectFlagController;
+use App\Http\Controllers\ProjectGitController;
 use App\Http\Controllers\ProjectGrowthController;
+use App\Http\Controllers\ProjectIconController;
 use App\Http\Controllers\ProjectLogController;
 use App\Http\Controllers\ProjectMessageController;
 use App\Http\Controllers\ProjectMonitoringController;
 use App\Http\Controllers\ProjectPublicationController;
+use App\Http\Controllers\ProjectSearchController;
 use App\Http\Controllers\ProjectSecretController;
 use App\Http\Controllers\ProjectStorageController;
 use App\Http\Controllers\SandboxEventController;
 use App\Http\Controllers\SandboxGatewayController;
 use App\Http\Controllers\SocialLoginController;
 use App\Http\Controllers\SshKeyController;
+use App\Http\Controllers\TaskController;
+use App\Http\Controllers\TaskMessageController;
 use App\Http\Controllers\UserController;
 use App\Http\Middleware\HandleInertiaRequests;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
@@ -64,10 +70,18 @@ Route::withoutMiddleware([StartSession::class, ShareErrorsFromSession::class, Pr
         Route::get('oauth/userinfo', [OneDropOAuthController::class, 'userinfo'])->name('onedrop.userinfo');
     });
 
-// Called by the agent forwarder inside a sandbox; authenticated by a per-sandbox bearer token.
+// Called by the agent forwarder inside a sandbox; authenticated by a per-run bearer token. Tasks' runs
+// report to their own address (TASK-001), and a sandbox may run several at once.
 Route::post('sandbox-events/{sandbox}', [SandboxEventController::class, 'store'])
-    ->middleware('throttle:600,1')
+    ->middleware('throttle:3000,1')
     ->name('sandbox-events.store');
+Route::post('sandbox-events/{sandbox}/tasks/{task}', [SandboxEventController::class, 'store'])
+    ->middleware('throttle:3000,1')
+    ->name('sandbox-events.tasks.store');
+// Called by the file watcher inside a sandbox (FILE-004); the sandbox gets this signed address when it's created.
+Route::post('sandbox-events/{sandbox}/files', [SandboxEventController::class, 'filesChanged'])
+    ->middleware(['signed:relative', 'throttle:600,1'])
+    ->name('sandbox-events.files');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('oauth/authorize', [OneDropOAuthController::class, 'authorize'])->middleware('throttle:60,1')->name('onedrop.authorize');
@@ -81,6 +95,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('dashboard', [ProjectController::class, 'create'])->name('dashboard');
 
         Route::post('projects', [ProjectController::class, 'store'])->name('projects.store');
+        Route::get('projects/search', ProjectSearchController::class)->name('projects.search');
         Route::get('projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
         Route::patch('projects/{project}', [ProjectController::class, 'update'])->name('projects.update');
         Route::delete('projects/{project}', [ProjectController::class, 'destroy'])->name('projects.destroy');
@@ -88,6 +103,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('projects/{project}/messages', [ProjectMessageController::class, 'store'])->name('projects.messages.store');
         Route::get('projects/{project}/attachments/{attachment}', [ProjectAttachmentController::class, 'show'])->name('projects.attachments.show');
         Route::get('projects/{project}/files', [ProjectFileController::class, 'index'])->name('projects.files.index');
+        Route::get('projects/{project}/files/version', [ProjectFileController::class, 'version'])->name('projects.files.version');
         Route::get('projects/{project}/files/show', [ProjectFileController::class, 'show'])->name('projects.files.show');
         Route::put('projects/{project}/files', [ProjectFileController::class, 'update'])->name('projects.files.update');
         Route::post('projects/{project}/files', [ProjectFileController::class, 'store'])->name('projects.files.store');
@@ -115,10 +131,33 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('projects/{project}/growth', [ProjectGrowthController::class, 'show'])->name('projects.growth.show');
         Route::post('projects/{project}/growth/seo-scan', [ProjectGrowthController::class, 'scan'])->name('projects.growth.scan');
         Route::post('projects/{project}/growth/events', [ProjectGrowthController::class, 'addEvents'])->name('projects.growth.events');
+        Route::get('projects/{project}/icon', [ProjectIconController::class, 'show'])->name('projects.icon.show');
+        Route::post('projects/{project}/icon', [ProjectIconController::class, 'update'])->name('projects.icon.update');
+        Route::post('projects/{project}/icon/draw', [ProjectIconController::class, 'draw'])->name('projects.icon.draw');
         Route::get('projects/{project}/flags', [ProjectFlagController::class, 'index'])->name('projects.flags.index');
         Route::post('projects/{project}/flags', [ProjectFlagController::class, 'store'])->name('projects.flags.store');
         Route::patch('projects/{project}/flags/{flag}', [ProjectFlagController::class, 'update'])->name('projects.flags.update');
         Route::delete('projects/{project}/flags/{flag}', [ProjectFlagController::class, 'destroy'])->name('projects.flags.destroy');
+        Route::get('projects/{project}/git/github-app/install', [GitHubAppController::class, 'install'])->name('projects.git.github-app.install');
+        Route::get('projects/{project}/git/github-app/repositories', [GitHubAppController::class, 'repositories'])->name('projects.git.github-app.repositories');
+        Route::get('projects/{project}/git/github-app/branches', [GitHubAppController::class, 'branches'])->name('projects.git.github-app.branches');
+        Route::get('projects/{project}/git/github-app/availability', [GitHubAppController::class, 'availability'])->name('projects.git.github-app.availability');
+        Route::post('projects/{project}/git/github-app/repositories', [GitHubAppController::class, 'create'])->name('projects.git.github-app.create');
+        Route::put('projects/{project}/git/github-app/remote', [GitHubAppController::class, 'connect'])->name('projects.git.github-app.connect');
+        Route::get('github/callback', [GitHubAppController::class, 'callback'])->name('github-app.callback');
+        Route::get('projects/{project}/git', [ProjectGitController::class, 'index'])->name('projects.git.index');
+        Route::get('projects/{project}/git/commits', [ProjectGitController::class, 'log'])->name('projects.git.log');
+        Route::get('projects/{project}/git/commits/{sha}', [ProjectGitController::class, 'show'])->where('sha', '[0-9a-f]{7,40}')->name('projects.git.show');
+        Route::get('projects/{project}/git/commits/{sha}/diff', [ProjectGitController::class, 'diff'])->where('sha', '[0-9a-f]{7,40}')->name('projects.git.diff');
+        Route::post('projects/{project}/git/commit', [ProjectGitController::class, 'commit'])->name('projects.git.commit');
+        Route::post('projects/{project}/git/discard', [ProjectGitController::class, 'discard'])->name('projects.git.discard');
+        Route::post('projects/{project}/git/switch', [ProjectGitController::class, 'switch'])->name('projects.git.switch');
+        Route::post('projects/{project}/git/restore', [ProjectGitController::class, 'restore'])->name('projects.git.restore');
+        Route::put('projects/{project}/git/remote', [ProjectGitController::class, 'connect'])->name('projects.git.connect');
+        Route::delete('projects/{project}/git/remote', [ProjectGitController::class, 'disconnect'])->name('projects.git.disconnect');
+        Route::post('projects/{project}/git/remote/github', [ProjectGitController::class, 'github'])->name('projects.git.github');
+        Route::post('projects/{project}/git/push', [ProjectGitController::class, 'push'])->name('projects.git.push');
+        Route::post('projects/{project}/git/pull', [ProjectGitController::class, 'pull'])->name('projects.git.pull');
         Route::get('projects/{project}/secrets', [ProjectSecretController::class, 'index'])->name('projects.secrets.index');
         Route::get('projects/{project}/secrets/value', [ProjectSecretController::class, 'show'])->name('projects.secrets.show');
         Route::post('projects/{project}/secrets', [ProjectSecretController::class, 'store'])->name('projects.secrets.store');
@@ -142,8 +181,20 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('ssh-keys/{sshKey}', [SshKeyController::class, 'destroy'])->name('ssh-keys.destroy');
         Route::get('projects/{project}/open/{kind}', [SandboxGatewayController::class, 'open'])->name('projects.gateway.open');
         Route::patch('projects/{project}/agent', [ProjectAgentController::class, 'update'])->name('projects.agent.update');
+        Route::patch('projects/{project}/agent/autofix', [ProjectAgentController::class, 'autofix'])->name('projects.agent.autofix');
         Route::post('projects/{project}/agent/stop', [ProjectAgentController::class, 'stop'])->name('projects.agent.stop');
         Route::delete('projects/{project}/messages/{message}', [ProjectMessageController::class, 'destroy'])->name('projects.messages.destroy');
+        Route::get('projects/{project}/board', [TaskController::class, 'index'])->name('projects.board');
+        Route::get('projects/{project}/tasks/new', [TaskController::class, 'create'])->name('projects.tasks.create');
+        Route::post('projects/{project}/tasks', [TaskController::class, 'store'])->name('projects.tasks.store');
+        Route::get('projects/{project}/tasks/{task}', [TaskController::class, 'show'])->scopeBindings()->name('projects.tasks.show');
+        Route::patch('projects/{project}/tasks/{task}', [TaskController::class, 'update'])->scopeBindings()->name('projects.tasks.update');
+        Route::delete('projects/{project}/tasks/{task}', [TaskController::class, 'destroy'])->scopeBindings()->name('projects.tasks.destroy');
+        Route::post('projects/{project}/tasks/{task}/messages', [TaskMessageController::class, 'store'])->scopeBindings()->name('projects.tasks.messages.store');
+        Route::delete('projects/{project}/tasks/{task}/messages/{message}', [TaskMessageController::class, 'destroy'])->name('projects.tasks.messages.destroy');
+        Route::post('projects/{project}/tasks/{task}/stop', [TaskMessageController::class, 'stop'])->scopeBindings()->name('projects.tasks.stop');
+        Route::post('projects/{project}/tasks/{task}/apply', [TaskController::class, 'apply'])->scopeBindings()->name('projects.tasks.apply');
+        Route::post('projects/{project}/tasks/{task}/update-from-main', [TaskController::class, 'updateFromMain'])->scopeBindings()->name('projects.tasks.update-from-main');
         Route::get('agent-models', [AgentModelController::class, 'index'])->name('agent-models.index');
         Route::put('agent-models/favorites', [AgentModelController::class, 'favorite'])->name('agent-models.favorite');
         Route::post('projects/{project}/publication', [ProjectPublicationController::class, 'store'])->name('projects.publication.store');

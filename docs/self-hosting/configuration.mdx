@@ -20,6 +20,11 @@ OneDrop is a Laravel application, so the usual Laravel settings (`APP_URL`, `DB_
 | `SANDBOX_SHELL_PORT`    | `7681`                             | Port of the web terminal behind the Shell tab.                                                      |
 | `SANDBOX_SSH_PORT`      | `2222`                             | Port of the SSH server behind Tools → Developer → SSH.                                              |
 | `SANDBOX_CALLBACK_URL`  | `http://host.docker.internal:8000` | How code inside a sandbox reaches OneDrop to report agent events. In production, your public `APP_URL`. |
+| `SANDBOX_BACKUP_DISK`   | `local`                            | Filesystem disk that holds each project's code backup. See [Code backups](/self-hosting/sandboxes#code-backups). |
+| `SANDBOX_TASK_COPIES`   | `true`                             | Give each task its own copy of the project's sandbox, with its own preview; its work is merged back when applied. Off, tasks share the main sandbox. See [Tasks and the board](/guides/tasks). |
+| `SANDBOX_MAX_TASK_COPIES` | `3`                              | Most task copies one project runs at once. Each copy is a full sandbox. |
+| `SANDBOX_GIT_ALLOW_PRIVATE_REMOTES` | `false`               | Let Tools → Git push to remotes on private networks, e.g. a self-hosted Forgejo on your LAN. Off, remotes must be public HTTPS hosts. |
+| `GITHUB_APP_ID`, `GITHUB_APP_SLUG`, `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET`, `GITHUB_APP_PRIVATE_KEY` | empty | The GitHub App behind **Connect GitHub** in Tools → Git. See [GitHub App](/self-hosting/github-app). |
 | `BL_API_KEY`            | empty                              | Blaxel API key, from the Blaxel console. Keep it in your secret manager.                            |
 | `BL_WORKSPACE`          | empty                              | Your Blaxel workspace name.                                                                         |
 | `BLAXEL_IMAGE`          | `zap-sandbox`                      | Blaxel image pushed by `php artisan sandbox:build-image`.                                           |
@@ -37,10 +42,11 @@ OneDrop is a Laravel application, so the usual Laravel settings (`APP_URL`, `DB_
 
 | Variable                   | Default                                | Description                                                |
 | -------------------------- | -------------------------------------- | ---------------------------------------------------------- |
-| `SANDBOX_AGENT`            | `OpenCodeRunner`                       | Class that starts agent runs. Tests use `FakeAgentRunner`. |
+| `SANDBOX_AGENT`            | `HarnessRunner`                        | Class that starts agent runs; `HarnessRunner` runs each project's chosen agent (OpenCode or Claude Code). Tests use `FakeAgentRunner`. |
 | `SANDBOX_MODEL_CLAUDE`     | `anthropic/claude-sonnet-5`            | Model used for Anthropic connections.                      |
 | `SANDBOX_MODEL_CODEX`      | `openai/gpt-5.6`                       | Model used for OpenAI connections.                         |
 | `SANDBOX_MODEL_OPENROUTER` | `openrouter/anthropic/claude-sonnet-5` | Model used for OpenRouter connections.                     |
+| `SANDBOX_MODEL_GEMINI`     | `google/gemini-3.8-flash`              | Model used for Gemini connections.                         |
 
 These are the defaults for new projects; users can pick any other model in the chat. Models use OpenCode's `provider/model` format.
 

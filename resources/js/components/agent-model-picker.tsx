@@ -1,4 +1,11 @@
-import { Check, ChevronDown, ChevronRight, Search, Star } from "lucide-react";
+import {
+    Bot,
+    Check,
+    ChevronDown,
+    ChevronRight,
+    Search,
+    Star,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import AgentModelController from "@/actions/App/Http/Controllers/AgentModelController";
 import {
@@ -10,8 +17,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import type {
+    AgentHarness,
     AgentProvider,
     AgentSelection,
+    CatalogHarness,
     CatalogModel,
     CatalogProvider,
 } from "@/types";
@@ -44,6 +53,7 @@ function ProviderIcon({
             "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
         ],
         openrouter: ["OR", "bg-sky-500/15 text-sky-600 dark:text-sky-400"],
+        gemini: ["G", "bg-blue-500/15 text-blue-600 dark:text-blue-400"],
     }[provider];
 
     return (
@@ -71,6 +81,8 @@ function formatContext(tokens: number | null): string | null {
 }
 
 type Catalog = {
+    /** The agents the user can run, OpenCode first. */
+    harnesses: CatalogHarness[];
     providers: CatalogProvider[];
     favorites: string[];
     /** Recently chosen models ("provider:model"), newest first. */
@@ -103,20 +115,43 @@ function csrfToken(): string {
     return match ? decodeURIComponent(match[1]) : "";
 }
 
+/** Every agent, so the menu can say how to unlock the ones the user can't run yet. */
+const HARNESSES: { id: AgentHarness; label: string; hint: string }[] = [
+    {
+        id: "opencode",
+        label: "OpenCode",
+        hint: "Any connected provider except Claude subscriptions",
+    },
+    {
+        id: "claude_code",
+        label: "Claude Code",
+        hint: "Anthropic's agent: Claude models, including your Claude subscription",
+    },
+];
+
 /**
- * The model and reasoning pickers shown in the chat composer.
+ * The agent, model and reasoning pickers shown in the chat composer.
  */
 export default function AgentModelPicker({
     selection,
     onChange,
     disabled = false,
+    harnessLocked = null,
 }: {
     selection: AgentSelection;
     onChange: (selection: AgentSelection) => void;
     disabled?: boolean;
+    /** Why the agent can't be switched right now (e.g. it's working), if it can't. */
+    harnessLocked?: string | null;
 }) {
     return (
         <div className="flex items-center gap-1" data-test="agent-pickers">
+            <HarnessMenu
+                selection={selection}
+                onChange={onChange}
+                disabled={disabled}
+                locked={harnessLocked}
+            />
             <ModelMenu
                 selection={selection}
                 onChange={onChange}
@@ -151,6 +186,12 @@ function ModelMenu({
     const [query, setQuery] = useState("");
     const [showMore, setShowMore] = useState(false);
 
+    // A different agent may not run the provider this tab shows.
+    useEffect(
+        () => setTab(selection.provider),
+        [selection.harness, selection.provider],
+    );
+
     useEffect(() => {
         if (!open || catalog) {
             return;
@@ -171,8 +212,8 @@ function ModelMenu({
             return { recent: [], featured: [], more: [] };
         }
 
-        const entries = catalog.providers.flatMap((provider) =>
-            provider.models.map((model) => ({ provider, model })),
+        const entries = harnessProviders(catalog, selection.harness).flatMap(
+            (provider) => provider.models.map((model) => ({ provider, model })),
         );
         const needle = query.trim().toLowerCase();
         const inTab = entries.filter(({ provider, model }) =>
@@ -218,10 +259,11 @@ function ModelMenu({
             featured: rest.filter(({ model }) => model.featured),
             more: rest.filter(({ model }) => !model.featured),
         };
-    }, [catalog, tab, query, favorites]);
+    }, [catalog, tab, query, favorites, selection.harness]);
 
     const choose = (provider: CatalogProvider, model: CatalogModel) => {
         onChange({
+            harness: selection.harness,
             provider: provider.id,
             model: model.id,
             name: model.name,
@@ -375,16 +417,19 @@ function ModelMenu({
                     >
                         <Star className="size-4" />
                     </RailButton>
-                    {catalog?.providers.map((provider) => (
-                        <RailButton
-                            key={provider.id}
-                            active={tab === provider.id}
-                            label={provider.label}
-                            onClick={() => setTab(provider.id)}
-                        >
-                            <ProviderIcon provider={provider.id} />
-                        </RailButton>
-                    ))}
+                    {catalog &&
+                        harnessProviders(catalog, selection.harness).map(
+                            (provider) => (
+                                <RailButton
+                                    key={provider.id}
+                                    active={tab === provider.id}
+                                    label={provider.label}
+                                    onClick={() => setTab(provider.id)}
+                                >
+                                    <ProviderIcon provider={provider.id} />
+                                </RailButton>
+                            ),
+                        )}
                 </nav>
                 <div className="flex min-w-0 flex-1 flex-col">
                     <label className="flex items-center gap-2 border-b px-3 py-2">
@@ -460,6 +505,141 @@ function ModelMenu({
                         )}
                     </div>
                 </div>
+            </DropdownMenuContent>
+        </DropdownMenu>
+    );
+}
+
+/** The catalog's providers the given agent can use, in the catalog's order. */
+function harnessProviders(
+    catalog: Catalog,
+    harness: AgentHarness,
+): CatalogProvider[] {
+    const usable =
+        catalog.harnesses.find((item) => item.id === harness)?.providers ?? [];
+
+    return catalog.providers.filter((provider) => usable.includes(provider.id));
+}
+
+/**
+ * Pick the agent. Switching keeps the model when the new agent can run it, otherwise
+ * it moves to the new agent's first provider's default model.
+ */
+function HarnessMenu({
+    selection,
+    onChange,
+    disabled,
+    locked,
+}: {
+    selection: AgentSelection;
+    onChange: (selection: AgentSelection) => void;
+    disabled: boolean;
+    locked: string | null;
+}) {
+    const [open, setOpen] = useState(false);
+    const [catalog, setCatalog] = useState<Catalog | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const current = HARNESSES.find(
+        (harness) => harness.id === selection.harness,
+    );
+
+    useEffect(() => {
+        if (!open || catalog) {
+            return;
+        }
+
+        loadCatalog()
+            .then(setCatalog)
+            .catch((e: Error) => setError(e.message));
+    }, [open, catalog]);
+
+    const choose = (harness: AgentHarness) => {
+        if (!catalog || harness === selection.harness) {
+            return;
+        }
+
+        const providers = harnessProviders(catalog, harness);
+
+        if (providers.some((provider) => provider.id === selection.provider)) {
+            onChange({ ...selection, harness });
+
+            return;
+        }
+
+        const provider = providers[0];
+        const model = provider.models.find(
+            (item) => item.id === provider.default_model,
+        );
+
+        onChange({
+            harness,
+            provider: provider.id,
+            model: provider.default_model,
+            name: model?.name ?? provider.default_model,
+            efforts: model?.efforts ?? [],
+            variant: null,
+        });
+    };
+
+    return (
+        <DropdownMenu modal={false} open={open} onOpenChange={setOpen}>
+            <DropdownMenuTrigger asChild disabled={disabled || locked !== null}>
+                <button
+                    type="button"
+                    className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-foreground hover:bg-muted disabled:opacity-50"
+                    title={locked ?? "Choose the agent"}
+                    data-test="harness-picker"
+                >
+                    <Bot className="size-3.5 shrink-0 text-muted-foreground" />
+                    <span>{current?.label ?? selection.harness}</span>
+                    <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
+                </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+                align="start"
+                side="top"
+                className="w-72"
+                onFocusOutside={(event) => event.preventDefault()}
+                data-test="harness-menu"
+            >
+                <DropdownMenuLabel className="text-xs text-muted-foreground">
+                    Agent
+                </DropdownMenuLabel>
+                {error && (
+                    <p className="px-2 py-1.5 text-sm text-red-600">{error}</p>
+                )}
+                {HARNESSES.map((harness) => {
+                    const usable =
+                        catalog?.harnesses.some(
+                            (item) => item.id === harness.id,
+                        ) ?? false;
+
+                    return (
+                        <DropdownMenuItem
+                            key={harness.id}
+                            disabled={!usable}
+                            onSelect={() => choose(harness.id)}
+                            className="items-start"
+                            data-test={`harness-${harness.id}`}
+                        >
+                            <span className="flex-1">
+                                <span className="block text-sm">
+                                    {harness.label}
+                                </span>
+                                <span className="block text-xs text-muted-foreground">
+                                    {catalog && !usable
+                                        ? harness.id === "claude_code"
+                                            ? "Connect Claude in Settings → AI to use it"
+                                            : "Connect a provider other than a Claude subscription to use it"
+                                        : harness.hint}
+                                </span>
+                            </span>
+                            {harness.id === selection.harness && (
+                                <Check className="mt-0.5 size-4" />
+                            )}
+                        </DropdownMenuItem>
+                    );
+                })}
             </DropdownMenuContent>
         </DropdownMenu>
     );

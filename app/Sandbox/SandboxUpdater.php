@@ -16,8 +16,8 @@ use Illuminate\Support\Facades\File;
 use Throwable;
 
 /**
- * Replaces a project's sandbox with a fresh one from the current image, optionally keeping its files,
- * so existing projects get new guides, tools and proxy changes (sandbox:recreate, sandbox:update, UpdateSandbox).
+ * Replaces a project's sandbox with a fresh one from the current image, optionally keeping its files
+ * (without them, the code comes back from its backup; see ProjectBackups), so existing projects get new guides, tools and proxy changes (sandbox:recreate, sandbox:update, UpdateSandbox).
  */
 class SandboxUpdater
 {
@@ -37,7 +37,7 @@ class SandboxUpdater
     /** Longest an update may hold its lock, in seconds (copying a large workspace takes a while). */
     protected const LOCK_SECONDS = 900;
 
-    public function __construct(protected SandboxProvider $provider, protected Publisher $publisher) {}
+    public function __construct(protected SandboxProvider $provider, protected Publisher $publisher, protected ProjectBackups $backups) {}
 
     /**
      * Whether the project's running sandbox was made from an older image, or lives on another provider than the configured one.
@@ -152,6 +152,7 @@ class SandboxUpdater
 
             if (! $backup) {
                 $project->update(['agent_session_id' => null]);
+                $project->tasks()->reorder()->update(['agent_session_id' => null]);
             }
 
             CreateSandbox::dispatchSync($project);
@@ -174,6 +175,11 @@ class SandboxUpdater
                 $report('Copied files into the new sandbox.');
 
                 $this->provider->destroy($old);
+            }
+
+            // Without the old sandbox's files, the code comes back from its backup.
+            if (! $backup) {
+                $this->restoreCode($project, $sandbox, $report);
             }
 
             $this->republish($project, $republishAs, $sandbox, $report);
@@ -214,6 +220,24 @@ class SandboxUpdater
             $this->provider->start($previous['external_id']);
         } catch (SandboxException $e) {
             report($e);
+        }
+    }
+
+    /**
+     * Clone the project's backed-up code into the new sandbox. A backup that can't be restored doesn't undo the
+     * replacement; it's reported, and stays on the backup disk to try again.
+     *
+     * @param  (Closure(string): void)  $report
+     */
+    protected function restoreCode(Project $project, Sandbox $sandbox, Closure $report): void
+    {
+        try {
+            if ($this->backups->restore($project, $sandbox)) {
+                $report('Restored the code from its backup.');
+            }
+        } catch (SandboxException $e) {
+            report($e);
+            $report("Couldn't restore the code from its backup: {$e->getMessage()}");
         }
     }
 

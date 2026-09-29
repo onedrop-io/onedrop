@@ -2,7 +2,6 @@
 
 namespace App\Jobs;
 
-use App\Enums\ProjectStatus;
 use App\Models\Project;
 use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxUpdater;
@@ -37,7 +36,7 @@ class UpdateSandbox implements ShouldBeUnique, ShouldQueue
     public function handle(SandboxUpdater $updater): void
     {
         try {
-            if ($this->project->fresh()?->status !== ProjectStatus::Working) {
+            if ($this->project->fresh()?->mainSandboxBusy() === false) {
                 $updater->updateIfOutdated($this->project);
             }
         } catch (SandboxException $e) {

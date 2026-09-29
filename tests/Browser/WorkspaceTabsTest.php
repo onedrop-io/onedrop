@@ -58,3 +58,25 @@ test('the shell tab puts the cursor in the terminal when shown', function () {
         ->assertScript($shellFocused, true)
         ->assertNoJavaScriptErrors();
 })->group('TAB-001');
+
+test('closable tabs can be dragged into a different order', function () {
+    $user = User::factory()->has(AgentConnection::factory())->create();
+    $project = Project::factory()->for($user)->create();
+    Sandbox::factory()->for($project)->create(['preview_url' => null, 'shell_url' => null]);
+    $this->actingAs($user);
+
+    $order = 'Array.from(document.querySelectorAll("button[data-test^=tab-]")).map((tab) => tab.dataset.test).join(",")';
+
+    visit("/projects/{$project->id}")
+        ->click('@add-tab')
+        ->click('@add-tab-console')
+        ->assertMissing('[role="menu"]')
+        ->click('@add-tab')
+        ->click('@add-tab-shell')
+        ->assertScript($order, 'tab-tools,tab-preview,tab-console,tab-shell')
+        ->drag('@tab-console', '@tab-shell')
+        ->assertScript($order, 'tab-tools,tab-preview,tab-shell,tab-console')
+        ->drag('@tab-console', '@tab-preview')
+        ->assertScript($order, 'tab-tools,tab-preview,tab-shell,tab-console')
+        ->assertNoJavaScriptErrors();
+})->group('TAB-001');

@@ -4,17 +4,23 @@ namespace App\Sandbox\Agents;
 
 use App\Enums\MessageRole;
 use App\Enums\ProjectStatus;
+use App\Enums\SandboxStatus;
+use App\Enums\TaskStage;
+use App\Jobs\BackupProject;
+use App\Jobs\ForkTaskSandbox;
 use App\Jobs\RunAgentTask;
 use App\Models\Attachment;
 use App\Models\Message;
-use App\Models\Project;
+use App\Models\Task;
 use Closure;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 
 /**
- * One agent run at a time per project. Messages sent while it works wait in a queue
- * and start automatically, in order, when the run finishes.
+ * One agent run at a time per conversation (a project's main chat or one of its tasks; the conversations
+ * themselves run in parallel). Messages sent while it works wait in a queue and start automatically,
+ * in order, when the run finishes.
  */
 class AgentQueue
 {
@@ -26,11 +32,11 @@ class AgentQueue
      *
      * @param  list<UploadedFile>  $attachments
      */
-    public function send(Project $project, string $content, bool $now = false, array $attachments = []): Message
+    public function send(Conversation $conversation, string $content, bool $now = false, array $attachments = []): Message
     {
-        if ($project->status === ProjectStatus::Working) {
+        if ($conversation->status === ProjectStatus::Working) {
             if (! $now) {
-                $message = $project->queuedMessages()->create([
+                $message = $conversation->queuedMessages()->create([
                     'role' => MessageRole::User,
                     'content' => $content,
                     'queued' => true,
@@ -43,10 +49,10 @@ class AgentQueue
                 return $message;
             }
 
-            $this->interrupt($project);
+            $this->interrupt($conversation);
         }
 
-        return $this->run($project, $content, function (Message $message) use ($attachments) {
+        return $this->run($conversation, $content, function (Message $message) use ($attachments) {
             foreach ($attachments as $file) {
                 Attachment::store($message, $file);
             }
@@ -55,13 +61,18 @@ class AgentQueue
 
     /**
      * The current run ended (finished, failed, or couldn't start): go idle, then start the next queued message.
+     * A task whose turn $succeeded goes to Review on the board (TASK-002); a failed one stays In progress.
      */
-    public function finished(Project $project): void
+    public function finished(Conversation $conversation, bool $succeeded = false): void
     {
-        [$next, $attachments] = DB::transaction(function () use ($project) {
-            $project->update(['status' => ProjectStatus::Idle]);
+        if ($succeeded && $conversation instanceof Task && $conversation->stage === TaskStage::InProgress) {
+            $conversation->update(['stage' => TaskStage::Review, 'position' => $conversation->project->nextTaskPosition(TaskStage::Review)]);
+        }
 
-            $next = $project->queuedMessages()->lockForUpdate()->first();
+        [$next, $attachments] = DB::transaction(function () use ($conversation) {
+            $conversation->update(['status' => ProjectStatus::Idle]);
+
+            $next = $conversation->queuedMessages()->lockForUpdate()->first();
             $attachments = $next?->attachments()->get() ?? collect();
 
             // The attachments move to the message that runs, so detach them before deleting this one.
@@ -72,7 +83,7 @@ class AgentQueue
         });
 
         if ($next) {
-            $this->run($project, $next->content, fn (Message $message) => $message->attachments()->saveMany($attachments));
+            $this->run($conversation, $next->content, fn (Message $message) => $message->attachments()->saveMany($attachments));
         }
     }
 
@@ -81,11 +92,11 @@ class AgentQueue
      *
      * @return list<string>
      */
-    public function stop(Project $project): array
+    public function stop(Conversation $conversation): array
     {
-        $this->interrupt($project);
+        $this->interrupt($conversation);
 
-        $queued = $project->queuedMessages()->get();
+        $queued = $conversation->queuedMessages()->get();
         // One by one, so their attachments' files go too.
         $queued->each->delete();
 
@@ -95,16 +106,18 @@ class AgentQueue
     /**
      * End the current run without touching the queue.
      */
-    protected function interrupt(Project $project): void
+    protected function interrupt(Conversation $conversation): void
     {
-        if ($project->status !== ProjectStatus::Working) {
+        if ($conversation->status !== ProjectStatus::Working) {
             return;
         }
 
-        $this->runner->stop($project);
+        $this->runner->stop($conversation);
+        // The forwarder commits the stopped turn's changes as it exits.
+        BackupProject::dispatch($conversation->ownerProject())->delay(now()->addSeconds(15));
 
-        $project->messages()->create(['role' => MessageRole::Activity, 'content' => 'Stopped']);
-        $project->update(['status' => ProjectStatus::Idle]);
+        $conversation->messages()->create(['role' => MessageRole::Activity, 'content' => 'Stopped']);
+        $conversation->update(['status' => ProjectStatus::Idle]);
     }
 
     /**
@@ -112,17 +125,34 @@ class AgentQueue
      *
      * @param  (Closure(Message): mixed)|null  $attach
      */
-    protected function run(Project $project, string $content, ?Closure $attach = null): Message
+    protected function run(Conversation $conversation, string $content, ?Closure $attach = null): Message
     {
-        $project->update(['status' => ProjectStatus::Working]);
+        $conversation->update(['status' => ProjectStatus::Working]);
 
-        $message = $project->messages()->create(['role' => MessageRole::User, 'content' => $content]);
+        // A card starting (or going again) moves to In progress on the board (TASK-002).
+        if ($conversation instanceof Task && $conversation->stage !== TaskStage::InProgress) {
+            $conversation->update(['stage' => TaskStage::InProgress, 'position' => $conversation->project->nextTaskPosition(TaskStage::InProgress)]);
+        }
+
+        $message = $conversation->messages()->create(['role' => MessageRole::User, 'content' => $content]);
 
         if ($attach) {
             $attach($message);
         }
 
-        RunAgentTask::dispatch($project, $message);
+        // A task's first run (or its first since it was applied) makes its own copy of the app first (TASK-003).
+        if ($conversation instanceof Task && $conversation->needsCopy()) {
+            $conversation->sandbox()->updateOrCreate([], ['provider' => config('sandbox.provider'), 'status' => SandboxStatus::Creating, 'external_id' => null, 'error' => null]);
+
+            Bus::chain([
+                new ForkTaskSandbox($conversation),
+                new RunAgentTask($conversation->ownerProject(), $message),
+            ])->dispatch();
+
+            return $message;
+        }
+
+        RunAgentTask::dispatch($conversation->ownerProject(), $message);
 
         return $message;
     }

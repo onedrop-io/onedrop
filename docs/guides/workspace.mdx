@@ -17,7 +17,7 @@ Drag the divider between the chat and the workspace to make either one wider, or
 | **Shell**   | An interactive terminal in the project's workspace        | Yes       |
 | File tabs   | An editor for a file you opened                           | Yes       |
 
-Add Console or Shell from the **+** button. The shell keeps its session while you switch tabs, and the cursor lands in it whenever you open the tab, so you can start typing right away. It opens with a OneDrop banner showing the project's name and a few shortcuts.
+Add Console or Shell from the **+** button. Drag the tabs you can close to put them in a different order; Tools and Preview always stay first. The shell keeps its session while you switch tabs, and the cursor lands in it whenever you open the tab, so you can start typing right away. It opens with a OneDrop banner showing the project's name and a few shortcuts.
 
 | Command | What it does |
 | --- | --- |
@@ -35,14 +35,28 @@ Add Console or Shell from the **+** button. The shell keeps its session while yo
 | **Ctrl-R** | Search your command history |
 | `/opt/zap/restart` | Restart the preview |
 
+## When the app hits an error
+
+The agent sees your app's errors, whatever it's built with. The sandbox records three kinds in `/workspace/.zap/errors.log`:
+
+- **Server errors:** any 5xx response, with the error page's text and the end of the dev server's output.
+- **Browser errors in the preview:** uncaught exceptions, unhandled promise rejections, `console.error` calls, and scripts or stylesheets that fail to load.
+- **The app not answering:** it hasn't started, is restarting, or crashed.
+
+When a page in the preview hits an error, a bar shows it over the preview. Click **Fix it** to send the error to the agent. The request shows up in the chat, and if the agent is busy, it runs next. Dismiss the bar with **×**.
+
+After each agent turn, OneDrop loads the app's home page and checks for new errors from the preview. If it finds any, it sends them to the agent once, automatically. The run that request starts isn't checked again, so this can't loop. Errors from visitors to the published app are recorded for the agent too, but they never start a run on their own.
+
+To turn this automatic fixing off for a project, click **Autofix** in the chat's controls, next to the model picker. Click it again to turn it back on. It's on for new projects. **Fix it** works either way.
+
 ## Tools
 
 Tools groups project settings like Replit's tools menu:
 
 - **Cloud:** Publishing, Domains, Monitoring, Database, Users & Auth, Growth, Feature Flags, Security, App Storage
-- **Setup:** Secrets, Integrations, Git, Agent Skills, Developer
+- **Setup:** App Icon, Secrets, Integrations, Git, Agent Skills, Developer
 
-Publishing shows the project's current status and URL. Monitoring, Growth and Database are described below, and [Users & Auth](/guides/users-and-auth), [Feature Flags](/guides/feature-flags), [App Storage](/guides/app-storage), [Secrets](/guides/secrets) and [Developer](/guides/developer-tools) have their own pages. The other sections are placeholders for upcoming features.
+Publishing shows the project's current status and URL. Monitoring, Growth and Database are described below, and [Users & Auth](/guides/users-and-auth), [Feature Flags](/guides/feature-flags), [App Storage](/guides/app-storage), [App Icon](/guides/app-icon), [Secrets](/guides/secrets) and [Developer](/guides/developer-tools) have their own pages. The other sections are placeholders for upcoming features.
 
 ## Monitoring
 
@@ -121,7 +135,7 @@ The database is reached from inside the sandbox, so connection details and passw
 
 ## Files
 
-The files panel on the right shows the project's folder tree, with a colored icon for each file type. Click a file to open it next to the preview. The tree and any open file refresh as the agent works.
+The files panel on the right shows the project's folder tree, with a colored icon for each file type. Click a file to open it next to the preview. Files added, removed or renamed show up in the tree within a few seconds, whether the agent, the Shell or your running app made them, and any open file refreshes as the agent works.
 
 - Folders like `node_modules`, `vendor`, and `.git` are listed but not expanded
 - Binary files and files over 200 KB show a notice instead of their contents

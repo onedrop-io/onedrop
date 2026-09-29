@@ -32,6 +32,9 @@ class CredentialVerifier
             ])->get('https://api.anthropic.com/v1/models'),
             AgentProvider::Codex => fn () => Http::withToken($credential)->get('https://api.openai.com/v1/models'),
             AgentProvider::OpenRouter => fn () => Http::withToken($credential)->get('https://openrouter.ai/api/v1/key'),
+            AgentProvider::Gemini => fn () => Http::withHeaders([
+                'x-goog-api-key' => $credential,
+            ])->get('https://generativelanguage.googleapis.com/v1beta/models'),
         };
 
         try {
@@ -42,7 +45,8 @@ class CredentialVerifier
             ]);
         }
 
-        if ($response->unauthorized() || $response->forbidden()) {
+        // Google answers 400 ("API key not valid") rather than 401 for a bad key.
+        if ($response->unauthorized() || $response->forbidden() || ($provider === AgentProvider::Gemini && $response->badRequest())) {
             throw ValidationException::withMessages([
                 'credential' => __(':provider rejected that key.', ['provider' => $provider->label()]),
             ]);

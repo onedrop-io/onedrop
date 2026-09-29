@@ -17,7 +17,7 @@ export const FEATURES = [
         title: 'Bring your own subscription',
         name: 'Bring your AI',
         summary: 'Use the plan you have',
-        body: 'Build on the ChatGPT Plus or Pro plan you already pay for, or bring your own key for Claude, OpenAI, or hundreds of models through OpenRouter. No credits to buy and no markup.',
+        body: 'Build on the ChatGPT Plus or Pro plan you already pay for, or bring your own key for Claude, OpenAI, Gemini, or hundreds of models through OpenRouter. No credits to buy and no markup.',
     },
     {
         icon: Eye,

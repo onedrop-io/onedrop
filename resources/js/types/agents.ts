@@ -1,4 +1,7 @@
-export type AgentProvider = 'claude' | 'codex' | 'openrouter';
+export type AgentProvider = 'claude' | 'codex' | 'openrouter' | 'gemini';
+
+/** The coding agent that works in the sandbox. */
+export type AgentHarness = 'opencode' | 'claude_code';
 
 export type AgentConnection = {
     id: number;
@@ -19,6 +22,13 @@ export type CatalogModel = {
     released: string | null;
 };
 
+/** An agent the user can run, and the providers it can use. */
+export type CatalogHarness = {
+    id: AgentHarness;
+    label: string;
+    providers: AgentProvider[];
+};
+
 export type CatalogProvider = {
     id: AgentProvider;
     label: string;
@@ -26,8 +36,9 @@ export type CatalogProvider = {
     models: CatalogModel[];
 };
 
-/** What the agent runs: a provider's model and optional reasoning level. */
+/** What runs: an agent, a provider's model and optional reasoning level. */
 export type AgentSelection = {
+    harness: AgentHarness;
     provider: AgentProvider;
     model: string;
     variant: string | null;

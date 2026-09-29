@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\MessageRole;
+use App\Sandbox\Agents\Conversation;
 use Database\Factories\MessageFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -14,6 +15,7 @@ use Illuminate\Support\Carbon;
 /**
  * @property int $id
  * @property int $project_id
+ * @property int|null $task_id
  * @property MessageRole $role
  * @property string $content
  * @property bool $queued
@@ -44,6 +46,13 @@ class Message extends Model
      */
     protected static function booted(): void
     {
+        // Messages created through a task's chat belong to its project too.
+        static::creating(function (self $message) {
+            if ($message->task_id !== null && $message->project_id === null) {
+                $message->project_id = Task::query()->whereKey($message->task_id)->value('project_id');
+            }
+        });
+
         static::deleting(fn (self $message) => $message->attachments->each->delete());
     }
 
@@ -55,6 +64,24 @@ class Message extends Model
     public function attachments(): HasMany
     {
         return $this->hasMany(Attachment::class)->orderBy('id');
+    }
+
+    /**
+     * The task whose chat the message is in, or null for the project's main chat.
+     *
+     * @return BelongsTo<Task, $this>
+     */
+    public function task(): BelongsTo
+    {
+        return $this->belongsTo(Task::class);
+    }
+
+    /**
+     * The chat the message is in: its task's, or the project's main one.
+     */
+    public function conversation(): Conversation
+    {
+        return $this->task_id !== null ? $this->task : $this->project;
     }
 
     /**

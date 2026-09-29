@@ -3,31 +3,24 @@
 namespace App\Http\Controllers;
 
 use App\Actions\DeleteProject;
+use App\Concerns\RendersWorkspace;
 use App\Concerns\ValidatesAgentSelection;
+use App\Enums\AppTemplate;
 use App\Enums\MessageRole;
 use App\Enums\ProjectStatus;
-use App\Enums\PublishStatus;
 use App\Enums\SandboxStatus;
 use App\Http\Requests\StoreProjectRequest;
 use App\Http\Requests\UpdateProjectRequest;
 use App\Jobs\CreateSandbox;
 use App\Jobs\RegenerateProjectName;
 use App\Jobs\RunAgentTask;
-use App\Jobs\UpdateSandbox;
 use App\Models\Attachment;
-use App\Models\Message;
 use App\Models\Project;
 use App\Sandbox\Agents\ModelCatalog;
 use App\Sandbox\Agents\ProjectNamer;
-use App\Sandbox\Gateway;
-use App\Sandbox\Publishing\Publisher;
-use App\Sandbox\SandboxException;
-use App\Sandbox\SandboxProvider;
-use App\Sandbox\SandboxUpdater;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Bus;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -35,27 +28,30 @@ use Inertia\Response;
 
 class ProjectController extends Controller
 {
-    use ValidatesAgentSelection;
+    use RendersWorkspace, ValidatesAgentSelection;
 
     /**
      * Show the "what are we working on today?" prompt.
      */
     public function create(Request $request, ModelCatalog $catalog): Response
     {
-        $selection = $catalog->defaultSelection($request->user());
+        $harness = $catalog->defaultHarness($request->user());
+        $selection = $catalog->defaultSelection($request->user(), $harness);
 
         return Inertia::render('projects/create', [
             'defaultAi' => $request->user()->agentConnections()->firstWhere('is_default', true)?->provider->label(),
-            'agent' => $selection ? $catalog->describe($selection) : null,
+            'agent' => $selection ? $catalog->describe($selection, $harness) : null,
+            'templates' => AppTemplate::options(),
         ]);
     }
 
     /**
-     * Create a project from a description and start the agent on it.
+     * Create a project from a description (or a template's) and start the agent on it.
      */
     public function store(StoreProjectRequest $request, ModelCatalog $catalog): RedirectResponse
     {
         $prompt = (string) $request->validated('prompt');
+        $template = $request->enum('template', AppTemplate::class);
         $agent = $this->validatedAgentSelection($request, $request->user(), $catalog) ?? [];
 
         if ($agent) {
@@ -63,7 +59,7 @@ class ProjectController extends Controller
         }
 
         $project = $request->user()->projects()->create([
-            'name' => Project::nameFromPrompt($prompt),
+            'name' => $template?->label() ?? Project::nameFromPrompt($prompt),
             'prompt' => $prompt,
             ...$agent,
         ]);
@@ -95,52 +91,13 @@ class ProjectController extends Controller
     }
 
     /**
-     * Show the chat + preview workspace.
+     * Show the chat + preview workspace, on the project's main chat.
      */
-    public function show(Request $request, Project $project, Publisher $publisher, Gateway $gateway, ModelCatalog $catalog, SandboxUpdater $updater, SandboxProvider $provider): Response
+    public function show(Request $request, Project $project): Response
     {
         Gate::authorize('view', $project);
 
-        if ($project->user_id === $request->user()->id) {
-            Project::withoutTimestamps(fn () => $project->update(['read_at' => now()]));
-        }
-
-        $this->updateOutdatedSandbox($project, $updater);
-        $this->renewSandboxAddresses($project, $provider);
-        $project->load(['messages.attachments', 'queuedMessages.attachments']);
-
-        return Inertia::render('projects/show', [
-            'project' => $project->only('id', 'name', 'status'),
-            'agent' => ($selection = $catalog->selectionFor($project)) ? $catalog->describe($selection) : null,
-            'publication' => [
-                'status' => $project->publish_status,
-                'visibility' => $project->publish_visibility,
-                'url' => $project->published_url,
-                'published_at' => $project->published_at?->toIso8601String(),
-                'published_by' => $project->publisher?->name,
-                'error' => $project->publish_error,
-                'login_url' => $project->publish_status === PublishStatus::Publishing ? $project->publish_login_url : null,
-                'unavailable' => $publisher->unavailableReason(),
-            ],
-            'sandbox' => $project->sandbox ? [
-                ...$project->sandbox->only('status', 'error'),
-                'updating' => SandboxUpdater::isUpdating($project),
-                // On servers the browser goes through the gateway (which signs it in to that address), not the sandbox's local ports.
-                'preview_url' => $project->sandbox->preview_url ? ($gateway->enabled() ? route('projects.gateway.open', [$project, 'preview']) : $project->sandbox->preview_url) : null,
-                'shell_url' => $project->sandbox->shell_url ? ($gateway->enabled() ? route('projects.gateway.open', [$project, 'shell']) : $project->sandbox->shell_url) : null,
-            ] : null,
-            'queued' => $project->queuedMessages->map(fn (Message $message): array => [
-                ...$message->only('id', 'content'),
-                'attachments' => $message->attachments->map(fn (Attachment $attachment): array => $this->attachmentProps($project, $attachment)),
-            ]),
-            'messages' => $project->messages->map(fn (Message $message): array => [
-                'id' => $message->id,
-                'role' => $message->role,
-                'content' => $message->content,
-                'attachments' => $message->attachments->map(fn (Attachment $attachment): array => $this->attachmentProps($project, $attachment)),
-                'created_at' => $message->created_at?->toIso8601String(),
-            ]),
-        ]);
+        return $this->renderWorkspace($request, $project, $project);
     }
 
     /**
@@ -204,62 +161,13 @@ class ProjectController extends Controller
     }
 
     /**
-     * Whether the request was made from the project's own workspace.
+     * Whether the request was made from one of the project's own pages (its workspace, a task, or its board).
      */
     protected function cameFrom(Project $project): bool
     {
-        return Str::before(url()->previous(), '?') === route('projects.show', $project);
-    }
+        $previous = Str::before(url()->previous(), '?');
+        $workspace = route('projects.show', $project);
 
-    /**
-     * @return array{id: int, name: string, mime_type: string, size: int, image: bool, url: string}
-     */
-    protected function attachmentProps(Project $project, Attachment $attachment): array
-    {
-        return [
-            ...$attachment->only('id', 'name', 'mime_type', 'size'),
-            'image' => $attachment->isVisibleImage(),
-            'url' => route('projects.attachments.show', [$project, $attachment]),
-        ];
-    }
-
-    /**
-     * Queue an update when the sandbox was made from an older image, so opening a project brings it the
-     * current guides and tools. Checked at most once a minute per project; never while the agent works.
-     */
-    protected function updateOutdatedSandbox(Project $project, SandboxUpdater $updater): void
-    {
-        if ($project->status === ProjectStatus::Working || ! Cache::add("sandbox-outdated-check:{$project->id}", true, 60)) {
-            return;
-        }
-
-        try {
-            if ($updater->isOutdated($project)) {
-                SandboxUpdater::markUpdating($project);
-                UpdateSandbox::dispatch($project);
-            }
-        } catch (SandboxException) {
-            // The workspace shows the sandbox as it is.
-        }
-    }
-
-    /**
-     * Private preview links on Blaxel and Runtime carry tokens that last 7 days: fetch fresh ones at most once a day.
-     */
-    protected function renewSandboxAddresses(Project $project, SandboxProvider $provider): void
-    {
-        $sandbox = $project->sandbox;
-
-        if (! in_array($sandbox?->provider, ['blaxel', 'runtime'], true) || $sandbox?->status !== SandboxStatus::Running || ! $sandbox->external_id
-            || ! Cache::add("sandbox-addresses:{$sandbox->id}", true, now()->addDay())) {
-            return;
-        }
-
-        try {
-            $sandbox->update(CreateSandbox::addresses($provider, $sandbox->external_id));
-        } catch (SandboxException) {
-            // Try again on the next visit.
-            Cache::forget("sandbox-addresses:{$sandbox->id}");
-        }
+        return $previous === $workspace || Str::startsWith($previous, "{$workspace}/");
     }
 }

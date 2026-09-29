@@ -15,12 +15,14 @@ use Illuminate\Support\Str;
 /**
  * @property int $id
  * @property int $project_id
+ * @property int|null $task_id
  * @property string $provider
  * @property string|null $external_id
  * @property SandboxStatus $status
  * @property string|null $preview_url
  * @property string|null $shell_url
  * @property string|null $ssh_address
+ * @property int $files_version
  * @property string|null $error
  * @property string|null $events_token_hash
  * @property Carbon|null $created_at
@@ -42,7 +44,30 @@ class Sandbox extends Model
     {
         return [
             'status' => SandboxStatus::class,
+            'files_version' => 'integer',
         ];
+    }
+
+    /**
+     * A task's copy of the project's sandbox belongs to the project too.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (self $sandbox) {
+            if ($sandbox->task_id !== null && $sandbox->project_id === null) {
+                $sandbox->project_id = Task::query()->whereKey($sandbox->task_id)->value('project_id');
+            }
+        });
+    }
+
+    /**
+     * The task this sandbox is a copy for (TASK-003), or null for the project's main sandbox.
+     *
+     * @return BelongsTo<Task, $this>
+     */
+    public function task(): BelongsTo
+    {
+        return $this->belongsTo(Task::class);
     }
 
     /**

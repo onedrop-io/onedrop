@@ -1,0 +1,70 @@
+---
+title: 'Tasks and the board'
+description: 'Run several agents on one project at once, each on its own task, and track them on a kanban board.'
+---
+
+A project's main chat runs one agent at a time. When you want several things done at once, such as a dark mode, a CSV export and a new settings page, start each one as a **task**. Every task gets a fresh agent with its own chat and its own copy of the app, and all of them work at the same time.
+
+## Each task's own copy of the app
+
+When a task starts, OneDrop copies Main's sandbox for it: the code, installed packages, and any databases, caches or uploaded files kept in the sandbox. It works for any stack, since everything is copied as it was at one instant, the way a database expects after a power cut. Main keeps running while it's copied; its processes pause for about a second.
+
+The task's page shows its copy: its own preview, files, console, shell and tools. Nothing you or its agent change there touches Main until you apply it.
+
+| Button | What it does |
+| --- | --- |
+| **Apply to Main** | Merges the task's code into Main with git. Main's agent then does what your app needs, such as installing new packages or running database migrations, resolves any conflicts, and checks the preview. The task moves to **Done** and its copy is removed. |
+| **Update from Main** | Merges Main's newer work into the task's copy, and the task's agent brings its copy up to date. Use it when Main moved on while the task worked. |
+
+Only code merges. Rows added to a database in a task's copy stay there, while schema changes come to Main as migrations, which Main's agent runs.
+
+<Warning>
+If your app's settings point at a database or other service outside the sandbox (for example a hosted Postgres in `DATABASE_URL`), the task's copy still uses that same service. The task's chat says so when the copy is made. Agents keep databases inside the sandbox unless you ask for an outside one.
+</Warning>
+
+Each copy is a sandbox of its own, so a project runs up to three at once by default. Apply or delete a task to start another. Self-hosters can change this, or turn copies off so tasks share Main's sandbox, in [configuration](/self-hosting/configuration).
+
+## Start a task
+
+Any of these opens an empty chat. Your first message creates the task and starts its agent:
+
+- Hover a project in the sidebar and click **+**.
+- Choose **New task** from the project's **⋮** menu.
+- Click **New task** on the project's board, or in the sidebar of an opened project.
+
+The task is named after your first message. Rename it from the **⌄** menu next to its title above the chat.
+
+Switching between Main and tasks keeps the workspace where it was: if you had the **Database** tool open, the next task opens on its Database tool too, showing that task's own copy. The page's address includes the tab and tool (for example `?tab=tools&tool=database`), so reloading or sharing the link opens the same view.
+
+While a task's agent works, you can keep messaging it (messages wait in that task's queue), switch to another task, or go back to the main chat. **Stop** in a task's chat stops only that task's agent.
+
+## Open a project
+
+Choose **Open** from a project's **⋮** menu. The sidebar then shows only that project:
+
+| Item         | What it does                                                    |
+| ------------ | --------------------------------------------------------------- |
+| **Back**     | Returns to the full sidebar with all your projects               |
+| **Main**     | The project's main chat                                         |
+| **Board**    | The project's kanban board                                      |
+| **New task** | Starts a new task                                               |
+| Task lists   | Tasks grouped into In progress, Review, To do and Done          |
+
+Without opening a project, its unfinished tasks show under it in the sidebar. Click the arrow on the project's icon to show or hide them.
+
+## The board
+
+Each project has a board with four columns:
+
+| Column          | What's in it                                                 |
+| --------------- | ------------------------------------------------------------ |
+| **To do**       | Cards you added but haven't started                          |
+| **In progress** | Tasks whose agent is working, or whose last run failed or was stopped |
+| **Review**      | Tasks whose agent finished a turn and is waiting for you     |
+| **Done**        | Tasks you marked done                                        |
+
+Tasks move to **In progress** when their agent starts and to **Review** when it finishes. Drag a card to another column, or use its **⋮** menu, to move it yourself.
+
+To plan work before starting it, click **Add a card** in To do, give it a title and optional notes, then click **Start** when you're ready. The card's title and notes become the agent's first message, and you stay on the board so you can start more. Click a card to open its chat.
+
+Deleting a task removes its chat, stops its agent, and removes its copy of the app. Work it didn't apply to Main is lost.

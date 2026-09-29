@@ -65,6 +65,31 @@ test('connecting Codex verifies the key with OpenAI', function () {
     Http::assertSent(fn (Request $request) => $request->hasHeader('Authorization', 'Bearer sk-openai-key-5678'));
 })->group('AI-001');
 
+test('connecting Gemini verifies the key with Google', function () {
+    Http::fake(['generativelanguage.googleapis.com/*' => Http::response(['models' => []])]);
+
+    $this->actingAs($this->user)
+        ->post(route('agent-connections.store'), ['provider' => 'gemini', 'credential' => 'AIzaSy-gemini-key-4321'])
+        ->assertSessionHasNoErrors();
+
+    $connection = $this->user->agentConnections()->sole();
+
+    expect($connection->provider)->toBe(AgentProvider::Gemini)
+        ->and($connection->credential_type)->toBe(CredentialType::ApiKey)
+        ->and($connection->verified_at)->not->toBeNull();
+    Http::assertSent(fn (Request $request) => $request->hasHeader('x-goog-api-key', 'AIzaSy-gemini-key-4321'));
+})->group('AI-004');
+
+test('a Gemini key Google calls invalid is rejected', function () {
+    Http::fake(['generativelanguage.googleapis.com/*' => Http::response(['error' => ['status' => 'INVALID_ARGUMENT', 'message' => 'API key not valid.']], 400)]);
+
+    $this->actingAs($this->user)
+        ->post(route('agent-connections.store'), ['provider' => 'gemini', 'credential' => 'AIza-bad'])
+        ->assertSessionHasErrors(['credential' => 'Gemini rejected that key.']);
+
+    expect($this->user->agentConnections()->count())->toBe(0);
+})->group('AI-004');
+
 test('a rejected key shows an error and is not stored', function () {
     Http::fake(['openrouter.ai/*' => Http::response(['error' => 'nope'], 401)]);
 
