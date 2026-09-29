@@ -46,16 +46,19 @@ test('a member does not see the admin section', function () {
 test('the dev user switches the theme from the user menu', function () {
     $this->actingAs(User::where('email', 'dev@example.com')->sole());
 
-    $page = visit('/dashboard')
-        ->click('@sidebar-menu-button')
-        ->click('@theme-menu')
-        ->click('Dark');
+    $page = visit('/dashboard');
 
     expect($page->script('document.documentElement.classList.contains("dark")'))->toBeTrue();
+
+    $page->click('@sidebar-menu-button')
+        ->click('@theme-menu')
+        ->click('Light');
+
+    expect($page->script('document.documentElement.classList.contains("dark")'))->toBeFalse();
 
     // Choosing a theme closes the menu; wait until it's gone, or the click below lands mid-close and shuts it again.
     $page->assertMissing('@theme-menu')
         ->click('@sidebar-menu-button')
-        ->assertSeeIn('@theme-menu', 'Dark')
+        ->assertSeeIn('@theme-menu', 'Light')
         ->assertNoJavaScriptErrors();
 })->group('SET-001');

@@ -452,6 +452,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be able to click their name at the bottom of the sidebar to open an account menu with Settings, Invite people, Theme, Help, and Log out.
 - User should be able to switch between light, dark, and system theme from the Theme submenu, and see the current theme next to it.
 - User should find Documentation and Repository links under Help.
+- User should see the dark theme by default until they pick another.
 - User should see settings open in a modal with a left-hand list of sections: Account (Profile, Security, AI, Appearance, Notifications), People (Groups, Invite people), and, for admins only, Admin (Users).
 - User should be able to move between sections without the modal closing, and link straight to any section.
 - User should be able to close the modal with the close button or Escape and land back on the page they opened it from (the dashboard if they arrived by a direct link).
