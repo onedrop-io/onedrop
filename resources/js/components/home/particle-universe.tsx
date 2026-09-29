@@ -78,6 +78,8 @@ export const universe = {
     hole: { x: 0, y: 0, size: 0, radius: 0 },
     /** Set while the WebGL black hole is drawing it, so the 2D fallback stays off. */
     rendersHoleInWebgl: false,
+    /** Set while a planet's close-up covers the black hole, so it can stop drawing (nobody can see it). */
+    isHoleCovered: false,
     /** The WebGL black hole's camera (radians), so the galaxy around it can follow along. */
     view: { yaw: 0, pitch: 0.1, roll: 0.3 },
     impacts: [] as Impact[],

@@ -145,16 +145,19 @@ function planetAngle(planet: Planet, seconds: number): number {
 
 const EARTH = SOL_PLANETS.find((planet) => planet.name === 'Earth')!;
 
-/** The Earth's radius at full size (pixels). */
-export const EARTH_SIZE = EARTH.size;
+/** A planet's radius at full size (pixels). */
+export function planetSize(name: string): number {
+    return SOL_PLANETS.find((planet) => planet.name === name)!.size;
+}
 
-/** Where the Earth is right now, relative to the Sun, on screen. */
-export function earthOffset(project: Project, seconds: number) {
-    const angle = planetAngle(EARTH, seconds);
+/** Where a planet is right now, relative to the Sun, on screen. */
+export function planetOffset(name: string, project: Project, seconds: number) {
+    const planet = SOL_PLANETS.find((candidate) => candidate.name === name)!;
+    const angle = planetAngle(planet, seconds);
 
     return project(
-        Math.cos(angle) * EARTH.orbit,
-        Math.sin(angle) * EARTH.orbit,
+        Math.cos(angle) * planet.orbit,
+        Math.sin(angle) * planet.orbit,
     );
 }
 

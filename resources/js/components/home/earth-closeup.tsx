@@ -15,6 +15,16 @@
  * them all.
  */
 
+import {
+    clamp,
+    createShaderCanvas,
+    drawSpaceBackdrop,
+    loadImage,
+    normalize,
+    smoothstep,
+} from '@/components/home/closeup-gl';
+import type { ShaderCanvas } from '@/components/home/closeup-gl';
+
 /** Size of the close-up's canvas, and the Earth's radius in it (CSS pixels). */
 export const EARTH_CLOSEUP_SIZE = 780;
 export const EARTH_CLOSEUP_RADIUS = 140;
@@ -57,16 +67,6 @@ const SUN = normalize(-0.88, 0.25, 0.42);
 
 /** The globe's canvas reaches a little past the Earth, for the atmosphere (in Earth radii). */
 const GLOBE_EXTENT = 1.1;
-
-const VERTEX_SHADER = `#version 300 es
-in vec2 position;
-out vec2 screen;
-uniform float extent;
-
-void main() {
-    screen = position * extent;
-    gl_Position = vec4(position, 0.0, 1.0);
-}`;
 
 const FRAGMENT_SHADER = `#version 300 es
 precision highp float;
@@ -347,12 +347,6 @@ void main() {
     color = vec4(surface, 1.0) * coverage;
 }`;
 
-type Sphere = {
-    canvas: HTMLCanvasElement;
-    gl: WebGL2RenderingContext;
-    uniform: (name: string) => WebGLUniformLocation | null;
-};
-
 type Globe = {
     canvas: HTMLCanvasElement;
     gl: WebGL2RenderingContext;
@@ -385,142 +379,18 @@ type Orbiter = {
 };
 
 let globe: Globe | null = null;
-let moon: Sphere | null = null;
+let moon: ShaderCanvas | null = null;
 /** How the Moon is being drawn this frame: `drawMoon` is called as an orbiter, so it reads these. */
 let moonFrame = { pixelScale: 1, seconds: 0 };
 let isLoading = false;
-let backdropStars: { x: number; y: number; size: number; alpha: number }[] = [];
-
-function normalize(x: number, y: number, z: number) {
-    const length = Math.hypot(x, y, z);
-
-    return { x: x / length, y: y / length, z: z / length };
-}
-
-function clamp(value: number, min = 0, max = 1): number {
-    return Math.min(max, Math.max(min, value));
-}
-
-function smoothstep(from: number, to: number, value: number): number {
-    const t = clamp((value - from) / (to - from));
-
-    return t * t * (3 - 2 * t);
-}
-
-function random(min: number, max: number): number {
-    return min + Math.random() * (max - min);
-}
-
-async function loadImage(source: string): Promise<HTMLImageElement> {
-    const image = new Image();
-    image.src = source;
-    await image.decode();
-
-    return image;
-}
-
-function compile(
-    gl: WebGL2RenderingContext,
-    type: number,
-    source: string,
-): WebGLShader {
-    const shader = gl.createShader(type)!;
-    gl.shaderSource(shader, source);
-    gl.compileShader(shader);
-
-    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-        throw new Error(gl.getShaderInfoLog(shader) ?? 'Shader failed');
-    }
-
-    return shader;
-}
-
-/**
- * A WebGL canvas that draws one sphere with `fragmentShader`, over maps given
- * to its samplers in order.
- */
-function createSphere(
-    fragmentShader: string,
-    samplers: string[],
-    images: HTMLImageElement[],
-): Sphere {
-    const canvas = document.createElement('canvas');
-    const gl = canvas.getContext('webgl2', { antialias: false });
-
-    if (!gl) {
-        throw new Error('WebGL2 is not available');
-    }
-
-    const program = gl.createProgram();
-    gl.attachShader(program, compile(gl, gl.VERTEX_SHADER, VERTEX_SHADER));
-    gl.attachShader(program, compile(gl, gl.FRAGMENT_SHADER, fragmentShader));
-    gl.linkProgram(program);
-
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-        throw new Error(gl.getProgramInfoLog(program) ?? 'Program failed');
-    }
-
-    gl.useProgram(program);
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
-    gl.bufferData(
-        gl.ARRAY_BUFFER,
-        new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]),
-        gl.STATIC_DRAW,
-    );
-    const position = gl.getAttribLocation(program, 'position');
-    gl.enableVertexAttribArray(position);
-    gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
-
-    const anisotropy = gl.getExtension('EXT_texture_filter_anisotropic');
-
-    samplers.forEach((name, index) => {
-        gl.activeTexture(gl.TEXTURE0 + index);
-        gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
-        gl.texImage2D(
-            gl.TEXTURE_2D,
-            0,
-            gl.RGB,
-            gl.RGB,
-            gl.UNSIGNED_BYTE,
-            images[index],
-        );
-        gl.generateMipmap(gl.TEXTURE_2D);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(
-            gl.TEXTURE_2D,
-            gl.TEXTURE_MIN_FILTER,
-            gl.LINEAR_MIPMAP_LINEAR,
-        );
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-
-        if (anisotropy) {
-            gl.texParameterf(
-                gl.TEXTURE_2D,
-                anisotropy.TEXTURE_MAX_ANISOTROPY_EXT,
-                8,
-            );
-        }
-
-        gl.uniform1i(gl.getUniformLocation(program, name), index);
-    });
-
-    gl.uniform3f(gl.getUniformLocation(program, 'sun'), SUN.x, SUN.y, SUN.z);
-
-    return {
-        canvas,
-        gl,
-        uniform: (name: string) => gl.getUniformLocation(program, name),
-    };
-}
 
 function createGlobe(images: HTMLImageElement[]): Globe {
-    const { canvas, gl, uniform } = createSphere(
+    const { canvas, gl, uniform } = createShaderCanvas(
         FRAGMENT_SHADER,
         ['dayMap', 'nightMap', 'surfaceMap', 'stormMap'],
         images,
     );
+    gl.uniform3f(uniform('sun'), SUN.x, SUN.y, SUN.z);
 
     // From the screen (x right, y up, z toward us) to the Earth's own frame
     // (x east, y north, z facing us at longitude 0): undo the lean, then the tip.
@@ -567,10 +437,16 @@ export function loadEarthCloseup() {
 
     Promise.all([...MAPS, ...MOON_MAPS].map(loadImage))
         .then((images) => {
-            const moonSphere = createSphere(
+            const moonSphere = createShaderCanvas(
                 MOON_SHADER,
                 ['colorMap', 'elevationMap'],
                 images.slice(MAPS.length),
+            );
+            moonSphere.gl.uniform3f(
+                moonSphere.uniform('sun'),
+                SUN.x,
+                SUN.y,
+                SUN.z,
             );
             moonSphere.gl.uniform1f(moonSphere.uniform('relief'), MOON_RELIEF);
             moon = moonSphere;
@@ -1078,56 +954,11 @@ export function drawEarthCloseup(
 
     moonFrame = { pixelScale, seconds };
 
-    if (backdropStars.length === 0) {
-        backdropStars = Array.from({ length: 140 }, () => {
-            const angle = random(0, Math.PI * 2);
-            const distance =
-                Math.sqrt(Math.random()) * EARTH_CLOSEUP_SIZE * 0.45;
-
-            return {
-                x: Math.cos(angle) * distance,
-                y: Math.sin(angle) * distance,
-                size: random(0.4, 1.3),
-                alpha: random(0.3, 0.9),
-            };
-        });
-    }
-
     const center = EARTH_CLOSEUP_SIZE / 2;
     const radius = EARTH_CLOSEUP_RADIUS;
-    const backdropAlpha = smoothstep(0, 0.6, reveal);
     const orbitAlpha = smoothstep(0.55, 1, reveal);
 
-    // Deep space behind the Earth, hiding the galaxy and black hole.
-    const backdrop = context.createRadialGradient(
-        center,
-        center,
-        0,
-        center,
-        center,
-        center,
-    );
-    backdrop.addColorStop(0, 'rgba(3, 4, 10, 0.98)');
-    backdrop.addColorStop(0.72, 'rgba(3, 4, 10, 0.95)');
-    backdrop.addColorStop(1, 'rgba(3, 4, 10, 0)');
-    context.globalAlpha = backdropAlpha;
-    context.fillStyle = backdrop;
-    context.fillRect(0, 0, EARTH_CLOSEUP_SIZE, EARTH_CLOSEUP_SIZE);
-
-    context.fillStyle = '#FFFFFF';
-
-    for (const star of backdropStars) {
-        context.globalAlpha =
-            star.alpha *
-            backdropAlpha *
-            (1 - Math.hypot(star.x, star.y) / center);
-        context.fillRect(
-            center + star.x,
-            center + star.y,
-            star.size,
-            star.size,
-        );
-    }
+    drawSpaceBackdrop(context, EARTH_CLOSEUP_SIZE, smoothstep(0, 0.6, reveal));
 
     const placed = ORBITERS.map((orbiter) => {
         const angle = orbiter.phase + (seconds / orbiter.period) * Math.PI * 2;

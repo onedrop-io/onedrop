@@ -25,7 +25,7 @@ test('a visitor reads the home page and goes to sign up', function () {
         ->assertSee('Questions people ask first')
         ->assertPresent('header a[href="https://docs.onedrop.io/introduction"]')
         ->assertPresent('footer a[href="https://docs.onedrop.io/introduction"]')
-        ->assertSee('Earth maps by Solar System Scope')
+        ->assertSee('Earth and Mars maps by Solar System Scope')
         ->assertPresent('footer a[href="https://www.solarsystemscope.com/textures/"]')
         ->assertPresent('footer a[href="https://creativecommons.org/licenses/by/4.0/"]')
         ->assertSee("Moon maps by NASA's Scientific Visualization Studio")

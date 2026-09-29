@@ -24,7 +24,7 @@ export function SiteFooter() {
                 </a>
             </div>
             <p className="mx-auto max-w-6xl px-6 pb-6 text-xs text-[#7D7068]">
-                Earth maps by{' '}
+                Earth and Mars maps by{' '}
                 <a
                     href="https://www.solarsystemscope.com/textures/"
                     className="underline-offset-2 hover:text-[#B3A69C] hover:underline"

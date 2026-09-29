@@ -8,11 +8,18 @@ import {
     isEarthCloseupReady,
     loadEarthCloseup,
 } from '@/components/home/earth-closeup';
+import {
+    drawMarsCloseup,
+    isMarsCloseupReady,
+    loadMarsCloseup,
+    MARS_CLOSEUP_RADIUS,
+    marsShowProgress,
+} from '@/components/home/mars-closeup';
 import { universe } from '@/components/home/particle-universe';
 import {
     drawSolSystem,
-    EARTH_SIZE,
-    earthOffset,
+    planetOffset,
+    planetSize,
     SOL_FIELD_SIZE,
     SOL_SCREEN_OFFSET,
     voyagerTrails,
@@ -54,12 +61,51 @@ const ENTERPRISE_ORBIT = {
     arriveSeconds: 0.6,
 };
 
-/** Where the Earth's close-up settles, relative to the black hole (pixels), and how much the galaxy dims behind it. */
-const EARTH_CLOSEUP_AT = { x: -80, y: 30 };
-const EARTH_CLOSEUP_DIM = 0.7;
+/** Where a planet's close-up settles, relative to the black hole (pixels), and how much the galaxy dims behind it. */
+const CLOSEUP_AT = { x: -80, y: 30 };
+const CLOSEUP_DIM = 0.7;
 
-/** After the Earth shrinks back, how long before hovering it again replays the close-up (milliseconds). */
-const EARTH_CLOSEUP_COOLDOWN_MS = 2000;
+/** After a planet shrinks back, how long before hovering one again plays a close-up (milliseconds). */
+const CLOSEUP_COOLDOWN_MS = 2000;
+
+/** Size of the close-ups' canvas (CSS pixels); every close-up draws into the same one. */
+const CLOSEUP_SIZE = EARTH_CLOSEUP_SIZE;
+
+type Closeup = {
+    planet: string;
+    /** The planet's radius once it's zoomed in (CSS pixels). */
+    radius: number;
+    load: () => void;
+    isReady: () => boolean;
+    /** How zoomed in it is, from 0 to 1, `seconds` into its show; null once it's over. */
+    progress: (seconds: number) => number | null;
+    draw: (
+        context: CanvasRenderingContext2D,
+        pixelScale: number,
+        seconds: number,
+        reveal: number,
+    ) => void;
+};
+
+/** The planets you can hover over to zoom in on. */
+const CLOSEUPS: Closeup[] = [
+    {
+        planet: 'Earth',
+        radius: EARTH_CLOSEUP_RADIUS,
+        load: loadEarthCloseup,
+        isReady: isEarthCloseupReady,
+        progress: earthShowProgress,
+        draw: drawEarthCloseup,
+    },
+    {
+        planet: 'Mars',
+        radius: MARS_CLOSEUP_RADIUS,
+        load: loadMarsCloseup,
+        isReady: isMarsCloseupReady,
+        progress: marsShowProgress,
+        draw: drawMarsCloseup,
+    },
+];
 
 /** Seconds for the galaxy to fade in once the black hole is full size. */
 const FADE_IN_SECONDS = 2.5;
@@ -314,8 +360,8 @@ function makeStars(): Star[] {
  * stars of every color and size, and a few stars with planets circling them.
  * It's drawn on two canvases, one behind the black hole and one in front, so
  * the near side of the galaxy passes in front of it. Only runs alongside the
- * WebGL black hole, and follows its camera. Hovering over the Earth zooms
- * in on it for a little while (see `earth-closeup`).
+ * WebGL black hole, and follows its camera. Hovering over the Earth or Mars
+ * zooms in on it for a little while (see `earth-closeup`, `mars-closeup`).
  */
 export function Galaxy({ children }: { children: ReactNode }) {
     const backRef = useRef<HTMLCanvasElement>(null);
@@ -323,8 +369,8 @@ export function Galaxy({ children }: { children: ReactNode }) {
     const solRef = useRef<HTMLCanvasElement>(null);
     const enduranceRef = useRef<HTMLCanvasElement>(null);
     const enterpriseRef = useRef<HTMLCanvasElement>(null);
-    const earthRef = useRef<HTMLCanvasElement>(null);
-    const earthSpotRef = useRef<HTMLDivElement>(null);
+    const closeupRef = useRef<HTMLCanvasElement>(null);
+    const spotRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
     useEffect(() => {
         const back = backRef.current?.getContext('2d');
@@ -332,8 +378,10 @@ export function Galaxy({ children }: { children: ReactNode }) {
         const sol = solRef.current?.getContext('2d');
         const endurance = enduranceRef.current?.getContext('2d');
         const enterprise = enterpriseRef.current?.getContext('2d');
-        const earth = earthRef.current?.getContext('2d');
-        const earthSpot = earthSpotRef.current;
+        const closeupCanvas = closeupRef.current?.getContext('2d');
+        const spots = CLOSEUPS.map(
+            (closeup) => spotRefs.current[closeup.planet],
+        );
 
         if (
             !back ||
@@ -341,8 +389,8 @@ export function Galaxy({ children }: { children: ReactNode }) {
             !sol ||
             !endurance ||
             !enterprise ||
-            !earth ||
-            !earthSpot ||
+            !closeupCanvas ||
+            spots.some((spot) => !spot) ||
             window.matchMedia('(prefers-reduced-motion: reduce)').matches
         ) {
             return;
@@ -365,8 +413,9 @@ export function Galaxy({ children }: { children: ReactNode }) {
             ship.canvas.height = SHIP_FIELD_SIZE * solScale;
         }
 
-        earth.canvas.width = EARTH_CLOSEUP_SIZE * solScale;
-        earth.canvas.height = EARTH_CLOSEUP_SIZE * solScale;
+        closeupCanvas.canvas.width = CLOSEUP_SIZE * solScale;
+        closeupCanvas.canvas.height = CLOSEUP_SIZE * solScale;
+        const spotFor = (closeup: Closeup) => spotRefs.current[closeup.planet]!;
 
         const layers = [back, front, sol, endurance, enterprise];
 
@@ -390,32 +439,44 @@ export function Galaxy({ children }: { children: ReactNode }) {
         let enterpriseOrbit: { radius: number; angle: number } | null = null;
         let isVisible = true;
         let frame = 0;
-        let earthShowStartedAt: number | null = null;
-        let earthCooldownUntil = 0;
-        let isHoveringEarth = false;
+        let show: { closeup: Closeup; startedAt: number } | null = null;
+        let cooldownUntil = 0;
+        let hovered: Closeup | null = null;
 
         // The headline's layer sits on top of the galaxy, so check where the
-        // pointer is rather than waiting for the Earth's spot to be hovered.
+        // pointer is rather than waiting for a planet's spot to be hovered.
         const trackPointer = (event: PointerEvent) => {
-            const spot = earthSpot.getBoundingClientRect();
+            hovered = null;
+            let nearest = Infinity;
 
-            isHoveringEarth =
-                Math.hypot(
+            // Planets can pass close by each other, so pick the nearest one.
+            for (const closeup of CLOSEUPS) {
+                const spot = spotFor(closeup).getBoundingClientRect();
+                const distance = Math.hypot(
                     event.clientX - (spot.left + spot.width / 2),
                     event.clientY - (spot.top + spot.height / 2),
-                ) <
-                spot.width / 2;
+                );
+
+                if (distance < spot.width / 2 && distance < nearest) {
+                    hovered = closeup;
+                    nearest = distance;
+                }
+            }
         };
         window.addEventListener('pointermove', trackPointer, {
             passive: true,
         });
 
-        const endEarthShow = (now: number) => {
-            earthShowStartedAt = null;
-            earthCooldownUntil = now + EARTH_CLOSEUP_COOLDOWN_MS;
-            isHoveringEarth = false;
-            earth.canvas.style.opacity = '0';
-            earthSpot.dataset.state = 'idle';
+        const endShow = (now: number) => {
+            if (show) {
+                spotFor(show.closeup).dataset.state = 'idle';
+            }
+
+            show = null;
+            universe.isHoleCovered = false;
+            cooldownUntil = now + CLOSEUP_COOLDOWN_MS;
+            hovered = null;
+            closeupCanvas.canvas.style.opacity = '0';
         };
 
         const visibilityObserver = new IntersectionObserver(([entry]) => {
@@ -436,32 +497,35 @@ export function Galaxy({ children }: { children: ReactNode }) {
                 }
 
                 appearedAt = null;
-                if (earthShowStartedAt !== null) {
-                    endEarthShow(now);
+                if (show) {
+                    endShow(now);
                 }
 
                 return;
             }
 
             appearedAt ??= now;
-            loadEarthCloseup();
+
+            for (const closeup of CLOSEUPS) {
+                closeup.load();
+            }
+
             const fade = smoothstep(
                 0,
                 FADE_IN_SECONDS * 1000,
                 now - appearedAt,
             );
-            let closeup =
-                earthShowStartedAt === null
-                    ? null
-                    : earthShowProgress((now - earthShowStartedAt) / 1000);
+            let zoomedIn = show
+                ? show.closeup.progress((now - show.startedAt) / 1000)
+                : null;
 
-            if (earthShowStartedAt !== null && closeup === null) {
-                endEarthShow(now);
+            if (show && zoomedIn === null) {
+                endShow(now);
             }
 
             for (const layer of layers) {
                 layer.canvas.style.opacity = String(
-                    fade * (1 - EARTH_CLOSEUP_DIM * (closeup ?? 0)),
+                    fade * (1 - CLOSEUP_DIM * (zoomedIn ?? 0)),
                 );
             }
 
@@ -512,149 +576,179 @@ export function Galaxy({ children }: { children: ReactNode }) {
                 };
             };
 
-            for (const context of [back, front]) {
-                context.setTransform(scale, 0, 0, scale, 0, 0);
-                context.clearRect(0, 0, FIELD_SIZE, FIELD_SIZE);
-                context.globalCompositeOperation = 'lighter';
-            }
+            // While a close-up covers everything, there's no galaxy to see.
+            const isCovered = zoomedIn === 1;
+            universe.isHoleCovered = isCovered;
 
-            // The galaxy's warm core, flattened by the tilt.
-            back.save();
-            back.translate(center, center);
-            back.rotate(-roll);
-            back.scale(1, 0.35 + tiltSin * 0.65);
-            const core = back.createRadialGradient(0, 0, 0, 0, 0, 330 * zoom);
-            core.addColorStop(0, 'rgba(255, 150, 80, 0.22)');
-            core.addColorStop(0.5, 'rgba(255, 90, 40, 0.07)');
-            core.addColorStop(1, 'rgba(255, 60, 30, 0)');
-            back.fillStyle = core;
-            back.fillRect(-330 * zoom, -330 * zoom, 660 * zoom, 660 * zoom);
-            back.restore();
-
-            const patternAngle = seconds * PATTERN_SPEED;
-
-            for (const cloud of dust) {
-                const angle = cloud.angle + patternAngle;
-                const point = project(
-                    Math.cos(angle) * cloud.radius,
-                    Math.sin(angle) * cloud.radius,
-                );
-                const isNear = point.depth > 0;
-                const context = isNear ? front : back;
-                const distance = Math.hypot(point.x - center, point.y - center);
-                // Keep near-side clouds from fogging over the black hole itself.
-                const clearing = isNear
-                    ? smoothstep(holeRadius * 1.3, holeRadius * 3.2, distance)
-                    : 1;
-                const size = cloud.size * zoom;
-
-                context.globalAlpha = cloud.alpha * clearing;
-                context.drawImage(
-                    cloud.sprite,
-                    point.x - size / 2,
-                    point.y - size / 2,
-                    size,
-                    size,
-                );
-            }
-
-            for (const star of stars) {
-                const angle = star.angle + seconds * star.speed;
-                const starX = Math.cos(angle) * star.radius;
-                const starZ = Math.sin(angle) * star.radius;
-                const point = project(starX, starZ);
-                const context = point.depth > 0 ? front : back;
-                const brightness =
-                    0.75 + 0.25 * Math.sin(seconds * star.twinkle + star.phase);
-                const size = star.size * zoom;
-
-                const drawPlanets = (inFront: boolean) => {
-                    for (const planet of star.planets) {
-                        const orbitAngle =
-                            planet.phase + seconds * planet.speed;
-                        const localZ = Math.sin(orbitAngle) * planet.orbit;
-
-                        if (localZ > 0 !== inFront) {
-                            continue;
-                        }
-
-                        const spot = project(
-                            starX + Math.cos(orbitAngle) * planet.orbit,
-                            starZ + localZ,
-                        );
-                        context.globalAlpha = 1;
-                        context.fillStyle = planet.color;
-                        context.beginPath();
-                        context.arc(
-                            spot.x,
-                            spot.y,
-                            planet.size * zoom,
-                            0,
-                            Math.PI * 2,
-                        );
-                        context.fill();
-                    }
-                };
-
-                if (star.planets.length > 0) {
-                    context.globalAlpha = 0.18;
-                    context.strokeStyle = '#FFD7BD';
-                    context.lineWidth = 0.6;
-
-                    for (const planet of star.planets) {
-                        context.beginPath();
-
-                        for (let step = 0; step <= 32; step++) {
-                            const orbitAngle = (step / 32) * Math.PI * 2;
-                            const spot = project(
-                                starX + Math.cos(orbitAngle) * planet.orbit,
-                                starZ + Math.sin(orbitAngle) * planet.orbit,
-                            );
-
-                            if (step === 0) {
-                                context.moveTo(spot.x, spot.y);
-                            } else {
-                                context.lineTo(spot.x, spot.y);
-                            }
-                        }
-
-                        context.stroke();
-                    }
-
-                    drawPlanets(false);
+            const drawGalaxy = () => {
+                for (const context of [back, front]) {
+                    context.setTransform(scale, 0, 0, scale, 0, 0);
+                    context.clearRect(0, 0, FIELD_SIZE, FIELD_SIZE);
+                    context.globalCompositeOperation = 'lighter';
                 }
 
-                if (size > 1.2) {
-                    const glow = size * 7;
-                    context.globalAlpha = 0.35 * brightness;
+                // The galaxy's warm core, flattened by the tilt.
+                back.save();
+                back.translate(center, center);
+                back.rotate(-roll);
+                back.scale(1, 0.35 + tiltSin * 0.65);
+                const core = back.createRadialGradient(
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    330 * zoom,
+                );
+                core.addColorStop(0, 'rgba(255, 150, 80, 0.22)');
+                core.addColorStop(0.5, 'rgba(255, 90, 40, 0.07)');
+                core.addColorStop(1, 'rgba(255, 60, 30, 0)');
+                back.fillStyle = core;
+                back.fillRect(-330 * zoom, -330 * zoom, 660 * zoom, 660 * zoom);
+                back.restore();
+
+                const patternAngle = seconds * PATTERN_SPEED;
+
+                for (const cloud of dust) {
+                    const angle = cloud.angle + patternAngle;
+                    const point = project(
+                        Math.cos(angle) * cloud.radius,
+                        Math.sin(angle) * cloud.radius,
+                    );
+                    const isNear = point.depth > 0;
+                    const context = isNear ? front : back;
+                    const distance = Math.hypot(
+                        point.x - center,
+                        point.y - center,
+                    );
+                    // Keep near-side clouds from fogging over the black hole itself.
+                    const clearing = isNear
+                        ? smoothstep(
+                              holeRadius * 1.3,
+                              holeRadius * 3.2,
+                              distance,
+                          )
+                        : 1;
+                    const size = cloud.size * zoom;
+
+                    context.globalAlpha = cloud.alpha * clearing;
                     context.drawImage(
-                        glowSprite(star.color),
-                        point.x - glow / 2,
-                        point.y - glow / 2,
-                        glow,
-                        glow,
+                        cloud.sprite,
+                        point.x - size / 2,
+                        point.y - size / 2,
+                        size,
+                        size,
                     );
                 }
 
-                context.globalAlpha = brightness;
-                context.fillStyle = star.color;
-                context.beginPath();
-                context.arc(point.x, point.y, size / 2, 0, Math.PI * 2);
-                context.fill();
+                for (const star of stars) {
+                    const angle = star.angle + seconds * star.speed;
+                    const starX = Math.cos(angle) * star.radius;
+                    const starZ = Math.sin(angle) * star.radius;
+                    const point = project(starX, starZ);
+                    const context = point.depth > 0 ? front : back;
+                    const brightness =
+                        0.75 +
+                        0.25 * Math.sin(seconds * star.twinkle + star.phase);
+                    const size = star.size * zoom;
 
-                if (star.planets.length > 0) {
-                    drawPlanets(true);
+                    const drawPlanets = (inFront: boolean) => {
+                        for (const planet of star.planets) {
+                            const orbitAngle =
+                                planet.phase + seconds * planet.speed;
+                            const localZ = Math.sin(orbitAngle) * planet.orbit;
+
+                            if (localZ > 0 !== inFront) {
+                                continue;
+                            }
+
+                            const spot = project(
+                                starX + Math.cos(orbitAngle) * planet.orbit,
+                                starZ + localZ,
+                            );
+                            context.globalAlpha = 1;
+                            context.fillStyle = planet.color;
+                            context.beginPath();
+                            context.arc(
+                                spot.x,
+                                spot.y,
+                                planet.size * zoom,
+                                0,
+                                Math.PI * 2,
+                            );
+                            context.fill();
+                        }
+                    };
+
+                    if (star.planets.length > 0) {
+                        context.globalAlpha = 0.18;
+                        context.strokeStyle = '#FFD7BD';
+                        context.lineWidth = 0.6;
+
+                        for (const planet of star.planets) {
+                            context.beginPath();
+
+                            for (let step = 0; step <= 32; step++) {
+                                const orbitAngle = (step / 32) * Math.PI * 2;
+                                const spot = project(
+                                    starX + Math.cos(orbitAngle) * planet.orbit,
+                                    starZ + Math.sin(orbitAngle) * planet.orbit,
+                                );
+
+                                if (step === 0) {
+                                    context.moveTo(spot.x, spot.y);
+                                } else {
+                                    context.lineTo(spot.x, spot.y);
+                                }
+                            }
+
+                            context.stroke();
+                        }
+
+                        drawPlanets(false);
+                    }
+
+                    if (size > 1.2) {
+                        const glow = size * 7;
+                        context.globalAlpha = 0.35 * brightness;
+                        context.drawImage(
+                            glowSprite(star.color),
+                            point.x - glow / 2,
+                            point.y - glow / 2,
+                            glow,
+                            glow,
+                        );
+                    }
+
+                    context.globalAlpha = brightness;
+                    context.fillStyle = star.color;
+                    context.beginPath();
+                    context.arc(point.x, point.y, size / 2, 0, Math.PI * 2);
+                    context.fill();
+
+                    if (star.planets.length > 0) {
+                        drawPlanets(true);
+                    }
                 }
-            }
 
-            // Fade the galaxy out toward the headline. Drawn here rather than
-            // with a CSS mask, which Safari recomposites on every frame.
-            for (const context of [back, front]) {
-                context.globalAlpha = 1;
-                context.globalCompositeOperation = 'destination-out';
-                context.fillStyle = edgeFade;
-                context.fillRect(0, 0, FIELD_SIZE * EDGE_FADE_END, FIELD_SIZE);
-                context.globalCompositeOperation = 'source-over';
+                // Fade the galaxy out toward the headline. Drawn here rather than
+                // with a CSS mask, which Safari recomposites on every frame.
+                for (const context of [back, front]) {
+                    context.globalAlpha = 1;
+                    context.globalCompositeOperation = 'destination-out';
+                    context.fillStyle = edgeFade;
+                    context.fillRect(
+                        0,
+                        0,
+                        FIELD_SIZE * EDGE_FADE_END,
+                        FIELD_SIZE,
+                    );
+                    context.globalCompositeOperation = 'source-over';
+                }
+            };
+
+            if (!isCovered) {
+                drawGalaxy();
             }
 
             // Our solar system orbits the galaxy like every other star,
@@ -689,46 +783,58 @@ export function Galaxy({ children }: { children: ReactNode }) {
             sol.canvas.style.zIndex = solOffset.depth > 0 ? '' : '-1';
             drawSolSystem(sol, projectOffset, zoom, roll, seconds);
 
-            // Hovering over the Earth zooms in on it for a little while.
-            const earthAt = earthOffset(projectOffset, seconds);
-            const earthX = solOffset.x + earthAt.x;
-            const earthY = solOffset.y + earthAt.y;
-            earthSpot.style.transform = `translate(${earthX}px, ${earthY}px) translate(-50%, -50%)`;
+            // Hovering over the Earth or Mars zooms in on it for a little while.
+            const planetAt = (closeup: Closeup) => {
+                const offset = planetOffset(
+                    closeup.planet,
+                    projectOffset,
+                    seconds,
+                );
 
-            if (
-                isHoveringEarth &&
-                earthShowStartedAt === null &&
-                fade === 1 &&
-                now > earthCooldownUntil &&
-                isEarthCloseupReady()
-            ) {
-                earthShowStartedAt = now;
-                closeup = 0;
-                earthSpot.dataset.state = 'playing';
+                return { x: solOffset.x + offset.x, y: solOffset.y + offset.y };
+            };
+
+            for (const closeup of CLOSEUPS) {
+                const at = planetAt(closeup);
+                spotFor(closeup).style.transform =
+                    `translate(${at.x}px, ${at.y}px) translate(-50%, -50%)`;
             }
 
-            if (earthShowStartedAt !== null && closeup !== null) {
-                const smallest = (EARTH_SIZE * zoom) / EARTH_CLOSEUP_RADIUS;
-                const closeupX =
-                    earthX + (EARTH_CLOSEUP_AT.x - earthX) * closeup;
-                const closeupY =
-                    earthY + (EARTH_CLOSEUP_AT.y - earthY) * closeup;
+            if (
+                hovered &&
+                !show &&
+                fade === 1 &&
+                now > cooldownUntil &&
+                hovered.isReady()
+            ) {
+                show = { closeup: hovered, startedAt: now };
+                zoomedIn = 0;
+                spotFor(hovered).dataset.state = 'playing';
+            }
 
-                earth.canvas.style.opacity = '1';
-                earth.canvas.style.transform = `translate(${closeupX - EARTH_CLOSEUP_SIZE / 2}px, ${closeupY - EARTH_CLOSEUP_SIZE / 2}px) scale(${smallest * (1 / smallest) ** closeup})`;
-                earth.setTransform(solScale, 0, 0, solScale, 0, 0);
-                earth.clearRect(0, 0, EARTH_CLOSEUP_SIZE, EARTH_CLOSEUP_SIZE);
-                drawEarthCloseup(
-                    earth,
+            if (show && zoomedIn !== null) {
+                const { closeup, startedAt } = show;
+                const at = planetAt(closeup);
+                const smallest =
+                    (planetSize(closeup.planet) * zoom) / closeup.radius;
+                const closeupX = at.x + (CLOSEUP_AT.x - at.x) * zoomedIn;
+                const closeupY = at.y + (CLOSEUP_AT.y - at.y) * zoomedIn;
+
+                closeupCanvas.canvas.style.opacity = '1';
+                closeupCanvas.canvas.style.transform = `translate(${closeupX - CLOSEUP_SIZE / 2}px, ${closeupY - CLOSEUP_SIZE / 2}px) scale(${smallest * (1 / smallest) ** zoomedIn})`;
+                closeupCanvas.setTransform(solScale, 0, 0, solScale, 0, 0);
+                closeupCanvas.clearRect(0, 0, CLOSEUP_SIZE, CLOSEUP_SIZE);
+                closeup.draw(
+                    closeupCanvas,
                     solScale,
-                    (now - earthShowStartedAt) / 1000,
-                    closeup,
+                    (now - startedAt) / 1000,
+                    zoomedIn,
                 );
             }
 
             // The Voyagers leave Earth and head out across the galaxy.
             for (const voyager of voyagerTrails(seconds)) {
-                if (voyager.visibility <= 0) {
+                if (voyager.visibility <= 0 || isCovered) {
                     continue;
                 }
 
@@ -882,16 +988,21 @@ export function Galaxy({ children }: { children: ReactNode }) {
             <canvas ref={enduranceRef} className={shipClassName} />
             <canvas ref={enterpriseRef} className={shipClassName} />
             <canvas
-                ref={earthRef}
+                ref={closeupRef}
                 className="pointer-events-none absolute top-1/2 left-1/2 size-[780px] opacity-0 motion-reduce:hidden"
             />
-            <div
-                ref={earthSpotRef}
-                data-test="earth"
-                data-state="idle"
-                aria-hidden="true"
-                className="pointer-events-none absolute top-1/2 left-1/2 size-8 rounded-full motion-reduce:hidden"
-            />
+            {CLOSEUPS.map((closeup) => (
+                <div
+                    key={closeup.planet}
+                    ref={(spot) => {
+                        spotRefs.current[closeup.planet] = spot;
+                    }}
+                    data-test={closeup.planet.toLowerCase()}
+                    data-state="idle"
+                    aria-hidden="true"
+                    className="pointer-events-none absolute top-1/2 left-1/2 size-8 rounded-full motion-reduce:hidden"
+                />
+            ))}
         </>
     );
 }

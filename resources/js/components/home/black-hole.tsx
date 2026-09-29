@@ -408,7 +408,12 @@ export function BlackHole() {
             camera.pitch += (camera.targetPitch - camera.pitch) * easing;
             const { size, radius } = universe.hole;
 
-            if (size > 0 && isVisible) {
+            if (universe.isHoleCovered) {
+                // Hidden behind a close-up: skip drawing, and don't count
+                // these frames when checking whether the GPU keeps up.
+                lastFrameAt = now;
+                slowFrames = 0;
+            } else if (size > 0 && isVisible) {
                 if (!keepsUp(now)) {
                     canvas.style.opacity = '0';
                     universe.rendersHoleInWebgl = false;
