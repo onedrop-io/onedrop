@@ -24,7 +24,7 @@ type World = {
 const WORLDS: World[] = [
     {
         name: 'Mercury',
-        orbit: 13,
+        orbit: 21,
         radius: 1.6,
         period: 9,
         phase: 1.2,
@@ -33,7 +33,7 @@ const WORLDS: World[] = [
     },
     {
         name: 'Venus',
-        orbit: 18.5,
+        orbit: 27,
         radius: 2.5,
         period: 14,
         phase: 4.1,
@@ -42,7 +42,7 @@ const WORLDS: World[] = [
     },
     {
         name: 'Earth',
-        orbit: 25,
+        orbit: 34,
         radius: 2.7,
         period: 20,
         phase: 2.4,
@@ -50,7 +50,7 @@ const WORLDS: World[] = [
     },
     {
         name: 'Mars',
-        orbit: 32,
+        orbit: 42,
         radius: 1.9,
         period: 28,
         phase: 5.3,
@@ -59,7 +59,7 @@ const WORLDS: World[] = [
     },
     {
         name: 'Jupiter',
-        orbit: 48,
+        orbit: 60,
         radius: 6.2,
         period: 55,
         phase: 0.6,
@@ -68,7 +68,7 @@ const WORLDS: World[] = [
     },
     {
         name: 'Saturn',
-        orbit: 62,
+        orbit: 75,
         radius: 5,
         period: 80,
         phase: 3.5,
@@ -77,7 +77,7 @@ const WORLDS: World[] = [
     },
     {
         name: 'Uranus',
-        orbit: 74,
+        orbit: 88,
         radius: 3.5,
         period: 110,
         phase: 5.9,
@@ -86,7 +86,7 @@ const WORLDS: World[] = [
     },
     {
         name: 'Neptune',
-        orbit: 84,
+        orbit: 99,
         radius: 3.4,
         period: 140,
         phase: 2,
@@ -102,11 +102,11 @@ const EARTH_MAPS = [
 ];
 const SATURN_RING = '/images/planets/saturn-ring.png';
 
-const SUN_RADIUS = 8.5;
+const SUN_RADIUS = 14;
 
 /** The camera: its field of view, how far out it sits, and how high above the planets' plane it looks down from (radians). */
 const FIELD_OF_VIEW = 34;
-const CAMERA_DISTANCE = 300;
+const CAMERA_DISTANCE = 345;
 const CAMERA_ELEVATION = 0.55;
 
 const NOISE = `
@@ -315,6 +315,116 @@ void main() {
     gl_FragColor = vec4(pow(clamp(color, 0.0, 1.0), vec3(1.0 / 2.2)), 1.0);
 }`;
 
+const RIBBON_VERTEX = `
+attribute float along;
+attribute float across;
+varying float vAlong;
+varying float vAcross;
+
+void main() {
+    vAlong = along;
+    vAcross = across;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}`;
+
+/** A plume of solar wind: wispy streaks bursting out, spreading, and dissipating fast. */
+const RIBBON_FRAGMENT = `
+uniform float time;
+uniform float front;
+uniform float fade;
+uniform float seed;
+varying float vAlong;
+varying float vAcross;
+${NOISE}
+
+void main() {
+    // A diffuse, streaky plume, fading fast as it spreads.
+    float wisps = 0.45 + 0.55 * snoise(vec3(vAlong * 5.0 - time * 0.8 + seed, vAcross * 2.2, seed));
+    float strands = 0.5 + 0.5 * snoise(vec3(vAlong * 2.0, vAcross * 4.0 + seed, time * 0.3));
+    float body = exp(-vAcross * vAcross * 2.2);
+    float ahead = 1.0 - smoothstep(front - 0.35, front, vAlong);
+    float glow = body * wisps * strands * ahead
+        * pow(1.0 - vAlong, 1.3) * smoothstep(0.05, 0.35, vAlong) * fade;
+    vec3 color = mix(vec3(1.0, 0.72, 0.36), vec3(1.0, 0.4, 0.12), smoothstep(0.0, 0.5, vAlong)) * glow * 6.0;
+
+    gl_FragColor = vec4(color, clamp(glow, 0.0, 1.0));
+}`;
+
+/** A comet's tail: brightest by its head, streaked and flowing away from it. */
+const TAIL_FRAGMENT = `
+uniform float time;
+uniform float seed;
+uniform float strength;
+uniform float streakiness;
+uniform vec3 nearColor;
+uniform vec3 farColor;
+varying float vAlong;
+varying float vAcross;
+${NOISE}
+
+void main() {
+    float flow = 0.5 + 0.5 * snoise(vec3(vAlong * 6.0 - time * 0.6 + seed, vAcross * streakiness, seed));
+    float strands = 0.6 + 0.4 * snoise(vec3(vAlong * 1.5, vAcross * streakiness * 2.5 + seed, time * 0.2));
+    float body = exp(-vAcross * vAcross * 4.0);
+    float glow = body * mix(1.0, flow * strands * 1.6, 0.6)
+        * pow(1.0 - vAlong, 1.5) * smoothstep(0.0, 0.03, vAlong) * strength;
+    vec3 color = mix(nearColor, farColor, vAlong) * glow;
+
+    gl_FragColor = vec4(color, clamp(glow, 0.0, 1.0));
+}`;
+
+/**
+ * The comet's orbit: long and lopsided (semi-major axis, eccentricity), a
+ * slow trip round (seconds), tipped out of the planets' plane and turned
+ * (radians), and where along it it starts (0 to 1).
+ */
+const COMET = {
+    axis: 82,
+    eccentricity: 0.6,
+    period: 140,
+    tilt: 0.38,
+    turn: 2.3,
+    phase: 0.66,
+};
+const TAIL_SEGMENTS = 48;
+
+type Tail = {
+    mesh: Three.Mesh;
+    uniforms: Record<'time' | 'strength', Three.IUniform<number>>;
+};
+
+type Comet = {
+    nucleus: Three.Mesh;
+    coma: Three.Sprite;
+    dust: Tail;
+    ion: Tail;
+    position: Three.Vector3;
+    strength: number;
+};
+
+/** How many plumes can be out at once, how many segments each has, and how long each lasts (seconds). */
+const RIBBONS = 2;
+const RIBBON_SEGMENTS = 64;
+const RIBBON_LIFE = [2, 3.5];
+
+/** How long each rests before erupting again (seconds), so eruptions are occasional. */
+const RIBBON_REST = [4, 11];
+
+type Ribbon = {
+    mesh: Three.Mesh;
+    uniforms: Record<
+        'time' | 'front' | 'fade' | 'seed',
+        Three.IUniform<number>
+    >;
+    /** When it erupted and how long it lasts; which way it heads (radians), how far, and how it curves. */
+    bornAt: number;
+    life: number;
+    heading: number;
+    rise: number;
+    length: number;
+    curl: number;
+};
+
 type Planet = { world: World; body: Three.Object3D; spin: Three.Object3D };
 
 type Scene = {
@@ -327,6 +437,8 @@ type Scene = {
     corona: Three.Mesh;
     cloudTurn: Three.IUniform<number>;
     belt: Three.Points;
+    ribbons: Ribbon[];
+    comet: Comet;
 };
 
 let scene: Scene | null = null;
@@ -334,6 +446,106 @@ let status: 'idle' | 'loading' | 'ready' | 'failed' = 'idle';
 
 /** Where each planet was last drawn on the canvas (CSS pixels), and how big. */
 const onScreen: Record<string, { x: number; y: number; radius: number }> = {};
+
+/** A flat strip of `segments` quads, with how far along (0 to 1) and across (-1 to 1) each corner is. */
+function stripGeometry(three: typeof Three, segments: number) {
+    const geometry = new three.BufferGeometry();
+    const points = (segments + 1) * 2;
+    geometry.setAttribute(
+        'position',
+        new three.BufferAttribute(new Float32Array(points * 3), 3),
+    );
+    geometry.setAttribute(
+        'along',
+        new three.BufferAttribute(
+            Float32Array.from(
+                { length: points },
+                (_, point) => Math.floor(point / 2) / segments,
+            ),
+            1,
+        ),
+    );
+    geometry.setAttribute(
+        'across',
+        new three.BufferAttribute(
+            Float32Array.from({ length: points }, (_, point) =>
+                point % 2 === 0 ? -1 : 1,
+            ),
+            1,
+        ),
+    );
+    geometry.setIndex(
+        Array.from({ length: segments }, (_, segment) => {
+            const at = segment * 2;
+
+            return [at, at + 1, at + 2, at + 1, at + 3, at + 2];
+        }).flat(),
+    );
+
+    return geometry;
+}
+
+/**
+ * Lays a strip along a path, `width` wide either side, turned to face the
+ * camera so it never goes edge-on.
+ */
+function layStrip(
+    three: typeof Three,
+    camera: Three.Camera,
+    mesh: Three.Mesh,
+    segments: number,
+    at: (along: number, target: Three.Vector3) => Three.Vector3,
+    width: (along: number) => number,
+) {
+    const point = new three.Vector3();
+    const ahead = new three.Vector3();
+    const tangent = new three.Vector3();
+    const side = new three.Vector3();
+    const toCamera = new three.Vector3();
+    const positions = mesh.geometry.getAttribute('position');
+
+    for (let segment = 0; segment <= segments; segment++) {
+        const along = segment / segments;
+        at(along, point);
+        at(Math.min(1, along + 0.01), ahead);
+        tangent.subVectors(ahead, point).normalize();
+        toCamera.subVectors(camera.position, point).normalize();
+        side.crossVectors(tangent, toCamera).normalize();
+        const half = width(along);
+
+        positions.setXYZ(
+            segment * 2,
+            point.x - side.x * half,
+            point.y - side.y * half,
+            point.z - side.z * half,
+        );
+        positions.setXYZ(
+            segment * 2 + 1,
+            point.x + side.x * half,
+            point.y + side.y * half,
+            point.z + side.z * half,
+        );
+    }
+
+    positions.needsUpdate = true;
+}
+
+/** A soft round glow, for the comet's coma. */
+function glowTexture(three: typeof Three): Three.Texture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const context = canvas.getContext('2d')!;
+    const glow = context.createRadialGradient(64, 64, 0, 64, 64, 64);
+    glow.addColorStop(0, 'rgba(235, 248, 255, 1)');
+    glow.addColorStop(0.15, 'rgba(190, 225, 255, 0.6)');
+    glow.addColorStop(0.5, 'rgba(140, 190, 255, 0.12)');
+    glow.addColorStop(1, 'rgba(140, 190, 255, 0)');
+    context.fillStyle = glow;
+    context.fillRect(0, 0, 128, 128);
+
+    return new three.CanvasTexture(canvas);
+}
 
 async function build(): Promise<Scene> {
     const three = await import('three');
@@ -468,7 +680,7 @@ async function build(): Promise<Scene> {
 
     for (let index = 0; index < 1800; index++) {
         const angle = Math.random() * Math.PI * 2;
-        const distance = 37 + Math.random() * 6 + (Math.random() - 0.5) * 2;
+        const distance = 47 + Math.random() * 7 + (Math.random() - 0.5) * 2;
         asteroids.set(
             [
                 Math.cos(angle) * distance,
@@ -518,6 +730,102 @@ async function build(): Promise<Scene> {
         );
     }
 
+    // Ribbons of solar wind streaming out through the planets.
+    const ribbons = Array.from({ length: RIBBONS }, (_, index): Ribbon => {
+        const geometry = stripGeometry(three, RIBBON_SEGMENTS);
+        const uniforms = {
+            time: { value: 0 },
+            front: { value: 0 },
+            fade: { value: 0 },
+            seed: { value: Math.random() * 100 },
+        };
+        const mesh = new three.Mesh(
+            geometry,
+            new three.ShaderMaterial({
+                uniforms,
+                vertexShader: RIBBON_VERTEX,
+                fragmentShader: RIBBON_FRAGMENT,
+                transparent: true,
+                depthWrite: false,
+                side: three.DoubleSide,
+                blending: three.AdditiveBlending,
+            }),
+        );
+        mesh.frustumCulled = false;
+        threeScene.add(mesh);
+
+        return {
+            mesh,
+            uniforms,
+            // Staggered, so they don't all erupt together.
+            bornAt: 3 + index * 6,
+            life: RIBBON_LIFE[0],
+            heading: Math.random() * Math.PI * 2,
+            rise: (Math.random() - 0.5) * 0.5,
+            length: 40 + Math.random() * 18,
+            curl: 0.5 + Math.random() * 0.6,
+        };
+    });
+
+    // A comet: a dark, lumpy nucleus of ice and dust in its glowing coma,
+    // with a curving dust tail and a straight blue ion tail.
+    const nucleusShape = new three.IcosahedronGeometry(0.55, 3);
+    const corners = nucleusShape.getAttribute('position');
+
+    for (let corner = 0; corner < corners.count; corner++) {
+        const x = corners.getX(corner);
+        const y = corners.getY(corner);
+        const z = corners.getZ(corner);
+        const lumps =
+            1 +
+            0.22 * Math.sin(x * 7 + y * 3) * Math.cos(z * 5 - x * 2) +
+            0.1 * Math.sin(y * 13 + z * 11);
+        corners.setXYZ(corner, x * lumps * 1.3, y * lumps, z * lumps * 0.9);
+    }
+
+    nucleusShape.computeVertexNormals();
+    const nucleus = new three.Mesh(
+        nucleusShape,
+        new three.MeshStandardMaterial({ color: 0x4d4843, roughness: 1 }),
+    );
+    const coma = new three.Sprite(
+        new three.SpriteMaterial({
+            map: glowTexture(three),
+            transparent: true,
+            depthWrite: false,
+            blending: three.AdditiveBlending,
+        }),
+    );
+    const tail = (near: string, far: string, streakiness: number): Tail => {
+        const uniforms = {
+            time: { value: 0 },
+            strength: { value: 0 },
+            seed: { value: Math.random() * 100 },
+            streakiness: { value: streakiness },
+            nearColor: { value: new three.Color(near) },
+            farColor: { value: new three.Color(far) },
+        };
+        const mesh = new three.Mesh(
+            stripGeometry(three, TAIL_SEGMENTS),
+            new three.ShaderMaterial({
+                uniforms,
+                vertexShader: RIBBON_VERTEX,
+                fragmentShader: TAIL_FRAGMENT,
+                transparent: true,
+                depthWrite: false,
+                side: three.DoubleSide,
+                blending: three.AdditiveBlending,
+            }),
+        );
+        mesh.frustumCulled = false;
+        threeScene.add(mesh);
+
+        return { mesh, uniforms };
+    };
+    const dust = tail('#FFF1D2', '#C9A774', 2.5);
+    const ion = tail('#D8F0FF', '#4F8DFF', 7);
+    threeScene.add(nucleus, coma);
+
     return {
         three,
         renderer,
@@ -528,7 +836,179 @@ async function build(): Promise<Scene> {
         corona,
         cloudTurn,
         belt,
+        ribbons,
+        comet: {
+            nucleus,
+            coma,
+            dust,
+            ion,
+            position: new three.Vector3(),
+            strength: 0,
+        },
     };
+}
+
+/**
+ * Moves each plume along: now and then it bursts off the Sun, curling
+ * outward (like the solar wind) and spreading wide as it goes, and is gone
+ * within a few seconds; then it rests before bursting out somewhere else.
+ * Each one turns to face the camera so it never goes edge-on.
+ */
+function streamRibbons({ three, camera, ribbons }: Scene, seconds: number) {
+    const point = new three.Vector3();
+    const ahead = new three.Vector3();
+    const tangent = new three.Vector3();
+    const side = new three.Vector3();
+    const toCamera = new three.Vector3();
+
+    for (const ribbon of ribbons) {
+        if (seconds - ribbon.bornAt > ribbon.life) {
+            // Rest a while, then erupt again somewhere else.
+            ribbon.bornAt =
+                seconds +
+                RIBBON_REST[0] +
+                Math.random() * (RIBBON_REST[1] - RIBBON_REST[0]);
+            ribbon.life =
+                RIBBON_LIFE[0] +
+                Math.random() * (RIBBON_LIFE[1] - RIBBON_LIFE[0]);
+            ribbon.heading = Math.random() * Math.PI * 2;
+            ribbon.rise = (Math.random() - 0.5) * 0.5;
+            ribbon.length = 40 + Math.random() * 18;
+            ribbon.curl = 0.5 + Math.random() * 0.6;
+            ribbon.uniforms.seed.value = Math.random() * 100;
+        }
+
+        const age = Math.max(0, (seconds - ribbon.bornAt) / ribbon.life);
+        ribbon.uniforms.time.value = seconds;
+        // It bursts out quickly and is gone almost as fast.
+        ribbon.uniforms.front.value = Math.min(1, age * 3.5) * 1.05;
+        ribbon.uniforms.fade.value =
+            Math.min(1, age * 12) *
+            (1 - Math.min(1, Math.max(0, (age - 0.3) / 0.7))) ** 1.4;
+
+        const at = (along: number, target: Three.Vector3) => {
+            const distance = SUN_RADIUS * 0.95 + along * ribbon.length;
+            const angle = ribbon.heading + along * ribbon.curl;
+            const wave =
+                Math.sin(along * 6 + ribbon.uniforms.seed.value) * along * 3;
+
+            return target.set(
+                Math.cos(angle) * distance,
+                ribbon.rise * distance * 0.4 + wave,
+                Math.sin(angle) * distance,
+            );
+        };
+
+        const positions = ribbon.mesh.geometry.getAttribute('position');
+
+        for (let segment = 0; segment <= RIBBON_SEGMENTS; segment++) {
+            const along = segment / RIBBON_SEGMENTS;
+            at(along, point);
+            at(Math.min(1, along + 0.01), ahead);
+            tangent.subVectors(ahead, point).normalize();
+            toCamera.subVectors(camera.position, point).normalize();
+            side.crossVectors(tangent, toCamera).normalize();
+            // Narrow at the Sun, spreading out as it goes.
+            // Spreading out wide as it goes.
+            const width = 3 + along * 20;
+
+            positions.setXYZ(
+                segment * 2,
+                point.x - side.x * width,
+                point.y - side.y * width,
+                point.z - side.z * width,
+            );
+            positions.setXYZ(
+                segment * 2 + 1,
+                point.x + side.x * width,
+                point.y + side.y * width,
+                point.z + side.z * width,
+            );
+        }
+
+        positions.needsUpdate = true;
+    }
+}
+
+/**
+ * Moves the comet along its orbit (quickly round the Sun, slowly far out, as
+ * Kepler had it), and points its tails away from the Sun, longer and brighter
+ * the nearer it gets. The dust tail curves back along the path it's come from.
+ */
+function flyComet({ three, camera, comet }: Scene, seconds: number) {
+    const { axis, eccentricity, period, tilt, turn, phase } = COMET;
+    const mean = (phase + seconds / period) * Math.PI * 2;
+    let eccentric = mean;
+
+    for (let step = 0; step < 6; step++) {
+        eccentric -=
+            (eccentric - eccentricity * Math.sin(eccentric) - mean) /
+            (1 - eccentricity * Math.cos(eccentric));
+    }
+
+    const minor = axis * Math.sqrt(1 - eccentricity ** 2);
+    const orbit = new three.Euler(tilt, turn, 0);
+    const position = new three.Vector3(
+        axis * (Math.cos(eccentric) - eccentricity),
+        0,
+        minor * Math.sin(eccentric),
+    ).applyEuler(orbit);
+    const heading = new three.Vector3(
+        -axis * Math.sin(eccentric),
+        0,
+        minor * Math.cos(eccentric),
+    )
+        .applyEuler(orbit)
+        .normalize();
+
+    const distance = position.length();
+    const strength = Math.min(1.4, Math.max(0.3, (60 / distance) ** 1.3));
+    const away = position.clone().normalize();
+    comet.position.copy(position);
+    comet.strength = strength;
+
+    comet.nucleus.position.copy(position);
+    comet.nucleus.rotation.set(seconds * 0.2, seconds * 0.13, 0);
+    comet.coma.position.copy(position);
+    comet.coma.scale.setScalar(5 + strength * 7);
+    comet.coma.material.opacity = Math.min(1, 0.5 + strength * 0.6);
+
+    const dustLength = 24 + strength * 50;
+    const ionLength = 34 + strength * 72;
+
+    for (const tail of [comet.dust, comet.ion]) {
+        tail.uniforms.time.value = seconds;
+        tail.uniforms.strength.value =
+            strength * (tail === comet.ion ? 2.2 : 2);
+    }
+
+    layStrip(
+        three,
+        camera,
+        comet.dust.mesh,
+        TAIL_SEGMENTS,
+        (along, target) =>
+            target
+                .copy(position)
+                .addScaledVector(away, along * dustLength)
+                .addScaledVector(heading, -along * along * dustLength * 0.45),
+        (along) => 1 + along * (7 + strength * 6),
+    );
+    layStrip(
+        three,
+        camera,
+        comet.ion.mesh,
+        TAIL_SEGMENTS,
+        (along, target) =>
+            target
+                .copy(position)
+                .addScaledVector(away, along * ionLength)
+                .addScaledVector(
+                    heading,
+                    Math.sin(along * 5 + seconds * 0.7) * along * 1.2,
+                ),
+        (along) => 0.5 + along * 2.4,
+    );
 }
 
 /** Starts loading three.js and the planets' maps (about 0.5 MB) in the background. */
@@ -629,6 +1109,8 @@ export function drawSolarSystem(
     camera.position.copy(circling.lerp(nearEarth, ease));
     camera.lookAt(new three.Vector3().lerp(earth, ease));
     corona.quaternion.copy(camera.quaternion);
+    streamRibbons(scene, seconds);
+    flyComet(scene, seconds);
 
     renderer.render(scene.scene, camera);
     context.drawImage(renderer.domElement, 0, 0, size, size);
@@ -652,6 +1134,18 @@ export function drawSolarSystem(
             world.name,
             x,
             y + radius * (world.name === 'Saturn' ? 1.6 : 1) + 14,
+        );
+    }
+
+    // And the comet, while it's in close enough to be bright.
+    const cometOnScreen = scene.comet.position.clone().project(camera);
+
+    if (scene.comet.strength > 0.3 && cometOnScreen.z < 1) {
+        context.globalAlpha = (1 - ease) * Math.min(1, scene.comet.strength);
+        context.fillText(
+            'Comet',
+            ((cometOnScreen.x + 1) / 2) * size,
+            ((1 - cometOnScreen.y) / 2) * size + 18,
         );
     }
 
