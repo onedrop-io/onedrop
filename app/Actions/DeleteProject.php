@@ -9,14 +9,15 @@ use App\Sandbox\ProjectBackups;
 use App\Sandbox\ProjectIcons;
 use App\Sandbox\Publishing\Publishers;
 use App\Sandbox\Publishing\PublishException;
+use App\Sandbox\ShareCards;
 use Illuminate\Support\Facades\Storage;
 
 class DeleteProject
 {
-    public function __construct(protected Publishers $publishers, protected ProjectBackups $backups, protected ProjectIcons $icons) {}
+    public function __construct(protected Publishers $publishers, protected ProjectBackups $backups, protected ProjectIcons $icons, protected ShareCards $shareCards) {}
 
     /**
-     * Delete the project: take its app offline, then remove its chat, attachments, code backup, icon, and sandbox.
+     * Delete the project: take its app offline, then remove its chat, attachments, code backup, icon, share page, and sandbox.
      */
     public function handle(Project $project): void
     {
@@ -35,6 +36,7 @@ class DeleteProject
         Storage::disk(Attachment::DISK)->deleteDirectory("attachments/{$project->id}");
         $this->backups->delete($project);
         $this->icons->delete($project);
+        $this->shareCards->delete($project->id);
 
         foreach ($sandboxes as $sandbox) {
             if ($sandbox->external_id) {

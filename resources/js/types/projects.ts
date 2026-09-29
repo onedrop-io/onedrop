@@ -162,6 +162,36 @@ export type PublishTargetOption = {
     unavailable: string | null;
 };
 
+/** The Share panel: the project's share page, or what sharing would start from (SHARE-001). */
+export type Sharing = {
+    shared: boolean;
+    prompt: string;
+    page_path: string;
+    url: string | null;
+    card_url: string | null;
+    card_status: 'capturing' | 'ready' | 'failed' | null;
+    card_error: string | null;
+    views: number;
+    remixes: number;
+};
+
+/** A shared project's public page (SHARE-001). */
+export type SharePage = {
+    slug: string;
+    name: string;
+    author: string | null;
+    prompt: string;
+    screenshot_url: string | null;
+    /** How many prompts the project took. */
+    prompts: number;
+    /** The agent that built it, e.g. "Claude Code". */
+    agent: string | null;
+    /** The running app, only when it's published as Public and live. */
+    app_url: string | null;
+    url: string;
+    shared_at: string | null;
+};
+
 export type QueuedMessage = {
     id: number;
     content: string;

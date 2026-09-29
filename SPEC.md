@@ -323,6 +323,29 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Approval should only be needed once per project (republishing reuses it).
 - User should see a clear explanation if publishing fails (e.g. key rejected, Funnel not allowed for the tailnet).
 
+## SHARE-001: Share a project to show it off
+
+- User should be able to share a project from a Share button in the workspace header, which gives it a public page at `/s/<slug>` on OneDrop.
+- Sharing should be off until the user turns it on; the slug includes a random part, so unshared projects can't be guessed.
+- User should be able to choose what prompt the page shows (the project's first prompt by default) and edit it before and after sharing, so nothing private goes public.
+- User should be able to choose which page of the app the screenshot shows (`/` by default).
+- The share page should show the project's name, the owner's first name, the prompt, a screenshot of the app, how many prompts it took, and which agent built it. It should never show the rest of the chat, the code, or anything else.
+- The share page should link to the running app only when the project is published as Public and live.
+- OneDrop should take the screenshot in the project's sandbox and render a 1200×630 preview card from it (the prompt, the app, and the OneDrop mark), in the background.
+- Pasting a share link into Slack, X, LinkedIn, iMessage, etc. should show that card, with the project's name and prompt as the title and description. Before the card is ready, the page should use OneDrop's own card.
+- User should see the card, its status (rendering, ready, failed with a reason), the link with a copy button, quick links to post on X and LinkedIn, and how many views and remixes the page has had.
+- User should be able to refresh the card (e.g. after the app changes); saving a new prompt or page refreshes it too.
+- User should be able to stop sharing, which makes the page, its card and its screenshot 404 right away. Sharing again gives a new link.
+- Deleting a project should delete its share page and images.
+- Only the project's owner (or an admin) can share, change or stop sharing it.
+
+## SHARE-002: Remix a shared project
+
+- Anyone on a share page should be able to click "Remix this" to start their own project from the shared prompt.
+- A visitor who isn't signed in should be taken to sign up (or log in), then land on the new-project page with the prompt filled in, after AI setup if they need it.
+- A signed-in user should land on the new-project page with the prompt filled in and a note saying which project they're remixing, and can edit it before sending.
+- Each remix should count toward the share page's remix total; views by the owner don't count as views.
+
 ## REM-001: Use the app builder remotely
 
 - User should be able to use the app builder through a remote URL (e.g. a Tailscale Funnel to the machine running it), with every button and page working.

@@ -1,0 +1,68 @@
+---
+title: 'Share a project'
+description: 'Show off what you built: a public page with your prompt, a screenshot, and a preview card for social posts.'
+---
+
+Sharing gives a project a public page on OneDrop, such as `https://onedrop.example.com/s/team-crm-k3x9q2ab`. The page shows the prompt you started from, a screenshot of the app, and a **Remix this** button so anyone can start their own project from your prompt.
+
+Links to the page unfurl in Slack, X, LinkedIn, iMessage and elsewhere with a preview card that OneDrop makes for the project: your prompt next to a screenshot of the app.
+
+<Info>
+    Sharing is separate from [publishing](/guides/publish). The share page shows
+    a screenshot, not the running app. When the project is also published as
+    **Public**, the page links to the app with **Open the app**.
+</Info>
+
+## Share
+
+<Steps>
+    <Step title="Open the Share panel">
+        Click **Share** at the top right of the workspace.
+    </Step>
+    <Step title="Choose what to show">
+        **Prompt to show** starts as the project's first prompt. Edit it so it
+        reads well and leaves out anything private. **Page to screenshot** is
+        the path in the app to take the screenshot of, such as `/` or
+        `/dashboard`.
+    </Step>
+    <Step title="Share">
+        Click **Share**. OneDrop takes the screenshot and makes the card in the
+        background, which takes a few seconds. The panel shows the card when
+        it's ready.
+    </Step>
+</Steps>
+
+The panel then shows the link with a copy button, **Post on X** and **LinkedIn** buttons, and how many views and remixes the page has had. Views from you and from link-preview bots aren't counted.
+
+## What the page shows
+
+- The project's name and your first name
+- The prompt you chose
+- A screenshot of the app
+- How many prompts the project took, and which agent built it
+- **Remix this**, plus **Open the app** when the project is published as Public
+
+The rest of the chat, the code, and the app's data are never shown.
+
+## Update the card
+
+The card and screenshot don't change by themselves when the app does. After changing the app, open **Share** and click **Refresh card**. Saving a new prompt or page also makes a new card.
+
+<Note>
+    Making a card needs the project's sandbox and app to be running. If they
+    aren't, the panel says why. Open the project, wait for the preview, and
+    click **Refresh card**. Until the first card is ready, links show OneDrop's
+    own card.
+</Note>
+
+## Remix
+
+Anyone on a share page can click **Remix this**. They land on the new-project page with the shared prompt filled in, ready to edit and send. Visitors without an account sign up first, and set up AI if they need to.
+
+## Stop sharing
+
+Open **Share** and click **Stop sharing**. The page, its card and its screenshot stop working right away. Sharing again gives the project a new link. Deleting a project also deletes its share page.
+
+## Self-hosting
+
+OneDrop makes cards with headless Chromium inside the sandbox image. After updating, rebuild the image with `php artisan sandbox:build-image`. Sandboxes pick up the new image the next time their project is opened.

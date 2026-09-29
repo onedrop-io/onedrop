@@ -41,6 +41,8 @@ class ProjectController extends Controller
             'defaultAi' => $request->user()->agentConnections()->firstWhere('is_default', true)?->provider->label(),
             'agent' => $agent ? $catalog->describe(['provider' => $agent['agent_provider'], 'model' => $agent['agent_model'], 'variant' => $agent['agent_variant']], $agent['agent_harness']) : null,
             'templates' => AppTemplate::options(),
+            // "Remix this" on a share page (SHARE-002) opens this page with the shared prompt filled in.
+            'remix' => $request->session()->pull('remix'),
         ]);
     }
 

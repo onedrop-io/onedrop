@@ -9,6 +9,7 @@ import {
     LifeBuoy,
     Newspaper,
     Receipt,
+    Shuffle,
     Sparkles,
     UserSearch,
 } from 'lucide-react';
@@ -37,14 +38,17 @@ export default function CreateProject({
     defaultAi,
     agent,
     templates,
+    remix,
 }: {
     defaultAi: string | null;
     agent: AgentSelection | null;
     templates: AppTemplate[];
+    /** "Remix this" on a share page: the shared project's name and prompt (SHARE-002). */
+    remix: { name: string; prompt: string } | null;
 }) {
     const [selection, setSelection] = useState(agent);
     const { auth } = usePage().props;
-    const [prompt, setPrompt] = useState('');
+    const [prompt, setPrompt] = useState(remix?.prompt ?? '');
     const [template, setTemplate] = useState<string | null>(null);
     const firstName = auth.user.name.split(' ')[0];
 
@@ -70,6 +74,17 @@ export default function CreateProject({
                     <h1 className="text-3xl font-medium tracking-tight md:text-4xl">
                         {firstName}, what are we working on today?
                     </h1>
+
+                    {remix && (
+                        <p
+                            className="flex items-center gap-2 text-sm text-muted-foreground"
+                            data-test="remix-note"
+                        >
+                            <Shuffle className="size-4" />
+                            Remixing “{remix.name}”. Make the prompt your own,
+                            then send it.
+                        </p>
+                    )}
 
                     <PromptComposer
                         action={ProjectController.store()}

@@ -82,6 +82,7 @@ trait RendersWorkspace
                     ? app(Publishers::class)->options()[0]['unavailable']
                     : null,
             ],
+            'sharing' => $this->sharingProps($project),
             'sandbox' => $sandbox ? [
                 ...$sandbox->only('status', 'error'),
                 'updating' => $sandbox->task_id === null && SandboxUpdater::isUpdating($project),
@@ -103,6 +104,28 @@ trait RendersWorkspace
                 'created_at' => $message->created_at?->toIso8601String(),
             ]),
         ]);
+    }
+
+    /**
+     * The Share panel: the share page when the project is shared, or what sharing would start from (SHARE-001).
+     *
+     * @return array<string, mixed>
+     */
+    protected function sharingProps(Project $project): array
+    {
+        $share = $project->share;
+
+        return [
+            'shared' => $share !== null,
+            'prompt' => $share->prompt ?? (string) $project->prompt,
+            'page_path' => $share->page_path ?? '/',
+            'url' => $share?->url(),
+            'card_url' => $share?->cardUrl(),
+            'card_status' => $share?->card_status,
+            'card_error' => $share?->card_error,
+            'views' => $share->views ?? 0,
+            'remixes' => $share->remixes ?? 0,
+        ];
     }
 
     /**

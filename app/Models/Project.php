@@ -279,6 +279,16 @@ class Project extends Model implements Conversation
     }
 
     /**
+     * The project's public show-off page, while it's shared (SHARE-001).
+     *
+     * @return HasOne<ProjectShare, $this>
+     */
+    public function share(): HasOne
+    {
+        return $this->hasOne(ProjectShare::class);
+    }
+
+    /**
      * A DNS-safe hostname for the published app, unique per project.
      */
     public function publishHostname(): string

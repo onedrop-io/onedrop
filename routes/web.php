@@ -28,9 +28,11 @@ use App\Http\Controllers\ProjectMonitoringController;
 use App\Http\Controllers\ProjectPublicationController;
 use App\Http\Controllers\ProjectSearchController;
 use App\Http\Controllers\ProjectSecretController;
+use App\Http\Controllers\ProjectShareController;
 use App\Http\Controllers\ProjectStorageController;
 use App\Http\Controllers\SandboxEventController;
 use App\Http\Controllers\SandboxGatewayController;
+use App\Http\Controllers\ShareController;
 use App\Http\Controllers\SocialLoginController;
 use App\Http\Controllers\SshKeyController;
 use App\Http\Controllers\TaskController;
@@ -45,6 +47,12 @@ use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 Route::inertia('/', 'welcome')->name('home');
 Route::inertia('pricing', 'pricing')->name('pricing');
+
+// Shared projects' public pages (SHARE-001) and "Remix this" (SHARE-002).
+Route::get('s/{share}', [ShareController::class, 'show'])->name('shares.show');
+Route::get('s/{share}/card.png', [ShareController::class, 'card'])->name('shares.card');
+Route::get('s/{share}/screenshot.png', [ShareController::class, 'screenshot'])->name('shares.screenshot');
+Route::post('s/{share}/remix', [ShareController::class, 'remix'])->middleware('throttle:30,1')->name('shares.remix');
 
 Route::get('invite/{token}', AcceptInvitationController::class)->name('invitations.accept');
 
@@ -136,6 +144,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('projects/{project}/growth', [ProjectGrowthController::class, 'show'])->name('projects.growth.show');
         Route::post('projects/{project}/growth/seo-scan', [ProjectGrowthController::class, 'scan'])->name('projects.growth.scan');
         Route::post('projects/{project}/growth/events', [ProjectGrowthController::class, 'addEvents'])->name('projects.growth.events');
+        Route::post('projects/{project}/share', [ProjectShareController::class, 'store'])->name('projects.share.store');
+        Route::post('projects/{project}/share/card', [ProjectShareController::class, 'refresh'])->name('projects.share.refresh');
+        Route::delete('projects/{project}/share', [ProjectShareController::class, 'destroy'])->name('projects.share.destroy');
         Route::get('projects/{project}/icon', [ProjectIconController::class, 'show'])->name('projects.icon.show');
         Route::post('projects/{project}/icon', [ProjectIconController::class, 'update'])->name('projects.icon.update');
         Route::post('projects/{project}/icon/draw', [ProjectIconController::class, 'draw'])->name('projects.icon.draw');

@@ -60,6 +60,7 @@ import {
     usePreviewErrors,
 } from '@/components/workspace/preview-errors';
 import PublishMenu from '@/components/workspace/publish-menu';
+import ShareMenu from '@/components/workspace/share-menu';
 import ToolsPanel from '@/components/workspace/tools-panel';
 import FileViewer from '@/components/workspace/file-viewer';
 import ResizeHandle from '@/components/workspace/resize-handle';
@@ -86,6 +87,7 @@ import type {
     Project,
     Publication,
     SandboxState,
+    Sharing,
     TaskDetail,
     TaskStage,
     WorkspaceFile,
@@ -145,6 +147,7 @@ export default function ShowProject({
     messages,
     queued,
     publication,
+    sharing,
     claudeSubscription,
 }: {
     project: Project;
@@ -157,6 +160,7 @@ export default function ShowProject({
     messages: ChatMessage[];
     queued: QueuedMessage[];
     publication: Publication;
+    sharing: Sharing;
     /** Claude Code runs on the owner's own Claude sign-in in the sandbox (AI-005). */
     claudeSubscription: boolean;
 }) {
@@ -172,7 +176,8 @@ export default function ShowProject({
         sandbox?.status === 'creating' ||
         sandbox?.updating ||
         !!task?.sync_status ||
-        publication.status === 'publishing';
+        publication.status === 'publishing' ||
+        sharing.card_status === 'capturing';
 
     const [chatWidth, setChatWidth] = useResizableWidth(
         CHAT_WIDTH_KEY,
@@ -208,6 +213,7 @@ export default function ShowProject({
                 'messages',
                 'queued',
                 'publication',
+                'sharing',
             ],
         },
         { autoStart: false },
@@ -228,6 +234,11 @@ export default function ShowProject({
         <>
             <Head title={title ? `${title} · ${project.name}` : project.name} />
             <HeaderActions>
+                <ShareMenu
+                    projectId={project.id}
+                    projectName={project.name}
+                    sharing={sharing}
+                />
                 <PublishMenu projectId={project.id} publication={publication} />
             </HeaderActions>
 

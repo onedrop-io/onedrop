@@ -1,0 +1,32 @@
+#!/bin/sh
+# Screenshot the app and render its share card (SHARE-001), both with headless Chromium.
+# Usage: share-card <page path>. The card's HTML arrives in $CARD_HTML and shows the screenshot as app.png.
+# Leaves app.png and card.png in /tmp/onedrop-share for the platform to copy out.
+set -u
+
+dir=/tmp/onedrop-share
+rm -rf "$dir" && mkdir -p "$dir" || exit 1
+
+shoot() {
+    timeout 90 chromium --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --no-first-run \
+        --hide-scrollbars --mute-audio --force-device-scale-factor=1 --allow-file-access-from-files \
+        --user-data-dir="$dir/profile" --window-size="$1" --virtual-time-budget=8000 \
+        --screenshot="$2" "$3" >/dev/null 2>&1
+}
+
+shoot 1280,800 "$dir/app.png" "http://localhost:${PORT:-8000}${1:-/}"
+
+if [ ! -s "$dir/app.png" ]; then
+    echo "Couldn't take a screenshot of the app. Is it running?" >&2
+    exit 1
+fi
+
+printf %s "${CARD_HTML:-}" > "$dir/card.html"
+shoot 1200,630 "$dir/card.png" "file://$dir/card.html"
+
+if [ ! -s "$dir/card.png" ]; then
+    echo "Couldn't render the share card." >&2
+    exit 1
+fi
+
+rm -rf "$dir/profile" "$dir/card.html"

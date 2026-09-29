@@ -35,6 +35,11 @@ RUN case "${TARGETARCH:-amd64}" in arm64) arch=aarch64 go=arm64 lazygit=arm64 mi
     && curl -fsSL "https://github.com/jesseduffield/lazygit/releases/download/v0.65.1/lazygit_0.65.1_linux_${lazygit}.tar.gz" | tar -xz -C /usr/local/bin lazygit \
     && curl -fsSL "https://github.com/micro-editor/micro/releases/download/v2.0.15/micro-2.0.15-${micro}.tar.gz" | tar -xz -C /usr/local/bin --strip-components=1 micro-2.0.15/micro
 
+# Headless Chromium for share cards: a screenshot of the app and the card made from it (SHARE-001, see share-card).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends chromium fonts-liberation2 fonts-noto-color-emoji \
+    && rm -rf /var/lib/apt/lists/*
+
 # Agent CLIs. OpenCode is the default agent and Claude Code the alternative (both pinned: their
 # JSON events are parsed by the platform). Credentials arrive as env vars at run time, never at build time.
 RUN npm install -g opencode-ai@1.18.32 @anthropic-ai/claude-code@2.1.284 @openai/codex
@@ -44,8 +49,8 @@ RUN useradd --create-home --shell /bin/bash sandbox \
     && mkdir -p /workspace /data/storage && chown sandbox:sandbox /workspace /data/storage
 
 COPY placeholder /opt/zap/placeholder
-# fork copies the app for a task and merges its work back (TASK-003). file-watcher.mjs tells the Files panel when files come and go (FILE-004). db.php backs the Tools → Database panel (SQLite, Postgres and MySQL through PDO); auth.php backs Users & Auth; secrets.php backs Secrets; storage.php backs App Storage; git.php backs Git.
-COPY start.sh restart stop-agent shell-entry checkpoint fork forwarder.mjs file-watcher.mjs host-proxy.mjs db.php auth.php secrets.php storage.php git.php instructions.md opencode.json /opt/zap/
+# fork copies the app for a task and merges its work back (TASK-003). file-watcher.mjs tells the Files panel when files come and go (FILE-004). share-card makes share cards (SHARE-001). db.php backs the Tools → Database panel (SQLite, Postgres and MySQL through PDO); auth.php backs Users & Auth; secrets.php backs Secrets; storage.php backs App Storage; git.php backs Git.
+COPY start.sh restart stop-agent shell-entry checkpoint fork share-card forwarder.mjs file-watcher.mjs host-proxy.mjs db.php auth.php secrets.php storage.php git.php instructions.md opencode.json /opt/zap/
 # Task guides the agent follows (e.g. guides/auth.md for adding sign-in).
 COPY guides /opt/zap/guides
 # Shell setup lives in /opt/zap (not the home folder, which updates carry over) so image changes reach every sandbox; ~/.bashrc only loads it.
