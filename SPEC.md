@@ -30,6 +30,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see an error when the provider sign-in is cancelled or fails.
 - Provider callback URLs should use the site's real `https://` address behind a trusted proxy (a local proxy, or Laravel Cloud's load balancer).
 - User should be able to connect and disconnect providers on the security settings page, but not disconnect their last way to log in.
+- User should see "Continue with GitHub" when only the GitHub App (`GITHUB_APP_CLIENT_ID`/`SECRET`) is set up; `GITHUB_CLIENT_ID`/`SECRET` override it with a separate OAuth app.
 - User without a password should be able to open security settings without confirming a password, set a password, and delete their account without one.
 
 ## GRP-001: Create and browse groups

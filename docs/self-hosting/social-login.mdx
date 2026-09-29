@@ -62,6 +62,10 @@ where `{provider}` is `google`, `microsoft`, `github`, `gitlab`, or `oidc`.
         ```
     </Tab>
     <Tab title="GitHub">
+        If you've set up the [GitHub App](/self-hosting/github-app) for Tools → Git, you're nearly done: add `https://zap.example.com/login/github/callback` as a Callback URL and the **Email addresses: Read-only** account permission, and the button appears. No extra settings needed.
+
+        To use a separate OAuth app instead:
+
         1. In GitHub, go to **Settings → Developer settings → OAuth Apps → New OAuth App**.
         2. Set the authorization callback URL to `https://zap.example.com/login/github/callback`.
         3. Generate a client secret and add the credentials to `.env`:

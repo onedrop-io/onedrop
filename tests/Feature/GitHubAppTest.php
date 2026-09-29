@@ -360,6 +360,7 @@ test('a GitHub App whose Callback URL is the login one still brings Tools → Gi
         ->assertRedirect(route('github-app.callback').'?code=oauth-code&state=abc&installation_id=777&setup_action=install');
 
     // Anything else there is still the login flow (off here: no GitHub login configured).
+    config(['services.github.client_id' => null]);
     $this->flushSession();
     $this->get('/login/github/callback?code=x&state=other')->assertNotFound();
 })->group('GIT-005');

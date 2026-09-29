@@ -343,3 +343,45 @@ test('disconnecting a provider drops its avatar for another provider\'s', functi
     $this->actingAs($user)->delete(route('social-accounts.destroy', $github));
     expect($user->fresh()->avatar)->toBe('https://avatars.example/google.png');
 })->group('AUTH-003');
+
+/**
+ * Load config/services.php with the given environment variables set.
+ *
+ * @param  array<string, string>  $variables
+ * @return array<string, mixed>
+ */
+function servicesConfigWithEnv(array $variables): array
+{
+    $previous = [];
+
+    foreach ($variables as $name => $value) {
+        $previous[$name] = getenv($name);
+        putenv("{$name}={$value}");
+        $_ENV[$name] = $_SERVER[$name] = $value;
+    }
+
+    try {
+        return require config_path('services.php');
+    } finally {
+        foreach ($previous as $name => $value) {
+            $value === false ? putenv($name) : putenv("{$name}={$value}");
+            unset($_ENV[$name], $_SERVER[$name]);
+        }
+    }
+}
+
+test('log in with GitHub falls back to the GitHub App credentials', function () {
+    $appOnly = servicesConfigWithEnv([
+        'GITHUB_CLIENT_ID' => '', 'GITHUB_CLIENT_SECRET' => '',
+        'GITHUB_APP_CLIENT_ID' => 'Iv23.app', 'GITHUB_APP_CLIENT_SECRET' => 'app-secret',
+    ]);
+
+    expect($appOnly['github'])->toMatchArray(['client_id' => 'Iv23.app', 'client_secret' => 'app-secret']);
+
+    $override = servicesConfigWithEnv([
+        'GITHUB_CLIENT_ID' => 'Ov23.oauth', 'GITHUB_CLIENT_SECRET' => 'oauth-secret',
+        'GITHUB_APP_CLIENT_ID' => 'Iv23.app', 'GITHUB_APP_CLIENT_SECRET' => 'app-secret',
+    ]);
+
+    expect($override['github'])->toMatchArray(['client_id' => 'Ov23.oauth', 'client_secret' => 'oauth-secret']);
+})->group('AUTH-003');

@@ -63,8 +63,10 @@ With a GitHub App set up, **Tools → Git** shows **Connect to GitHub**. People 
 **Connect to GitHub** appears in Tools → Git once all five values are set. Until the setup is complete (a missing value, or a missing permission), admins see what's wrong at the top of Tools → Git, with a link to the app's permission settings.
 
 <Note>
-    These `GITHUB_APP_*` settings are separate from `GITHUB_CLIENT_ID` and
-    `GITHUB_CLIENT_SECRET`, which only turn on the **Log in with GitHub** button
-    (see [social login](/self-hosting/social-login)). Tools → Git needs only the
-    five `GITHUB_APP_*` values.
+    The same app also turns on **Log in with GitHub**. Add a second Callback URL,
+    `https://your-domain/login/github/callback`, and give it the **Email
+    addresses: Read-only** account permission so OneDrop gets people's verified
+    email. To use a separate OAuth app for logging in instead, set
+    `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` (see
+    [social login](/self-hosting/social-login)).
 </Note>

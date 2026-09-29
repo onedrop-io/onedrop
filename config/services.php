@@ -44,6 +44,8 @@ return [
     | OpenID Connect issuer (Okta, Keycloak, Authentik, ...). A provider's
     | button only shows once its client ID and secret are set. The callback
     | URL to register with each is https://your-domain/login/{provider}/callback.
+    | GitHub falls back to the GitHub App's client ID and secret below, so one
+    | GitHub App can do both (add the login callback URL to it too).
     |
     */
 
@@ -61,8 +63,8 @@ return [
     ],
 
     'github' => [
-        'client_id' => env('GITHUB_CLIENT_ID'),
-        'client_secret' => env('GITHUB_CLIENT_SECRET'),
+        'client_id' => env('GITHUB_CLIENT_ID') ?: env('GITHUB_APP_CLIENT_ID'),
+        'client_secret' => env('GITHUB_CLIENT_SECRET') ?: env('GITHUB_APP_CLIENT_SECRET'),
         'redirect' => '/login/github/callback',
     ],
 
