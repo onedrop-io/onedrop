@@ -3,6 +3,13 @@ import type { ReactNode } from 'react';
 import { drawSpaceBackdrop } from '@/components/home/closeup-gl';
 import { createCosmicZoom } from '@/components/home/cosmic-zoom';
 import {
+    drawSolarSystem,
+    hasSolarSystem,
+    isSolarSystemSettled,
+    loadSolarSystem,
+    solarPlanetOnScreen,
+} from '@/components/home/solar-closeup';
+import {
     drawEarthCloseup,
     EARTH_CLOSEUP_RADIUS,
     EARTH_CLOSEUP_SIZE,
@@ -529,6 +536,8 @@ export function Galaxy({ children }: { children: ReactNode }) {
             startedAt: number;
             /** Where it was last seen, in case a probe fades out mid-show. */
             at: { x: number; y: number };
+            /** Started from a planet in the Solar System view, rather than in the galaxy. */
+            isInSolarView: boolean;
         } | null = null;
         let cooldownUntil = 0;
         let hovered: Closeup | null = null;
@@ -590,9 +599,19 @@ export function Galaxy({ children }: { children: ReactNode }) {
                 );
             },
             canChange: () => !show,
+            interrupt: () => {
+                if (show) {
+                    endShow(performance.now());
+                    cooldownUntil = 0;
+                }
+            },
             prepare: (next) => {
                 if (next === 'laniakea') {
                     loadLaniakea();
+                }
+
+                if (next === 'solar' || next === 'earth') {
+                    loadSolarSystem();
                 }
             },
             isReady: (next) =>
@@ -600,7 +619,9 @@ export function Galaxy({ children }: { children: ReactNode }) {
                     ? isLaniakeaReady()
                     : next === 'earth'
                       ? isEarthCloseupReady()
-                      : true,
+                      : next === 'solar'
+                        ? isSolarSystemSettled()
+                        : true,
         });
 
         const visibilityObserver = new IntersectionObserver(([entry]) => {
@@ -929,8 +950,109 @@ export function Galaxy({ children }: { children: ReactNode }) {
                 ),
             }));
 
-            // Hovering over the Earth, Mars, or a probe zooms in on it for a little while.
+            // The Solar System close up: turning slowly, its planets named.
+            const turn = seconds * 0.015;
+            const projectSolar = (x: number, z: number) => {
+                const turnedX = x * Math.cos(turn) - z * Math.sin(turn);
+                const turnedZ = x * Math.sin(turn) + z * Math.cos(turn);
+
+                return {
+                    x: turnedX * SOLAR_ZOOM,
+                    y: turnedZ * Math.sin(0.95) * SOLAR_ZOOM,
+                    depth: turnedZ,
+                };
+            };
+
+            /** Draws the Solar System view, flying in toward Earth by `towardEarth` (0 to 1). */
+            const drawSolarView = (towardEarth: number, alpha: number) => {
+                if (hasSolarSystem()) {
+                    drawFaded(
+                        (context) =>
+                            drawSolarSystem(
+                                context,
+                                CLOSEUP_SIZE,
+                                solScale,
+                                seconds,
+                                towardEarth,
+                            ),
+                        alpha,
+                    );
+
+                    return;
+                }
+
+                // The flat one, if the 3D one couldn't load.
+                const rush = 1 + 5 * towardEarth;
+                const earthOnScreen = planetOffset(
+                    'Earth',
+                    projectSolar,
+                    seconds,
+                );
+                const focusX = CLOSEUP_SIZE / 2 + earthOnScreen.x;
+                const focusY = CLOSEUP_SIZE / 2 + earthOnScreen.y;
+
+                drawFaded((context) => {
+                    context.translate(focusX, focusY);
+                    context.scale(rush, rush);
+                    context.translate(-focusX, -focusY);
+                    drawSolSystem(
+                        context,
+                        projectSolar,
+                        SOLAR_ZOOM,
+                        0,
+                        seconds,
+                        {
+                            size: CLOSEUP_SIZE,
+                            hasNames: true,
+                        },
+                    );
+                }, alpha);
+            };
+
+            /** Where a planet is in the Solar System view, from its middle, and how big it looks there. */
+            const solarOffset = (name: string) => {
+                const drawn = hasSolarSystem()
+                    ? solarPlanetOnScreen(name)
+                    : null;
+
+                if (drawn) {
+                    return {
+                        x: drawn.x - CLOSEUP_SIZE / 2,
+                        y: drawn.y - CLOSEUP_SIZE / 2,
+                        radius: drawn.radius,
+                    };
+                }
+
+                const flat = planetOffset(name, projectSolar, seconds);
+
+                return {
+                    x: flat.x,
+                    y: flat.y,
+                    radius: planetSize(name) * SOLAR_ZOOM,
+                };
+            };
+
+            // Hovering over the Earth, Mars, or a probe zooms in on it for a
+            // little while: in the galaxy, or (planets only) in the Solar System view.
+            const isAtSolar = zoomLevels.isAtSolar(now);
             const locate = (closeup: Closeup) => {
+                if (isAtSolar) {
+                    if (closeup.kind !== 'planet') {
+                        return null;
+                    }
+
+                    const offset = solarOffset(closeup.name);
+
+                    return {
+                        x: CLOSEUP_AT.x + offset.x,
+                        y: CLOSEUP_AT.y + offset.y,
+                    };
+                }
+
+                if (!zoomLevels.isAtGalaxy(now) && !show) {
+                    return null;
+                }
+
                 if (closeup.kind === 'planet') {
                     const offset = planetOffset(
                         closeup.name,
@@ -973,17 +1095,53 @@ export function Galaxy({ children }: { children: ReactNode }) {
                 hovered &&
                 hoveredAt &&
                 !show &&
-                zoomLevels.isAtGalaxy(now) &&
+                (zoomLevels.isAtGalaxy(now) || isAtSolar) &&
                 fade === 1 &&
                 now > cooldownUntil &&
                 hovered.isReady()
             ) {
-                show = { closeup: hovered, startedAt: now, at: hoveredAt };
+                show = {
+                    closeup: hovered,
+                    startedAt: now,
+                    at: hoveredAt,
+                    isInSolarView: isAtSolar,
+                };
                 zoomedIn = 0;
                 spotFor(hovered).dataset.state = 'playing';
             }
 
-            if (show && zoomedIn !== null) {
+            if (show && zoomedIn !== null && show.isInSolarView) {
+                // Growing out of the planet in the Solar System view, which stays behind it.
+                const { closeup, startedAt } = show;
+                const offset = solarOffset(closeup.name);
+                const smallest = offset.radius / closeup.radius;
+                const size = smallest * (1 / smallest) ** zoomedIn;
+                const x = CLOSEUP_SIZE / 2 + offset.x * (1 - zoomedIn);
+                const y = CLOSEUP_SIZE / 2 + offset.y * (1 - zoomedIn);
+
+                closeupCanvas.canvas.style.opacity = '1';
+                closeupCanvas.canvas.style.transform = `translate(${CLOSEUP_AT.x - CLOSEUP_SIZE / 2}px, ${CLOSEUP_AT.y - CLOSEUP_SIZE / 2}px)`;
+                closeupCanvas.setTransform(solScale, 0, 0, solScale, 0, 0);
+                closeupCanvas.clearRect(0, 0, CLOSEUP_SIZE, CLOSEUP_SIZE);
+                drawSpaceBackdrop(closeupCanvas, CLOSEUP_SIZE, 1);
+                drawSolarView(0, 1);
+
+                level.setTransform(solScale, 0, 0, solScale, 0, 0);
+                level.clearRect(0, 0, CLOSEUP_SIZE, CLOSEUP_SIZE);
+                closeup.draw(
+                    level,
+                    solScale,
+                    (now - startedAt) / 1000,
+                    zoomedIn,
+                );
+                closeupCanvas.drawImage(
+                    level.canvas,
+                    x - (CLOSEUP_SIZE / 2) * size,
+                    y - (CLOSEUP_SIZE / 2) * size,
+                    CLOSEUP_SIZE * size,
+                    CLOSEUP_SIZE * size,
+                );
+            } else if (show && zoomedIn !== null) {
                 const { closeup, startedAt } = show;
                 show.at = locate(closeup) ?? show.at;
                 const { at } = show;
@@ -1034,41 +1192,9 @@ export function Galaxy({ children }: { children: ReactNode }) {
                 );
 
                 if (weights.solar > 0) {
-                    // The Solar System, turning slowly, rushing in toward Earth on the way down.
-                    const turn = seconds * 0.015;
-                    const projectSolar = (x: number, z: number) => {
-                        const turnedX = x * Math.cos(turn) - z * Math.sin(turn);
-                        const turnedZ = x * Math.sin(turn) + z * Math.cos(turn);
-
-                        return {
-                            x: turnedX * SOLAR_ZOOM,
-                            y: turnedZ * Math.sin(0.95) * SOLAR_ZOOM,
-                            depth: turnedZ,
-                        };
-                    };
-                    const earthOnScreen = planetOffset(
-                        'Earth',
-                        projectSolar,
-                        seconds,
-                    );
-                    const focusX = CLOSEUP_SIZE / 2 + earthOnScreen.x;
-                    const focusY = CLOSEUP_SIZE / 2 + earthOnScreen.y;
-                    const rush = 1 + 5 * weights.earth;
-
-                    drawFaded(
-                        (context) => {
-                            context.translate(focusX, focusY);
-                            context.scale(rush, rush);
-                            context.translate(-focusX, -focusY);
-                            drawSolSystem(
-                                context,
-                                projectSolar,
-                                SOLAR_ZOOM,
-                                0,
-                                seconds,
-                                { size: CLOSEUP_SIZE, hasNames: true },
-                            );
-                        },
+                    // Rushing in toward Earth on the way down.
+                    drawSolarView(
+                        weights.earth,
                         weights.solar / Math.max(inward, 0.001),
                     );
                 }

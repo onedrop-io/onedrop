@@ -48,13 +48,16 @@ const AUTO_TOUR_STAYS_MS = 16_000;
 export function createCosmicZoom({
     isInZoomArea,
     canChange,
+    interrupt,
     prepare,
     isReady,
 }: {
     /** Whether a point on screen is over the galaxy (where the wheel zooms). */
     isInZoomArea: (x: number, y: number) => boolean;
-    /** Whether zooming can happen right now (the galaxy is showing and nothing else is playing). */
+    /** Whether it can change on its own right now (nothing else is playing). */
     canChange: () => boolean;
+    /** Stops whatever else is playing, when someone asks for another level: they shouldn't have to wait. */
+    interrupt: () => void;
     /** Starts loading what a level needs, and whether it's in yet. */
     prepare: (level: ZoomLevel) => void;
     isReady: (level: ZoomLevel) => boolean;
@@ -101,10 +104,8 @@ export function createCosmicZoom({
     const request = (next: ZoomLevel, now: number) => {
         lastTouchedAt = now;
         autoReturnAt = null;
-
-        if (canChange()) {
-            change(next, now);
-        }
+        interrupt();
+        change(next, now);
     };
 
     const onWheel = (event: WheelEvent) => {
@@ -133,7 +134,7 @@ export function createCosmicZoom({
         event.preventDefault();
         prepare(next);
 
-        if (now < wheelPausedUntil || !canChange()) {
+        if (now < wheelPausedUntil) {
             return;
         }
 
@@ -226,6 +227,11 @@ export function createCosmicZoom({
         /** Whether it's settled on the galaxy, the usual view (so planets and probes can be hovered). */
         isAtGalaxy(now: number) {
             return level === 'galaxy' && now - changedAt > CHANGE_MS;
+        },
+
+        /** Whether it's settled on the Solar System (so its planets can be hovered). */
+        isAtSolar(now: number) {
+            return level === 'solar' && now - changedAt > CHANGE_MS;
         },
 
         destroy() {
