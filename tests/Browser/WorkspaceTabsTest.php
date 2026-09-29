@@ -38,3 +38,23 @@ test('console and shell tabs can be added from the + menu and closed', function 
         ->assertVisible('@tab-shell')
         ->assertNoJavaScriptErrors();
 })->group('TAB-001');
+
+test('the shell tab puts the cursor in the terminal when shown', function () {
+    $user = User::factory()->has(AgentConnection::factory())->create();
+    $project = Project::factory()->for($user)->create();
+    Sandbox::factory()->for($project)->create(['preview_url' => null, 'shell_url' => 'about:blank']);
+    $this->actingAs($user);
+
+    $shellFocused = 'document.activeElement?.dataset.test === "shell-frame"';
+
+    visit("/projects/{$project->id}")
+        ->click('@add-tab')
+        ->click('@add-tab-shell')
+        ->wait(0.5) // let the menu finish closing; it hands focus back to "+" as it goes
+        ->assertScript($shellFocused, true)
+        ->click('@tab-preview')
+        ->assertScript($shellFocused, false)
+        ->click('@tab-shell')
+        ->assertScript($shellFocused, true)
+        ->assertNoJavaScriptErrors();
+})->group('TAB-001');

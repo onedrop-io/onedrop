@@ -387,8 +387,16 @@ function WorkspacePanel({
             : null;
     const [reloadKey, setReloadKey] = useState(0);
     const [wasWorking, setWasWorking] = useState(working);
+    const shellFrame = useRef<HTMLIFrameElement>(null);
     const [tab, setTab] = useState<ActiveTab>('preview');
     const [extraTabs, setExtraTabs] = useState<ToolTab[]>([]);
+
+    // Put the cursor in the terminal whenever the Shell tab is shown.
+    useEffect(() => {
+        if (tab === 'shell') {
+            shellFrame.current?.focus();
+        }
+    }, [tab]);
     const [consoleClears, setConsoleClears] = useState(0);
     const [filesOpen, setFilesOpen] = useState(false);
     const [hideHidden, setHideHidden] = useState(false);
@@ -597,6 +605,13 @@ function WorkspacePanel({
                         <DropdownMenuContent
                             align="start"
                             onFocusOutside={(event) => event.preventDefault()}
+                            onCloseAutoFocus={(event) => {
+                                // The menu hands focus back to "+" as it closes; keep it in the shell instead.
+                                if (tab === 'shell') {
+                                    event.preventDefault();
+                                    shellFrame.current?.focus();
+                                }
+                            }}
                         >
                             {(Object.keys(TOOL_TABS) as ToolTab[]).map(
                                 (kind) => (
@@ -706,8 +721,12 @@ function WorkspacePanel({
                     (running && sandbox.shell_url && !shellUnreachable ? (
                         // Stays mounted while the tab is open so the session survives tab switches.
                         <iframe
+                            ref={shellFrame}
                             src={sandbox.shell_url}
                             title="Shell"
+                            onLoad={() =>
+                                tab === 'shell' && shellFrame.current?.focus()
+                            }
                             className={cn(
                                 'flex-1 bg-neutral-950',
                                 tab !== 'shell' && 'hidden',
