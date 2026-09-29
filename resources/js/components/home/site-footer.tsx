@@ -52,7 +52,21 @@ export function SiteFooter() {
                 >
                     Jeff Schmaltz, MODIS Land Rapid Response Team, NASA GSFC
                 </a>
-                .
+                . Voyager and Pioneer models and the Golden Record photo by{' '}
+                <a
+                    href="https://science.nasa.gov/3d-resources/"
+                    className="underline-offset-2 hover:text-[#B3A69C] hover:underline"
+                >
+                    NASA
+                </a>
+                ; Pioneer plaque drawing by{' '}
+                <a
+                    href="https://commons.wikimedia.org/wiki/File:Pioneer_plaque.svg"
+                    className="underline-offset-2 hover:text-[#B3A69C] hover:underline"
+                >
+                    Oona Räisänen
+                </a>
+                , from NASA's photo.
             </p>
         </footer>
     );

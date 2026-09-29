@@ -31,6 +31,8 @@ test('a visitor reads the home page and goes to sign up', function () {
         ->assertSee("Moon maps by NASA's Scientific Visualization Studio")
         ->assertPresent('footer a[href="https://svs.gsfc.nasa.gov/4720"]')
         ->assertSee('Hurricane Isabel photo by Jeff Schmaltz, MODIS Land Rapid Response Team, NASA GSFC')
+        ->assertSee('Voyager and Pioneer models and the Golden Record photo by NASA')
+        ->assertSee('Pioneer plaque drawing by Oona Räisänen')
         ->click('Do I need to know how to code?')
         ->assertSee('If you can describe what you want to a coworker')
         ->assertNoJavaScriptErrors()

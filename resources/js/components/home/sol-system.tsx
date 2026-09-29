@@ -1,5 +1,5 @@
 /**
- * Our solar system and the two Voyager probes, drawn into the galaxy around
+ * Our solar system and the Voyager and Pioneer probes, drawn into the galaxy around
  * the black hole. Nothing is to scale: the planets are big and close together
  * so you can make them out, and a year on Earth takes about 15 seconds.
  *
@@ -487,7 +487,7 @@ export function drawSolSystem(
     context.fillText('Sol', center, center + 12 * zoom);
 }
 
-type Voyager = {
+type Probe = {
     name: string;
     /** When it launches in each trip, and how long each trip lasts (seconds). */
     offset: number;
@@ -501,7 +501,7 @@ type Voyager = {
     bend: number;
 };
 
-const VOYAGERS: Voyager[] = [
+const PROBES: Probe[] = [
     {
         name: 'Voyager 2',
         offset: 0,
@@ -522,64 +522,85 @@ const VOYAGERS: Voyager[] = [
         speed: 28,
         bend: -0.008,
     },
+    // The Pioneers left first (1972 and 1973) and are slower, heading off
+    // in nearly opposite directions.
+    {
+        name: 'Pioneer 10',
+        offset: 20,
+        cycle: 52,
+        spiralSeconds: 11,
+        exitRadius: 48,
+        turns: 0.35,
+        speed: 17,
+        bend: 0.004,
+    },
+    {
+        name: 'Pioneer 11',
+        offset: 34,
+        cycle: 52,
+        spiralSeconds: 16,
+        exitRadius: 62,
+        turns: 1.05,
+        speed: 15,
+        bend: -0.005,
+    },
 ];
 
 /** Where a probe is, relative to the Sun, `elapsed` seconds after leaving Earth. */
-function voyagerPosition(
-    voyager: Voyager,
+function probePosition(
+    probe: Probe,
     launchedAt: number,
     elapsed: number,
 ): { x: number; z: number } {
     const startAngle = planetAngle(EARTH, launchedAt);
     const spiral = (time: number) => {
-        const progress = Math.min(1, time / voyager.spiralSeconds);
+        const progress = Math.min(1, time / probe.spiralSeconds);
         const radius =
-            EARTH.orbit + (voyager.exitRadius - EARTH.orbit) * progress ** 1.5;
+            EARTH.orbit + (probe.exitRadius - EARTH.orbit) * progress ** 1.5;
         const angle =
-            startAngle +
-            voyager.turns * Math.PI * 2 * (1 - (1 - progress) ** 2);
+            startAngle + probe.turns * Math.PI * 2 * (1 - (1 - progress) ** 2);
 
         return { x: Math.cos(angle) * radius, z: Math.sin(angle) * radius };
     };
 
-    if (elapsed <= voyager.spiralSeconds) {
+    if (elapsed <= probe.spiralSeconds) {
         return spiral(elapsed);
     }
 
-    const exit = spiral(voyager.spiralSeconds);
-    const before = spiral(voyager.spiralSeconds - 0.1);
+    const exit = spiral(probe.spiralSeconds);
+    const before = spiral(probe.spiralSeconds - 0.1);
     const heading = Math.atan2(exit.z - before.z, exit.x - before.x);
-    const cruise = elapsed - voyager.spiralSeconds;
-    const angle = heading + voyager.bend * cruise;
+    const cruise = elapsed - probe.spiralSeconds;
+    const angle = heading + probe.bend * cruise;
 
     return {
-        x: exit.x + Math.cos(angle) * voyager.speed * cruise,
-        z: exit.z + Math.sin(angle) * voyager.speed * cruise,
+        x: exit.x + Math.cos(angle) * probe.speed * cruise,
+        z: exit.z + Math.sin(angle) * probe.speed * cruise,
     };
 }
 
 /**
- * Each Voyager's recent path (its trail) and how visible it is right now, in
+ * Each probe's recent path (its trail) and how visible it is right now, in
  * the Sun's plane coordinates. They leave Earth, spiral out past the planets,
  * then head off across the galaxy before the next trip starts.
  */
-export function voyagerTrails(seconds: number) {
-    return VOYAGERS.map((voyager) => {
-        const sinceStart = seconds - voyager.offset;
-        const trip = Math.floor(sinceStart / voyager.cycle);
-        const launchedAt = voyager.offset + trip * voyager.cycle;
-        const elapsed = sinceStart - trip * voyager.cycle;
+export function probeTrails(seconds: number) {
+    return PROBES.map((probe) => {
+        const sinceStart = seconds - probe.offset;
+        const trip = Math.floor(sinceStart / probe.cycle);
+        const launchedAt = probe.offset + trip * probe.cycle;
+        const elapsed = sinceStart - trip * probe.cycle;
         const visibility =
             Math.min(1, elapsed / 0.6) *
-            Math.min(1, (voyager.cycle - elapsed) / 5);
+            Math.min(1, (probe.cycle - elapsed) / 5);
         const trail = Array.from({ length: 36 }, (_, step) => {
             const time = Math.max(0, elapsed - 10 + (step / 35) * 10);
 
-            return voyagerPosition(voyager, launchedAt, time);
+            return probePosition(probe, launchedAt, time);
         });
 
         return {
-            name: voyager.name,
+            name: probe.name,
             trail,
             visibility: sinceStart < 0 ? 0 : visibility,
         };

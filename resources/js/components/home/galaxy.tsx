@@ -15,6 +15,14 @@ import {
     MARS_CLOSEUP_RADIUS,
     marsShowProgress,
 } from '@/components/home/mars-closeup';
+import {
+    drawProbeCloseup,
+    isProbeCloseupReady,
+    loadProbeCloseup,
+    PROBE_CLOSEUP_RADIUS,
+    PROBE_CLOSEUPS,
+    probeShowProgress,
+} from '@/components/home/probe-closeup';
 import { universe } from '@/components/home/particle-universe';
 import {
     drawSolSystem,
@@ -22,7 +30,7 @@ import {
     planetSize,
     SOL_FIELD_SIZE,
     SOL_SCREEN_OFFSET,
-    voyagerTrails,
+    probeTrails,
 } from '@/components/home/sol-system';
 import {
     drawEndurance,
@@ -61,21 +69,25 @@ const ENTERPRISE_ORBIT = {
     arriveSeconds: 0.6,
 };
 
-/** Where a planet's close-up settles, relative to the black hole (pixels), and how much the galaxy dims behind it. */
+/** Where a close-up settles, relative to the black hole (pixels), and how much the galaxy dims behind it. */
 const CLOSEUP_AT = { x: -80, y: 30 };
 const CLOSEUP_DIM = 0.7;
 
-/** After a planet shrinks back, how long before hovering one again plays a close-up (milliseconds). */
+/** After a close-up shrinks back, how long before hovering again plays another (milliseconds). */
 const CLOSEUP_COOLDOWN_MS = 2000;
 
 /** Size of the close-ups' canvas (CSS pixels); every close-up draws into the same one. */
 const CLOSEUP_SIZE = EARTH_CLOSEUP_SIZE;
 
 type Closeup = {
-    planet: string;
-    /** The planet's radius once it's zoomed in (CSS pixels). */
+    /** What to hover over: a planet in Sol, or one of the probes leaving it. */
+    name: string;
+    kind: 'planet' | 'probe';
+    /** How big it is once it's zoomed in (CSS pixels). */
     radius: number;
     load: () => void;
+    /** Heavy, so only loaded once the pointer comes near, not when the galaxy appears. */
+    loadsNearby?: boolean;
     isReady: () => boolean;
     /** How zoomed in it is, from 0 to 1, `seconds` into its show; null once it's over. */
     progress: (seconds: number) => number | null;
@@ -87,10 +99,11 @@ type Closeup = {
     ) => void;
 };
 
-/** The planets you can hover over to zoom in on. */
+/** The planets and probes you can hover over to zoom in on. */
 const CLOSEUPS: Closeup[] = [
     {
-        planet: 'Earth',
+        name: 'Earth',
+        kind: 'planet',
         radius: EARTH_CLOSEUP_RADIUS,
         load: loadEarthCloseup,
         isReady: isEarthCloseupReady,
@@ -98,14 +111,32 @@ const CLOSEUPS: Closeup[] = [
         draw: drawEarthCloseup,
     },
     {
-        planet: 'Mars',
+        name: 'Mars',
+        kind: 'planet',
         radius: MARS_CLOSEUP_RADIUS,
         load: loadMarsCloseup,
         isReady: isMarsCloseupReady,
         progress: marsShowProgress,
         draw: drawMarsCloseup,
     },
+    ...Object.keys(PROBE_CLOSEUPS).map((name): Closeup => ({
+        name,
+        kind: 'probe',
+        radius: PROBE_CLOSEUP_RADIUS,
+        load: () => loadProbeCloseup(name),
+        loadsNearby: true,
+        isReady: () => isProbeCloseupReady(name),
+        progress: probeShowProgress,
+        draw: (context, pixelScale, seconds, reveal) =>
+            drawProbeCloseup(name, context, pixelScale, seconds, reveal),
+    })),
 ];
+
+/** How far the pointer can be from a heavy close-up's spot and still start loading it (CSS pixels). */
+const LOAD_NEARBY_DISTANCE = 140;
+
+/** A probe's dot, at full size (pixels). */
+const PROBE_DOT_SIZE = 1.3;
 
 /** Seconds for the galaxy to fade in once the black hole is full size. */
 const FADE_IN_SECONDS = 2.5;
@@ -360,8 +391,9 @@ function makeStars(): Star[] {
  * stars of every color and size, and a few stars with planets circling them.
  * It's drawn on two canvases, one behind the black hole and one in front, so
  * the near side of the galaxy passes in front of it. Only runs alongside the
- * WebGL black hole, and follows its camera. Hovering over the Earth or Mars
- * zooms in on it for a little while (see `earth-closeup`, `mars-closeup`).
+ * WebGL black hole, and follows its camera. Hovering over the Earth, Mars,
+ * or one of the Voyager and Pioneer probes zooms in on it for a little while
+ * (see `earth-closeup`, `mars-closeup`, `probe-closeup`).
  */
 export function Galaxy({ children }: { children: ReactNode }) {
     const backRef = useRef<HTMLCanvasElement>(null);
@@ -379,9 +411,7 @@ export function Galaxy({ children }: { children: ReactNode }) {
         const endurance = enduranceRef.current?.getContext('2d');
         const enterprise = enterpriseRef.current?.getContext('2d');
         const closeupCanvas = closeupRef.current?.getContext('2d');
-        const spots = CLOSEUPS.map(
-            (closeup) => spotRefs.current[closeup.planet],
-        );
+        const spots = CLOSEUPS.map((closeup) => spotRefs.current[closeup.name]);
 
         if (
             !back ||
@@ -415,7 +445,7 @@ export function Galaxy({ children }: { children: ReactNode }) {
 
         closeupCanvas.canvas.width = CLOSEUP_SIZE * solScale;
         closeupCanvas.canvas.height = CLOSEUP_SIZE * solScale;
-        const spotFor = (closeup: Closeup) => spotRefs.current[closeup.planet]!;
+        const spotFor = (closeup: Closeup) => spotRefs.current[closeup.name]!;
 
         const layers = [back, front, sol, endurance, enterprise];
 
@@ -439,23 +469,37 @@ export function Galaxy({ children }: { children: ReactNode }) {
         let enterpriseOrbit: { radius: number; angle: number } | null = null;
         let isVisible = true;
         let frame = 0;
-        let show: { closeup: Closeup; startedAt: number } | null = null;
+        let show: {
+            closeup: Closeup;
+            startedAt: number;
+            /** Where it was last seen, in case a probe fades out mid-show. */
+            at: { x: number; y: number };
+        } | null = null;
         let cooldownUntil = 0;
         let hovered: Closeup | null = null;
 
         // The headline's layer sits on top of the galaxy, so check where the
-        // pointer is rather than waiting for a planet's spot to be hovered.
+        // pointer is rather than waiting for a spot to be hovered.
         const trackPointer = (event: PointerEvent) => {
             hovered = null;
             let nearest = Infinity;
 
-            // Planets can pass close by each other, so pick the nearest one.
+            // Planets and probes can pass close by each other, so pick the nearest one.
             for (const closeup of CLOSEUPS) {
                 const spot = spotFor(closeup).getBoundingClientRect();
+
+                if (spot.width === 0) {
+                    continue;
+                }
+
                 const distance = Math.hypot(
                     event.clientX - (spot.left + spot.width / 2),
                     event.clientY - (spot.top + spot.height / 2),
                 );
+
+                if (closeup.loadsNearby && distance < LOAD_NEARBY_DISTANCE) {
+                    closeup.load();
+                }
 
                 if (distance < spot.width / 2 && distance < nearest) {
                     hovered = closeup;
@@ -507,7 +551,9 @@ export function Galaxy({ children }: { children: ReactNode }) {
             appearedAt ??= now;
 
             for (const closeup of CLOSEUPS) {
-                closeup.load();
+                if (!closeup.loadsNearby) {
+                    closeup.load();
+                }
             }
 
             const fade = smoothstep(
@@ -783,40 +829,76 @@ export function Galaxy({ children }: { children: ReactNode }) {
             sol.canvas.style.zIndex = solOffset.depth > 0 ? '' : '-1';
             drawSolSystem(sol, projectOffset, zoom, roll, seconds);
 
-            // Hovering over the Earth or Mars zooms in on it for a little while.
-            const planetAt = (closeup: Closeup) => {
-                const offset = planetOffset(
-                    closeup.planet,
-                    projectOffset,
-                    seconds,
+            // The probes' recent paths, and where each one is now (while it's visible).
+            const probes = probeTrails(seconds).map((probe) => ({
+                ...probe,
+                points: probe.trail.map((point) =>
+                    project(sun.x + point.x, sun.z + point.z),
+                ),
+            }));
+
+            // Hovering over the Earth, Mars, or a probe zooms in on it for a little while.
+            const locate = (closeup: Closeup) => {
+                if (closeup.kind === 'planet') {
+                    const offset = planetOffset(
+                        closeup.name,
+                        projectOffset,
+                        seconds,
+                    );
+
+                    return {
+                        x: solOffset.x + offset.x,
+                        y: solOffset.y + offset.y,
+                    };
+                }
+
+                const probe = probes.find(
+                    (candidate) => candidate.name === closeup.name,
                 );
 
-                return { x: solOffset.x + offset.x, y: solOffset.y + offset.y };
+                if (!probe || probe.visibility < 0.6) {
+                    return null;
+                }
+
+                const head = probe.points[probe.points.length - 1];
+
+                return { x: head.x - center, y: head.y - center };
             };
 
             for (const closeup of CLOSEUPS) {
-                const at = planetAt(closeup);
-                spotFor(closeup).style.transform =
-                    `translate(${at.x}px, ${at.y}px) translate(-50%, -50%)`;
+                const at = locate(closeup);
+                const spot = spotFor(closeup);
+                spot.style.display = at ? '' : 'none';
+
+                if (at) {
+                    spot.style.transform = `translate(${at.x}px, ${at.y}px) translate(-50%, -50%)`;
+                }
             }
+
+            const hoveredAt = hovered ? locate(hovered) : null;
 
             if (
                 hovered &&
+                hoveredAt &&
                 !show &&
                 fade === 1 &&
                 now > cooldownUntil &&
                 hovered.isReady()
             ) {
-                show = { closeup: hovered, startedAt: now };
+                show = { closeup: hovered, startedAt: now, at: hoveredAt };
                 zoomedIn = 0;
                 spotFor(hovered).dataset.state = 'playing';
             }
 
             if (show && zoomedIn !== null) {
                 const { closeup, startedAt } = show;
-                const at = planetAt(closeup);
-                const smallest =
-                    (planetSize(closeup.planet) * zoom) / closeup.radius;
+                show.at = locate(closeup) ?? show.at;
+                const { at } = show;
+                const dotSize =
+                    closeup.kind === 'planet'
+                        ? planetSize(closeup.name)
+                        : PROBE_DOT_SIZE;
+                const smallest = (dotSize * zoom) / closeup.radius;
                 const closeupX = at.x + (CLOSEUP_AT.x - at.x) * zoomedIn;
                 const closeupY = at.y + (CLOSEUP_AT.y - at.y) * zoomedIn;
 
@@ -832,15 +914,13 @@ export function Galaxy({ children }: { children: ReactNode }) {
                 );
             }
 
-            // The Voyagers leave Earth and head out across the galaxy.
-            for (const voyager of voyagerTrails(seconds)) {
+            // The Voyagers and Pioneers leave Earth and head out across the galaxy.
+            for (const voyager of probes) {
                 if (voyager.visibility <= 0 || isCovered) {
                     continue;
                 }
 
-                const points = voyager.trail.map((point) =>
-                    project(sun.x + point.x, sun.z + point.z),
-                );
+                const { points } = voyager;
                 const head = points[points.length - 1];
                 const context = head.depth > 0 ? front : back;
 
@@ -993,11 +1073,11 @@ export function Galaxy({ children }: { children: ReactNode }) {
             />
             {CLOSEUPS.map((closeup) => (
                 <div
-                    key={closeup.planet}
+                    key={closeup.name}
                     ref={(spot) => {
-                        spotRefs.current[closeup.planet] = spot;
+                        spotRefs.current[closeup.name] = spot;
                     }}
-                    data-test={closeup.planet.toLowerCase()}
+                    data-test={closeup.name.toLowerCase().replace(' ', '-')}
                     data-state="idle"
                     aria-hidden="true"
                     className="pointer-events-none absolute top-1/2 left-1/2 size-8 rounded-full motion-reduce:hidden"
