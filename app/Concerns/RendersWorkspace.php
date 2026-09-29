@@ -89,7 +89,7 @@ trait RendersWorkspace
                 'preview_url' => $sandbox->preview_url ? ($gateway->enabled() ? $open('preview') : $sandbox->preview_url) : null,
                 'shell_url' => $sandbox->shell_url ? ($gateway->enabled() ? $open('shell') : $sandbox->shell_url) : null,
                 // The Shell tab opened on Claude Code's own sign-in (see docker/sandbox/shell-entry; AI-005).
-                'claude_login_url' => $sandbox->shell_url ? ($gateway->enabled() ? $open('shell', '/?arg=claude-login') : rtrim($sandbox->shell_url, '/').'/?arg=claude-login') : null,
+                'claude_login_url' => $sandbox->shell_url ? ($gateway->enabled() ? $open('shell', '/?arg=claude-login') : self::withShellArgument($sandbox->shell_url, 'claude-login')) : null,
             ] : null,
             'queued' => $queued->map(fn (Message $message): array => [
                 ...$message->only('id', 'content'),
@@ -103,6 +103,21 @@ trait RendersWorkspace
                 'created_at' => $message->created_at?->toIso8601String(),
             ]),
         ]);
+    }
+
+    /**
+     * A shell address that starts on a docker/sandbox/shell-entry action (ttyd's `?arg=`), keeping any
+     * query it already has, e.g. Runtime's `?runtime_preview_token=`.
+     */
+    protected static function withShellArgument(string $url, string $argument): string
+    {
+        $fragment = parse_url($url, PHP_URL_FRAGMENT);
+        $url = $fragment !== null ? substr($url, 0, -strlen($fragment) - 1) : $url;
+        $query = parse_url($url, PHP_URL_QUERY);
+        $base = $query !== null ? substr($url, 0, -strlen($query) - 1) : $url;
+        $path = parse_url($base, PHP_URL_PATH);
+
+        return ($path === null ? $base.'/' : $base).'?'.ltrim(($query !== null ? $query.'&' : '').http_build_query(['arg' => $argument]), '&');
     }
 
     /**

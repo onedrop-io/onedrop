@@ -65,13 +65,18 @@ test('every sandbox of the user gets the same Claude sign-in folder', function (
     expect(collect($this->provider->created)->last()->claudeLoginKey)->toBe("user-{$this->user->id}");
 })->group('AI-005');
 
-test('the workspace offers Claude Code\'s own sign-in in the Shell tab', function () {
+test('the workspace offers Claude Code\'s own sign-in in the Shell tab', function (string $shellUrl, string $loginUrl) {
+    $this->sandbox->update(['shell_url' => $shellUrl]);
+
     $this->actingAs($this->user)
         ->get(route('projects.show', $this->project))
         ->assertInertia(fn ($page) => $page->component('projects/show')
             ->where('claudeSubscription', true)
-            ->where('sandbox.claude_login_url', 'http://127.0.0.1:7681/?arg=claude-login'));
-})->group('AI-005');
+            ->where('sandbox.claude_login_url', $loginUrl));
+})->with([
+    'docker' => ['http://127.0.0.1:7681', 'http://127.0.0.1:7681/?arg=claude-login'],
+    'runtime, whose address carries its token' => ['https://7681-abc.runtimehost.com/?runtime_preview_token=t', 'https://7681-abc.runtimehost.com/?runtime_preview_token=t&arg=claude-login'],
+])->group('AI-005');
 
 test('signing out logs Claude Code out in the user\'s running sandboxes and deletes their sign-in folder', function () {
     $root = storageRoot();
