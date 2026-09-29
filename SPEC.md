@@ -385,6 +385,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Visitor should see answers to common questions (coding knowledge, which AI, whether it's ready for production, where apps run, who can see them, cost).
 - Visitor should be able to open a Product menu in the top bar (on hover or click) that lists each feature with a one-line summary, plus links to the demo, how it works, the tools it works with, and the self-hosting comparison; picking an item should close the menu and jump to that part of the page.
 - Visitor should find a Docs link in the top bar and footer that opens the docs site (docs.onedrop.io).
+- Visitor should see the one-line install command in the self-hosting comparison, with a button to copy it and a link to the install guide.
 - Logged-out visitor should be able to go to sign up or log in; logged-in user should see a button to open their dashboard instead.
 
 ## BRAND-001: OneDrop name and links in the app
@@ -717,4 +718,5 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should get a `drop` command to start, stop, update, see logs of, open, and uninstall OneDrop. Running the installer again updates it and keeps all data.
 - OneDrop should run as a single container (`ghcr.io/onedrop-io/onedrop`) with SQLite, keeping its data in the `drop-data` Docker volume; projects run in sibling sandbox containers (`ghcr.io/onedrop-io/onedrop-sandbox`) on the `drop` Docker network.
 - User should land on the sign-up page when the install finishes; the first person to sign up on a new install becomes its admin.
+- User should find the install command on the home page, at the top of the README, and in the docs (introduction and install pages).
 - Both images should be built for amd64 and arm64 and published by GitHub Actions whenever `main` passes its tests.

@@ -18,6 +18,10 @@ test('a visitor reads the home page and goes to sign up', function () {
         ->assertSee('DigitalOcean')
         ->assertSee('macOS')
         ->assertSee('From idea to link in four steps')
+        ->assertSeeIn('@install-command', 'curl -fsSL https://raw.githubusercontent.com/onedrop-io/onedrop/main/install.sh | sh')
+        ->click('@copy-install-command')
+        ->assertSeeIn('@copy-install-command', 'Copied')
+        ->assertPresent('#compare a[href="https://docs.onedrop.io/install"]')
         ->assertSee('Questions people ask first')
         ->assertPresent('header a[href="https://docs.onedrop.io/introduction"]')
         ->assertPresent('footer a[href="https://docs.onedrop.io/introduction"]')
@@ -69,3 +73,12 @@ test('the dev user sees a button to open their dashboard', function () {
         ->assertDontSee('Log in')
         ->assertNoJavaScriptErrors();
 })->group('HOME-001');
+
+test('the home page fits a phone screen without scrolling sideways', function () {
+    $page = visit('/')->resize(390, 844);
+
+    expect($page->script('document.documentElement.scrollWidth'))->toBeLessThanOrEqual(390);
+
+    $page->assertVisible('@copy-install-command')
+        ->assertNoJavaScriptErrors();
+})->group('HOME-001', 'INSTALL-001');

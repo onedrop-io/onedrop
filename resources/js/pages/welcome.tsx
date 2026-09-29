@@ -23,6 +23,7 @@ import {
 } from '@/components/home/particle-universe';
 import { DropMark } from '@/components/home/drop-mark';
 import { FEATURES } from '@/components/home/features';
+import { InstallCommand } from '@/components/home/install-command';
 import { SiteFooter } from '@/components/home/site-footer';
 import { SiteHeader } from '@/components/home/site-header';
 import { SparklesText } from '@/components/home/sparkles-text';
@@ -1027,7 +1028,8 @@ export default function Welcome() {
                         className="scroll-mt-16 border-y border-[#2A2320] bg-[#100D0B] text-white"
                     >
                         <div className="mx-auto grid max-w-6xl gap-14 px-6 py-24 lg:grid-cols-2 lg:items-center">
-                            <div>
+                            {/* min-w-0: the install command scrolls inside its box instead of widening the page. */}
+                            <div className="min-w-0">
                                 <Server
                                     aria-hidden="true"
                                     className="size-8 text-[#FF9A5C]"
@@ -1041,9 +1043,10 @@ export default function Welcome() {
                                     {BRAND} runs on your laptop or your own
                                     server and builds on your own AI plan or
                                     key, so your apps, your data, and your bill
-                                    stay yours. One script installs it on any
-                                    Ubuntu server.
+                                    stay yours. One command installs it on your
+                                    laptop:
                                 </p>
+                                <InstallCommand />
                             </div>
                             <div className="overflow-hidden rounded-2xl ring-1 ring-white/10">
                                 <table className="w-full text-left text-sm">

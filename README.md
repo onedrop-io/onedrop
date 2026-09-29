@@ -2,6 +2,23 @@
 
 **Vibe-code apps for production.** Bring your own subscription. Deploy anywhere. Free to self-host, source available.
 
+## Install
+
+On macOS or Linux, with [Docker](https://www.docker.com/products/docker-desktop/) running:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/onedrop-io/onedrop/main/install.sh | sh
+```
+
+This adds the `drop` command and starts OneDrop at `http://localhost:8000`. The first account you create is the admin. Run `drop help` to update, stop, or uninstall it.
+
+- [Install guide](https://docs.onedrop.io/install)
+- [Install on a server](https://docs.onedrop.io/self-hosting/install-anywhere) (any Ubuntu 24.04 machine) or [on AWS](https://docs.onedrop.io/self-hosting/deploy-aws)
+- [Run from source](https://docs.onedrop.io/quickstart) to work on OneDrop itself
+- [Documentation](https://docs.onedrop.io/introduction)
+
+The rest of this file is the original build plan.
+
 A source-available, self-hostable, Replit-style app builder. A person describes an app in chat, an AI coding agent builds it inside an isolated cloud sandbox, and the running app is live at a URL while they work. Every feature becomes a requirement with tests you can watch run.
 
 The control plane is a Laravel application (Inertia + React). Sandboxes come from managed providers (E2B, Daytona) behind a small provider interface, so backends can be swapped without changing the platform. The reference deployment is Laravel Cloud; self-hosters run the same app with Docker Compose.
