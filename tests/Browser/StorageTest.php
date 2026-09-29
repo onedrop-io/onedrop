@@ -64,6 +64,14 @@ test('app storage creates a bucket, uploads and browses objects, and asks the ag
 
     expect($project->messages()->latest('id')->value('content'))->toStartWith('Use the App Storage bucket "photos" to store files in the app: Profile photos.');
 
+    // Let that (fake) run finish, and wait for the page to see it: while the agent works the page reloads every
+    // second, and on a slow machine a reload landing mid-click could close the menus below.
+    Project::whereKey($project->id)->update(['status' => ProjectStatus::Idle]);
+    for ($tries = 0; $tries < 20 && $page->script('!! document.querySelector(\'[data-test="agent-working"]\')'); $tries++) {
+        $page->wait(0.5);
+    }
+    $page->assertMissing('@agent-working');
+
     $page->click('@storage-view-menu')
         ->click('@storage-view-objects')
         ->click('[data-test="storage-folder-cats"] td:first-child button')
