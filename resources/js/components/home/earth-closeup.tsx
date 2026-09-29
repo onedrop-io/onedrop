@@ -16,6 +16,7 @@
  */
 
 import {
+    clamp,
     createShaderCanvas,
     drawSpaceBackdrop,
     loadImage,

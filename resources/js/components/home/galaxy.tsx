@@ -155,8 +155,9 @@ const PROBE_DOT_SIZE = 1.3;
 /** How far from the black hole the wheel zooms instead of scrolling the page (CSS pixels). */
 const ZOOM_AREA_RADIUS = 380;
 
-/** How big the Solar System is drawn when zoomed in to it (pixels per unit of the galaxy's own drawing). */
+/** How big the Solar System is drawn when zoomed in to it (pixels per unit of the galaxy's own drawing), and Neptune's orbit there. */
 const SOLAR_ZOOM = 4.8;
+const NEPTUNE_ORBIT = 67;
 
 /** Laniakea's canvas (CSS pixels), centered on the black hole, and how far it's magnified as it first appears. */
 const LANIAKEA_SIZE = 1000;
