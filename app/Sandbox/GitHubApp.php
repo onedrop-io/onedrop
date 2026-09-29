@@ -94,6 +94,11 @@ class GitHubApp
             $problems[] = __('Give the GitHub App the Metadata: Read-only repository permission, so it can list repositories.');
         }
 
+        // Installed on GitHub, yet nobody ever came back: GitHub isn't sending people to OneDrop after installing.
+        if (($app['installations_count'] ?? 0) > 0 && ! GitHubInstallation::query()->exists()) {
+            $problems[] = __('The app is installed on GitHub, but nobody has come back to OneDrop from installing it. Set its Callback URL and Setup URL to :url, turn on "Redirect on update" and "Request user authorization (OAuth) during installation".', ['url' => $this->callbackUrl()]);
+        }
+
         return $problems;
     }
 
@@ -131,7 +136,20 @@ class GitHubApp
      */
     public function authorizeUrl(string $state): string
     {
-        return 'https://github.com/login/oauth/authorize?'.http_build_query(['client_id' => config('services.github_app.client_id'), 'state' => $state]);
+        // GitHub sends people to the app's Callback URL: /github/callback, or /login/github/callback for an app
+        // shared with logging in, which passes Tools → Git returns on (SocialLoginController).
+        return 'https://github.com/login/oauth/authorize?'.http_build_query([
+            'client_id' => config('services.github_app.client_id'),
+            'state' => $state,
+        ]);
+    }
+
+    /**
+     * Where GitHub must send people back to: the app's Callback URL and Setup URL.
+     */
+    public function callbackUrl(): string
+    {
+        return route('github-app.callback');
     }
 
     /**

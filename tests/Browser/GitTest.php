@@ -264,3 +264,23 @@ test('the first time, the dialog explains installing the app on GitHub', functio
         ->assertAttribute('@git-github-continue', 'href', route('projects.git.github-app.install', $project))
         ->assertNoJavaScriptErrors();
 })->group('GIT-005');
+
+test('coming back from GitHub without its redirect offers to finish instead of starting over', function () {
+    $project = githubSetup($this, head: str_repeat('a', 40));
+    $project->user->githubAuthorization()->delete();
+    $project->user->githubInstallations()->delete();
+    $project->user->forceFill(['is_admin' => true])->save();
+    $this->actingAs($project->user);
+
+    $page = visit("/projects/{$project->id}?tool=git")
+        ->resize(1500, 1000)
+        ->click('@git-connect-github')
+        ->assertSeeIn('@git-github-admin-note', route('github-app.callback'));
+
+    // They clicked "Continue to GitHub", installed, and came back by hand.
+    $page->script("sessionStorage.setItem('github-connect-started:{$project->id}', '1')");
+    $page->navigate("/projects/{$project->id}?tool=git")
+        ->assertSeeIn('@git-github-came-back', 'Finished installing on GitHub?')
+        ->assertAttribute('@git-github-finish', 'href', route('projects.git.github-app.install', [$project, 'reconnect' => 1]))
+        ->assertNoJavaScriptErrors();
+})->group('GIT-005');

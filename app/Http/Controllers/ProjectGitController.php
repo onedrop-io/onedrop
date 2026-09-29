@@ -275,7 +275,7 @@ class ProjectGitController extends Controller
      * Whether the GitHub App is set up (and, for admins, what's wrong with it), whether the user is signed in
      * through it, and their installations.
      *
-     * @return array{configured: bool, suggested_name?: string, problems: list<string>, settings_url: ?string, signed_in: bool, login: ?string, connect_url: ?string, reconnect_url: ?string, installations: list<array{id: int, account: string, type: string, avatar_url: ?string, selection: ?string, can_create: bool, manage_url: string}>}
+     * @return array{configured: bool, suggested_name?: string, problems: list<string>, settings_url: ?string, callback_url: ?string, signed_in: bool, login: ?string, connect_url: ?string, reconnect_url: ?string, installations: list<array{id: int, account: string, type: string, avatar_url: ?string, selection: ?string, can_create: bool, manage_url: string}>}
      */
     protected function githubApp(Project $project, GitHubApp $github, Request $request): array
     {
@@ -283,7 +283,7 @@ class ProjectGitController extends Controller
         $problems = $admin ? $github->problems() : [];
 
         if (! $github->configured()) {
-            return ['configured' => false, 'problems' => $problems, 'settings_url' => null, 'signed_in' => false, 'login' => null, 'connect_url' => null, 'reconnect_url' => null, 'installations' => []];
+            return ['configured' => false, 'problems' => $problems, 'settings_url' => null, 'callback_url' => null, 'signed_in' => false, 'login' => null, 'connect_url' => null, 'reconnect_url' => null, 'installations' => []];
         }
 
         $canCreate = $github->canCreateRepositories();
@@ -298,6 +298,7 @@ class ProjectGitController extends Controller
             'suggested_name' => Str::slug($project->name) ?: 'my-app',
             'problems' => $problems,
             'settings_url' => $admin ? $github->settingsUrl() : null,
+            'callback_url' => $admin ? $github->callbackUrl() : null,
             'signed_in' => $signedIn,
             'login' => $signedIn ? $project->user->githubAuthorization?->github_login : null,
             'connect_url' => route('projects.git.github-app.install', $project),

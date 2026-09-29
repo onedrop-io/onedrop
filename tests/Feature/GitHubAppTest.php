@@ -65,7 +65,7 @@ beforeEach(function () {
             'api.github.com/app/installations/*/access_tokens' => fn (HttpRequest $request) => JWT::decode(substr($request->header('Authorization')[0], 7), new Key($this->publicKey, 'RS256'))->iss === '12345'
                 ? Http::response(['token' => 'ghs_installation'], 201)
                 : Http::response(['message' => 'Bad JWT'], 401),
-            'api.github.com/app' => fn () => Http::response(['owner' => ['login' => 'onedrop-io', 'type' => 'Organization'], 'permissions' => $this->permissions]),
+            'api.github.com/app' => fn () => Http::response(['owner' => ['login' => 'onedrop-io', 'type' => 'Organization'], 'permissions' => $this->permissions, 'installations_count' => $this->installationsCount ?? 1]),
             'api.github.com/user/installations/777/repositories*' => fn (HttpRequest $request) => $request->hasHeader('Authorization', 'Bearer ghu_user')
                 ? Http::response(['repositories' => [
                     ($this->repository)('dev/old-site', ['pushed_at' => '2025-01-01T00:00:00Z']),
@@ -88,7 +88,7 @@ test('connecting GitHub sends the user to install the app, or with reconnect jus
     expect(session('github_app.project'))->toBe($this->project->id);
 
     $response = $this->get(route('projects.git.github-app.install', [$this->project, 'reconnect' => 1]));
-    $response->assertRedirect('https://github.com/login/oauth/authorize?client_id=Iv1.client&state='.session('github_app.state'));
+    $response->assertRedirect('https://github.com/login/oauth/authorize?'.http_build_query(['client_id' => 'Iv1.client', 'state' => session('github_app.state')]));
 })->group('GIT-005');
 
 test('without a GitHub App the install flow does not exist and the panel says so', function () {
@@ -196,7 +196,7 @@ test('installed without signing in through the app, the user signs in next; an a
 
     $this->withSession($session)
         ->get(route('github-app.callback', ['state' => 'abc', 'installation_id' => 777, 'setup_action' => 'install']))
-        ->assertRedirect('https://github.com/login/oauth/authorize?client_id=Iv1.client&state=abc');
+        ->assertRedirect('https://github.com/login/oauth/authorize?'.http_build_query(['client_id' => 'Iv1.client', 'state' => 'abc']));
 
     $this->withSession($session)
         ->get(route('github-app.callback', ['state' => 'abc', 'setup_action' => 'request']))
@@ -331,4 +331,35 @@ test('pushing a GitHub App repository uses a fresh installation token as the pas
             && $headerKey !== false
             && $process->environment[str_replace('KEY', 'VALUE', $headerKey)] === 'Authorization: Basic '.base64_encode('x-access-token:ghs_installation');
     });
+})->group('GIT-005');
+
+test('admins are told where GitHub must send people back, and warned when installs never come back', function () {
+    ($this->github)();
+    $this->user->forceFill(['is_admin' => true])->save();
+
+    $this->getJson(route('projects.git.index', $this->project))
+        ->assertJsonPath('github.callback_url', route('github-app.callback'))
+        ->assertJsonPath('github.problems', []);
+
+    // Installed on GitHub, but nobody ever made it back to OneDrop.
+    GitHubInstallation::query()->delete();
+    $this->installationsCount = 2;
+    cache()->flush();
+
+    expect($this->getJson(route('projects.git.index', $this->project))->json('github.problems.0'))
+        ->toContain('nobody has come back to OneDrop')
+        ->toContain(route('github-app.callback'));
+
+    $this->user->forceFill(['is_admin' => false])->save();
+    $this->getJson(route('projects.git.index', $this->project))->assertJsonPath('github.callback_url', null);
+})->group('GIT-005');
+
+test('a GitHub App whose Callback URL is the login one still brings Tools → Git returns back', function () {
+    $this->withSession(['github_app' => ['state' => 'abc', 'project' => $this->project->id]])
+        ->get('/login/github/callback?code=oauth-code&state=abc&installation_id=777&setup_action=install')
+        ->assertRedirect(route('github-app.callback').'?code=oauth-code&state=abc&installation_id=777&setup_action=install');
+
+    // Anything else there is still the login flow (off here: no GitHub login configured).
+    $this->flushSession();
+    $this->get('/login/github/callback?code=x&state=other')->assertNotFound();
 })->group('GIT-005');

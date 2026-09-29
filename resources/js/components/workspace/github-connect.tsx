@@ -40,6 +40,8 @@ export type GitHubInfo = {
     suggested_name?: string;
     problems: string[];
     settings_url: string | null;
+    /** For admins: where GitHub must send people back to (the app's Callback and Setup URL). */
+    callback_url: string | null;
     signed_in: boolean;
     login: string | null;
     connect_url: string | null;
@@ -56,6 +58,29 @@ type Repository = {
     pushed_at: string | null;
     empty: boolean;
 };
+
+/** Set when the user leaves for GitHub, so coming back without GitHub's redirect can pick up where they left off. */
+const startedKey = (projectId: number) => `github-connect-started:${projectId}`;
+
+function readStarted(projectId: number): boolean {
+    try {
+        return window.sessionStorage.getItem(startedKey(projectId)) !== null;
+    } catch {
+        return false;
+    }
+}
+
+function writeStarted(projectId: number, started: boolean): void {
+    try {
+        if (started) {
+            window.sessionStorage.setItem(startedKey(projectId), "1");
+        } else {
+            window.sessionStorage.removeItem(startedKey(projectId));
+        }
+    } catch {
+        // Private mode without storage: the dialog just starts from the beginning.
+    }
+}
 
 type RequestError = Error & { status?: number; data?: { reconnect?: boolean } };
 
@@ -95,7 +120,24 @@ export function GitHubConnect({
     onConnected: () => void;
     onOtherHost: () => void;
 }) {
-    const [open, setOpen] = useState(autoOpen);
+    // Back without GitHub's redirect (it isn't set up to send people back, or they used the back button):
+    // reopen, offering to finish rather than start over. A proper return (autoOpen) clears that.
+    const [cameBack] = useState(() => {
+        if (typeof window === "undefined") {
+            return false;
+        }
+
+        const started = readStarted(projectId);
+
+        if (autoOpen || github.installations.length > 0) {
+            writeStarted(projectId, false);
+
+            return false;
+        }
+
+        return started;
+    });
+    const [open, setOpen] = useState(autoOpen || cameBack);
 
     return (
         <div data-test="git-github-app">
@@ -138,6 +180,7 @@ export function GitHubConnect({
                     projectId={projectId}
                     github={github}
                     hasCommits={hasCommits}
+                    cameBack={cameBack}
                     onClose={() => setOpen(false)}
                     onConnected={() => {
                         setOpen(false);
@@ -153,12 +196,14 @@ function GitHubDialog({
     projectId,
     github,
     hasCommits,
+    cameBack,
     onClose,
     onConnected,
 }: {
     projectId: number;
     github: GitHubInfo;
     hasCommits: boolean;
+    cameBack: boolean;
     onClose: () => void;
     onConnected: () => void;
 }) {
@@ -196,9 +241,11 @@ function GitHubDialog({
 
                 {needsInstall ? (
                     <InstallStep
+                        projectId={projectId}
                         github={github}
                         reconnect={signedOut && github.signed_in}
                         installed={github.installations.length > 0}
+                        cameBack={cameBack}
                     />
                 ) : (
                     <div className="space-y-4">
@@ -270,14 +317,61 @@ function GitHubDialog({
 
 /** The first visit (or a lapsed sign-in): what happens on GitHub, and the button to go there. */
 function InstallStep({
+    projectId,
     github,
     reconnect,
     installed,
+    cameBack,
 }: {
+    projectId: number;
     github: GitHubInfo;
     reconnect: boolean;
     installed: boolean;
+    cameBack: boolean;
 }) {
+    const leave = () => writeStarted(projectId, true);
+    const adminNote = github.callback_url && (
+        <p
+            className="rounded-lg bg-muted/60 p-3 text-xs text-muted-foreground"
+            data-test="git-github-admin-note"
+        >
+            Admins: GitHub sends people back only if the app's{" "}
+            <strong>Callback URL</strong> and <strong>Setup URL</strong> are{" "}
+            <code className="font-mono break-all text-foreground">
+                {github.callback_url}
+            </code>
+            , with “Redirect on update” and “Request user authorization (OAuth)
+            during installation” on.
+        </p>
+    );
+
+    if (cameBack && !reconnect) {
+        return (
+            <div className="space-y-4" data-test="git-github-came-back">
+                <p className="text-sm">Finished installing on GitHub?</p>
+                <p className="text-sm text-muted-foreground">
+                    GitHub didn't bring you back here. If you've installed the
+                    app, continue and OneDrop picks it up. It asks GitHub to
+                    confirm it's you, which only takes a moment.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                    <Button asChild data-test="git-github-finish">
+                        <a href={github.reconnect_url ?? "#"} onClick={leave}>
+                            Continue
+                            <ExternalLink className="size-4" />
+                        </a>
+                    </Button>
+                    <Button variant="outline" asChild>
+                        <a href={github.connect_url ?? "#"} onClick={leave}>
+                            Install on GitHub again
+                        </a>
+                    </Button>
+                </div>
+                {adminNote}
+            </div>
+        );
+    }
+
     if (reconnect) {
         return (
             <div className="space-y-4" data-test="git-github-reconnect">
@@ -286,7 +380,7 @@ function InstallStep({
                     repositories. It only takes a moment.
                 </p>
                 <Button asChild>
-                    <a href={github.reconnect_url ?? "#"}>
+                    <a href={github.reconnect_url ?? "#"} onClick={leave}>
                         Reconnect GitHub
                         <ExternalLink className="size-4" />
                     </a>
@@ -319,11 +413,12 @@ function InstallStep({
                 app's sandbox.
             </p>
             <Button asChild data-test="git-github-continue">
-                <a href={github.connect_url ?? "#"}>
+                <a href={github.connect_url ?? "#"} onClick={leave}>
                     Continue to GitHub
                     <ExternalLink className="size-4" />
                 </a>
             </Button>
+            {adminNote}
         </div>
     );
 }

@@ -583,6 +583,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 ## GIT-005: Connect GitHub with the GitHub App
 - When the admin has set up a GitHub App (`GITHUB_APP_*`), user should see "Connect to GitHub" in Tools → Git, which opens a dialog instead of asking for a token.
 - The first time, the dialog explains and sends the user to GitHub to install the app on their account or an organization and choose which repositories it can reach; GitHub sends them back to the project's Git section with the dialog open again.
+- If the user comes back without GitHub's redirect (the app isn't set up to send people back, or they used the back button), the dialog should reopen asking "Finished installing on GitHub?" with Continue, which confirms the sign-in with GitHub and picks the installation up. A GitHub App whose Callback URL is the login one (`/login/github/callback`) should still bring Tools → Git returns back to the Git section.
 - The platform should sign the user in through the app and keep their GitHub token encrypted (refreshing it when it expires), and remember only the installations GitHub says they can reach. When the token can't be refreshed, the dialog asks them to reconnect.
 - Repositories should be listed and connected with the user's own token, so they only see and connect repositories both they and the app can reach; someone else's installation is refused.
 - In the dialog, user should pick an owner (their account or an organization, with its avatar), then either:
@@ -590,7 +591,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
   - **Existing repository:** search the owner's repositories, most recently updated first, marked private or public, pick a branch, and connect; a project with no commits brings the branch in (an import). The list refreshes when the user comes back from GitHub.
 - The dialog should open on "New repository" for a project with commits and "Existing repository" for one without.
 - Pushes and pulls for a GitHub-connected repository should use a short-lived installation token made on the platform when needed; no token is stored for the project, and none enters the sandbox. The connected remote shows as the GitHub repository with a link to it.
-- Admins should see in Tools → Git what's wrong with the GitHub App setup (missing settings, missing Contents or Metadata permission, creating repositories unavailable without Administration permission), with a link to the app's permission settings. Other users fall back to the token-based ways (GIT-004), which stay available as "Other git host".
+- Admins should see in Tools → Git what's wrong with the GitHub App setup (missing settings, missing Contents or Metadata permission, creating repositories unavailable without Administration permission, and installs on GitHub that never came back to OneDrop), with a link to the app's permission settings, and the Callback and Setup URL GitHub must use. Other users fall back to the token-based ways (GIT-004), which stay available as "Other git host".
 
 ## STORE-001: App Storage
 - User should see an App Storage section under Tools for files the app keeps, like uploaded photos, videos and documents, organized in buckets.

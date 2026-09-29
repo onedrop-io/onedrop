@@ -44,6 +44,16 @@ class GitHubAppController extends Controller
     }
 
     /**
+     * Whether a request is GitHub coming back from a Tools → Git connection this session started.
+     */
+    public static function isReturning(Request $request): bool
+    {
+        $pending = $request->session()->get('github_app');
+
+        return is_array($pending) && is_string($request->query('state')) && hash_equals((string) $pending['state'], $request->query('state'));
+    }
+
+    /**
      * GitHub's return from installing (its Setup URL) and from signing in through the app (its Callback URL).
      * Signing in tells us which installations the user can reach; only those are remembered for them.
      */
