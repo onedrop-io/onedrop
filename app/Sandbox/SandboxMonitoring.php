@@ -36,7 +36,7 @@ class SandboxMonitoring
     /**
      * Requests, unique visitors, status classes over time, and a duration histogram.
      *
-     * @return array{range: string, bucket_seconds: int, total: int, unique_ips: int, error_rate: float|null, requests: list<array{t: int, count: int}>, statuses: list<array{t: int, 2xx: int, 3xx: int, 4xx: int, 5xx: int}>, durations: list<array{label: string, count: int}>}
+     * @return array{range: string, bucket_seconds: int, total: int, unique_ips: int, error_rate: float|null, requests: list<array{t: int, count: int}>, statuses: list<array{t: int, '2xx': int, '3xx': int, '4xx': int, '5xx': int}>, durations: list<array{label: string, count: int}>}
      *
      * @throws SandboxException
      */
@@ -47,7 +47,7 @@ class SandboxMonitoring
         $buckets = $this->buckets($now, $window, $bucket);
 
         $requests = array_fill_keys($buckets, 0);
-        $statuses = array_fill_keys($buckets, ['2xx' => 0, '3xx' => 0, '4xx' => 0, '5xx' => 0]);
+        $statuses = ['2xx' => array_fill_keys($buckets, 0), '3xx' => array_fill_keys($buckets, 0), '4xx' => array_fill_keys($buckets, 0), '5xx' => array_fill_keys($buckets, 0)];
         $durations = array_fill(0, count(self::DURATION_BINS), 0);
         $ips = [];
         $errors = 0;
@@ -76,7 +76,7 @@ class SandboxMonitoring
 
             $total++;
             $requests[$key]++;
-            $statuses[$key][$class]++;
+            $statuses[$class][$key]++;
             $errors += $status >= 500 ? 1 : 0;
             $ips[(string) ($entry['ip'] ?? '')] = true;
 
@@ -96,7 +96,7 @@ class SandboxMonitoring
             'unique_ips' => count(array_filter(array_keys($ips), fn (string $ip) => $ip !== '')),
             'error_rate' => $total > 0 ? round($errors / $total, 4) : null,
             'requests' => array_map(fn (int $t) => ['t' => $t, 'count' => $requests[$t]], $buckets),
-            'statuses' => array_map(fn (int $t) => ['t' => $t, ...$statuses[$t]], $buckets),
+            'statuses' => array_map(fn (int $t) => ['t' => $t, '2xx' => $statuses['2xx'][$t], '3xx' => $statuses['3xx'][$t], '4xx' => $statuses['4xx'][$t], '5xx' => $statuses['5xx'][$t]], $buckets),
             'durations' => array_map(fn (array $bin, int $count) => ['label' => $bin[0], 'count' => $count], self::DURATION_BINS, $durations),
         ];
     }

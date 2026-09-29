@@ -28,7 +28,7 @@ abstract class AgentEvents
      */
     protected function rememberSession(Conversation $conversation, mixed $sessionId): void
     {
-        if (is_string($sessionId) && $sessionId !== '' && $conversation->agent_session_id !== $sessionId) {
+        if (is_string($sessionId) && $sessionId !== '' && $conversation->getAttribute('agent_session_id') !== $sessionId) {
             $conversation->update(['agent_session_id' => $sessionId]);
         }
     }

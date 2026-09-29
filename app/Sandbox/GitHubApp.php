@@ -4,10 +4,10 @@ namespace App\Sandbox;
 
 use App\Models\GitHubInstallation;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Firebase\JWT\JWT;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Throwable;
@@ -193,13 +193,13 @@ class GitHubApp
             $this->api()->withToken($tokens['access_token'])->get(self::API.'/user/installations', ['per_page' => 100]),
         )->json('installations') ?? [];
 
-        return array_map(fn (array $installation) => [
+        return array_values(array_map(fn (array $installation) => [
             'installation_id' => (int) $installation['id'],
             'account_login' => (string) $installation['account']['login'],
             'account_type' => (string) $installation['account']['type'],
-            'account_avatar_url' => $installation['account']['avatar_url'] ?? null,
-            'repository_selection' => $installation['repository_selection'] ?? null,
-        ], $installations);
+            'account_avatar_url' => is_string($avatarUrl = $installation['account']['avatar_url'] ?? null) ? $avatarUrl : null,
+            'repository_selection' => is_string($selection = $installation['repository_selection'] ?? null) ? $selection : null,
+        ], $installations));
     }
 
     /**
@@ -375,7 +375,7 @@ class GitHubApp
      * Trade an OAuth code or refresh token for the user's tokens.
      *
      * @param  array<string, string>  $grant
-     * @return array{access_token: string, refresh_token: ?string, expires_at: ?Carbon, refresh_expires_at: ?Carbon}|null
+     * @return array{access_token: string, refresh_token: ?string, expires_at: ?CarbonImmutable, refresh_expires_at: ?CarbonImmutable}|null
      */
     protected function exchange(array $grant): ?array
     {
@@ -385,6 +385,7 @@ class GitHubApp
             ...$grant,
         ]);
         $token = $response->json('access_token');
+        $refreshToken = $response->json('refresh_token');
 
         if (! is_string($token)) {
             return null;
@@ -393,7 +394,7 @@ class GitHubApp
         // Apps with expiring user tokens off give tokens without an expiry or refresh token.
         return [
             'access_token' => $token,
-            'refresh_token' => $response->json('refresh_token'),
+            'refresh_token' => is_string($refreshToken) ? $refreshToken : null,
             'expires_at' => ($seconds = $response->json('expires_in')) ? now()->addSeconds((int) $seconds) : null,
             'refresh_expires_at' => ($seconds = $response->json('refresh_token_expires_in')) ? now()->addSeconds((int) $seconds) : null,
         ];

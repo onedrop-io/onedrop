@@ -11,9 +11,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /**
  * A chat with its own agent: a project's main chat, or one of its tasks (TASK-001). Each has its own
  * messages, queue, session and working status; all of a project's conversations run in its sandbox at once.
- *
- * @property ProjectStatus $status
- * @property string|null $agent_session_id
+ * Both are models, so their `status` (a {@see ProjectStatus}) and `agent_session_id` (string|null) are read with
+ * getAttribute(): an interface can't declare the magic properties themselves.
  */
 interface Conversation
 {
@@ -56,6 +55,15 @@ interface Conversation
      *
      * @param  array<string, mixed>  $attributes
      * @param  array<string, mixed>  $options
+     * @return bool
      */
     public function update(array $attributes = [], array $options = []);
+
+    /**
+     * One of the conversation's columns, cast.
+     *
+     * @param  string  $key
+     * @return mixed
+     */
+    public function getAttribute($key);
 }

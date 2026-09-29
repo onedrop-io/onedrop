@@ -32,10 +32,10 @@ description: 'Run the install script on any Ubuntu 24.04 server, on any provider
     `APP_RELEASE` can also be an `https://` or `s3://` URL.
   </Step>
   <Step title="Create your admin account">
-    Open `https://zap.example.com`, sign up, then run:
+    Open `https://zap.example.com` and sign up. The first account on a new install is the admin. To make someone else an admin later, run:
 
     ```bash
-    sudo -u zap php /opt/zap/current/artisan zap:admin you@example.com
+    sudo -u zap php /opt/zap/current/artisan zap:admin them@example.com
     ```
 
   </Step>

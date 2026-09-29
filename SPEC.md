@@ -184,6 +184,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see the app's styles and scripts in the preview and at its published address even when the app writes its own links as `localhost` (e.g. a Laravel app that doesn't trust proxies); the sandbox's proxy points those links, redirects included, at the address the visitor used.
 
 ## SBX-002: Sandboxes stay up to date
+
 - When the sandbox image is rebuilt (new guides, tools or proxy), existing sandboxes should move to it without anyone running a command.
 - Opening a project whose sandbox is older than the image should update it in the background, unless the agent is working.
 - Before the agent starts a run, an outdated sandbox should be updated first, so the agent always has the current guides and tools.
@@ -195,6 +196,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - An admin should be able to update outdated sandboxes with `php artisan sandbox:update` (all, or one project).
 
 ## SBX-003: Sandboxes on Runtime Cloud
+
 - With `SANDBOX_PROVIDER=runtime`, each project's sandbox should run on Runtime Cloud, from the sandbox image built there with `php artisan sandbox:build-image`.
 - The sandbox's settings and the user's AI credential should reach it at start without appearing in any command line.
 - User should see the preview and the Shell tab through private Runtime preview links, handed out only to people allowed to see the project; the links should be renewed before their tokens expire.
@@ -204,6 +206,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Sandboxes should use the free trial unless `RUNTIME_FUNDING=paid` is set; Runtime errors should reach the user with Runtime's hint.
 
 ## SBX-004: Sandboxes on Blaxel
+
 - With `SANDBOX_PROVIDER=blaxel`, each project's sandbox should run on Blaxel, from the sandbox image pushed there with `php artisan sandbox:build-image` (docker/sandbox plus Blaxel's sandbox API).
 - The user's AI credential should reach the sandbox as a secret setting, never in a command line.
 - User should see the preview and the Shell tab through private Blaxel preview links, handed out only to people allowed to see the project; the links should be renewed before their tokens expire.
@@ -213,6 +216,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Blaxel's errors (such as account limits) should reach the user in Blaxel's words.
 
 ## SBX-005: Switch sandbox providers
+
 - An admin should be able to switch where new sandboxes run by changing `SANDBOX_PROVIDER`, without breaking existing projects: each sandbox keeps being driven by the provider it was created on.
 - Sandboxes on several providers should work side by side.
 - A project whose sandbox is on another provider than the configured one should count as outdated, so it moves to the configured provider the way SBX-002 updates do (files, App Storage and home folder kept; the old sandbox removed only once the new one has them).
@@ -220,6 +224,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Provider-specific behavior (renewing private preview links, the SSH notice) should follow each sandbox's own provider.
 
 ## SBX-006: Checkpoints and code backups
+
 - User's changes should be committed to git in `/workspace` after every agent turn (finished or stopped), whichever agent ran it, with the prompt as the commit message; a turn that changed nothing makes no commit.
 - A project without a git repository should get one (branch `main`) on its first checkpoint; one that already has a repository keeps its branch and history.
 - Checkpoints should never include `node_modules`, `vendor`, `.cache` or `.env` files (except `.env.example`), whatever the app's `.gitignore` says.
@@ -350,6 +355,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - HTTPS certificates should only be issued for addresses of sandboxes that exist.
 
 ## GW-002: Previews and shells through Cloudflare
+
 - On Laravel Cloud (no Caddy), user should see each project's preview and shell inside the workspace at `preview-<id>.<domain>` and `shell-<id>.<domain>`, served by a Cloudflare Worker in front of the sandbox's provider (Blaxel or Runtime).
 - Previews should load with their styles and scripts in every browser, Safari included, and on every provider: the browser only ever deals with onedrop.io addresses and cookies.
 - Only a logged-in user allowed to see the project should get through, checked on every request (GW-001's hand-off and cookie); a copied link without that user's cookie should be refused.
@@ -499,6 +505,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see a clear message when the sandbox isn't running, no database is found yet, or the database can't be reached.
 
 ## APPAUTH-001: Users & Auth for the app
+
 - User should see a Users & Auth section under Tools that explains how to let people sign in to their app.
 - User should be able to choose sign-in methods (email and password, Google, GitHub, Microsoft) and click "Set up with agent", which sends the agent a plain request in the chat (queued if it's working).
 - The agent should build sign-in with the app's own stack, keep users in the app's own database, and follow a platform guide so the result works the same way in every project; it should describe the setup in `.zap/auth.json`.
@@ -518,6 +525,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see a clear message when the sandbox isn't running or the app's users can't be read.
 
 ## GROW-001: Growth
+
 - User should see a Growth section under Tools for reviewing how to grow their app and who visits it.
 - User should be able to click "Run scan with agent" to have the agent check the app's SEO (titles, descriptions, headings, link previews, sitemap, robots.txt, image alt text, and so on), or "Scan and fix issues" to also fix what it finds; this sends the agent a plain request in the chat (queued if it's working).
 - The agent should record the result in `.zap/seo.json`; user should see an SEO rating (0–100), when it was scanned, and each check with whether it passed, needs work, or failed.
@@ -530,6 +538,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see a clear message when the sandbox isn't running.
 
 ## GROW-002: Custom analytics events
+
 - User should see a Custom events section in Growth that explains how custom events show how people use their app, with a "Set up with agent" button.
 - Clicking it sends the agent "Add custom analytics events to my project" in the chat (queued if it's working); the agent finds the app's key moments (signing up, creating things, finishing a flow) and records an event for each, following a platform guide so every app does it the same way.
 - Events should never carry personal data: fixed event names and a few fixed-value properties, no emails, names, free-form text or IDs of people.
@@ -541,6 +550,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - The agent uses the model chosen for the project (AGT-002); there is no separate plan to pick.
 
 ## SECRET-001: Secrets
+
 - User should see a Secrets section under Tools listing the app's secrets (the variables in its `.env` file) by name, with values hidden.
 - User should be able to filter secrets by name.
 - User should be able to reveal a value, copy a name, and copy a value; values are only fetched from the sandbox when revealed or copied.
@@ -553,6 +563,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see a clear message when the sandbox isn't running or the secrets can't be read.
 
 ## FLAG-001: Feature flags
+
 - User should see a Feature Flags section under Tools listing the app's flags, each with what it turns on, its key, and an on/off switch.
 - User should be able to turn a flag on or off; the change is saved to `.zap/flags.json` in the sandbox straight away (no agent), and the preview and published app follow it without a restart.
 - User should be able to describe a feature and click "Add with agent", which asks the agent in the chat (queued if it's working) to put that feature behind a new flag, following a platform guide so every app checks flags the same way.
@@ -561,6 +572,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see a clear empty state when there are no flags yet, and a clear message when the sandbox isn't running or a flag no longer exists.
 
 ## GIT-001: Git history
+
 - User should see a Git section under Tools with the current branch and the project's commits, newest first: each with its message, who made it (the agent's turns marked as the agent's, see SBX-006), how long ago, and its short id.
 - User should see the last backup time, and that dependencies, caches and `.env` secrets are never committed.
 - User should be able to click a commit to see more: its full message, author and email, exact date and time, full id (with a copy button), and the files it changed with lines added and removed (binary files marked); clicking again closes it.
@@ -570,6 +582,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Only the project's owner should be able to see or change its git; the section should say so when the sandbox isn't running.
 
 ## GIT-002: Commit, discard and branches
+
 - User should see uncommitted changes (made in the Shell, the Files panel, or while the agent was stopped) with their state: modified, added, deleted, renamed, new or conflicted.
 - User should be able to write a message and commit every change (⌘/Ctrl+Enter or the button) as themselves; dependencies and secrets stay out as with checkpoints. Committing with no changes or no message should say why it can't.
 - User should be able to discard the changes to one file, or all of them, after confirming; new files are deleted, ignored files (`node_modules`, `.env`) are kept.
@@ -578,10 +591,12 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - A repository in the middle of a merge or rebase should be pointed out.
 
 ## GIT-003: Restore an earlier version
+
 - User should be able to pick "Restore this version" on any earlier commit and confirm; every file goes back to how it was then, saved as a new commit, so nothing is lost and today's version can be restored the same way.
 - Uncommitted changes should be committed first ("Changes before restoring …"), the app restarts, and the project is backed up.
 
 ## GIT-004: Push to and pull from a remote
+
 - With no remote, user should be able to create a new private (or public) repository on GitHub with a token, which connects it and pushes to it, or connect an existing repository on GitHub, GitLab, Forgejo or any HTTPS git host with its URL, an access token and an optional username.
 - Remote URLs should be HTTPS without credentials in them, on the public internet unless the admin allows private networks (`SANDBOX_GIT_ALLOW_PRIVATE_REMOTES`).
 - The token should be stored encrypted, never shown again, never sent to the browser, and never put in the sandbox: pushes and pulls run on the platform, carrying commits in and out of the sandbox as git bundles.
@@ -590,19 +605,21 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be able to disconnect the remote (the repository itself is untouched).
 
 ## GIT-005: Connect GitHub with the GitHub App
+
 - When the admin has set up a GitHub App (`GITHUB_APP_*`), user should see "Connect to GitHub" in Tools → Git, which opens a dialog instead of asking for a token.
 - The first time, the dialog explains and sends the user to GitHub to install the app on their account or an organization and choose which repositories it can reach; GitHub sends them back to the project's Git section with the dialog open again.
 - If the user comes back without GitHub's redirect (the app isn't set up to send people back, or they used the back button), the dialog should reopen asking "Finished installing on GitHub?" with Continue, which confirms the sign-in with GitHub and picks the installation up. A GitHub App whose Callback URL is the login one (`/login/github/callback`) should still bring Tools → Git returns back to the Git section.
 - The platform should sign the user in through the app and keep their GitHub token encrypted (refreshing it when it expires), and remember only the installations GitHub says they can reach. When the token can't be refreshed, the dialog asks them to reconnect.
 - Repositories should be listed and connected with the user's own token, so they only see and connect repositories both they and the app can reach; someone else's installation is refused.
 - In the dialog, user should pick an owner (their account or an organization, with its avatar), then either:
-  - **New repository:** a name suggested from the project, checked live for being free, and private or public. For an organization whose app can create repositories (Administration: write), "Create and push" creates it and pushes the current branch. For a personal account (GitHub Apps can't create those), "Create it on GitHub" opens GitHub's new-repository page filled in; when the user comes back, the new repository is found, selected and offered as "Connect and push" (with a link to give the app access to it first when the installation only reaches selected repositories).
-  - **Existing repository:** search the owner's repositories, most recently updated first, marked private or public, pick a branch, and connect; a project with no commits brings the branch in (an import). The list refreshes when the user comes back from GitHub.
+    - **New repository:** a name suggested from the project, checked live for being free, and private or public. For an organization whose app can create repositories (Administration: write), "Create and push" creates it and pushes the current branch. For a personal account (GitHub Apps can't create those), "Create it on GitHub" opens GitHub's new-repository page filled in; when the user comes back, the new repository is found, selected and offered as "Connect and push" (with a link to give the app access to it first when the installation only reaches selected repositories).
+    - **Existing repository:** search the owner's repositories, most recently updated first, marked private or public, pick a branch, and connect; a project with no commits brings the branch in (an import). The list refreshes when the user comes back from GitHub.
 - The dialog should open on "New repository" for a project with commits and "Existing repository" for one without.
 - Pushes and pulls for a GitHub-connected repository should use a short-lived installation token made on the platform when needed; no token is stored for the project, and none enters the sandbox. The connected remote shows as the GitHub repository with a link to it.
 - Admins should see in Tools → Git what's wrong with the GitHub App setup (missing settings, missing Contents or Metadata permission, creating repositories unavailable without Administration permission, and installs on GitHub that never came back to OneDrop), with a link to the app's permission settings, and the Callback and Setup URL GitHub must use. Other users fall back to the token-based ways (GIT-004), which stay available as "Other git host".
 
 ## STORE-001: App Storage
+
 - User should see an App Storage section under Tools for files the app keeps, like uploaded photos, videos and documents, organized in buckets.
 - With no buckets yet, user should see what App Storage is for and a Create bucket button; the dialog suggests a name they can change.
 - Bucket names should be 3–63 lowercase letters, digits and dashes, starting and ending with a letter or digit; creating one that already exists should say so.
@@ -620,6 +637,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see a clear message when the sandbox isn't running or storage can't be reached.
 
 ## DEVTOOLS-001: Developer tools
+
 - User should see a Developer section under Tools that links to Networking, Resources, and SSH (Connect and Keys) pages, each with a back button.
 - Networking: user should see the preview URL and the published URL (when live), each with a copy button and a QR code for opening it on a phone. A preview that only works on the machine running the app builder should say so and show no QR code.
 - Networking: user should see the ports open inside the sandbox (address, process name, PID) and what each is used for (preview, published address, shell, SSH), and be able to refresh the list. The page should explain that the preview shows the app on `$PORT`.
@@ -642,6 +660,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Logged-out visitor should be able to start signing up from a paid plan, and open the install guide from the Self-hosted plan; logged-in user should see a button to open their dashboard instead.
 
 ## APPAUTH-002: Sign in with OneDrop
+
 - User should be able to turn on "OneDrop accounts" as a sign-in method for their app, so people sign in to the app with their OneDrop account.
 - Turning it on should set up the app's keys automatically (no provider console) and ask the agent to add the button.
 - User should be able to choose who can sign in this way: everyone with a OneDrop account, or only members of chosen groups.
@@ -651,6 +670,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Turning it off should stop new sign-ins through OneDrop right away.
 
 ## ERR-001: The agent sees the app's errors
+
 - Errors should be recorded inside the sandbox in `/workspace/.zap/errors.log`, whatever the app's stack: server errors (5xx answers, with the page's text and the end of the dev server's log), errors in the preview's browser (uncaught exceptions, unhandled promise rejections, `console.error`, scripts or styles that fail to load), and the app not answering.
 - Browser errors should only be accepted from the preview, never from the published address.
 - The agent should be told where the log is and to check it before it finishes and when the user says something is broken.
@@ -660,6 +680,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Rebuilding a Laravel app's assets shouldn't break the preview while the build runs.
 
 ## TASK-001: Tasks that run in parallel
+
 - User should be able to start a new task in a project; each task gets a fresh agent with its own chat, separate from the project's main chat.
 - User should be able to message a task's agent while the main chat's agent, or other tasks' agents, are still working: they run at the same time in the project's sandbox, on the same files and preview.
 - Messages sent to a task while its own agent is working should wait in that task's queue; stopping a task stops only that task's agent.
@@ -668,12 +689,14 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be able to rename or delete a task; deleting a working task stops its agent first.
 
 ## TASK-002: Kanban board
+
 - User should be able to see a project's tasks on a board with To do, In progress, Review and Done columns.
 - User should be able to add a card to To do with a title (and optional notes) without starting an agent, then start it later; starting sends the card's title and notes to a fresh agent.
 - A task should move to In progress when its agent starts, and to Review when the agent finishes a turn.
 - User should be able to move a card to another column by dragging it or from its menu, and open a card to see its chat.
 
 ## TASK-003: Each task gets its own copy of the app
+
 - A task's first message should make it its own copy of the app from Main's sandbox, whatever the app is built with: its files, dependencies and any databases kept in the sandbox, copied as they were at one instant so databases stay consistent. Main keeps running while it's copied (its processes pause for about a second).
 - User should see the task's own preview, files, shell and tools on the task's page; changes there don't touch Main until they're applied.
 - User should be warned in the task's chat when the app's settings point at a database or other data service outside the sandbox, which the copy still shares with Main.
@@ -683,5 +706,15 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Deleting a task, or its project, removes its copy.
 
 ## TASK-004: Switching tasks keeps the workspace view
+
 - The page's URL should say what the workspace shows: its tab, the Tools section, and the open file (e.g. `?tab=tools&tool=database`), so a reload or a shared link opens the same view.
 - User should be able to switch between Main and a project's tasks (from the sidebar or the board) and see the same tab and tool on each, e.g. the Database tool, on that chat's own copy of the app.
+
+## INSTALL-001: One-line install on your own computer
+
+- User should be able to install OneDrop with one command (`curl -fsSL https://raw.githubusercontent.com/onedrop-io/onedrop/main/install.sh | sh`) on macOS or Linux, with Docker as the only requirement.
+- User should be told how to get Docker when it's missing, and the installer should start Docker Desktop on macOS when it's installed but not running.
+- User should get a `drop` command to start, stop, update, see logs of, open, and uninstall OneDrop. Running the installer again updates it and keeps all data.
+- OneDrop should run as a single container (`ghcr.io/onedrop-io/drop`) with SQLite, keeping its data in the `drop-data` Docker volume; projects run in sibling sandbox containers (`ghcr.io/onedrop-io/drop-sandbox`) on the `drop` Docker network.
+- User should land on the sign-up page when the install finishes; the first person to sign up on a new install becomes its admin.
+- Both images should be built for amd64 and arm64 and published by GitHub Actions whenever `main` passes its tests.

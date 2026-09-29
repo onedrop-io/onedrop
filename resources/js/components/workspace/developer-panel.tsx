@@ -14,13 +14,13 @@ import {
     SquareTerminal,
     Trash2,
     Zap,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
-import type { FormEvent, ReactNode } from "react";
-import ProjectDeveloperController from "@/actions/App/Http/Controllers/ProjectDeveloperController";
-import SshKeyController from "@/actions/App/Http/Controllers/SshKeyController";
-import { Button } from "@/components/ui/button";
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import type { FormEvent, ReactNode } from 'react';
+import ProjectDeveloperController from '@/actions/App/Http/Controllers/ProjectDeveloperController';
+import SshKeyController from '@/actions/App/Http/Controllers/SshKeyController';
+import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
@@ -28,30 +28,30 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { useClipboard } from "@/hooks/use-clipboard";
-import { isLocalHostname, useIsRemote } from "@/hooks/use-is-remote";
-import { jsonRequest } from "@/lib/json-request";
-import { formatBytes } from "@/lib/storage-api";
-import { cn } from "@/lib/utils";
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useClipboard } from '@/hooks/use-clipboard';
+import { isLocalHostname, useIsRemote } from '@/hooks/use-is-remote';
+import { jsonRequest } from '@/lib/json-request';
+import { formatBytes } from '@/lib/storage-api';
+import { cn } from '@/lib/utils';
 
-type Page = "home" | "networking" | "resources" | "ssh-connect" | "ssh-keys";
+type Page = 'home' | 'networking' | 'resources' | 'ssh-connect' | 'ssh-keys';
 
 type Port = {
     address: string;
     port: number;
     pid: number | null;
     process: string | null;
-    role: "app" | "proxy" | "shell" | "ssh" | null;
+    role: 'app' | 'proxy' | 'shell' | 'ssh' | null;
 };
 
 type Networking = {
     preview: { url: string; local: boolean; qr: string | null } | null;
     published: {
         url: string;
-        visibility: "private" | "public" | null;
+        visibility: 'private' | 'public' | null;
         qr: string;
     } | null;
     app_port: number;
@@ -98,37 +98,37 @@ type SshKey = {
 };
 
 const PAGES: {
-    id: Exclude<Page, "home">;
+    id: Exclude<Page, 'home'>;
     label: string;
     icon: LucideIcon;
     description: string;
     group?: string;
 }[] = [
     {
-        id: "networking",
-        label: "Networking",
+        id: 'networking',
+        label: 'Networking',
         icon: Network,
         description: "Your app's addresses and the ports open in its sandbox",
     },
     {
-        id: "resources",
-        label: "Resources",
+        id: 'resources',
+        label: 'Resources',
         icon: Monitor,
-        description: "CPU, memory and storage your app is using",
+        description: 'CPU, memory and storage your app is using',
     },
     {
-        id: "ssh-connect",
-        label: "Connect",
+        id: 'ssh-connect',
+        label: 'Connect',
         icon: Zap,
-        description: "Open your app in VS Code, Cursor or a terminal over SSH",
-        group: "SSH",
+        description: 'Open your app in VS Code, Cursor or a terminal over SSH',
+        group: 'SSH',
     },
     {
-        id: "ssh-keys",
-        label: "Keys",
+        id: 'ssh-keys',
+        label: 'Keys',
         icon: KeyRound,
-        description: "Manage the SSH public keys you sign in with",
-        group: "SSH",
+        description: 'Manage the SSH public keys you sign in with',
+        group: 'SSH',
     },
 ];
 
@@ -146,7 +146,7 @@ export default function DeveloperPanel({
     projectId: number;
     running: boolean;
 }) {
-    const [page, setPage] = useState<Page>("home");
+    const [page, setPage] = useState<Page>('home');
     const current = PAGES.find((p) => p.id === page);
 
     if (!current) {
@@ -190,7 +190,7 @@ export default function DeveloperPanel({
                     variant="ghost"
                     size="icon"
                     className="size-8"
-                    onClick={() => setPage("home")}
+                    onClick={() => setPage('home')}
                     aria-label="Back to developer tools"
                     data-test="developer-back"
                 >
@@ -213,14 +213,14 @@ export default function DeveloperPanel({
                 <Empty>
                     {current.label} details appear when the sandbox is running.
                 </Empty>
-            ) : page === "networking" ? (
+            ) : page === 'networking' ? (
                 <NetworkingPage projectId={projectId} />
-            ) : page === "resources" ? (
+            ) : page === 'resources' ? (
                 <ResourcesPage projectId={projectId} />
-            ) : page === "ssh-connect" ? (
+            ) : page === 'ssh-connect' ? (
                 <SshConnectPage
                     projectId={projectId}
-                    onManageKeys={() => setPage("ssh-keys")}
+                    onManageKeys={() => setPage('ssh-keys')}
                 />
             ) : (
                 <SshKeysPage projectId={projectId} />
@@ -254,11 +254,11 @@ function useJson<T>(url: string) {
     return { data, error, loading, reload };
 }
 
-const ROLES: Record<NonNullable<Port["role"]>, string> = {
-    app: "Your app",
-    proxy: "Preview and published address",
-    shell: "Shell tab",
-    ssh: "SSH",
+const ROLES: Record<NonNullable<Port['role']>, string> = {
+    app: 'Your app',
+    proxy: 'Preview and published address',
+    shell: 'Shell tab',
+    ssh: 'SSH',
 };
 
 function NetworkingPage({ projectId }: { projectId: number }) {
@@ -286,8 +286,8 @@ function NetworkingPage({ projectId }: { projectId: number }) {
                         testId="developer-preview-url"
                         note={
                             data.preview.local
-                                ? "Works in a browser on the machine running the app builder. Publish to open it on other devices."
-                                : "Only people who can open this project can see the preview."
+                                ? 'Works in a browser on the machine running the app builder. Publish to open it on other devices.'
+                                : 'Only people who can open this project can see the preview.'
                         }
                     />
                 ) : (
@@ -302,8 +302,8 @@ function NetworkingPage({ projectId }: { projectId: number }) {
                         qr={data.published.qr}
                         testId="developer-published-url"
                         note={
-                            data.published.visibility === "public"
-                                ? "Anyone with the URL can open it."
+                            data.published.visibility === 'public'
+                                ? 'Anyone with the URL can open it.'
                                 : "People on your team's tailnet can open it."
                         }
                     />
@@ -324,7 +324,7 @@ function NetworkingPage({ projectId }: { projectId: number }) {
                         <h3 className="font-medium">Ports</h3>
                         <p className="text-sm text-muted-foreground">
                             Programs listening inside the sandbox. The preview
-                            shows your app on port{" "}
+                            shows your app on port{' '}
                             <code className="font-mono">{data.app_port}</code> (
                             <code className="font-mono">$PORT</code>); ask the
                             agent if your app should use it.
@@ -337,7 +337,7 @@ function NetworkingPage({ projectId }: { projectId: number }) {
                         disabled={loading}
                         data-test="developer-ports-refresh"
                     >
-                        <RefreshCw className={cn(loading && "animate-spin")} />
+                        <RefreshCw className={cn(loading && 'animate-spin')} />
                         Refresh
                     </Button>
                 </div>
@@ -379,21 +379,21 @@ function NetworkingPage({ projectId }: { projectId: number }) {
                                     data-test="developer-port"
                                 >
                                     <td className="px-3 py-2 font-mono text-green-700 dark:text-green-500">
-                                        {port.address.includes(":")
+                                        {port.address.includes(':')
                                             ? `[${port.address}]`
                                             : port.address}
                                         :{port.port}
                                     </td>
                                     <td className="px-3 py-2">
-                                        {port.process ?? "—"}
+                                        {port.process ?? '—'}
                                     </td>
                                     <td className="px-3 py-2 tabular-nums">
-                                        {port.pid ?? "—"}
+                                        {port.pid ?? '—'}
                                     </td>
                                     <td className="px-3 py-2 text-muted-foreground">
                                         {port.role
                                             ? ROLES[port.role]
-                                            : "Inside the sandbox only"}
+                                            : 'Inside the sandbox only'}
                                     </td>
                                 </tr>
                             ))}
@@ -494,10 +494,10 @@ function ResourcesPage({ projectId }: { projectId: number }) {
 
     const percent = (value: number | null) =>
         value === null
-            ? "—"
+            ? '—'
             : `${+(value * 100).toFixed(value < 0.01 ? 2 : 1)}%`;
     const bytes = (value: number | null) =>
-        value === null ? "—" : formatBytes(value);
+        value === null ? '—' : formatBytes(value);
     const ofMemory = (value: number | null) =>
         value === null || !usage?.memory_limit
             ? null
@@ -526,7 +526,7 @@ function ResourcesPage({ projectId }: { projectId: number }) {
                                 `${+usage.cpus.toFixed(2)} vCPU`}
                             {usage.cpus !== null &&
                                 usage.memory_limit !== null &&
-                                ", "}
+                                ', '}
                             {usage.memory_limit !== null &&
                                 `${gibibytes(usage.memory_limit)} RAM`}
                         </span>
@@ -597,7 +597,7 @@ function ResourcesPage({ projectId }: { projectId: number }) {
                         disabled={storage.loading}
                     >
                         <RefreshCw
-                            className={cn(storage.loading && "animate-spin")}
+                            className={cn(storage.loading && 'animate-spin')}
                         />
                     </Button>
                 }
@@ -614,7 +614,7 @@ function ResourcesPage({ projectId }: { projectId: number }) {
                     <>
                         <Row
                             label="This app"
-                            value={`${bytes(s.workspace)} ${share(s.workspace) ?? ""}`}
+                            value={`${bytes(s.workspace)} ${share(s.workspace) ?? ''}`}
                             testId="developer-storage-workspace"
                         />
                         <Row
@@ -643,7 +643,7 @@ function ResourcesPage({ projectId }: { projectId: number }) {
                             value={
                                 diskUsed !== null
                                     ? `${bytes(diskUsed)} of ${bytes(s.disk_total)} ${share(diskUsed)}`
-                                    : "—"
+                                    : '—'
                             }
                         />
                     </>
@@ -700,18 +700,18 @@ function Row({
             className="flex items-center gap-4 px-4 py-1.5 text-sm"
             data-test={testId}
         >
-            <div className={cn("min-w-0 flex-1", sub && "pl-2")}>
+            <div className={cn('min-w-0 flex-1', sub && 'pl-2')}>
                 <span className="flex items-center gap-2">
                     {sub && (
                         <CornerDownRight className="size-3.5 text-muted-foreground" />
                     )}
-                    <span className={cn(!sub && "font-medium")}>{label}</span>
+                    <span className={cn(!sub && 'font-medium')}>{label}</span>
                 </span>
                 {hint && (
                     <p
                         className={cn(
-                            "text-xs text-muted-foreground",
-                            sub && "pl-5.5",
+                            'text-xs text-muted-foreground',
+                            sub && 'pl-5.5',
                         )}
                     >
                         {hint}
@@ -754,7 +754,7 @@ function Sparkline({ values }: { values: number[] }) {
             />
             {points.length > 1 && (
                 <polyline
-                    points={points.join(" ")}
+                    points={points.join(' ')}
                     fill="none"
                     stroke="currentColor"
                     strokeWidth={1.5}
@@ -796,10 +796,10 @@ function SshConnectPage({
         `    HostName ${data.host}`,
         `    Port ${data.port}`,
         `    User ${data.user}`,
-        "    StrictHostKeyChecking no",
-        "    UserKnownHostsFile /dev/null",
-        "    LogLevel ERROR",
-    ].join("\n");
+        '    StrictHostKeyChecking no',
+        '    UserKnownHostsFile /dev/null',
+        '    LogLevel ERROR',
+    ].join('\n');
     const remote = `ssh-remote+${alias}${data.path}`;
 
     return (
@@ -819,7 +819,7 @@ function SshConnectPage({
                 <Empty>
                     <span data-test="ssh-unavailable">
                         {data.unavailable ??
-                            "SSH only works on the machine running this app builder."}
+                            'SSH only works on the machine running this app builder.'}
                     </span>
                 </Empty>
             ) : data.owner_keys === 0 ? (
@@ -857,7 +857,7 @@ function SshConnectPage({
                         title="Add this to your SSH config"
                         description={
                             <>
-                                Paste it into{" "}
+                                Paste it into{' '}
                                 <code className="font-mono">~/.ssh/config</code>
                                 . Host key checks are off because each sandbox
                                 makes its own key and the address only works on
@@ -1021,7 +1021,7 @@ function SshKeysPage({ projectId }: { projectId: number }) {
                             </div>
                             {key.created_at && (
                                 <span className="shrink-0 text-xs text-muted-foreground">
-                                    Added{" "}
+                                    Added{' '}
                                     {new Date(
                                         key.created_at,
                                     ).toLocaleDateString()}
@@ -1070,8 +1070,8 @@ function AddKeyDialog({
     onClose: () => void;
     onAdded: () => void;
 }) {
-    const [name, setName] = useState("");
-    const [publicKey, setPublicKey] = useState("");
+    const [name, setName] = useState('');
+    const [publicKey, setPublicKey] = useState('');
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -1093,8 +1093,8 @@ function AddKeyDialog({
                 <DialogHeader>
                     <DialogTitle>Add SSH key</DialogTitle>
                     <DialogDescription>
-                        Paste a public key, like the contents of{" "}
-                        <code>~/.ssh/id_ed25519.pub</code>. No key yet? Run{" "}
+                        Paste a public key, like the contents of{' '}
+                        <code>~/.ssh/id_ed25519.pub</code>. No key yet? Run{' '}
                         <code>ssh-keygen -t ed25519</code> in a terminal.
                     </DialogDescription>
                 </DialogHeader>
@@ -1142,7 +1142,7 @@ function AddKeyDialog({
                         </Button>
                         <Button
                             type="submit"
-                            disabled={saving || publicKey.trim() === ""}
+                            disabled={saving || publicKey.trim() === ''}
                             data-test="ssh-key-save"
                         >
                             Add key
@@ -1174,7 +1174,7 @@ function DeleteKeyDialog({
         }
 
         setDeleting(true);
-        jsonRequest(SshKeyController.destroy.url(sshKey.id), {}, "DELETE")
+        jsonRequest(SshKeyController.destroy.url(sshKey.id), {}, 'DELETE')
             .then(onDeleted)
             .catch((e: Error) => setError(e.message))
             .finally(() => setDeleting(false));
@@ -1232,12 +1232,12 @@ function CopyButton({ text, label }: { text: string; label: string }) {
     );
 }
 
-function Empty({ children, tone }: { children: ReactNode; tone?: "error" }) {
+function Empty({ children, tone }: { children: ReactNode; tone?: 'error' }) {
     return (
         <div
             className={cn(
-                "rounded-lg border border-dashed p-6 text-center text-sm",
-                tone === "error" ? "text-red-600" : "text-muted-foreground",
+                'rounded-lg border border-dashed p-6 text-center text-sm',
+                tone === 'error' ? 'text-red-600' : 'text-muted-foreground',
             )}
             data-test="developer-empty-state"
         >

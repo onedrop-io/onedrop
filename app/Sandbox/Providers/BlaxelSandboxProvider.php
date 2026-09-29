@@ -300,8 +300,7 @@ class BlaxelSandboxProvider implements SandboxProvider
             throw new SandboxException("The sandbox image [{$name}] isn't on Blaxel yet. Run `php artisan sandbox:build-image`.");
         }
 
-        $image = $this->throwUnlessOk($response)->json();
-        $tag = collect($image['spec']['tags'] ?? [])->sortByDesc('createdAt')->first()['name'] ?? null;
+        $tag = $this->throwUnlessOk($response)->collect('spec.tags')->sortByDesc('createdAt')->first()['name'] ?? null;
 
         if (! $tag) {
             throw new SandboxException("The sandbox image [{$name}] has no build yet. Run `php artisan sandbox:build-image`.");
@@ -335,7 +334,8 @@ class BlaxelSandboxProvider implements SandboxProvider
             }
 
             if (in_array($status, ['FAILED', 'TERMINATED', 'DELETING'], true)) {
-                $reason = collect($sandbox['events'] ?? [])->last()['message'] ?? $status;
+                $events = isset($sandbox['events']) && is_array($sandbox['events']) ? $sandbox['events'] : [];
+                $reason = collect($events)->last()['message'] ?? $status;
 
                 throw new SandboxException("Blaxel couldn't start the sandbox: {$reason}");
             }
@@ -357,6 +357,10 @@ class BlaxelSandboxProvider implements SandboxProvider
         $upload = $this->sandboxSend($id, 'post', 'filesystem-multipart/initiate/'.$path, ['permissions' => '0600']);
         $handle = fopen($local, 'r');
         $parts = [];
+
+        if ($handle === false) {
+            throw new SandboxException("Couldn't read [{$local}] to upload it to the sandbox.");
+        }
 
         try {
             for ($number = 1; ! feof($handle); $number++) {

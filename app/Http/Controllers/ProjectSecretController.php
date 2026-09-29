@@ -56,7 +56,7 @@ class ProjectSecretController extends Controller
             'replace.*' => ['string'],
         ]);
 
-        $values = collect($validated['secrets'])->mapWithKeys(fn (array $secret) => [$secret['name'] => $secret['value'] ?? ''])->all();
+        $values = $request->collect('secrets')->mapWithKeys(fn (array $secret) => [$secret['name'] => $secret['value'] ?? ''])->all();
 
         return $this->fromSandbox($project, fn (Sandbox $sandbox) => [
             'secrets' => $secrets->set($sandbox, $values, $validated['replace'] ?? []),

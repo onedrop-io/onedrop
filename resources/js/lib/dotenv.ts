@@ -7,7 +7,7 @@ export type EnvEntry = { name: string; value: string };
  * Names aren't validated here, so a bad one can be shown to the user rather than dropped.
  */
 export function parseDotenv(text: string): EnvEntry[] {
-    const lines = text.replace(/\r\n?/g, "\n").split("\n");
+    const lines = text.replace(/\r\n?/g, '\n').split('\n');
     const entries = new Map<string, string>();
 
     for (let i = 0; i < lines.length; i++) {
@@ -29,19 +29,19 @@ export function parseDotenv(text: string): EnvEntry[] {
 
             // Keep reading lines until the closing, unescaped quote.
             while (!closed && i + 1 < lines.length) {
-                body += "\n" + lines[++i];
+                body += '\n' + lines[++i];
                 closed = body.match(/^((?:[^"\\]|\\.)*)"/s);
             }
 
             value = (closed ? closed[1] : body).replace(
                 /\\(.)/g,
-                (_, char: string) => (char === "n" ? "\n" : char),
+                (_, char: string) => (char === 'n' ? '\n' : char),
             );
         } else if (rest.startsWith("'")) {
             const end = rest.indexOf("'", 1);
             value = end === -1 ? rest.slice(1) : rest.slice(1, end);
         } else {
-            value = rest.replace(/\s+#.*$/, "").trim();
+            value = rest.replace(/\s+#.*$/, '').trim();
         }
 
         entries.set(name, value);

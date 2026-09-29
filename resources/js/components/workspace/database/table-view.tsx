@@ -41,6 +41,9 @@ const OPERATORS: { value: DatabaseFilterOperator; label: string }[] = [
 
 const PAGE_SIZES = [25, 50, 100];
 
+/** Passed to a cell's finish() when editing is cancelled; a symbol, since any string is a valid cell value. */
+const CANCEL = Symbol('cancel');
+
 type Sort = { column: string; direction: 'asc' | 'desc' } | null;
 
 /** A cell being edited: an existing row by index on the page, or a new row. */
@@ -192,7 +195,7 @@ export default function TableView({
         const original = data?.rows[target.index]?.[target.column];
 
         setEdits((current) => {
-            const row = { ...(current[target.index] ?? {}) };
+            const row = { ...current[target.index] };
             const unchanged =
                 value === undefined ||
                 (value === null
@@ -800,14 +803,14 @@ function Cell({
     // Enter/Escape unmount the input, which can also fire blur; only finish once.
     const finished = useRef(false);
 
-    const finish = (value: DatabaseValue | undefined | 'cancel') => {
+    const finish = (value: DatabaseValue | undefined | typeof CANCEL) => {
         if (finished.current) {
             return;
         }
 
         finished.current = true;
 
-        if (value === 'cancel') {
+        if (value === CANCEL) {
             onCancel();
         } else {
             onCommit(value);
@@ -841,7 +844,7 @@ function Cell({
                                 finish(draft);
                             } else if (event.key === 'Escape') {
                                 event.preventDefault();
-                                finish('cancel');
+                                finish(CANCEL);
                             }
                         }}
                         onBlur={() => finish(draft)}

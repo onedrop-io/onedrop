@@ -11,11 +11,11 @@ import {
     Search,
     Trash2,
     X,
-} from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { FormEvent, ReactNode } from "react";
-import ProjectSecretController from "@/actions/App/Http/Controllers/ProjectSecretController";
-import { Button } from "@/components/ui/button";
+} from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { FormEvent, ReactNode } from 'react';
+import ProjectSecretController from '@/actions/App/Http/Controllers/ProjectSecretController';
+import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
@@ -23,14 +23,14 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { useClipboard } from "@/hooks/use-clipboard";
-import { parseDotenv } from "@/lib/dotenv";
-import type { EnvEntry } from "@/lib/dotenv";
-import { jsonRequest } from "@/lib/json-request";
-import { cn } from "@/lib/utils";
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useClipboard } from '@/hooks/use-clipboard';
+import { parseDotenv } from '@/lib/dotenv';
+import type { EnvEntry } from '@/lib/dotenv';
+import { jsonRequest } from '@/lib/json-request';
+import { cn } from '@/lib/utils';
 
 type Names = { secrets: string[] };
 
@@ -56,14 +56,14 @@ const secretsApi = {
         jsonRequest<Names>(
             ProjectSecretController.update.url(projectId),
             { name, value },
-            "PUT",
+            'PUT',
         ),
 
     delete: (projectId: number, name: string) =>
         jsonRequest<Names>(
             ProjectSecretController.destroy.url(projectId),
             { name },
-            "DELETE",
+            'DELETE',
         ),
 };
 
@@ -84,7 +84,7 @@ export default function SecretsPanel({
     const [names, setNames] = useState<string[] | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
-    const [filter, setFilter] = useState("");
+    const [filter, setFilter] = useState('');
     const [revealed, setRevealed] = useState<Record<string, string>>({});
     const [editing, setEditing] = useState<{ name: string | null } | null>(
         null,
@@ -172,7 +172,7 @@ export default function SecretsPanel({
                     aria-label="Refresh secrets"
                     onClick={load}
                 >
-                    <RefreshCw className={cn(loading && "animate-spin")} />
+                    <RefreshCw className={cn(loading && 'animate-spin')} />
                 </Button>
                 <Button
                     onClick={() => setEditing({ name: null })}
@@ -198,7 +198,7 @@ export default function SecretsPanel({
                         No secrets yet
                     </p>
                     <p className="mt-1">
-                        Add API keys and passwords your app needs, like{" "}
+                        Add API keys and passwords your app needs, like{' '}
                         <code>STRIPE_SECRET_KEY</code>, so they stay out of the
                         code.
                     </p>
@@ -289,10 +289,10 @@ function SecretRow({
     onDelete: () => void;
     onError: (message: string | null) => void;
 }) {
-    const [copied, setCopied] = useState<"name" | "value" | null>(null);
+    const [copied, setCopied] = useState<'name' | 'value' | null>(null);
     const [, copy] = useClipboard();
 
-    const copyText = (what: "name" | "value", text: string) =>
+    const copyText = (what: 'name' | 'value', text: string) =>
         copy(text).then((ok) => {
             if (ok) {
                 setCopied(what);
@@ -323,7 +323,7 @@ function SecretRow({
 
     const copyValue = () =>
         fetchValue()
-            .then((text) => copyText("value", text))
+            .then((text) => copyText('value', text))
             .catch((e: Error) => onError(e.message));
 
     return (
@@ -334,8 +334,8 @@ function SecretRow({
             <div className="flex min-w-0 items-center gap-2 rounded-md bg-muted/50 px-2 py-1.5">
                 <CopyButton
                     label={`Copy name ${name}`}
-                    copied={copied === "name"}
-                    onClick={() => void copyText("name", name)}
+                    copied={copied === 'name'}
+                    onClick={() => void copyText('name', name)}
                     testId="secret-copy-name"
                 />
                 <span
@@ -348,20 +348,20 @@ function SecretRow({
             <div className="flex min-w-0 items-center gap-2 rounded-md bg-muted/50 px-2 py-1.5">
                 <CopyButton
                     label={`Copy value of ${name}`}
-                    copied={copied === "value"}
+                    copied={copied === 'value'}
                     onClick={() => void copyValue()}
                     testId="secret-copy-value"
                 />
                 <span
                     className={cn(
-                        "min-w-0 flex-1 font-mono text-sm",
+                        'min-w-0 flex-1 font-mono text-sm',
                         value === undefined
-                            ? "tracking-widest text-muted-foreground"
-                            : "break-all whitespace-pre-wrap",
+                            ? 'tracking-widest text-muted-foreground'
+                            : 'break-all whitespace-pre-wrap',
                     )}
                     data-test="secret-value"
                 >
-                    {value === undefined ? "••••••••" : value || "(empty)"}
+                    {value === undefined ? '••••••••' : value || '(empty)'}
                 </span>
                 <Button
                     size="icon"
@@ -432,10 +432,10 @@ type Row = EnvEntry & { id: number };
 
 let nextRowId = 1;
 
-const blankRow = (): Row => ({ id: nextRowId++, name: "", value: "" });
+const blankRow = (): Row => ({ id: nextRowId++, name: '', value: '' });
 
 const textareaClass =
-    "w-full resize-y rounded-md border border-input bg-transparent px-3 py-1.5 font-mono text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50";
+    'w-full resize-y rounded-md border border-input bg-transparent px-3 py-1.5 font-mono text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50';
 
 /**
  * Add secrets, one row each. Pasting NAME=value lines (like an .env file) into a name
@@ -484,7 +484,7 @@ function NewSecretsDialog({
         setRows((current) => {
             const index = current.findIndex((row) => row.id === id);
             const target = current[index];
-            const keep = target.name.trim() !== "" || target.value !== "";
+            const keep = target.name.trim() !== '' || target.value !== '';
             const rest = current.filter((row) => row.id !== id);
             // A pasted name that's already a row updates that row instead of repeating it.
             const updated = rest.map((row) => {
@@ -514,7 +514,7 @@ function NewSecretsDialog({
     };
 
     const filled = rows.filter(
-        (row) => row.name.trim() !== "" || row.value !== "",
+        (row) => row.name.trim() !== '' || row.value !== '',
     );
     const problems = new Map<number, string>();
     const replacing = new Set<string>();
@@ -522,12 +522,12 @@ function NewSecretsDialog({
     for (const row of filled) {
         const name = row.name.trim();
 
-        if (name === "") {
-            problems.set(row.id, "Needs a name.");
+        if (name === '') {
+            problems.set(row.id, 'Needs a name.');
         } else if (!NAME_PATTERN.test(name) || name.length > 100) {
             problems.set(
                 row.id,
-                "Use letters, digits and underscores, starting with a letter or underscore.",
+                'Use letters, digits and underscores, starting with a letter or underscore.',
             );
         } else if (
             filled.filter((other) => other.name.trim() === name).length > 1
@@ -600,7 +600,7 @@ function NewSecretsDialog({
                                                     paste(
                                                         row.id,
                                                         event.clipboardData.getData(
-                                                            "text",
+                                                            'text',
                                                         ),
                                                     )
                                                 ) {
@@ -624,14 +624,14 @@ function NewSecretsDialog({
                                                 })
                                             }
                                             rows={
-                                                row.value.includes("\n") ? 3 : 1
+                                                row.value.includes('\n') ? 3 : 1
                                             }
                                             autoComplete="off"
                                             spellCheck={false}
-                                            aria-label={`Value of ${row.name.trim() || "new secret"}`}
+                                            aria-label={`Value of ${row.name.trim() || 'new secret'}`}
                                             className={cn(
                                                 textareaClass,
-                                                "min-h-9",
+                                                'min-h-9',
                                             )}
                                             data-test="secret-value-input"
                                         />
@@ -710,7 +710,7 @@ function NewSecretsDialog({
                             }
                             data-test="secret-save"
                         >
-                            {count > 1 ? `Save ${count} secrets` : "Add secret"}
+                            {count > 1 ? `Save ${count} secrets` : 'Add secret'}
                         </Button>
                     </DialogFooter>
                 </form>
@@ -731,7 +731,7 @@ function EditSecretDialog({
     onClose: () => void;
     onSaved: (secrets: string[]) => void;
 }) {
-    const [value, setValue] = useState("");
+    const [value, setValue] = useState('');
     const [loaded, setLoaded] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -878,12 +878,12 @@ function DeleteSecretDialog({
     );
 }
 
-function Empty({ children, tone }: { children: ReactNode; tone?: "error" }) {
+function Empty({ children, tone }: { children: ReactNode; tone?: 'error' }) {
     return (
         <div
             className={cn(
-                "max-w-xl rounded-lg border border-dashed p-6 text-center text-sm",
-                tone === "error" ? "text-red-600" : "text-muted-foreground",
+                'max-w-xl rounded-lg border border-dashed p-6 text-center text-sm',
+                tone === 'error' ? 'text-red-600' : 'text-muted-foreground',
             )}
             data-test="secrets-empty-state"
         >

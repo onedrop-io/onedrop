@@ -20,11 +20,11 @@ becomes the E2B template.
 
 ## What goes where
 
-| Where | What |
-| --- | --- |
-| Base image, platform | Debian slim, single-user Nix, Devbox, `/opt/zap/bin/{php,node}` (PHP with pdo_sqlite/pdo_pgsql/pdo_mysql, Node 22), ttyd, openssh, git, sqlite, OpenCode (pinned), starship, eza, fzf, bash-completion, `/opt/zap` scripts |
-| Base image, pre-warmed store only | Default stack: php84 + composer, nodejs_22, postgresql, python3 (~683 MiB closure together, measured) |
-| Project `devbox.json` | The project's language(s), libraries and services (Postgres/Redis via `devbox services`); Claude Code / Codex CLIs if wanted |
+| Where                             | What                                                                                                                                                                                                                       |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Base image, platform              | Debian slim, single-user Nix, Devbox, `/opt/zap/bin/{php,node}` (PHP with pdo_sqlite/pdo_pgsql/pdo_mysql, Node 22), ttyd, openssh, git, sqlite, OpenCode (pinned), starship, eza, fzf, bash-completion, `/opt/zap` scripts |
+| Base image, pre-warmed store only | Default stack: php84 + composer, nodejs_22, postgresql, python3 (~683 MiB closure together, measured)                                                                                                                      |
+| Project `devbox.json`             | The project's language(s), libraries and services (Postgres/Redis via `devbox services`); Claude Code / Codex CLIs if wanted                                                                                               |
 
 Pre-warmed is not activated: a package in the store is only on `PATH` if the project lists it.
 
@@ -100,6 +100,7 @@ M0 (README) first: start this template on E2B with Laravel + Postgres, pause, re
 
 ```md
 ## SBX-003: Any stack
+
 - User should be able to build an app in any language; the agent adds what it needs to the project's devbox.json.
 - A new Laravel or Node app should start without downloading its stack.
 - Adding a package should keep working after the sandbox updates.

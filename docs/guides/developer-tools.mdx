@@ -36,21 +36,29 @@ Any other port is **inside the sandbox only**. If your app listens somewhere els
 SSH lets you work on the app from VS Code, Cursor or a terminal. Your edits land in the sandbox, where the agent and the preview see them.
 
 <Steps>
-  <Step title="Add a key">
-    Open **SSH → Keys** and click **Add SSH key**. Paste a public key, like the contents of `~/.ssh/id_ed25519.pub`. If you don't have one yet, run `ssh-keygen -t ed25519` in a terminal. The name is optional; it defaults to the key's comment.
-  </Step>
-  <Step title="Add the SSH config entry">
-    Open **SSH → Connect** and copy the entry into `~/.ssh/config`. It gives the project a host name like `onedrop-todo-app-12`.
-  </Step>
-  <Step title="Connect">
-    Click **Open in VS Code** or **Open in Cursor** (both need the Remote - SSH extension), or run the `ssh` command shown on the page. You land in `/workspace` as the `sandbox` user.
-  </Step>
+    <Step title="Add a key">
+        Open **SSH → Keys** and click **Add SSH key**. Paste a public key, like
+        the contents of `~/.ssh/id_ed25519.pub`. If you don't have one yet, run
+        `ssh-keygen -t ed25519` in a terminal. The name is optional; it defaults
+        to the key's comment.
+    </Step>
+    <Step title="Add the SSH config entry">
+        Open **SSH → Connect** and copy the entry into `~/.ssh/config`. It gives
+        the project a host name like `onedrop-todo-app-12`.
+    </Step>
+    <Step title="Connect">
+        Click **Open in VS Code** or **Open in Cursor** (both need the Remote -
+        SSH extension), or run the `ssh` command shown on the page. You land in
+        `/workspace` as the `sandbox` user.
+    </Step>
 </Steps>
 
 Keys belong to your account, so one key works for all your projects. Adding or deleting a key applies to your running sandboxes right away. The Keys page shows each key's type and SHA256 fingerprint, the same one `ssh-keygen -lf` prints. Paste only the public key: the page refuses private keys.
 
 <Info>
-  A project's sandbox accepts only its owner's keys, never passwords. An admin opening someone else's project sees the owner's connection details, but has to use the Shell tab instead.
+    A project's sandbox accepts only its owner's keys, never passwords. An admin
+    opening someone else's project sees the owner's connection details, but has
+    to use the Shell tab instead.
 </Info>
 
 The SSH port changes when a sandbox is recreated, and each sandbox makes its own host key. Come back to **Connect** to copy the new entry. The entry turns off host key checks because of this; the address only works on the machine running OneDrop.

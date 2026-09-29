@@ -9,6 +9,7 @@ use App\Models\Task;
 use App\Sandbox\Agents\AgentQueue;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -41,7 +42,7 @@ class TaskMessageController extends Controller
             $task,
             $validated['content'] ?? '',
             now: ($validated['mode'] ?? 'queue') === 'now',
-            attachments: $request->file('attachments', []),
+            attachments: array_values(Arr::wrap($request->file('attachments'))),
         );
 
         return $request->boolean('stay') ? back() : to_route('projects.tasks.show', [$project, $task]);

@@ -34,7 +34,7 @@ class AgentQueue
      */
     public function send(Conversation $conversation, string $content, bool $now = false, array $attachments = []): Message
     {
-        if ($conversation->status === ProjectStatus::Working) {
+        if ($conversation->getAttribute('status') === ProjectStatus::Working) {
             if (! $now) {
                 $message = $conversation->queuedMessages()->create([
                     'role' => MessageRole::User,
@@ -100,7 +100,7 @@ class AgentQueue
         // One by one, so their attachments' files go too.
         $queued->each->delete();
 
-        return $queued->pluck('content')->all();
+        return array_values($queued->map(fn (Message $message) => $message->content)->all());
     }
 
     /**
@@ -108,7 +108,7 @@ class AgentQueue
      */
     protected function interrupt(Conversation $conversation): void
     {
-        if ($conversation->status !== ProjectStatus::Working) {
+        if ($conversation->getAttribute('status') !== ProjectStatus::Working) {
             return;
         }
 

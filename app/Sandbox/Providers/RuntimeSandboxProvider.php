@@ -215,6 +215,10 @@ class RuntimeSandboxProvider implements SandboxProvider
         $chunk = max(1, (int) $upload['chunkBytes']);
         $handle = fopen($local, 'r');
 
+        if ($handle === false) {
+            throw new SandboxException("Couldn't read [{$local}] to upload it to the sandbox.");
+        }
+
         try {
             for ($offset = 0; $offset < $size; $offset += $chunk) {
                 $bytes = stream_get_contents($handle, $chunk, $offset);

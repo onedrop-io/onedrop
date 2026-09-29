@@ -12,12 +12,12 @@ import {
     Search,
     Undo2,
     User,
-} from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
-import type { FormEvent, KeyboardEvent, ReactNode } from "react";
-import ProjectGitController from "@/actions/App/Http/Controllers/ProjectGitController";
-import SocialProviderIcon from "@/components/social-provider-icon";
-import { Button } from "@/components/ui/button";
+} from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import type { FormEvent, KeyboardEvent, ReactNode } from 'react';
+import ProjectGitController from '@/actions/App/Http/Controllers/ProjectGitController';
+import SocialProviderIcon from '@/components/social-provider-icon';
+import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
@@ -25,19 +25,19 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-} from "@/components/ui/dialog";
+} from '@/components/ui/dialog';
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { GitHubConnect } from "@/components/workspace/github-connect";
-import type { GitHubInfo } from "@/components/workspace/github-connect";
-import { jsonRequest } from "@/lib/json-request";
-import { cn } from "@/lib/utils";
+} from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
+import { GitHubConnect } from '@/components/workspace/github-connect';
+import type { GitHubInfo } from '@/components/workspace/github-connect';
+import { jsonRequest } from '@/lib/json-request';
+import { cn } from '@/lib/utils';
 
 type Change = { path: string; status: string };
 
@@ -49,7 +49,7 @@ type Status = {
     changes: Change[];
     more_changes: boolean;
     tracking: { ahead: number; behind: number } | null;
-    state: "merging" | "rebasing" | null;
+    state: 'merging' | 'rebasing' | null;
 };
 
 type Commit = {
@@ -67,7 +67,7 @@ type Remote = {
     username: string | null;
     /** Connected through the GitHub App (no token stored). */
     github_app: boolean;
-    sync_status: "pushing" | "pulling" | "failed" | null;
+    sync_status: 'pushing' | 'pulling' | 'failed' | null;
     sync_error: string | null;
     synced_at: string | null;
 };
@@ -85,12 +85,12 @@ type GitData = {
 type Notice = { text: string; error?: boolean } | null;
 
 const STATUS_LABELS: Record<string, string> = {
-    M: "Modified",
-    A: "Added",
-    D: "Deleted",
-    R: "Renamed",
-    U: "Conflicted",
-    "?": "New",
+    M: 'Modified',
+    A: 'Added',
+    D: 'Deleted',
+    R: 'Renamed',
+    U: 'Conflicted',
+    '?': 'New',
 };
 
 /**
@@ -111,22 +111,22 @@ export default function GitPanel({
     const [error, setError] = useState<string | null>(null);
     // Back from GitHub with a problem (`?github_error=`): show it once, and tidy the URL.
     const [notice, setNotice] = useState<Notice>(() => {
-        if (typeof window === "undefined") {
+        if (typeof window === 'undefined') {
             return null;
         }
 
         const params = new URLSearchParams(window.location.search);
-        const githubError = params.get("github_error");
+        const githubError = params.get('github_error');
 
         // The Tools section stays in the URL (TASK-004); only the one-time error goes.
         if (githubError) {
-            params.delete("github_error");
+            params.delete('github_error');
             const query = params.toString();
 
             window.history.replaceState(
                 window.history.state,
-                "",
-                window.location.pathname + (query ? `?${query}` : ""),
+                '',
+                window.location.pathname + (query ? `?${query}` : ''),
             );
         }
 
@@ -135,22 +135,22 @@ export default function GitPanel({
 
     // Back from GitHub (`?github=connect`): open the Connect to GitHub dialog again, once.
     const [returnedFromGitHub] = useState(() => {
-        if (typeof window === "undefined") {
+        if (typeof window === 'undefined') {
             return false;
         }
 
         const params = new URLSearchParams(window.location.search);
 
-        if (params.get("github") !== "connect") {
+        if (params.get('github') !== 'connect') {
             return false;
         }
 
-        params.delete("github");
+        params.delete('github');
         const query = params.toString();
         window.history.replaceState(
             window.history.state,
-            "",
-            window.location.pathname + (query ? `?${query}` : ""),
+            '',
+            window.location.pathname + (query ? `?${query}` : ''),
         );
 
         return true;
@@ -169,14 +169,14 @@ export default function GitPanel({
 
     useEffect(() => {
         if (running) {
-            load();
+            void load();
         }
         // Reload when the agent finishes: its turn is a new commit.
     }, [load, running, working]);
 
     const syncing =
-        data?.remote?.sync_status === "pushing" ||
-        data?.remote?.sync_status === "pulling";
+        data?.remote?.sync_status === 'pushing' ||
+        data?.remote?.sync_status === 'pulling';
 
     useEffect(() => {
         if (!syncing) {
@@ -204,7 +204,7 @@ export default function GitPanel({
     const send = (
         url: string,
         body: unknown,
-        method: "POST" | "PUT" | "DELETE" = "POST",
+        method: 'POST' | 'PUT' | 'DELETE' = 'POST',
     ) =>
         jsonRequest<Partial<GitData>>(url, body, method)
             .then((changed) => {
@@ -260,8 +260,8 @@ export default function GitPanel({
             {notice && (
                 <p
                     className={cn(
-                        "text-sm",
-                        notice.error ? "text-red-600" : "text-muted-foreground",
+                        'text-sm',
+                        notice.error ? 'text-red-600' : 'text-muted-foreground',
                     )}
                     data-test="git-notice"
                 >
@@ -281,8 +281,8 @@ export default function GitPanel({
 
             {data.status.state && (
                 <p className="text-sm text-amber-600" data-test="git-state">
-                    The repository is in the middle of a{" "}
-                    {data.status.state === "merging" ? "merge" : "rebase"}. Ask
+                    The repository is in the middle of a{' '}
+                    {data.status.state === 'merging' ? 'merge' : 'rebase'}. Ask
                     the agent to finish it, or use the Shell.
                 </p>
             )}
@@ -318,8 +318,8 @@ export default function GitPanel({
                 backed up outside the sandbox
                 {data.backed_up_at
                     ? ` (last backup ${timeAgo(data.backed_up_at)})`
-                    : ""}
-                . Dependencies, caches and{" "}
+                    : ''}
+                . Dependencies, caches and{' '}
                 <code className="font-mono">.env</code> secrets are never
                 committed.
             </p>
@@ -330,7 +330,7 @@ export default function GitPanel({
 type Send = (
     url: string,
     body: unknown,
-    method?: "POST" | "PUT" | "DELETE",
+    method?: 'POST' | 'PUT' | 'DELETE',
 ) => Promise<boolean>;
 
 /** The current branch, a menu to switch or create one, and refresh. */
@@ -348,17 +348,17 @@ function BranchBar({
     onRefresh: () => void;
 }) {
     const [creating, setCreating] = useState(false);
-    const [name, setName] = useState("");
+    const [name, setName] = useState('');
 
     const create = (event: FormEvent) => {
         event.preventDefault();
-        send(ProjectGitController.switch.url(projectId), {
+        void send(ProjectGitController.switch.url(projectId), {
             branch: name.trim(),
             create: true,
         }).then((ok) => {
             if (ok) {
                 setCreating(false);
-                setName("");
+                setName('');
             }
         });
     };
@@ -379,7 +379,7 @@ function BranchBar({
                     <Button
                         type="submit"
                         size="sm"
-                        disabled={name.trim() === ""}
+                        disabled={name.trim() === ''}
                         data-test="git-branch-create"
                     >
                         Create
@@ -405,7 +405,7 @@ function BranchBar({
                                 data-test="git-branch"
                             >
                                 {status.branch ??
-                                    (status.head ? "Detached" : "main")}
+                                    (status.head ? 'Detached' : 'main')}
                                 <ChevronDown className="size-4 text-muted-foreground" />
                             </Button>
                         </DropdownMenuTrigger>
@@ -426,9 +426,9 @@ function BranchBar({
                                 >
                                     <Check
                                         className={cn(
-                                            "size-4",
+                                            'size-4',
                                             branch !== status.branch &&
-                                                "invisible",
+                                                'invisible',
                                         )}
                                     />
                                     {branch}
@@ -479,7 +479,7 @@ function RemoteCard({
     onReload: () => void;
     send: Send;
 }) {
-    const [form, setForm] = useState<"github" | "existing" | null>(null);
+    const [form, setForm] = useState<'github' | 'existing' | null>(null);
 
     if (!remote) {
         return (
@@ -494,7 +494,7 @@ function RemoteCard({
                         hasCommits={status.head !== null}
                         autoOpen={autoOpenGitHub}
                         onConnected={onReload}
-                        onOtherHost={() => setForm("existing")}
+                        onOtherHost={() => setForm('existing')}
                     />
                 ) : (
                     <>
@@ -506,7 +506,7 @@ function RemoteCard({
                         <div className="mt-3 flex flex-wrap gap-2">
                             <Button
                                 size="sm"
-                                onClick={() => setForm("github")}
+                                onClick={() => setForm('github')}
                                 data-test="git-create-github"
                             >
                                 Create on GitHub
@@ -514,7 +514,7 @@ function RemoteCard({
                             <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => setForm("existing")}
+                                onClick={() => setForm('existing')}
                                 data-test="git-connect-existing"
                             >
                                 Connect existing
@@ -535,7 +535,7 @@ function RemoteCard({
     }
 
     const syncing =
-        remote.sync_status === "pushing" || remote.sync_status === "pulling";
+        remote.sync_status === 'pushing' || remote.sync_status === 'pulling';
     const ahead = status.tracking?.ahead ?? null;
     const behind = status.tracking?.behind ?? 0;
 
@@ -554,34 +554,34 @@ function RemoteCard({
                             />
                         )}
                         <a
-                            href={remote.url.replace(/\.git$/, "")}
+                            href={remote.url.replace(/\.git$/, '')}
                             target="_blank"
                             rel="noreferrer"
                             className="underline-offset-4 hover:underline"
                         >
                             {remote.url
-                                .replace(/^https:\/\//, "")
-                                .replace(/\.git$/, "")}
+                                .replace(/^https:\/\//, '')
+                                .replace(/\.git$/, '')}
                         </a>
                     </p>
                     <p
                         className="text-xs text-muted-foreground"
                         data-test="git-remote-state"
                     >
-                        {remote.sync_status === "pushing"
-                            ? "Pushing…"
-                            : remote.sync_status === "pulling"
-                              ? "Pulling…"
+                        {remote.sync_status === 'pushing'
+                            ? 'Pushing…'
+                            : remote.sync_status === 'pulling'
+                              ? 'Pulling…'
                               : ahead === null
-                                ? "Not pushed yet"
+                                ? 'Not pushed yet'
                                 : ahead === 0 && behind === 0
-                                  ? `Up to date${remote.synced_at ? ` · synced ${timeAgo(remote.synced_at)}` : ""}`
+                                  ? `Up to date${remote.synced_at ? ` · synced ${timeAgo(remote.synced_at)}` : ''}`
                                   : [
                                         ahead > 0 && `${ahead} to push`,
                                         behind > 0 && `${behind} to pull`,
                                     ]
                                         .filter(Boolean)
-                                        .join(" · ")}
+                                        .join(' · ')}
                     </p>
                 </div>
                 <DropdownMenu>
@@ -604,7 +604,7 @@ function RemoteCard({
                                         projectId,
                                     ),
                                     {},
-                                    "DELETE",
+                                    'DELETE',
                                 )
                             }
                             data-test="git-disconnect"
@@ -639,7 +639,7 @@ function RemoteCard({
                     Pull
                 </Button>
             </div>
-            {remote.sync_status === "failed" && remote.sync_error && (
+            {remote.sync_status === 'failed' && remote.sync_error && (
                 <p className="text-sm text-red-600" data-test="git-sync-error">
                     {remote.sync_error}
                 </p>
@@ -654,15 +654,15 @@ function RemoteForm({
     send,
     onDone,
 }: {
-    kind: "github" | "existing";
+    kind: 'github' | 'existing';
     projectId: number;
     send: Send;
     onDone: () => void;
 }) {
-    const [name, setName] = useState("");
-    const [url, setUrl] = useState("");
-    const [username, setUsername] = useState("");
-    const [token, setToken] = useState("");
+    const [name, setName] = useState('');
+    const [url, setUrl] = useState('');
+    const [username, setUsername] = useState('');
+    const [token, setToken] = useState('');
     const [isPrivate, setIsPrivate] = useState(true);
     const [saving, setSaving] = useState(false);
 
@@ -671,7 +671,7 @@ function RemoteForm({
         setSaving(true);
 
         const request =
-            kind === "github"
+            kind === 'github'
                 ? send(ProjectGitController.github.url(projectId), {
                       name: name.trim(),
                       token,
@@ -684,10 +684,12 @@ function RemoteForm({
                           username: username.trim() || null,
                           token,
                       },
-                      "PUT",
+                      'PUT',
                   );
 
-        request.then((ok) => ok && onDone()).finally(() => setSaving(false));
+        void request
+            .then((ok) => ok && onDone())
+            .finally(() => setSaving(false));
     };
 
     return (
@@ -696,7 +698,7 @@ function RemoteForm({
             className="mt-4 space-y-3 border-t border-sidebar-border/70 pt-4 dark:border-sidebar-border"
             data-test="git-remote-form"
         >
-            {kind === "github" ? (
+            {kind === 'github' ? (
                 <Field label="Repository name">
                     <Input
                         autoFocus
@@ -730,9 +732,9 @@ function RemoteForm({
             )}
             <Field
                 label={
-                    kind === "github"
-                        ? "GitHub token (with repository access)"
-                        : "Access token (can read and write the repository)"
+                    kind === 'github'
+                        ? 'GitHub token (with repository access)'
+                        : 'Access token (can read and write the repository)'
                 }
             >
                 <Input
@@ -743,7 +745,7 @@ function RemoteForm({
                     data-test="git-remote-token"
                 />
             </Field>
-            {kind === "github" && (
+            {kind === 'github' && (
                 <label className="flex items-center gap-2 text-sm">
                     <input
                         type="checkbox"
@@ -763,14 +765,14 @@ function RemoteForm({
                     size="sm"
                     disabled={
                         saving ||
-                        token === "" ||
-                        (kind === "github"
-                            ? name.trim() === ""
-                            : url.trim() === "")
+                        token === '' ||
+                        (kind === 'github'
+                            ? name.trim() === ''
+                            : url.trim() === '')
                     }
                     data-test="git-remote-save"
                 >
-                    {kind === "github" ? "Create and push" : "Connect"}
+                    {kind === 'github' ? 'Create and push' : 'Connect'}
                 </Button>
                 <Button
                     type="button"
@@ -797,28 +799,29 @@ function CommitCard({
     disabled: boolean;
     send: Send;
 }) {
-    const [message, setMessage] = useState("");
+    const [message, setMessage] = useState('');
     const [committing, setCommitting] = useState(false);
-    const [confirmDiscard, setConfirmDiscard] = useState<string | "all" | null>(
-        null,
-    );
+    // The file whose changes to discard, or null for all of them. (A path can't mean "all": a file may be named that.)
+    const [confirmDiscard, setConfirmDiscard] = useState<{
+        path: string | null;
+    } | null>(null);
     const count = status.changes.length;
 
     const commit = (event?: FormEvent) => {
         event?.preventDefault();
 
-        if (message.trim() === "" || count === 0) {
+        if (message.trim() === '' || count === 0) {
             return;
         }
 
         setCommitting(true);
-        send(ProjectGitController.commit.url(projectId), { message })
-            .then((ok) => ok && setMessage(""))
+        void send(ProjectGitController.commit.url(projectId), { message })
+            .then((ok) => ok && setMessage(''))
             .finally(() => setCommitting(false));
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
-        if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+        if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
             commit();
         }
     };
@@ -842,8 +845,8 @@ function CommitCard({
                             data-test="git-change-count"
                         >
                             {count === 0
-                                ? "No changes"
-                                : `${count}${status.more_changes ? "+" : ""} changed ${count === 1 ? "file" : "files"}`}
+                                ? 'No changes'
+                                : `${count}${status.more_changes ? '+' : ''} changed ${count === 1 ? 'file' : 'files'}`}
                         </p>
                         {count > 0 && (
                             <Button
@@ -851,7 +854,9 @@ function CommitCard({
                                 size="sm"
                                 variant="ghost"
                                 disabled={disabled}
-                                onClick={() => setConfirmDiscard("all")}
+                                onClick={() =>
+                                    setConfirmDiscard({ path: null })
+                                }
                                 data-test="git-discard-all"
                             >
                                 <Undo2 className="size-4" />
@@ -881,7 +886,9 @@ function CommitCard({
                                         aria-label={`Discard changes to ${change.path}`}
                                         disabled={disabled}
                                         onClick={() =>
-                                            setConfirmDiscard(change.path)
+                                            setConfirmDiscard({
+                                                path: change.path,
+                                            })
                                         }
                                     >
                                         <Undo2 className="size-3.5" />
@@ -889,19 +896,19 @@ function CommitCard({
                                     <span
                                         title={STATUS_LABELS[change.status]}
                                         className={cn(
-                                            "w-5 rounded text-center font-mono text-xs",
-                                            change.status === "D"
-                                                ? "text-red-600"
-                                                : change.status === "?" ||
-                                                    change.status === "A"
-                                                  ? "text-green-600"
-                                                  : "text-amber-600",
+                                            'w-5 rounded text-center font-mono text-xs',
+                                            change.status === 'D'
+                                                ? 'text-red-600'
+                                                : change.status === '?' ||
+                                                    change.status === 'A'
+                                                  ? 'text-green-600'
+                                                  : 'text-amber-600',
                                         )}
                                     >
-                                        {change.status === "?"
-                                            ? "U"
-                                            : change.status === "U"
-                                              ? "!"
+                                        {change.status === '?'
+                                            ? 'U'
+                                            : change.status === 'U'
+                                              ? '!'
                                               : change.status}
                                     </span>
                                 </li>
@@ -916,7 +923,7 @@ function CommitCard({
                         disabled ||
                         committing ||
                         count === 0 ||
-                        message.trim() === ""
+                        message.trim() === ''
                     }
                     data-test="git-commit-button"
                 >
@@ -928,22 +935,19 @@ function CommitCard({
             {confirmDiscard && (
                 <Confirm
                     title={
-                        confirmDiscard === "all"
-                            ? "Discard all changes?"
-                            : "Discard changes to this file?"
+                        confirmDiscard.path === null
+                            ? 'Discard all changes?'
+                            : 'Discard changes to this file?'
                     }
                     description={
-                        confirmDiscard === "all"
+                        confirmDiscard.path === null
                             ? "Every file goes back to the last commit, and new files are deleted. This can't be undone."
-                            : `${confirmDiscard} goes back to the last commit (or is deleted if it's new). This can't be undone.`
+                            : `${confirmDiscard.path} goes back to the last commit (or is deleted if it's new). This can't be undone.`
                     }
                     action="Discard"
                     onConfirm={() =>
                         send(ProjectGitController.discard.url(projectId), {
-                            path:
-                                confirmDiscard === "all"
-                                    ? null
-                                    : confirmDiscard,
+                            path: confirmDiscard.path,
                         })
                     }
                     onClose={() => setConfirmDiscard(null)}
@@ -971,7 +975,7 @@ function History({
 }) {
     const [restoring, setRestoring] = useState<Commit | null>(null);
     const [open, setOpen] = useState<string | null>(null);
-    const [query, setQuery] = useState("");
+    const [query, setQuery] = useState('');
     // Search results, or older pages of the history; null shows the latest commits.
     const [page, setPage] = useState<{
         commits: Commit[];
@@ -979,7 +983,7 @@ function History({
     } | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const searching = query.trim() !== "";
+    const searching = query.trim() !== '';
 
     // New commits (a turn, a commit, a restore) show the latest history again, unless searching.
     useEffect(() => {
@@ -1067,7 +1071,7 @@ function History({
                 searching ? (
                     <Empty>
                         {loading || page === null
-                            ? "Searching…"
+                            ? 'Searching…'
                             : `No commits match "${query.trim()}".`}
                     </Empty>
                 ) : (
@@ -1117,9 +1121,9 @@ function History({
                                         </span>
                                         <span className="block text-xs text-muted-foreground">
                                             {commit.agent
-                                                ? "Agent"
-                                                : commit.author}{" "}
-                                            ·{" "}
+                                                ? 'Agent'
+                                                : commit.author}{' '}
+                                            ·{' '}
                                             <time
                                                 dateTime={commit.date}
                                                 title={new Date(
@@ -1127,8 +1131,8 @@ function History({
                                                 ).toLocaleString()}
                                             >
                                                 {timeAgo(commit.date)}
-                                            </time>{" "}
-                                            ·{" "}
+                                            </time>{' '}
+                                            ·{' '}
                                             <span className="font-mono">
                                                 {commit.sha.slice(0, 7)}
                                             </span>
@@ -1136,8 +1140,8 @@ function History({
                                     </span>
                                     <ChevronDown
                                         className={cn(
-                                            "mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform",
-                                            open === commit.sha && "rotate-180",
+                                            'mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform',
+                                            open === commit.sha && 'rotate-180',
                                         )}
                                     />
                                 </button>
@@ -1194,7 +1198,7 @@ function History({
                     onClick={showMore}
                     data-test="git-history-more"
                 >
-                    {loading ? "Loading…" : "Show more"}
+                    {loading ? 'Loading…' : 'Show more'}
                 </Button>
             )}
 
@@ -1231,10 +1235,10 @@ type CommitDetail = Commit & {
 };
 
 const FILE_STATUS: Record<string, string> = {
-    A: "Added",
-    M: "Modified",
-    D: "Deleted",
-    T: "Type changed",
+    A: 'Added',
+    M: 'Modified',
+    D: 'Deleted',
+    T: 'Type changed',
 };
 
 /** A commit's full message, author, date, id and changed files, each opening its diff. */
@@ -1271,7 +1275,7 @@ function CommitDetails({ projectId, sha }: { projectId: number; sha: string }) {
     }
 
     const copy = () => {
-        navigator.clipboard?.writeText(detail.sha).then(() => {
+        void navigator.clipboard?.writeText(detail.sha).then(() => {
             setCopied(true);
             setTimeout(() => setCopied(false), 1500);
         });
@@ -1293,7 +1297,7 @@ function CommitDetails({ projectId, sha }: { projectId: number; sha: string }) {
             <dl className="grid grid-cols-[5rem_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs">
                 <dt className="text-muted-foreground">Author</dt>
                 <dd className="truncate">
-                    {detail.agent ? "Agent" : detail.author}{" "}
+                    {detail.agent ? 'Agent' : detail.author}{' '}
                     <span className="text-muted-foreground">
                         &lt;{detail.email}&gt;
                     </span>
@@ -1301,8 +1305,8 @@ function CommitDetails({ projectId, sha }: { projectId: number; sha: string }) {
                 <dt className="text-muted-foreground">Date</dt>
                 <dd>
                     {new Date(detail.date).toLocaleString(undefined, {
-                        dateStyle: "full",
-                        timeStyle: "short",
+                        dateStyle: 'full',
+                        timeStyle: 'short',
                     })}
                 </dd>
                 <dt className="text-muted-foreground">Commit</dt>
@@ -1332,12 +1336,12 @@ function CommitDetails({ projectId, sha }: { projectId: number; sha: string }) {
                 {detail.parents.length > 0 && (
                     <>
                         <dt className="text-muted-foreground">
-                            {detail.parents.length > 1 ? "Parents" : "Parent"}
+                            {detail.parents.length > 1 ? 'Parents' : 'Parent'}
                         </dt>
                         <dd className="font-mono">
                             {detail.parents
                                 .map((parent) => parent.slice(0, 7))
-                                .join(", ")}
+                                .join(', ')}
                         </dd>
                     </>
                 )}
@@ -1346,8 +1350,8 @@ function CommitDetails({ projectId, sha }: { projectId: number; sha: string }) {
             <div className="rounded-lg border border-sidebar-border/70 dark:border-sidebar-border">
                 <p className="border-b border-sidebar-border/70 px-3 py-1.5 text-xs text-muted-foreground dark:border-sidebar-border">
                     {detail.files.length === 0
-                        ? "No files changed"
-                        : `${detail.files.length}${detail.more_files ? "+" : ""} ${detail.files.length === 1 ? "file" : "files"} changed`}
+                        ? 'No files changed'
+                        : `${detail.files.length}${detail.more_files ? '+' : ''} ${detail.files.length === 1 ? 'file' : 'files'} changed`}
                 </p>
                 <ul className="divide-y" data-test="git-commit-files">
                     {detail.files.map((changed) => (
@@ -1369,12 +1373,12 @@ function CommitDetails({ projectId, sha }: { projectId: number; sha: string }) {
                                 <span
                                     title={FILE_STATUS[changed.status]}
                                     className={cn(
-                                        "w-3 font-mono",
-                                        changed.status === "D"
-                                            ? "text-red-600"
-                                            : changed.status === "A"
-                                              ? "text-green-600"
-                                              : "text-amber-600",
+                                        'w-3 font-mono',
+                                        changed.status === 'D'
+                                            ? 'text-red-600'
+                                            : changed.status === 'A'
+                                              ? 'text-green-600'
+                                              : 'text-amber-600',
                                     )}
                                 >
                                     {changed.status}
@@ -1390,7 +1394,7 @@ function CommitDetails({ projectId, sha }: { projectId: number; sha: string }) {
                                     <span className="font-mono">
                                         <span className="text-green-600">
                                             +{changed.additions}
-                                        </span>{" "}
+                                        </span>{' '}
                                         <span className="text-red-600">
                                             −{changed.deletions}
                                         </span>
@@ -1456,10 +1460,10 @@ function FileDiff({
     }
 
     // Skip git's header lines (diff --git, index, ---, +++); the hunks start at the first @@.
-    const lines = diff.patch.split("\n");
-    const firstHunk = lines.findIndex((line) => line.startsWith("@@"));
+    const lines = diff.patch.split('\n');
+    const firstHunk = lines.findIndex((line) => line.startsWith('@@'));
     const body = (firstHunk === -1 ? lines : lines.slice(firstHunk)).filter(
-        (line, index, all) => index < all.length - 1 || line !== "",
+        (line, index, all) => index < all.length - 1 || line !== '',
     );
 
     return (
@@ -1477,17 +1481,17 @@ function FileDiff({
                         <div
                             key={index}
                             className={cn(
-                                "px-3 whitespace-pre",
-                                line.startsWith("@@")
-                                    ? "text-sky-600 dark:text-sky-400"
-                                    : line.startsWith("+")
-                                      ? "bg-green-500/10 text-green-700 dark:text-green-400"
-                                      : line.startsWith("-")
-                                        ? "bg-red-500/10 text-red-700 dark:text-red-400"
-                                        : "text-muted-foreground",
+                                'px-3 whitespace-pre',
+                                line.startsWith('@@')
+                                    ? 'text-sky-600 dark:text-sky-400'
+                                    : line.startsWith('+')
+                                      ? 'bg-green-500/10 text-green-700 dark:text-green-400'
+                                      : line.startsWith('-')
+                                        ? 'bg-red-500/10 text-red-700 dark:text-red-400'
+                                        : 'text-muted-foreground',
                             )}
                         >
-                            {line || " "}
+                            {line || ' '}
                         </div>
                     ))
                 )}
@@ -1532,7 +1536,7 @@ function Confirm({
                         disabled={busy}
                         onClick={() => {
                             setBusy(true);
-                            onConfirm().finally(onClose);
+                            void onConfirm().finally(onClose);
                         }}
                         data-test="git-confirm-action"
                     >
@@ -1553,12 +1557,12 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
     );
 }
 
-function Empty({ children, tone }: { children: ReactNode; tone?: "error" }) {
+function Empty({ children, tone }: { children: ReactNode; tone?: 'error' }) {
     return (
         <div
             className={cn(
-                "rounded-xl border border-dashed border-sidebar-border p-6 text-sm",
-                tone === "error" ? "text-red-600" : "text-muted-foreground",
+                'rounded-xl border border-dashed border-sidebar-border p-6 text-sm',
+                tone === 'error' ? 'text-red-600' : 'text-muted-foreground',
             )}
             data-test="git-empty"
         >
@@ -1567,18 +1571,18 @@ function Empty({ children, tone }: { children: ReactNode; tone?: "error" }) {
     );
 }
 
-const RELATIVE = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+const RELATIVE = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
 
 /** "3 minutes ago", "yesterday". */
 function timeAgo(iso: string): string {
     const seconds = (new Date(iso).getTime() - Date.now()) / 1000;
     const units: [Intl.RelativeTimeFormatUnit, number][] = [
-        ["year", 31536000],
-        ["month", 2592000],
-        ["week", 604800],
-        ["day", 86400],
-        ["hour", 3600],
-        ["minute", 60],
+        ['year', 31536000],
+        ['month', 2592000],
+        ['week', 604800],
+        ['day', 86400],
+        ['hour', 3600],
+        ['minute', 60],
     ];
 
     for (const [unit, size] of units) {
@@ -1587,5 +1591,5 @@ function timeAgo(iso: string): string {
         }
     }
 
-    return "just now";
+    return 'just now';
 }

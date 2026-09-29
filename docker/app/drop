@@ -1,0 +1,310 @@
+#!/bin/sh
+# drop: run OneDrop on this computer in Docker. Installed to ~/.local/bin/drop by install.sh.
+#
+#   drop install     Pull the images and start OneDrop (also what `drop update` does)
+#   drop start|stop|restart|status|logs|open|config|uninstall
+#
+# Settings: DROP_PORT (default 8000, or the next free port), DROP_IMAGE, DROP_SANDBOX_IMAGE,
+# DROP_PULL=0 (use local images), DROP_NO_OPEN=1 (don't open the browser).
+set -eu
+
+IMAGE="${DROP_IMAGE:-ghcr.io/onedrop-io/drop:latest}"
+SANDBOX_IMAGE="${DROP_SANDBOX_IMAGE:-ghcr.io/onedrop-io/drop-sandbox:latest}"
+NAME=drop
+VOLUME=drop-data
+NETWORK=drop
+DOCKER=docker
+
+say() { printf '\033[1m==>\033[0m %s\n' "$*"; }
+warn() { printf '\033[33m!\033[0m %s\n' "$*" >&2; }
+die() { printf '\033[31m✗\033[0m %s\n' "$*" >&2; exit 1; }
+
+# Ask a yes/no question on the terminal (stdin may be the curl pipe). No terminal: take the default.
+confirm() { # confirm "Question?" y|n
+    if (: < /dev/tty) 2>/dev/null; then
+        printf '%s [%s] ' "$1" "$([ "$2" = y ] && echo Y/n || echo y/N)" > /dev/tty
+        read -r answer < /dev/tty || answer=
+    else
+        answer=
+    fi
+    case "${answer:-$2}" in [Yy]*) return 0 ;; *) return 1 ;; esac
+}
+
+open_url() {
+    [ "${DROP_NO_OPEN:-0}" = 1 ] && return 0
+    if command -v open >/dev/null 2>&1 && [ "$(uname)" = Darwin ]; then
+        open "$1"
+    elif command -v xdg-open >/dev/null 2>&1 && [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then
+        xdg-open "$1" >/dev/null 2>&1 &
+    fi
+}
+
+port_in_use() {
+    if command -v lsof >/dev/null 2>&1; then
+        lsof -nP -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1
+    elif command -v ss >/dev/null 2>&1; then
+        ss -ltn "sport = :$1" 2>/dev/null | grep -q LISTEN
+    else
+        return 1
+    fi
+}
+
+# --- Docker ---------------------------------------------------------------------------------------
+
+install_docker() {
+    if [ "$(uname)" = Darwin ]; then
+        warn "Docker isn't installed. OneDrop needs Docker Desktop or OrbStack:"
+        echo "    Docker Desktop  https://www.docker.com/products/docker-desktop/"
+        echo "    OrbStack        https://orbstack.dev  (or: brew install --cask orbstack)"
+        echo "Install one, open it once, then run this again."
+        open_url https://www.docker.com/products/docker-desktop/
+        exit 1
+    fi
+
+    confirm "Docker isn't installed. Install it now with Docker's official script (needs sudo)?" y \
+        || die "OneDrop needs Docker. Install it (https://docs.docker.com/engine/install/) and run this again."
+    curl -fsSL https://get.docker.com | sudo sh
+    sudo systemctl enable --now docker >/dev/null 2>&1 || true
+    if [ "$(id -u)" != 0 ]; then
+        sudo usermod -aG docker "$(id -un)" && warn "Added you to the docker group; log out and back in to use Docker without sudo."
+    fi
+}
+
+start_docker() {
+    if [ "$(uname)" = Darwin ]; then
+        for app in Docker OrbStack; do
+            if [ -d "/Applications/$app.app" ] || [ -d "$HOME/Applications/$app.app" ]; then
+                say "Starting $app"
+                open -a "$app"
+                break
+            fi
+        done
+    elif command -v systemctl >/dev/null 2>&1 && confirm "Docker isn't running. Start it (needs sudo)?" y; then
+        sudo systemctl start docker
+    fi
+
+    printf 'Waiting for Docker'
+    i=0
+    while ! docker info >/dev/null 2>&1; do
+        i=$((i + 1))
+        [ "$i" -gt 90 ] && { echo; die "Docker didn't start. Start it yourself and run this again."; }
+        printf '.'
+        sleep 2
+    done
+    echo
+}
+
+ensure_docker() {
+    command -v docker >/dev/null 2>&1 || install_docker
+
+    if docker info >/dev/null 2>&1; then
+        return
+    fi
+
+    # Installed but this user can't reach the daemon yet (not in the docker group): use sudo for now.
+    if docker info 2>&1 | grep -qi 'permission denied' && command -v sudo >/dev/null 2>&1; then
+        warn "Your user can't use Docker yet; using sudo this time."
+        DOCKER="sudo docker"
+        $DOCKER info >/dev/null 2>&1 || die "Docker isn't running. Start it and run this again."
+        return
+    fi
+
+    start_docker
+}
+
+# The Docker socket to mount into the app. Docker Desktop and OrbStack always offer it at /var/run/docker.sock;
+# on Linux it can live elsewhere (rootless Docker), so ask the current context.
+socket() {
+    host=""
+    [ "$(uname)" = Darwin ] || host="$($DOCKER context inspect --format '{{.Endpoints.docker.Host}}' 2>/dev/null || true)"
+    case "$host" in
+        unix://*) echo "${host#unix://}" ;;
+        *) echo /var/run/docker.sock ;;
+    esac
+}
+
+running() { [ "$($DOCKER container inspect -f '{{.State.Running}}' "$NAME" 2>/dev/null)" = true ]; }
+exists() { $DOCKER container inspect "$NAME" >/dev/null 2>&1; }
+
+current_port() {
+    $DOCKER port "$NAME" 8000 2>/dev/null | head -n 1 | sed 's/.*://'
+}
+
+url() { echo "http://localhost:${1:-$(current_port)}"; }
+
+wait_until_up() { # wait_until_up PORT
+    printf 'Starting OneDrop'
+    i=0
+    until curl -fsS "$(url "$1")/up" >/dev/null 2>&1; do
+        i=$((i + 1))
+        if [ "$i" -gt 90 ] || ! running; then
+            echo
+            $DOCKER logs --tail 30 "$NAME" >&2 || true
+            die "OneDrop didn't start. See the logs above, or run: drop logs"
+        fi
+        printf '.'
+        sleep 2
+    done
+    echo
+}
+
+# --- Commands -------------------------------------------------------------------------------------
+
+cmd_install() {
+    ensure_docker
+
+    if [ "${DROP_PULL:-1}" != 0 ]; then
+        say "Downloading OneDrop (the first time takes a few minutes)"
+        $DOCKER pull "$IMAGE"
+        $DOCKER pull "$SANDBOX_IMAGE"
+    fi
+
+    first_install=0
+    $DOCKER volume inspect "$VOLUME" >/dev/null 2>&1 || first_install=1
+    $DOCKER network inspect "$NETWORK" >/dev/null 2>&1 || $DOCKER network create "$NETWORK" >/dev/null
+
+    # Keep the port an earlier install used, unless DROP_PORT says otherwise.
+    port="${DROP_PORT:-$(current_port)}"
+    if [ -z "$port" ]; then
+        port=8000
+        while port_in_use "$port"; do port=$((port + 1)); done
+    fi
+
+    if exists; then
+        say "Replacing the running OneDrop (your data is kept)"
+        $DOCKER rm --force "$NAME" >/dev/null
+    fi
+
+    $DOCKER run --detach --init \
+        --name "$NAME" \
+        --restart unless-stopped \
+        --network "$NETWORK" \
+        --publish "127.0.0.1:$port:8000" \
+        --volume "$VOLUME:/data" \
+        --volume "$(socket):/var/run/docker.sock" \
+        --env "APP_URL=$(url "$port")" \
+        --env "SANDBOX_DOCKER_IMAGE=$SANDBOX_IMAGE" \
+        "$IMAGE" >/dev/null
+
+    wait_until_up "$port"
+
+    if [ "$first_install" = 1 ]; then
+        say "OneDrop is running at $(url "$port"). Create your account; the first one is the admin."
+        open_url "$(url "$port")/register"
+    else
+        say "OneDrop is running at $(url "$port")"
+        open_url "$(url "$port")"
+    fi
+}
+
+cmd_start() {
+    ensure_docker
+    exists || { cmd_install; return; }
+    $DOCKER start "$NAME" >/dev/null
+    wait_until_up "$(current_port)"
+    say "OneDrop is running at $(url)"
+}
+
+cmd_stop() {
+    ensure_docker
+    exists && $DOCKER stop "$NAME" >/dev/null
+    say "OneDrop stopped. Projects' sandboxes keep running until you stop Docker; start again with: drop start"
+}
+
+cmd_status() {
+    ensure_docker
+    if running; then
+        say "OneDrop is running at $(url) ($($DOCKER container inspect -f '{{.Config.Image}}' "$NAME"))"
+    elif exists; then
+        say "OneDrop is stopped. Start it with: drop start"
+    else
+        say "OneDrop isn't installed. Install it with: drop install"
+    fi
+}
+
+# drop config               show settings (values hidden)
+# drop config KEY=VALUE...  change settings, then restart
+cmd_config() {
+    ensure_docker
+    exists || die "OneDrop isn't installed. Install it with: drop install"
+    # Edit /data/.env from a throwaway container, so settings can be fixed even when OneDrop won't start.
+    image="$($DOCKER container inspect -f '{{.Config.Image}}' "$NAME")"
+    on_data() { $DOCKER run --rm -i --volume "$VOLUME:/data" --entrypoint sh "$@"; }
+
+    if [ $# -eq 0 ]; then
+        on_data "$image" -c "sed 's/=.*/=…/' /data/.env"
+        return
+    fi
+
+    for pair in "$@"; do
+        key="${pair%%=*}"
+        case "$key" in '' | *[!A-Za-z0-9_]*) die "Not a setting: $pair (use KEY=VALUE)" ;; esac
+        # The value travels as an env var and is written double-quoted with \ " $ escaped, as .env files expect.
+        # shellcheck disable=SC2016
+        on_data -e "KEY=$key" -e "VALUE=${pair#*=}" "$image" -c \
+            'value=$(printf "%s" "$VALUE" | sed "s/[\\\\\"\$]/\\\\&/g"); grep -v "^$KEY=" /data/.env > /data/.env.new; printf "%s=\"%s\"\n" "$KEY" "$value" >> /data/.env.new; cat /data/.env.new > /data/.env; rm /data/.env.new'
+    done
+    $DOCKER restart "$NAME" >/dev/null
+    wait_until_up "$(current_port)"
+    say "Saved. OneDrop restarted at $(url)"
+}
+
+cmd_open() {
+    ensure_docker
+    running || die "OneDrop isn't running. Start it with: drop start"
+    say "$(url)"
+    open_url "$(url)" || true
+}
+
+cmd_uninstall() {
+    ensure_docker
+    confirm "Remove OneDrop?" n || exit 0
+    $DOCKER rm --force "$NAME" >/dev/null 2>&1 || true
+
+    if confirm "Also delete all projects and data? This can't be undone." n; then
+        ids="$($DOCKER ps -aq --filter label=zap.sandbox=1)"
+        # shellcheck disable=SC2086 # one argument per container id
+        [ -n "$ids" ] && $DOCKER rm --force $ids >/dev/null
+        $DOCKER volume rm "$VOLUME" >/dev/null 2>&1 || true
+        $DOCKER network rm "$NETWORK" >/dev/null 2>&1 || true
+        $DOCKER image rm "$IMAGE" "$SANDBOX_IMAGE" >/dev/null 2>&1 || true
+        say "Removed OneDrop and its data."
+    else
+        say "Removed OneDrop. Your data is kept in the $VOLUME volume; run the installer again to pick it up."
+    fi
+
+    rm -f "$0"
+}
+
+usage() {
+    cat <<'EOF'
+drop: run OneDrop on this computer
+
+  drop install      Download OneDrop and start it (run again to update)
+  drop update       Same as install
+  drop start        Start OneDrop
+  drop stop         Stop OneDrop
+  drop restart      Restart OneDrop
+  drop status       Is it running, and where
+  drop open         Open OneDrop in your browser
+  drop logs         Follow OneDrop's logs
+  drop config       Show settings; drop config KEY=VALUE to change them
+  drop uninstall    Remove OneDrop (asks before deleting data)
+EOF
+}
+
+command="${1:-help}"
+[ $# -gt 0 ] && shift
+case "$command" in
+    install | update | upgrade) cmd_install ;;
+    start) cmd_start ;;
+    stop) cmd_stop ;;
+    restart) cmd_stop >/dev/null && cmd_start ;;
+    status) cmd_status ;;
+    open) cmd_open ;;
+    logs) ensure_docker && exec $DOCKER logs --follow --tail 100 "$NAME" ;;
+    config) cmd_config "$@" ;;
+    uninstall) cmd_uninstall ;;
+    help | -h | --help) usage ;;
+    *) usage >&2; exit 1 ;;
+esac

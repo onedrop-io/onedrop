@@ -303,7 +303,7 @@ class ProjectGitController extends Controller
             'login' => $signedIn ? $project->user->githubAuthorization?->github_login : null,
             'connect_url' => route('projects.git.github-app.install', $project),
             'reconnect_url' => route('projects.git.github-app.install', [$project, 'reconnect' => 1]),
-            'installations' => $signedIn ? $project->user->githubInstallations()->orderByRaw("account_type = 'Organization'")->orderBy('account_login')->get()->map(fn (GitHubInstallation $installation) => [
+            'installations' => $signedIn ? array_values($project->user->githubInstallations()->orderByRaw("account_type = 'Organization'")->orderBy('account_login')->get()->map(fn (GitHubInstallation $installation) => [
                 'id' => $installation->installation_id,
                 'account' => $installation->account_login,
                 'type' => $installation->account_type,
@@ -311,7 +311,7 @@ class ProjectGitController extends Controller
                 'selection' => $installation->repository_selection,
                 'can_create' => $canCreate && $installation->account_type === 'Organization',
                 'manage_url' => $github->manageUrl($installation),
-            ])->all() : [],
+            ])->all()) : [],
         ];
     }
 

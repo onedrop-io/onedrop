@@ -2,6 +2,7 @@
 
 namespace App\Sandbox;
 
+use App\Models\Group;
 use App\Models\Project;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
@@ -141,8 +142,8 @@ class OneDropSignIn
     public function userForToken(string $token): ?User
     {
         $grant = Cache::get($this->key('token', $token));
-        $project = is_array($grant) ? Project::find($grant['project']) : null;
-        $user = $project?->onedrop_enabled ? User::find($grant['user']) : null;
+        $project = is_array($grant) ? Project::query()->whereKey($grant['project'])->first() : null;
+        $user = $project?->onedrop_enabled ? User::query()->whereKey($grant['user'])->first() : null;
 
         return $user && $this->allows($project, $user) ? $user : null;
     }
@@ -159,7 +160,7 @@ class OneDropSignIn
             'name' => $user->name,
             'email' => $user->email,
             'email_verified' => $user->email_verified_at !== null,
-            'groups' => $user->groups()->orderBy('name')->pluck('name')->all(),
+            'groups' => array_values($user->groups()->orderBy('name')->get()->map(fn (Group $group): string => $group->name)->all()),
         ];
     }
 

@@ -39,7 +39,7 @@ class WorkspaceSecrets
      * exist are refused unless they're in $replace.
      *
      * @param  array<string, string>  $secrets  name => value
-     * @param  list<string>  $replace  existing names whose values may be overwritten
+     * @param  array<array-key, string>  $replace  existing names whose values may be overwritten
      * @return list<string>
      *
      * @throws SandboxException|SecretsException

@@ -11,3 +11,6 @@ parameters:
         - routes/
 
     level: 7
+
+    stubFiles:
+        - stubs/Seeder.stub

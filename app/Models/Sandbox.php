@@ -54,7 +54,7 @@ class Sandbox extends Model
     protected static function booted(): void
     {
         static::creating(function (self $sandbox) {
-            if ($sandbox->task_id !== null && $sandbox->project_id === null) {
+            if ($sandbox->task_id !== null && $sandbox->getAttribute('project_id') === null) {
                 $sandbox->project_id = Task::query()->whereKey($sandbox->task_id)->value('project_id');
             }
         });

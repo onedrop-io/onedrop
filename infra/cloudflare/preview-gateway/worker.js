@@ -15,7 +15,8 @@ const COOKIE = 'zap_gateway';
 const AUTH_CACHE_SECONDS = 60;
 
 /** Text answers whose links to the provider's address are pointed at the gateway address. */
-const REWRITABLE = /^(text\/(html|css|javascript|plain|xml)|application\/(javascript|json|xml|xhtml\+xml|manifest\+json)|image\/svg\+xml)/i;
+const REWRITABLE =
+    /^(text\/(html|css|javascript|plain|xml)|application\/(javascript|json|xml|xhtml\+xml|manifest\+json)|image\/svg\+xml)/i;
 const MAX_REWRITE_BYTES = 20_000_000;
 
 export default {
@@ -23,12 +24,17 @@ export default {
         const url = new URL(request.url);
 
         // Other names under the wildcard go on to their own origin.
-        if (!GATEWAY_HOST.test(url.hostname) || !url.hostname.endsWith(`.${env.GATEWAY_DOMAIN}`)) {
+        if (
+            !GATEWAY_HOST.test(url.hostname) ||
+            !url.hostname.endsWith(`.${env.GATEWAY_DOMAIN}`)
+        ) {
             return fetch(request);
         }
 
         if (url.pathname === '/__zap/enter') {
-            return withoutFrameBlock(await askApp(env, '/__zap/enter' + url.search, url.hostname));
+            return withoutFrameBlock(
+                await askApp(env, '/__zap/enter' + url.search, url.hostname),
+            );
         }
 
         const auth = await authorize(request, env, ctx, url.hostname);
@@ -70,17 +76,27 @@ async function authorize(request, env, ctx, host) {
         return askApp(env, '/sandbox-gateway/authorize', host);
     }
 
-    const key = new Request(`https://gateway-auth.internal/${host}/${await sha256(cookie)}`);
+    const key = new Request(
+        `https://gateway-auth.internal/${host}/${await sha256(cookie)}`,
+    );
     const cached = await caches.default.match(key);
 
     if (cached) {
         return cached;
     }
 
-    const answer = await askApp(env, '/sandbox-gateway/authorize', host, cookie);
+    const answer = await askApp(
+        env,
+        '/sandbox-gateway/authorize',
+        host,
+        cookie,
+    );
 
     if (answer.status === 200) {
-        const keep = new Response(null, { status: 200, headers: answer.headers });
+        const keep = new Response(null, {
+            status: 200,
+            headers: answer.headers,
+        });
         keep.headers.set('Cache-Control', `max-age=${AUTH_CACHE_SECONDS}`);
         ctx.waitUntil(caches.default.put(key, keep));
     }
@@ -133,8 +149,16 @@ export async function pointAtGateway(response, upstreamHost, publicHost) {
     const type = headers.get('Content-Type') ?? '';
     const size = Number(headers.get('Content-Length') ?? 0);
 
-    if (!REWRITABLE.test(type) || size > MAX_REWRITE_BYTES || response.body === null) {
-        return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+    if (
+        !REWRITABLE.test(type) ||
+        size > MAX_REWRITE_BYTES ||
+        response.body === null
+    ) {
+        return new Response(response.body, {
+            status: response.status,
+            statusText: response.statusText,
+            headers,
+        });
     }
 
     // Read decoded, so sent on uncompressed with its new length.
@@ -142,7 +166,11 @@ export async function pointAtGateway(response, upstreamHost, publicHost) {
     headers.delete('Content-Encoding');
     headers.delete('Content-Length');
 
-    return new Response(text.split(upstreamHost).join(publicHost), { status: response.status, statusText: response.statusText, headers });
+    return new Response(text.split(upstreamHost).join(publicHost), {
+        status: response.status,
+        statusText: response.statusText,
+        headers,
+    });
 }
 
 /**
@@ -153,7 +181,11 @@ export function withoutFrameBlock(response) {
     headers.delete('X-Frame-Options');
     headers.set('Cache-Control', 'no-store');
 
-    return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+    return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers,
+    });
 }
 
 export function readCookie(header, name) {
@@ -177,7 +209,12 @@ export function withoutCookie(header, name) {
 }
 
 async function sha256(value) {
-    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+    const digest = await crypto.subtle.digest(
+        'SHA-256',
+        new TextEncoder().encode(value),
+    );
 
-    return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+    return [...new Uint8Array(digest)]
+        .map((byte) => byte.toString(16).padStart(2, '0'))
+        .join('');
 }

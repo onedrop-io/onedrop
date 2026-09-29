@@ -19,21 +19,21 @@ Drag the divider between the chat and the workspace to make either one wider, or
 
 Add Console or Shell from the **+** button. Drag the tabs you can close to put them in a different order; Tools and Preview always stay first. The shell keeps its session while you switch tabs, and the cursor lands in it whenever you open the tab, so you can start typing right away. It opens with a OneDrop banner showing the project's name and a few shortcuts.
 
-| Command | What it does |
-| --- | --- |
+| Command                  | What it does                                                             |
+| ------------------------ | ------------------------------------------------------------------------ |
 | `ls`, `ll`, `la`, `tree` | List files: folders first, with git status and how long ago each changed |
-| `bat <file>` | View a file with syntax highlighting |
-| `rg <text>` | Search the code |
-| `fd <name>` | Find files by name |
-| `z <dir>` | Jump to a directory you've been to (`zi` to pick one) |
-| `jq` | Read and filter JSON, e.g. `curl -s localhost:$PORT/api \| jq` |
-| `lazygit` | Stage, commit and browse changes |
-| `btop` | See what's using CPU and memory |
-| `ncdu` | See what's using disk space, folder by folder |
-| `micro <file>` | Edit a file (**Ctrl-S** saves, **Ctrl-Q** quits) |
-| `vim <file>` | Edit a file in vim |
-| **Ctrl-R** | Search your command history |
-| `/opt/zap/restart` | Restart the preview |
+| `bat <file>`             | View a file with syntax highlighting                                     |
+| `rg <text>`              | Search the code                                                          |
+| `fd <name>`              | Find files by name                                                       |
+| `z <dir>`                | Jump to a directory you've been to (`zi` to pick one)                    |
+| `jq`                     | Read and filter JSON, e.g. `curl -s localhost:$PORT/api \| jq`           |
+| `lazygit`                | Stage, commit and browse changes                                         |
+| `btop`                   | See what's using CPU and memory                                          |
+| `ncdu`                   | See what's using disk space, folder by folder                            |
+| `micro <file>`           | Edit a file (**Ctrl-S** saves, **Ctrl-Q** quits)                         |
+| `vim <file>`             | Edit a file in vim                                                       |
+| **Ctrl-R**               | Search your command history                                              |
+| `/opt/zap/restart`       | Restart the preview                                                      |
 
 ## When the app hits an error
 
@@ -62,10 +62,10 @@ Publishing shows the project's current status and URL. Monitoring, Growth and Da
 
 **Tools → Monitoring** shows how your app is doing. It has two panels, each with its own time range (past hour, day, or week).
 
-| Panel | What it shows |
-| --- | --- |
-| **Application** | Total requests, unique visitors, and the share of server errors (5xx); requests over time; HTTP status classes (2xx, 3xx, 4xx, 5xx) over time; a histogram of response times |
-| **Infrastructure** | CPU use as a share of the sandbox's CPU limit, and memory use against its memory limit |
+| Panel              | What it shows                                                                                                                                                                |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Application**    | Total requests, unique visitors, and the share of server errors (5xx); requests over time; HTTP status classes (2xx, 3xx, 4xx, 5xx) over time; a histogram of response times |
+| **Infrastructure** | CPU use as a share of the sandbox's CPU limit, and memory use against its memory limit                                                                                       |
 
 Choose **Published only** to leave out your own preview traffic. Hover a chart for exact values, or open **Show data table** under it.
 
@@ -79,16 +79,17 @@ Numbers are collected inside the sandbox: its proxy logs each request and sample
 
 **Analytics.** Choose a time range (past day, week, or 30 days), and **Published only** to leave out your own preview traffic.
 
-| Shows | What it counts |
-| --- | --- |
-| **Visitors** | Unique IP addresses, and the change against the previous period of the same length |
-| **Page views** | Successful page loads (not scripts, styles, images, or form posts) |
-| **Signed-in users** | Your app's users who signed in during the period. Needs sign-in from [Users & Auth](/guides/users-and-auth) |
-| **Visitors over time** | Visitors per hour (per day for 30 days) |
-| **Top pages, referrers, countries, browsers, devices** | The ten biggest of each. Referrers are other sites that linked to yours |
+| Shows                                                  | What it counts                                                                                              |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| **Visitors**                                           | Unique IP addresses, and the change against the previous period of the same length                          |
+| **Page views**                                         | Successful page loads (not scripts, styles, images, or form posts)                                          |
+| **Signed-in users**                                    | Your app's users who signed in during the period. Needs sign-in from [Users & Auth](/guides/users-and-auth) |
+| **Visitors over time**                                 | Visitors per hour (per day for 30 days)                                                                     |
+| **Top pages, referrers, countries, browsers, devices** | The ten biggest of each. Referrers are other sites that linked to yours                                     |
 
 <Note>
-Countries come from the country header a CDN such as Cloudflare adds in front of the published app. Without one, the Countries list stays empty.
+    Countries come from the country header a CDN such as Cloudflare adds in
+    front of the published app. Without one, the Countries list stays empty.
 </Note>
 
 The numbers come from the same request log as Monitoring (`/workspace/.zap/access.log`), so there's nothing extra to install and nothing leaves the sandbox. Requests logged before Growth existed count as visitors, but they have no page, browser or referrer.
@@ -98,7 +99,9 @@ The numbers come from the same request log as Monitoring (`/workspace/.zap/acces
 Once events are set up, Growth lists each one with its description, how many times it happened, and how many visitors triggered it, for the same time range and traffic filter as Analytics. Click an event to see it over time, the change against the previous period, and its most common property values (for example, which template people chose). To track something else, describe it in the box under the list and click **Add with agent**.
 
 <Note>
-Events never carry personal data. The agent uses fixed event names and a few fixed-value properties. It never sends emails, names, anything a person typed, or IDs of people.
+    Events never carry personal data. The agent uses fixed event names and a few
+    fixed-value properties. It never sends emails, names, anything a person
+    typed, or IDs of people.
 </Note>
 
 How it works: the app sends each event to its own address (`POST /__zap/event`). The sandbox's proxy records it in `/workspace/.zap/events.log` and doesn't pass it on to the app. Invalid or oversized events are dropped, and a failed event never breaks the app. The agent describes the events in `/workspace/.zap/analytics.json`, following the platform's analytics guide, so every app tracks events the same way.
@@ -115,22 +118,25 @@ It finds your app's databases on its own:
 
 `.env` files are read from the project folder and its direct subfolders. If the app uses more than one database, pick one from the menu at the top left.
 
-| Task | How |
-| --- | --- |
-| Open a table | Click it in the table list, or search for it by name |
-| Sort | Click a column header. Click again to reverse the order, and a third time to clear it |
-| Filter | **Filters**: choose a column, a condition (equals, contains, greater than, is NULL, …) and a value, then **Apply** |
-| Edit a cell | Double-click it, or select it and press <kbd>Enter</kbd>. Press <kbd>Enter</kbd> to keep the edit or <kbd>Esc</kbd> to cancel it. **NULL** sets the cell to NULL |
-| Add a row | **Add row**, then fill in its cells. Cells you leave empty get the column's default value |
-| Delete rows | Tick the rows, then **Delete** |
-| Run SQL | **SQL runner**: write one statement and press **Run** (or <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>Enter</kbd>). SQL is highlighted as you type, with suggestions for keywords, tables and the columns of tables in your query; press <kbd>Enter</kbd> to accept one |
+| Task         | How                                                                                                                                                                                                                                                             |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Open a table | Click it in the table list, or search for it by name                                                                                                                                                                                                            |
+| Sort         | Click a column header. Click again to reverse the order, and a third time to clear it                                                                                                                                                                           |
+| Filter       | **Filters**: choose a column, a condition (equals, contains, greater than, is NULL, …) and a value, then **Apply**                                                                                                                                              |
+| Edit a cell  | Double-click it, or select it and press <kbd>Enter</kbd>. Press <kbd>Enter</kbd> to keep the edit or <kbd>Esc</kbd> to cancel it. **NULL** sets the cell to NULL                                                                                                |
+| Add a row    | **Add row**, then fill in its cells. Cells you leave empty get the column's default value                                                                                                                                                                       |
+| Delete rows  | Tick the rows, then **Delete**                                                                                                                                                                                                                                  |
+| Run SQL      | **SQL runner**: write one statement and press **Run** (or <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>Enter</kbd>). SQL is highlighted as you type, with suggestions for keywords, tables and the columns of tables in your query; press <kbd>Enter</kbd> to accept one |
 
 Edits, new rows and deletions are held until you press **Save changes**, and they're saved in a single transaction: all of them or none. You're asked before leaving a table with unsaved changes. Statements in the SQL runner take effect right away.
 
 Views can't be edited. Nor can existing rows of a table without a primary key; change those with the SQL runner instead. Binary values and values over 10 KB show as a read-only preview.
 
 <Note>
-The database is reached from inside the sandbox, so connection details and passwords never leave it. Sandboxes created before this feature need a rebuilt image; they then [update themselves](/self-hosting/sandboxes#sandboxes-update-themselves).
+    The database is reached from inside the sandbox, so connection details and
+    passwords never leave it. Sandboxes created before this feature need a
+    rebuilt image; they then [update
+    themselves](/self-hosting/sandboxes#sandboxes-update-themselves).
 </Note>
 
 ## Files
@@ -145,14 +151,14 @@ The files panel on the right shows the project's folder tree, with a colored ico
 
 Click **⋮** at the top of the files panel for more actions:
 
-| Action | What it does |
-| --- | --- |
-| **New file** | Creates an empty file and opens it in the editor. Type a name, or a path like `src/utils.ts`; missing folders are created. |
-| **New folder** | Creates a folder, including any missing parent folders. |
-| **Upload folder** | Copies a folder from your computer into the project, keeping its structure. `node_modules`, `.git`, `vendor`, and `.cache` inside it are skipped, and each file can be up to 10 MB. Files with the same path are replaced. |
-| **Download as zip** | Downloads the project as a zip, without `node_modules`, `.git`, `vendor`, and `.cache`. |
-| **Hide hidden files** | Hides files and folders whose names start with a dot, like `.env`. Choose **Show hidden files** to bring them back. Your browser remembers the choice. |
-| **Close files** | Closes the files panel. |
+| Action                | What it does                                                                                                                                                                                                               |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **New file**          | Creates an empty file and opens it in the editor. Type a name, or a path like `src/utils.ts`; missing folders are created.                                                                                                 |
+| **New folder**        | Creates a folder, including any missing parent folders.                                                                                                                                                                    |
+| **Upload folder**     | Copies a folder from your computer into the project, keeping its structure. `node_modules`, `.git`, `vendor`, and `.cache` inside it are skipped, and each file can be up to 10 MB. Files with the same path are replaced. |
+| **Download as zip**   | Downloads the project as a zip, without `node_modules`, `.git`, `vendor`, and `.cache`.                                                                                                                                    |
+| **Hide hidden files** | Hides files and folders whose names start with a dot, like `.env`. Choose **Show hidden files** to bring them back. Your browser remembers the choice.                                                                     |
+| **Close files**       | Closes the files panel.                                                                                                                                                                                                    |
 
 New files and folders never overwrite anything: if the name is taken, you'll see an error instead.
 

@@ -172,10 +172,15 @@ class SandboxInspector
     {
         $storage = $this->run($sandbox, self::STORAGE_SCRIPT);
 
-        return array_map(
-            fn (string $key) => is_numeric($storage[$key] ?? null) ? (int) $storage[$key] : null,
-            array_combine($keys = ['workspace', 'dependencies', 'storage', 'disk_total', 'disk_free'], $keys),
-        );
+        $int = fn (string $key) => is_numeric($storage[$key] ?? null) ? (int) $storage[$key] : null;
+
+        return [
+            'workspace' => $int('workspace'),
+            'dependencies' => $int('dependencies'),
+            'storage' => $int('storage'),
+            'disk_total' => $int('disk_total'),
+            'disk_free' => $int('disk_free'),
+        ];
     }
 
     /**

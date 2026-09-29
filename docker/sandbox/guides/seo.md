@@ -11,20 +11,20 @@ Tools → Growth panel shows the result you write to `/workspace/.zap/seo.json`,
 2. Only check pages anyone can open. Skip pages behind sign-in.
 3. Go through the checks below. Base each one on what you actually saw, not on what the code seems to do.
 
-| Check | Passes when |
-| --- | --- |
-| Page titles | Every page has a unique, descriptive `<title>` (roughly 10–60 characters). |
-| Meta descriptions | Every page has a `<meta name="description">` (roughly 50–160 characters). |
-| Headings | Each page has exactly one `<h1>`, and headings go in order. |
-| Link previews | Open Graph tags (`og:title`, `og:description`, `og:image`) and `twitter:card` are set. |
-| Language and viewport | `<html lang="…">` and `<meta name="viewport">` are set. |
-| Image alt text | Every meaningful `<img>` has an `alt`. |
-| robots.txt | `/robots.txt` exists and doesn't block the whole site. |
-| Sitemap | `/sitemap.xml` exists, lists the public pages, and robots.txt points to it. |
-| Canonical URLs | Pages have `<link rel="canonical">`. |
+| Check                      | Passes when                                                                                                                                                     |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Page titles                | Every page has a unique, descriptive `<title>` (roughly 10–60 characters).                                                                                      |
+| Meta descriptions          | Every page has a `<meta name="description">` (roughly 50–160 characters).                                                                                       |
+| Headings                   | Each page has exactly one `<h1>`, and headings go in order.                                                                                                     |
+| Link previews              | Open Graph tags (`og:title`, `og:description`, `og:image`) and `twitter:card` are set.                                                                          |
+| Language and viewport      | `<html lang="…">` and `<meta name="viewport">` are set.                                                                                                         |
+| Image alt text             | Every meaningful `<img>` has an `alt`.                                                                                                                          |
+| robots.txt                 | `/robots.txt` exists and doesn't block the whole site.                                                                                                          |
+| Sitemap                    | `/sitemap.xml` exists, lists the public pages, and robots.txt points to it.                                                                                     |
+| Canonical URLs             | Pages have `<link rel="canonical">`.                                                                                                                            |
 | Content without JavaScript | The main content is in the HTML the server sends (not only rendered in the browser). Count this as `warn`, not `fail`, for apps that are mostly behind sign-in. |
-| Favicon | The site has a favicon. |
-| Links | Internal links work (no 404s) and use descriptive link text. |
+| Favicon                    | The site has a favicon.                                                                                                                                         |
+| Links                      | Internal links work (no 404s) and use descriptive link text.                                                                                                    |
 
 ## Scan only, or scan and fix
 
@@ -46,9 +46,21 @@ Write this file every time you check:
     "score": 72,
     "summary": "Titles and headings are good. Add descriptions, link previews and a sitemap.",
     "checks": [
-        { "title": "Page titles", "status": "pass", "detail": "All 4 pages have unique titles." },
-        { "title": "Meta descriptions", "status": "fail", "detail": "None of the 4 pages has a description." },
-        { "title": "Sitemap", "status": "warn", "detail": "sitemap.xml is missing the /pricing page." }
+        {
+            "title": "Page titles",
+            "status": "pass",
+            "detail": "All 4 pages have unique titles."
+        },
+        {
+            "title": "Meta descriptions",
+            "status": "fail",
+            "detail": "None of the 4 pages has a description."
+        },
+        {
+            "title": "Sitemap",
+            "status": "warn",
+            "detail": "sitemap.xml is missing the /pricing page."
+        }
     ]
 }
 ```

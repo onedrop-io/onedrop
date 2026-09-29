@@ -1,0 +1,15 @@
+<?php
+
+namespace Illuminate\Database;
+
+use Illuminate\Console\Command;
+
+abstract class Seeder
+{
+    /**
+     * Unset when a seeder runs outside the console (e.g. `$this->seed()` in tests); Laravel checks isset() itself.
+     *
+     * @var Command|null
+     */
+    protected $command;
+}

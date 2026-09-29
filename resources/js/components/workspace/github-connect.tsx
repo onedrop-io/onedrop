@@ -8,22 +8,22 @@ import {
     RefreshCw,
     Search,
     X,
-} from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { ReactNode } from "react";
-import GitHubAppController from "@/actions/App/Http/Controllers/GitHubAppController";
-import SocialProviderIcon from "@/components/social-provider-icon";
-import { Button } from "@/components/ui/button";
+} from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
+import GitHubAppController from '@/actions/App/Http/Controllers/GitHubAppController';
+import SocialProviderIcon from '@/components/social-provider-icon';
+import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
     DialogDescription,
     DialogHeader,
     DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { jsonRequest } from "@/lib/json-request";
-import { cn } from "@/lib/utils";
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { jsonRequest } from '@/lib/json-request';
+import { cn } from '@/lib/utils';
 
 export type GitHubInstallation = {
     id: number;
@@ -73,7 +73,7 @@ function readStarted(projectId: number): boolean {
 function writeStarted(projectId: number, started: boolean): void {
     try {
         if (started) {
-            window.sessionStorage.setItem(startedKey(projectId), "1");
+            window.sessionStorage.setItem(startedKey(projectId), '1');
         } else {
             window.sessionStorage.removeItem(startedKey(projectId));
         }
@@ -87,7 +87,7 @@ type RequestError = Error & { status?: number; data?: { reconnect?: boolean } };
 /** Send a request; a lapsed GitHub sign-in (401 with `reconnect`) calls onSignedOut instead of failing loudly. */
 function useGitHubRequest(onSignedOut: () => void) {
     return useCallback(
-        <T,>(url: string, body?: unknown, method?: "POST" | "PUT") =>
+        <T,>(url: string, body?: unknown, method?: 'POST' | 'PUT') =>
             jsonRequest<T>(url, body, method).catch((e: RequestError) => {
                 if (e.status === 401 && e.data?.reconnect) {
                     onSignedOut();
@@ -123,7 +123,7 @@ export function GitHubConnect({
     // Back without GitHub's redirect (it isn't set up to send people back, or they used the back button):
     // reopen, offering to finish rather than start over. A proper return (autoOpen) clears that.
     const [cameBack] = useState(() => {
-        if (typeof window === "undefined") {
+        if (typeof window === 'undefined') {
             return false;
         }
 
@@ -152,8 +152,8 @@ export function GitHubConnect({
                     </p>
                     <p className="mt-1 text-sm text-muted-foreground">
                         {hasCommits
-                            ? "Create a repository for it, or connect one you have, then push and pull from here."
-                            : "Bring in a repository you have, or create a new one to push to."}
+                            ? 'Create a repository for it, or connect one you have, then push and pull from here.'
+                            : 'Bring in a repository you have, or create a new one to push to.'}
                     </p>
                 </div>
             </div>
@@ -211,8 +211,8 @@ function GitHubDialog({
     const [ownerId, setOwnerId] = useState<number | null>(
         github.installations[0]?.id ?? null,
     );
-    const [mode, setMode] = useState<"new" | "existing">(
-        hasCommits ? "new" : "existing",
+    const [mode, setMode] = useState<'new' | 'existing'>(
+        hasCommits ? 'new' : 'existing',
     );
     const request = useGitHubRequest(useCallback(() => setSignedOut(true), []));
     const owner = github.installations.find((i) => i.id === ownerId) ?? null;
@@ -262,8 +262,8 @@ function GitHubDialog({
                         >
                             {(
                                 [
-                                    ["new", "New repository"],
-                                    ["existing", "Existing repository"],
+                                    ['new', 'New repository'],
+                                    ['existing', 'Existing repository'],
                                 ] as const
                             ).map(([value, label]) => (
                                 <button
@@ -273,10 +273,10 @@ function GitHubDialog({
                                     aria-selected={mode === value}
                                     onClick={() => setMode(value)}
                                     className={cn(
-                                        "rounded-md px-3 py-1.5 text-sm",
+                                        'rounded-md px-3 py-1.5 text-sm',
                                         mode === value
-                                            ? "bg-background font-medium shadow-sm"
-                                            : "text-muted-foreground hover:text-foreground",
+                                            ? 'bg-background font-medium shadow-sm'
+                                            : 'text-muted-foreground hover:text-foreground',
                                     )}
                                     data-test={`git-github-tab-${value}`}
                                 >
@@ -286,17 +286,17 @@ function GitHubDialog({
                         </div>
 
                         {owner &&
-                            (mode === "new" ? (
+                            (mode === 'new' ? (
                                 <NewRepository
                                     key={owner.id}
                                     projectId={projectId}
                                     owner={owner}
                                     suggestedName={
-                                        github.suggested_name ?? "my-app"
+                                        github.suggested_name ?? 'my-app'
                                     }
                                     request={request}
                                     onConnected={onConnected}
-                                    onUseExisting={() => setMode("existing")}
+                                    onUseExisting={() => setMode('existing')}
                                 />
                             ) : (
                                 <ExistingRepository
@@ -335,8 +335,8 @@ function InstallStep({
             className="rounded-lg bg-muted/60 p-3 text-xs text-muted-foreground"
             data-test="git-github-admin-note"
         >
-            Admins: GitHub sends people back only if the app's{" "}
-            <strong>Callback URL</strong> and <strong>Setup URL</strong> are{" "}
+            Admins: GitHub sends people back only if the app's{' '}
+            <strong>Callback URL</strong> and <strong>Setup URL</strong> are{' '}
             <code className="font-mono break-all text-foreground">
                 {github.callback_url}
             </code>
@@ -356,13 +356,13 @@ function InstallStep({
                 </p>
                 <div className="flex flex-wrap gap-2">
                     <Button asChild data-test="git-github-finish">
-                        <a href={github.reconnect_url ?? "#"} onClick={leave}>
+                        <a href={github.reconnect_url ?? '#'} onClick={leave}>
                             Continue
                             <ExternalLink className="size-4" />
                         </a>
                     </Button>
                     <Button variant="outline" asChild>
-                        <a href={github.connect_url ?? "#"} onClick={leave}>
+                        <a href={github.connect_url ?? '#'} onClick={leave}>
                             Install on GitHub again
                         </a>
                     </Button>
@@ -380,7 +380,7 @@ function InstallStep({
                     repositories. It only takes a moment.
                 </p>
                 <Button asChild>
-                    <a href={github.reconnect_url ?? "#"} onClick={leave}>
+                    <a href={github.reconnect_url ?? '#'} onClick={leave}>
                         Reconnect GitHub
                         <ExternalLink className="size-4" />
                     </a>
@@ -395,9 +395,9 @@ function InstallStep({
                 {[
                     installed
                         ? "Sign in to GitHub so OneDrop can see which accounts it's installed on."
-                        : "Install the OneDrop app on your GitHub account or an organization.",
-                    "Choose all repositories, or only the ones OneDrop may use. You can change this later.",
-                    "GitHub brings you back here to pick or create a repository.",
+                        : 'Install the OneDrop app on your GitHub account or an organization.',
+                    'Choose all repositories, or only the ones OneDrop may use. You can change this later.',
+                    'GitHub brings you back here to pick or create a repository.',
                 ].map((text, index) => (
                     <li key={text} className="flex gap-3">
                         <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium">
@@ -413,7 +413,7 @@ function InstallStep({
                 app's sandbox.
             </p>
             <Button asChild data-test="git-github-continue">
-                <a href={github.connect_url ?? "#"} onClick={leave}>
+                <a href={github.connect_url ?? '#'} onClick={leave}>
                     Continue to GitHub
                     <ExternalLink className="size-4" />
                 </a>
@@ -447,10 +447,10 @@ function OwnerPicker({
                         onClick={() => onChange(installation.id)}
                         aria-pressed={installation.id === ownerId}
                         className={cn(
-                            "flex items-center gap-2 rounded-full border py-1 pr-3 pl-1 text-sm",
+                            'flex items-center gap-2 rounded-full border py-1 pr-3 pl-1 text-sm',
                             installation.id === ownerId
-                                ? "border-primary bg-primary/5 font-medium"
-                                : "border-sidebar-border/70 hover:bg-muted dark:border-sidebar-border",
+                                ? 'border-primary bg-primary/5 font-medium'
+                                : 'border-sidebar-border/70 hover:bg-muted dark:border-sidebar-border',
                         )}
                         data-test="git-github-owner"
                     >
@@ -459,7 +459,7 @@ function OwnerPicker({
                     </button>
                 ))}
                 <a
-                    href={addUrl ?? "#"}
+                    href={addUrl ?? '#'}
                     className="flex items-center gap-1.5 rounded-full border border-dashed border-sidebar-border px-3 py-1 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
                     data-test="git-github-add-owner"
                 >
@@ -477,10 +477,10 @@ function Avatar({ installation }: { installation: GitHubInstallation }) {
             src={installation.avatar_url}
             alt=""
             className={cn(
-                "size-6",
-                installation.type === "Organization"
-                    ? "rounded-md"
-                    : "rounded-full",
+                'size-6',
+                installation.type === 'Organization'
+                    ? 'rounded-md'
+                    : 'rounded-full',
             )}
         />
     ) : (
@@ -493,7 +493,7 @@ function Avatar({ installation }: { installation: GitHubInstallation }) {
 type GitHubRequest = <T>(
     url: string,
     body?: unknown,
-    method?: "POST" | "PUT",
+    method?: 'POST' | 'PUT',
 ) => Promise<T>;
 
 /** Calls `refresh` when the user comes back to this tab (e.g. from GitHub), and every few seconds while `polling`. */
@@ -503,20 +503,20 @@ function useRefreshOnReturn(refresh: () => void, polling = false) {
 
     useEffect(() => {
         const onVisible = () => {
-            if (document.visibilityState === "visible") {
+            if (document.visibilityState === 'visible') {
                 latest.current();
             }
         };
 
-        window.addEventListener("focus", onVisible);
-        document.addEventListener("visibilitychange", onVisible);
+        window.addEventListener('focus', onVisible);
+        document.addEventListener('visibilitychange', onVisible);
         const timer = polling
             ? setInterval(() => latest.current(), 4000)
             : null;
 
         return () => {
-            window.removeEventListener("focus", onVisible);
-            document.removeEventListener("visibilitychange", onVisible);
+            window.removeEventListener('focus', onVisible);
+            document.removeEventListener('visibilitychange', onVisible);
 
             if (timer) {
                 clearInterval(timer);
@@ -545,7 +545,7 @@ function NewRepository({
     const [name, setName] = useState(suggestedName);
     const [isPrivate, setIsPrivate] = useState(true);
     const [availability, setAvailability] = useState<
-        "checking" | "available" | "taken" | "invalid" | null
+        'checking' | 'available' | 'taken' | 'invalid' | null
     >(null);
     const [waiting, setWaiting] = useState(false);
     const [found, setFound] = useState<Repository | null>(null);
@@ -560,17 +560,17 @@ function NewRepository({
         }
 
         if (
-            trimmed === "" ||
+            trimmed === '' ||
             !NAME_PATTERN.test(trimmed) ||
-            trimmed === "." ||
-            trimmed === ".."
+            trimmed === '.' ||
+            trimmed === '..'
         ) {
-            setAvailability(trimmed === "" ? null : "invalid");
+            setAvailability(trimmed === '' ? null : 'invalid');
 
             return;
         }
 
-        setAvailability("checking");
+        setAvailability('checking');
         let cancelled = false;
         const timer = setTimeout(() => {
             request<{ available: boolean }>(
@@ -581,7 +581,7 @@ function NewRepository({
                 .then(
                     ({ available }) =>
                         !cancelled &&
-                        setAvailability(available ? "available" : "taken"),
+                        setAvailability(available ? 'available' : 'taken'),
                 )
                 .catch(() => !cancelled && setAvailability(null));
         }, 350);
@@ -637,7 +637,7 @@ function NewRepository({
         request(
             GitHubAppController.connect.url(projectId),
             { installation_id: owner.id, repository: found.full_name },
-            "PUT",
+            'PUT',
         )
             .then(onConnected)
             .catch((e: Error) => setError(e.message))
@@ -647,7 +647,7 @@ function NewRepository({
     const newUrl = `https://github.com/new?${new URLSearchParams({
         owner: owner.account,
         name: trimmed,
-        visibility: isPrivate ? "private" : "public",
+        visibility: isPrivate ? 'private' : 'public',
     })}`;
 
     if (waiting) {
@@ -665,17 +665,17 @@ function NewRepository({
                         <Loader2 className="mt-0.5 size-4 animate-spin text-muted-foreground" />
                         <div className="space-y-2">
                             <p>
-                                Waiting for{" "}
+                                Waiting for{' '}
                                 <strong>
                                     {owner.account}/{trimmed}
                                 </strong>
                                 . Create it in the GitHub tab, then come back
                                 here.
                             </p>
-                            {owner.selection === "selected" && (
+                            {owner.selection === 'selected' && (
                                 <p className="text-muted-foreground">
                                     OneDrop only reaches the repositories you
-                                    chose, so after creating it,{" "}
+                                    chose, so after creating it,{' '}
                                     <a
                                         href={owner.manage_url}
                                         target="_blank"
@@ -732,7 +732,7 @@ function NewRepository({
         );
     }
 
-    const canSubmit = availability === "available" && !busy;
+    const canSubmit = availability === 'available' && !busy;
 
     return (
         <div className="space-y-4" data-test="git-github-new">
@@ -754,19 +754,19 @@ function NewRepository({
                     className="block min-h-5 text-xs"
                     data-test="git-github-availability"
                 >
-                    {availability === "checking" && (
+                    {availability === 'checking' && (
                         <span className="text-muted-foreground">Checking…</span>
                     )}
-                    {availability === "available" && (
+                    {availability === 'available' && (
                         <span className="text-green-600">
                             <Check className="mr-1 inline size-3.5" />
                             {trimmed} is available.
                         </span>
                     )}
-                    {availability === "taken" && (
+                    {availability === 'taken' && (
                         <span className="text-red-600">
                             <X className="mr-1 inline size-3.5" />
-                            {owner.account} already has {trimmed}.{" "}
+                            {owner.account} already has {trimmed}.{' '}
                             <button
                                 type="button"
                                 onClick={onUseExisting}
@@ -776,7 +776,7 @@ function NewRepository({
                             </button>
                         </span>
                     )}
-                    {availability === "invalid" && (
+                    {availability === 'invalid' && (
                         <span className="text-red-600">
                             Use letters, numbers, dots, dashes and underscores.
                         </span>
@@ -788,8 +788,8 @@ function NewRepository({
                 <legend className="sr-only">Visibility</legend>
                 {(
                     [
-                        [true, "Private", "Only you and people you invite"],
-                        [false, "Public", "Anyone on the internet can see it"],
+                        [true, 'Private', 'Only you and people you invite'],
+                        [false, 'Public', 'Anyone on the internet can see it'],
                     ] as const
                 ).map(([value, label, hint]) => (
                     <button
@@ -798,10 +798,10 @@ function NewRepository({
                         onClick={() => setIsPrivate(value)}
                         aria-pressed={isPrivate === value}
                         className={cn(
-                            "rounded-lg border p-3 text-left text-sm",
+                            'rounded-lg border p-3 text-left text-sm',
                             isPrivate === value
-                                ? "border-primary bg-primary/5"
-                                : "border-sidebar-border/70 hover:bg-muted dark:border-sidebar-border",
+                                ? 'border-primary bg-primary/5'
+                                : 'border-sidebar-border/70 hover:bg-muted dark:border-sidebar-border',
                         )}
                         data-test={`git-github-${label.toLowerCase()}`}
                     >
@@ -853,9 +853,9 @@ function NewRepository({
                         )}
                     </Button>
                     <p className="text-xs text-muted-foreground">
-                        {owner.type === "Organization"
+                        {owner.type === 'Organization'
                             ? "OneDrop isn't allowed to create repositories here, so GitHub opens with this one filled in."
-                            : "GitHub doesn't let apps create repositories on personal accounts, so GitHub opens with this one filled in."}{" "}
+                            : "GitHub doesn't let apps create repositories on personal accounts, so GitHub opens with this one filled in."}{' '}
                         Create it, come back, and OneDrop connects and pushes to
                         it.
                     </p>
@@ -879,10 +879,10 @@ function ExistingRepository({
     onConnected: () => void;
 }) {
     const [repositories, setRepositories] = useState<Repository[] | null>(null);
-    const [filter, setFilter] = useState("");
+    const [filter, setFilter] = useState('');
     const [chosen, setChosen] = useState<Repository | null>(null);
     const [branches, setBranches] = useState<string[] | null>(null);
-    const [branch, setBranch] = useState("");
+    const [branch, setBranch] = useState('');
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -934,7 +934,7 @@ function ExistingRepository({
         request(
             GitHubAppController.connect.url(projectId),
             { installation_id: owner.id, repository: chosen.full_name, branch },
-            "PUT",
+            'PUT',
         )
             .then(onConnected)
             .catch((e: Error) => setError(e.message))
@@ -946,14 +946,14 @@ function ExistingRepository({
     );
 
     const action = !chosen
-        ? "Connect"
+        ? 'Connect'
         : !hasCommits
           ? chosen.empty
-              ? "Connect"
-              : "Connect and bring it in"
+              ? 'Connect'
+              : 'Connect and bring it in'
           : chosen.empty
-            ? "Connect and push"
-            : "Connect";
+            ? 'Connect and push'
+            : 'Connect';
 
     return (
         <div className="space-y-3" data-test="git-github-existing">
@@ -986,7 +986,7 @@ function ExistingRepository({
                     <li className="px-3 py-3 text-sm text-muted-foreground">
                         {repositories.length === 0
                             ? `OneDrop can't reach any of ${owner.account}'s repositories yet.`
-                            : "No repositories match."}
+                            : 'No repositories match.'}
                     </li>
                 ) : (
                     shown.map((repository) => (
@@ -998,9 +998,9 @@ function ExistingRepository({
                                     chosen?.full_name === repository.full_name
                                 }
                                 className={cn(
-                                    "flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-muted/50",
+                                    'flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-muted/50',
                                     chosen?.full_name ===
-                                        repository.full_name && "bg-muted",
+                                        repository.full_name && 'bg-muted',
                                 )}
                                 data-test="git-github-repository"
                             >
@@ -1010,14 +1010,14 @@ function ExistingRepository({
                                     </span>
                                     <span className="block text-xs text-muted-foreground">
                                         {repository.empty
-                                            ? "Empty"
+                                            ? 'Empty'
                                             : repository.pushed_at
                                               ? `Updated ${timeAgo(repository.pushed_at)}`
-                                              : ""}
+                                              : ''}
                                     </span>
                                 </span>
                                 <Badge>
-                                    {repository.private ? "Private" : "Public"}
+                                    {repository.private ? 'Private' : 'Public'}
                                 </Badge>
                                 {chosen?.full_name === repository.full_name && (
                                     <Check className="size-4 text-primary" />
@@ -1029,7 +1029,7 @@ function ExistingRepository({
             </ul>
 
             <p className="text-xs text-muted-foreground">
-                Don't see it?{" "}
+                Don't see it?{' '}
                 <a
                     href={owner.manage_url}
                     target="_blank"
@@ -1087,17 +1087,17 @@ function Badge({ children }: { children: ReactNode }) {
     );
 }
 
-const RELATIVE = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+const RELATIVE = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
 
 function timeAgo(iso: string): string {
     const seconds = (new Date(iso).getTime() - Date.now()) / 1000;
     const units: [Intl.RelativeTimeFormatUnit, number][] = [
-        ["year", 31536000],
-        ["month", 2592000],
-        ["week", 604800],
-        ["day", 86400],
-        ["hour", 3600],
-        ["minute", 60],
+        ['year', 31536000],
+        ['month', 2592000],
+        ['week', 604800],
+        ['day', 86400],
+        ['hour', 3600],
+        ['minute', 60],
     ];
 
     for (const [unit, size] of units) {
@@ -1106,5 +1106,5 @@ function timeAgo(iso: string): string {
         }
     }
 
-    return "just now";
+    return 'just now';
 }

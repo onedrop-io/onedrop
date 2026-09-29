@@ -36,6 +36,8 @@ class CreateNewUser implements CreatesNewUsers
             $user->forceFill(['email_verified_at' => now()])->save();
         }
 
+        $user->becomeAdminIfFirst();
+
         $this->acceptInvitation($user);
 
         return $user;
@@ -48,6 +50,8 @@ class CreateNewUser implements CreatesNewUsers
     {
         $id = session()->pull(AcceptInvitationController::SESSION_KEY);
 
-        Invitation::find($id)?->acceptFor($user);
+        if (is_int($id) || is_string($id)) {
+            Invitation::find($id)?->acceptFor($user);
+        }
     }
 }

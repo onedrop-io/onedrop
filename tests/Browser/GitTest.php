@@ -284,3 +284,45 @@ test('coming back from GitHub without its redirect offers to finish instead of s
         ->assertAttribute('@git-github-finish', 'href', route('projects.git.github-app.install', [$project, 'reconnect' => 1]))
         ->assertNoJavaScriptErrors();
 })->group('GIT-005');
+
+test('discarding a file named "all" discards only that file', function () {
+    $requests = [];
+    $provider = new FakeSandboxProvider;
+    $provider->execUsing = function (array $command, array $env) use (&$requests) {
+        if (! isset($env['APP_GIT_REQUEST'])) {
+            return new ExecResult(0, '');
+        }
+
+        $request = json_decode($env['APP_GIT_REQUEST'], true);
+        $requests[] = $request;
+
+        $data = match ($request['op']) {
+            'log' => ['commits' => [], 'more' => false],
+            default => [
+                'initialized' => true, 'branch' => 'main', 'branches' => ['main'], 'head' => str_repeat('a', 40),
+                'changes' => [['path' => 'all', 'status' => 'M'], ['path' => 'index.html', 'status' => 'M']],
+                'more_changes' => false, 'tracking' => null, 'state' => null,
+            ],
+        };
+
+        return new ExecResult(0, json_encode(['ok' => true, 'data' => $data]));
+    };
+    app()->instance(SandboxProvider::class, $provider);
+
+    $user = User::factory()->has(AgentConnection::factory())->create();
+    $project = Project::factory()->for($user)->create();
+    Sandbox::factory()->for($project)->create(['preview_url' => null]);
+    $this->actingAs($user);
+
+    visit("/projects/{$project->id}")
+        ->resize(1500, 1000)
+        ->click('@tab-tools')
+        ->click('@tool-git')
+        ->assertSeeIn('@git-change-count', '2 changed files')
+        ->click('[aria-label="Discard changes to all"]')
+        ->assertSee('Discard changes to this file?')
+        ->click('@git-confirm-action')
+        ->assertNoJavaScriptErrors();
+
+    expect(collect($requests)->where('op', 'discard')->values()->all())->toBe([['op' => 'discard', 'path' => 'all']]);
+})->group('GIT-002');

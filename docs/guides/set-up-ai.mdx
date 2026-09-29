@@ -42,6 +42,7 @@ The agent that builds your apps uses your own AI account: your ChatGPT Plus or P
     </Note>
 
     To pay per use instead, click **Paste an OpenAI API key instead** and paste a key from [platform.openai.com](https://platform.openai.com/api-keys). OneDrop checks it with OpenAI before saving it.
+
   </Tab>
   <Tab title="Gemini (Google)">
     Paste a Gemini API key from [Google AI Studio](https://aistudio.google.com/app/apikey). OneDrop checks the key with Google before saving it. Usage is billed to your AI Studio account, which has a free tier.
@@ -49,6 +50,7 @@ The agent that builds your apps uses your own AI account: your ChatGPT Plus or P
     <Note>
       You can't connect a Gemini subscription (Google AI Pro or Ultra). Google's terms forbid other apps from using the Gemini CLI sign-in, and Google suspends accounts that do. Use an API key, or pick a Gemini model through OpenRouter.
     </Note>
+
   </Tab>
   <Tab title="OpenRouter">
     Click **Sign in with OpenRouter** and approve access. OpenRouter creates a key you control and can revoke. A small link lets you paste an existing OpenRouter key instead.
@@ -70,10 +72,10 @@ Keys are encrypted in the database, never sent back to your browser, and only pa
 
 Each project runs one of two agents in its sandbox. The agent picker sits under the chat box, left of the model picker, in both the new-project prompt and the project chat.
 
-| Agent | Runs | Best for |
-| --- | --- | --- |
-| **OpenCode** | Any connected provider except Claude subscription tokens | Choosing between providers and hundreds of models |
-| **Claude Code** | Claude models only, with an Anthropic API key or a Claude subscription token | Building on your Claude Pro or Max plan |
+| Agent           | Runs                                                                         | Best for                                          |
+| --------------- | ---------------------------------------------------------------------------- | ------------------------------------------------- |
+| **OpenCode**    | Any connected provider except Claude subscription tokens                     | Choosing between providers and hundreds of models |
+| **Claude Code** | Claude models only, with an Anthropic API key or a Claude subscription token | Building on your Claude Pro or Max plan           |
 
 - New projects start on OpenCode, or on Claude Code if a Claude subscription token is all you've connected.
 - Claude Code only shows up once you've connected Claude. While it's chosen, the model picker only lists Claude models.

@@ -47,14 +47,24 @@ With a GitHub App set up, **Tools → Git** shows **Connect to GitHub**. People 
 
         The slug is the last part of the app's public URL, `github.com/apps/<slug>`. Put the private key in double quotes, either on one line with each line break written as `\n` or pasted as it is across several lines. Then run `php artisan config:cache` (the deploy script does this).
     </Step>
+
 </Steps>
 
 <Warning>
-    If GitHub doesn't send people back after installing, the **Setup URL** is missing or wrong. Set the Callback URL and the Setup URL to `APP_URL` plus `/github/callback`, e.g. `http://localhost:8000/github/callback` on a laptop. (If you also use the app for logging in and its Callback URL is `/login/github/callback`, that works too: OneDrop passes Tools → Git returns on.) Admins see the URL to use in the Connect to GitHub dialog, and a warning in Tools → Git when the app has installs that never came back.
+    If GitHub doesn't send people back after installing, the **Setup URL** is
+    missing or wrong. Set the Callback URL and the Setup URL to `APP_URL` plus
+    `/github/callback`, e.g. `http://localhost:8000/github/callback` on a
+    laptop. (If you also use the app for logging in and its Callback URL is
+    `/login/github/callback`, that works too: OneDrop passes Tools → Git returns
+    on.) Admins see the URL to use in the Connect to GitHub dialog, and a
+    warning in Tools → Git when the app has installs that never came back.
 </Warning>
 
 **Connect to GitHub** appears in Tools → Git once all five values are set. Until the setup is complete (a missing value, or a missing permission), admins see what's wrong at the top of Tools → Git, with a link to the app's permission settings.
 
 <Note>
-    These `GITHUB_APP_*` settings are separate from `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`, which only turn on the **Log in with GitHub** button (see [social login](/self-hosting/social-login)). Tools → Git needs only the five `GITHUB_APP_*` values.
+    These `GITHUB_APP_*` settings are separate from `GITHUB_CLIENT_ID` and
+    `GITHUB_CLIENT_SECRET`, which only turn on the **Log in with GitHub** button
+    (see [social login](/self-hosting/social-login)). Tools → Git needs only the
+    five `GITHUB_APP_*` values.
 </Note>

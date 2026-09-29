@@ -145,3 +145,25 @@ test('the database section explains when the sandbox is not running', function (
         ->assertSeeIn('@database-empty', 'works when the sandbox is running')
         ->assertNoJavaScriptErrors();
 })->group('DB-001');
+
+test('a cell can be set to the text "cancel", and Escape still cancels', function () {
+    $page = visit("/projects/{$this->project->id}")
+        ->resize(1920, 1080)
+        ->click('@tab-tools')
+        ->click('@tool-database')
+        ->click('@db-table-users')
+        ->keys('@db-cell-0-name', 'Enter')
+        ->type('@db-cell-input', 'Nobody')
+        ->keys('@db-cell-input', 'Escape')
+        ->assertMissing('@db-pending')
+        ->keys('@db-cell-0-name', 'Enter')
+        ->type('@db-cell-input', 'cancel')
+        ->keys('@db-cell-input', 'Enter')
+        ->assertSeeIn('@db-pending', '1 unsaved change')
+        ->click('@db-save')
+        ->assertMissing('@db-pending');
+
+    expect(workspaceUsers($this->workspace)[0]['name'])->toBe('cancel');
+
+    $page->assertNoJavaScriptErrors();
+})->group('DB-001');

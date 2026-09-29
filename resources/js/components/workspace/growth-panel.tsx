@@ -7,29 +7,29 @@ import {
     CircleCheck,
     CircleX,
     Minus,
-} from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
-import ProjectGrowthController from "@/actions/App/Http/Controllers/ProjectGrowthController";
-import TimeLineChart from "@/components/charts/time-line-chart";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+} from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import ProjectGrowthController from '@/actions/App/Http/Controllers/ProjectGrowthController';
+import TimeLineChart from '@/components/charts/time-line-chart';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { askAgent } from "@/lib/ask-agent";
-import { jsonRequest } from "@/lib/json-request";
-import { cn } from "@/lib/utils";
+} from '@/components/ui/dropdown-menu';
+import { askAgent } from '@/lib/ask-agent';
+import { jsonRequest } from '@/lib/json-request';
+import { cn } from '@/lib/utils';
 
-type Range = "24h" | "7d" | "30d";
+type Range = '24h' | '7d' | '30d';
 
 type Row = { label: string; count: number };
 
 type SeoCheck = {
     title: string;
-    status: "pass" | "warn" | "fail";
+    status: 'pass' | 'warn' | 'fail';
     detail: string | null;
 };
 
@@ -68,14 +68,14 @@ type Growth = {
 };
 
 const RANGES: { value: Range; label: string; previous: string }[] = [
-    { value: "24h", label: "Past day", previous: "previous day" },
-    { value: "7d", label: "Past week", previous: "previous 7 days" },
-    { value: "30d", label: "Past 30 days", previous: "previous 30 days" },
+    { value: '24h', label: 'Past day', previous: 'previous day' },
+    { value: '7d', label: 'Past week', previous: 'previous 7 days' },
+    { value: '30d', label: 'Past 30 days', previous: 'previous 30 days' },
 ];
 
 const countryNames =
-    typeof Intl.DisplayNames === "function"
-        ? new Intl.DisplayNames(undefined, { type: "region" })
+    typeof Intl.DisplayNames === 'function'
+        ? new Intl.DisplayNames(undefined, { type: 'region' })
         : null;
 
 /**
@@ -91,8 +91,8 @@ export default function GrowthPanel({
     /** The agent is running a task. */
     working: boolean;
 }) {
-    const [range, setRange] = useState<Range>("7d");
-    const [traffic, setTraffic] = useState<"all" | "published">("all");
+    const [range, setRange] = useState<Range>('7d');
+    const [traffic, setTraffic] = useState<'all' | 'published'>('all');
     const [data, setData] = useState<Growth | null>(null);
     const [error, setError] = useState<string | null>(null);
 
@@ -149,7 +149,7 @@ export default function GrowthPanel({
 
     return (
         <div className="@container space-y-6" data-test="growth-panel">
-            <SeoCard projectId={projectId} working={working} seo={data.seo} />
+            <SeoCard projectId={projectId} seo={data.seo} />
 
             <section className="space-y-5 rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border">
                 <header className="flex flex-wrap items-start justify-between gap-2">
@@ -167,8 +167,8 @@ export default function GrowthPanel({
                         >
                             {(
                                 [
-                                    ["all", "All traffic"],
-                                    ["published", "Published only"],
+                                    ['all', 'All traffic'],
+                                    ['published', 'Published only'],
                                 ] as const
                             ).map(([value, label]) => (
                                 <button
@@ -178,10 +178,10 @@ export default function GrowthPanel({
                                     aria-checked={traffic === value}
                                     onClick={() => setTraffic(value)}
                                     className={cn(
-                                        "rounded px-2 py-1",
+                                        'rounded px-2 py-1',
                                         traffic === value
-                                            ? "bg-muted font-medium"
-                                            : "text-muted-foreground",
+                                            ? 'bg-muted font-medium'
+                                            : 'text-muted-foreground',
                                     )}
                                 >
                                     {label}
@@ -229,12 +229,12 @@ export default function GrowthPanel({
                         label="Signed-in users"
                         value={
                             data.signed_in_users === null
-                                ? "—"
+                                ? '—'
                                 : data.signed_in_users.toLocaleString()
                         }
                         note={
                             data.signed_in_users === null
-                                ? "Shows once your app has sign-in (Users & Auth)."
+                                ? 'Shows once your app has sign-in (Users & Auth).'
                                 : "Your app's users who signed in during this period."
                         }
                     />
@@ -248,7 +248,7 @@ export default function GrowthPanel({
                 ) : (
                     <>
                         <TimeLineChart
-                            title={`Visitors over time (${analytics.bucket_seconds >= 86400 ? "day" : "hour"})`}
+                            title={`Visitors over time (${analytics.bucket_seconds >= 86400 ? 'day' : 'hour'})`}
                             points={analytics.visitors_over_time}
                             bucketSeconds={analytics.bucket_seconds}
                             testId="chart-visitors"
@@ -303,7 +303,7 @@ export default function GrowthPanel({
                 projectId={projectId}
                 events={data.events}
                 bucketSeconds={analytics.bucket_seconds}
-                period={`${rangeInfo.label}${traffic === "published" ? ", published only" : ""}`}
+                period={`${rangeInfo.label}${traffic === 'published' ? ', published only' : ''}`}
                 previous={rangeInfo.previous}
             />
         </div>
@@ -324,7 +324,7 @@ function useAgentRequest(url: string) {
                 setError(null);
                 setSent(
                     queued
-                        ? "Asked the agent. It runs after the current task; follow along in the chat."
+                        ? 'Asked the agent. It runs after the current task; follow along in the chat.'
                         : startedMessage,
                 );
 
@@ -350,13 +350,13 @@ function EventsCard({
     previous,
 }: {
     projectId: number;
-    events: Growth["events"];
+    events: Growth['events'];
     bucketSeconds: number;
     period: string;
     previous: string;
 }) {
     const [selected, setSelected] = useState<string | null>(null);
-    const [more, setMore] = useState("");
+    const [more, setMore] = useState('');
     const request = useAgentRequest(
         ProjectGrowthController.addEvents.url(projectId),
     );
@@ -367,15 +367,15 @@ function EventsCard({
         request
             .send(
                 { events: description || null },
-                "The agent is adding events to your app. Follow along in the chat; they show up here as people use the app.",
+                'The agent is adding events to your app. Follow along in the chat; they show up here as people use the app.',
             )
-            .then((ok) => ok && setMore(""));
+            .then((ok) => ok && setMore(''));
 
     const status = (request.sent || request.error) && (
         <p
             className={cn(
-                "text-sm",
-                request.error ? "text-red-600" : "text-muted-foreground",
+                'text-sm',
+                request.error ? 'text-red-600' : 'text-muted-foreground',
             )}
             data-test="events-sent"
         >
@@ -391,7 +391,7 @@ function EventsCard({
             >
                 <ChartSpline
                     className="size-8"
-                    style={{ color: "var(--viz-1)" }}
+                    style={{ color: 'var(--viz-1)' }}
                     aria-hidden
                 />
                 <h3 className="text-lg font-medium">
@@ -447,8 +447,8 @@ function EventsCard({
                                 <tr
                                     key={row.name}
                                     className={cn(
-                                        "cursor-pointer align-top hover:bg-muted/50",
-                                        row.name === event?.name && "bg-muted",
+                                        'cursor-pointer align-top hover:bg-muted/50',
+                                        row.name === event?.name && 'bg-muted',
                                     )}
                                     onClick={() => setSelected(row.name)}
                                 >
@@ -495,7 +495,7 @@ function EventsCard({
                                 />
                             </p>
                             <TimeLineChart
-                                title={`${event.name} over time (${bucketSeconds >= 86400 ? "day" : "hour"})`}
+                                title={`${event.name} over time (${bucketSeconds >= 86400 ? 'day' : 'hour'})`}
                                 points={event.over_time}
                                 bucketSeconds={bucketSeconds}
                                 testId="chart-event"
@@ -534,7 +534,7 @@ function EventsCard({
                 <Button
                     type="submit"
                     variant="outline"
-                    disabled={request.sending || more.trim() === ""}
+                    disabled={request.sending || more.trim() === ''}
                     data-test="events-add"
                 >
                     Add with agent
@@ -548,12 +548,10 @@ function EventsCard({
 /** The SEO rating from the agent's last scan, with a button to run another. */
 function SeoCard({
     projectId,
-    working,
     seo,
 }: {
     projectId: number;
-    working: boolean;
-    seo: Growth["seo"];
+    seo: Growth['seo'];
 }) {
     const [open, setOpen] = useState(true);
     const { send, sending, sent, error } = useAgentRequest(
@@ -580,8 +578,8 @@ function SeoCard({
                 >
                     <ChevronDown
                         className={cn(
-                            "size-4 text-muted-foreground transition-transform",
-                            !open && "-rotate-90",
+                            'size-4 text-muted-foreground transition-transform',
+                            !open && '-rotate-90',
                         )}
                     />
                     SEO rating
@@ -633,8 +631,8 @@ function SeoCard({
             {(sent || error) && (
                 <p
                     className={cn(
-                        "px-4 pb-3 text-sm",
-                        error ? "text-red-600" : "text-muted-foreground",
+                        'px-4 pb-3 text-sm',
+                        error ? 'text-red-600' : 'text-muted-foreground',
                     )}
                     data-test="seo-scan-sent"
                 >
@@ -650,8 +648,8 @@ function SeoCard({
                                 {seo.summary}
                                 {seo.scanned_at && (
                                     <>
-                                        {seo.summary && " "}
-                                        Scanned{" "}
+                                        {seo.summary && ' '}
+                                        Scanned{' '}
                                         {new Date(
                                             seo.scanned_at,
                                         ).toLocaleString()}
@@ -695,22 +693,22 @@ function SeoCard({
 }
 
 const STATUS = {
-    pass: { label: "Passed", icon: CircleCheck, className: "text-green-600" },
+    pass: { label: 'Passed', icon: CircleCheck, className: 'text-green-600' },
     warn: {
-        label: "Needs work",
+        label: 'Needs work',
         icon: CircleAlert,
-        className: "text-amber-600",
+        className: 'text-amber-600',
     },
-    fail: { label: "Failed", icon: CircleX, className: "text-red-600" },
+    fail: { label: 'Failed', icon: CircleX, className: 'text-red-600' },
 } as const;
 
-function CheckStatus({ status }: { status: SeoCheck["status"] }) {
+function CheckStatus({ status }: { status: SeoCheck['status'] }) {
     const { label, icon: Icon, className } = STATUS[status];
 
     return (
         <span
             className={cn(
-                "flex w-24 shrink-0 items-center gap-1.5 text-xs",
+                'flex w-24 shrink-0 items-center gap-1.5 text-xs',
                 className,
             )}
         >
@@ -735,7 +733,7 @@ function Change({
     return (
         <span className="flex items-center gap-1" data-test="growth-change">
             <Icon className="size-3" />
-            {difference > 0 ? "+" : ""}
+            {difference > 0 ? '+' : ''}
             {difference.toLocaleString()} vs {period}
         </span>
     );
@@ -810,7 +808,7 @@ function TopList({
                                     className="block h-full rounded-full"
                                     style={{
                                         width: `${(row.count / max) * 100}%`,
-                                        background: "var(--viz-1)",
+                                        background: 'var(--viz-1)',
                                     }}
                                 />
                             </span>
@@ -831,13 +829,13 @@ function Empty({
     tone,
 }: {
     children: React.ReactNode;
-    tone?: "error";
+    tone?: 'error';
 }) {
     return (
         <p
             className={cn(
-                "rounded-lg border border-dashed p-6 text-center text-sm",
-                tone === "error" ? "text-red-600" : "text-muted-foreground",
+                'rounded-lg border border-dashed p-6 text-center text-sm',
+                tone === 'error' ? 'text-red-600' : 'text-muted-foreground',
             )}
             data-test="growth-empty"
         >

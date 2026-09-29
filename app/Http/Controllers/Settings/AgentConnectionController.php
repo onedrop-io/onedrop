@@ -85,7 +85,7 @@ class AgentConnectionController extends Controller
      */
     public static function connectionsFor(User $user): array
     {
-        return $user->agentConnections()->orderBy('id')->get()
+        return array_values($user->agentConnections()->orderBy('id')->get()
             ->map(fn (AgentConnection $connection): array => [
                 'id' => $connection->id,
                 'provider' => $connection->provider->value,
@@ -94,6 +94,6 @@ class AgentConnectionController extends Controller
                 'is_default' => $connection->is_default,
                 'verified' => $connection->verified_at !== null,
             ])
-            ->all();
+            ->all());
     }
 }

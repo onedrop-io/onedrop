@@ -40,7 +40,7 @@ class ConnectAgent
             $user,
             AgentProvider::Codex,
             CredentialType::ChatGpt,
-            json_encode($tokens),
+            json_encode($tokens, JSON_THROW_ON_ERROR),
             AgentConnection::hintFor($tokens['account_id'] ?? $tokens['access']),
             verified: true,
         );

@@ -6,22 +6,22 @@
 export async function jsonRequest<T>(
     url: string,
     body?: unknown,
-    method: "POST" | "PUT" | "PATCH" | "DELETE" = "POST",
+    method: 'POST' | 'PUT' | 'PATCH' | 'DELETE' = 'POST',
 ): Promise<T> {
     const token = document.cookie.match(/(?:^|; )XSRF-TOKEN=([^;]+)/)?.[1];
     const isForm = body instanceof FormData;
     const response = await fetch(url, {
-        method: body === undefined ? "GET" : method,
+        method: body === undefined ? 'GET' : method,
         headers: {
-            Accept: "application/json",
+            Accept: 'application/json',
             ...(body === undefined
                 ? {}
                 : {
-                      ...(isForm ? {} : { "Content-Type": "application/json" }),
-                      "X-XSRF-TOKEN": decodeURIComponent(token ?? ""),
+                      ...(isForm ? {} : { 'Content-Type': 'application/json' }),
+                      'X-XSRF-TOKEN': decodeURIComponent(token ?? ''),
                   }),
         },
-        credentials: "same-origin",
+        credentials: 'same-origin',
         body:
             body === undefined
                 ? undefined

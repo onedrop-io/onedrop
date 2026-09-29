@@ -98,7 +98,7 @@ class Gateway
         return [
             'url' => "{$parts['scheme']}://{$parts['host']}".(isset($parts['port']) ? ":{$parts['port']}" : ''),
             'header' => $param ? self::PROVIDER_TOKENS[$param] : null,
-            'token' => $param ? (string) $query[$param] : null,
+            'token' => $param && is_string($query[$param]) ? $query[$param] : null,
         ];
     }
 
@@ -152,7 +152,7 @@ class Gateway
             'sandbox' => $sandbox->id,
             'kind' => $kind,
             'expires' => now()->addSeconds(self::TOKEN_SECONDS)->getTimestamp(),
-        ]));
+        ], JSON_THROW_ON_ERROR));
 
         return $this->url($sandbox, $kind).'/__zap/enter?'.http_build_query(['token' => $token, 'path' => $path]);
     }
@@ -185,7 +185,7 @@ class Gateway
             'sandbox' => $target['sandbox_id'],
             'kind' => $target['kind'],
             'expires' => now()->addMinutes(self::PASS_MINUTES)->getTimestamp(),
-        ]);
+        ], JSON_THROW_ON_ERROR);
     }
 
     /**

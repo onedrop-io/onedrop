@@ -17,13 +17,13 @@ OneDrop can show **Continue with …** buttons on the log-in and sign-up pages. 
 - **Invite links** work: signing up with a provider from an invite accepts it.
 - **Security settings** list each provider, with **Connect** and **Disconnect** buttons. People can't disconnect their last way to log in.
 
-| Provider         | Email treated as verified when…                             |
-| ---------------- | ----------------------------------------------------------- |
-| Google           | Google reports `email_verified`                             |
-| GitHub           | Always. OneDrop only reads the account's primary, verified email |
-| GitLab           | The account's email is confirmed (`confirmed_at`)           |
-| OIDC             | The issuer reports `email_verified`                         |
-| Microsoft        | Never. People confirm the email by link, like a normal sign-up |
+| Provider  | Email treated as verified when…                                  |
+| --------- | ---------------------------------------------------------------- |
+| Google    | Google reports `email_verified`                                  |
+| GitHub    | Always. OneDrop only reads the account's primary, verified email |
+| GitLab    | The account's email is confirmed (`confirmed_at`)                |
+| OIDC      | The issuer reports `email_verified`                              |
+| Microsoft | Never. People confirm the email by link, like a normal sign-up   |
 
 ## Callback URLs
 
@@ -95,6 +95,7 @@ where `{provider}` is `google`, `microsoft`, `github`, `gitlab`, or `oidc`.
         OIDC_CLIENT_SECRET=...
         ```
     </Tab>
+
 </Tabs>
 
 After changing `.env` on a server, run `php artisan config:cache` (the deploy script does this for you).

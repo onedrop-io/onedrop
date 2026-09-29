@@ -1,23 +1,23 @@
-import { Link, router } from "@inertiajs/react";
-import { Archive, Search, SquarePen } from "lucide-react";
-import { useEffect, useState } from "react";
-import type { KeyboardEvent } from "react";
+import { Link, router } from '@inertiajs/react';
+import { Archive, Search, SquarePen } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import type { KeyboardEvent } from 'react';
 import {
     Dialog,
     DialogContent,
     DialogDescription,
     DialogTitle,
-} from "@/components/ui/dialog";
+} from '@/components/ui/dialog';
 import {
     SidebarGroup,
     SidebarMenu,
     SidebarMenuAction,
     SidebarMenuButton,
     SidebarMenuItem,
-} from "@/components/ui/sidebar";
-import { jsonRequest } from "@/lib/json-request";
-import { dashboard } from "@/routes";
-import { search, show } from "@/routes/projects";
+} from '@/components/ui/sidebar';
+import { jsonRequest } from '@/lib/json-request';
+import { dashboard } from '@/routes';
+import { search, show } from '@/routes/projects';
 
 type SearchResult = { id: number; name: string; archived: boolean };
 
@@ -33,7 +33,7 @@ export function NavSearch() {
                 <SidebarMenuItem>
                     <SidebarMenuButton
                         onClick={() => setOpen(true)}
-                        tooltip={{ children: "Search" }}
+                        tooltip={{ children: 'Search' }}
                         className="bg-background text-muted-foreground shadow-xs ring-1 ring-sidebar-border hover:bg-background/60"
                         data-test="sidebar-search"
                     >
@@ -68,7 +68,7 @@ function SearchDialog({
     open: boolean;
     onOpenChange: (open: boolean) => void;
 }) {
-    const [query, setQuery] = useState("");
+    const [query, setQuery] = useState('');
     const [results, setResults] = useState<SearchResult[] | null>(null);
     const [highlighted, setHighlighted] = useState(0);
 
@@ -101,7 +101,7 @@ function SearchDialog({
         onOpenChange(next);
 
         if (!next) {
-            setQuery("");
+            setQuery('');
             setResults(null);
         }
     };
@@ -109,13 +109,13 @@ function SearchDialog({
     const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
         const count = results?.length ?? 0;
 
-        if (event.key === "ArrowDown" && count > 0) {
+        if (event.key === 'ArrowDown' && count > 0) {
             event.preventDefault();
             setHighlighted((index) => (index + 1) % count);
-        } else if (event.key === "ArrowUp" && count > 0) {
+        } else if (event.key === 'ArrowUp' && count > 0) {
             event.preventDefault();
             setHighlighted((index) => (index - 1 + count) % count);
-        } else if (event.key === "Enter" && results?.[highlighted]) {
+        } else if (event.key === 'Enter' && results?.[highlighted]) {
             event.preventDefault();
             close(false);
             router.visit(show(results[highlighted].id));
@@ -154,7 +154,7 @@ function SearchDialog({
                             href={show(project.id)}
                             onClick={() => close(false)}
                             onMouseMove={() => setHighlighted(index)}
-                            className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm ${index === highlighted ? "bg-accent text-accent-foreground" : ""}`}
+                            className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm ${index === highlighted ? 'bg-accent text-accent-foreground' : ''}`}
                             data-test="project-search-result"
                         >
                             <span className="truncate">{project.name}</span>

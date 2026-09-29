@@ -30,26 +30,26 @@ Tools → Users & Auth panel reads what you build here, so stick to the contract
    case-insensitive, minimum 8-character passwords, clear error messages, rate-limit sign-in attempts.
    Only add password reset or email verification if the app can already send email.
 3. **Google, GitHub, Microsoft** (methods `google`, `github`, `microsoft`):
-   - Read keys from these env vars (the panel writes them into the app's env file; never hard-code them):
-     `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`,
-     `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`. Microsoft uses the `common` tenant.
-   - Start at `/auth/{provider}/redirect`; the callback is `/auth/{provider}/callback`.
-   - Build the callback URL from the incoming request, trusting `X-Forwarded-Host` and
-     `X-Forwarded-Proto` (the preview and published addresses are proxied; the app itself sees
-     `localhost`). In Laravel, trust all proxies (`$middleware->trustProxies(at: '*')`).
-   - Only show a provider's button when both of its env vars are set, so the sign-in page never breaks.
-   - Store the provider's user id (a `provider`/`provider_id` pair, or a separate accounts table). If a
-     verified email matches an existing user, sign them in to that user instead of making a duplicate.
-     Accounts from Google, GitHub or Microsoft don't need a password.
-   - **OneDrop accounts** (method `onedrop`): the app builder itself is the provider, so people sign in
-     with their OneDrop login. It's plain OAuth 2.0 (authorization code, PKCE with S256) plus a user-info
-     endpoint. The app builder writes every setting into the env file itself: `ONEDROP_CLIENT_ID`,
-     `ONEDROP_CLIENT_SECRET`, `ONEDROP_AUTHORIZE_URL`, `ONEDROP_TOKEN_URL`, `ONEDROP_USERINFO_URL`.
-     Configure the three URLs explicitly and don't use discovery: the authorize URL is for the browser,
-     while the token and user-info URLs are for the app's server and may be on a different host. Scope
-     `openid profile email`; user info returns `sub`, `name`, `email`, `email_verified` and `groups`. The
-     button says "Sign in with OneDrop". Laravel: a Socialite provider (extend `AbstractProvider`). Better
-     Auth: the `genericOAuth` plugin with `authorizationUrl`, `tokenUrl` and `userInfoUrl`.
+    - Read keys from these env vars (the panel writes them into the app's env file; never hard-code them):
+      `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`,
+      `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`. Microsoft uses the `common` tenant.
+    - Start at `/auth/{provider}/redirect`; the callback is `/auth/{provider}/callback`.
+    - Build the callback URL from the incoming request, trusting `X-Forwarded-Host` and
+      `X-Forwarded-Proto` (the preview and published addresses are proxied; the app itself sees
+      `localhost`). In Laravel, trust all proxies (`$middleware->trustProxies(at: '*')`).
+    - Only show a provider's button when both of its env vars are set, so the sign-in page never breaks.
+    - Store the provider's user id (a `provider`/`provider_id` pair, or a separate accounts table). If a
+      verified email matches an existing user, sign them in to that user instead of making a duplicate.
+      Accounts from Google, GitHub or Microsoft don't need a password.
+    - **OneDrop accounts** (method `onedrop`): the app builder itself is the provider, so people sign in
+      with their OneDrop login. It's plain OAuth 2.0 (authorization code, PKCE with S256) plus a user-info
+      endpoint. The app builder writes every setting into the env file itself: `ONEDROP_CLIENT_ID`,
+      `ONEDROP_CLIENT_SECRET`, `ONEDROP_AUTHORIZE_URL`, `ONEDROP_TOKEN_URL`, `ONEDROP_USERINFO_URL`.
+      Configure the three URLs explicitly and don't use discovery: the authorize URL is for the browser,
+      while the token and user-info URLs are for the app's server and may be on a different host. Scope
+      `openid profile email`; user info returns `sub`, `name`, `email`, `email_verified` and `groups`. The
+      button says "Sign in with OneDrop". Laravel: a Socialite provider (extend `AbstractProvider`). Better
+      Auth: the `genericOAuth` plugin with `authorizationUrl`, `tokenUrl` and `userInfoUrl`.
 4. **Users table columns:** `id`, `name`, `email`, `role`, `created_at`, and `last_login_at`, updated on
    every successful sign-in by any method. Add missing columns with a migration if the table exists
    already. Also add the two account-control columns the panel sets (see "Account controls" below):

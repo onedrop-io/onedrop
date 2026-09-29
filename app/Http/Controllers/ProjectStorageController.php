@@ -163,7 +163,10 @@ class ProjectStorageController extends Controller
     }
 
     /**
-     * @param  callable(Sandbox): (array<string, mixed>|Response)  $call
+     * @template TResponse of JsonResponse|Response = JsonResponse
+     *
+     * @param  callable(Sandbox): (array<string, mixed>|TResponse)  $call
+     * @return JsonResponse|TResponse
      */
     protected function fromSandbox(Project $project, callable $call): JsonResponse|Response
     {

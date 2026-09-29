@@ -93,7 +93,10 @@ class SandboxGrowth
             'page_views' => $pageViews,
             'visitors_over_time' => array_map(fn (int $t) => ['t' => $t, 'value' => count($perBucket[$t])], $buckets),
             'pages' => $this->top($pages),
-            ...array_map(fn (array $group) => $this->top(array_map('count', $group)), $groups),
+            'referrers' => $this->top(array_map('count', $groups['referrers'])),
+            'countries' => $this->top(array_map('count', $groups['countries'])),
+            'browsers' => $this->top(array_map('count', $groups['browsers'])),
+            'devices' => $this->top(array_map('count', $groups['devices'])),
         ];
     }
 

@@ -5,6 +5,7 @@ namespace App\Sandbox\Agents;
 use App\Enums\AgentHarness;
 use App\Enums\AgentProvider;
 use App\Enums\CredentialType;
+use App\Models\AgentConnection;
 use App\Models\Project;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
@@ -42,7 +43,8 @@ class ModelCatalog
      */
     protected function allModels(AgentProvider $provider): array
     {
-        $featured = config("sandbox.featured_models.{$provider->value}", []);
+        $configured = config("sandbox.featured_models.{$provider->value}", []);
+        $featured = is_array($configured) ? array_values(array_filter($configured, 'is_string')) : [];
         $featuredKeys = array_map($this->matchKey(...), $featured);
         $raw = $this->catalog()[$provider->catalogId()]['models'] ?? null;
 
@@ -57,14 +59,13 @@ class ModelCatalog
             ->map(fn (array $model, string $id) => $this->entry((string) ($model['id'] ?? $id), $model, $featuredKeys))
             ->values();
 
-        return $models
+        return array_values($models
             ->sortBy(fn (array $model) => [
                 $model['featured'] ? array_search($this->matchKey($model['id']), $featuredKeys, true) : PHP_INT_MAX,
                 -strtotime($model['released'] ?? '1970-01-01'),
                 $model['name'],
             ])
-            ->values()
-            ->all();
+            ->all());
     }
 
     /**
@@ -110,13 +111,13 @@ class ModelCatalog
             return $user->agentConnections()->where('provider', AgentProvider::Claude)->exists() ? [AgentProvider::Claude] : [];
         }
 
-        return $user->agentConnections()
+        return array_values($user->agentConnections()
             ->where('credential_type', '!=', CredentialType::OAuthToken)
             ->orderByDesc('is_default')
             ->orderBy('id')
             ->get()
-            ->map(fn ($connection) => $connection->provider)
-            ->all();
+            ->map(fn (AgentConnection $connection) => $connection->provider)
+            ->all());
     }
 
     /**
@@ -295,8 +296,8 @@ class ModelCatalog
      */
     protected function entry(string $id, array $model, array $featuredKeys): array
     {
-        $efforts = collect($model['reasoning_options'] ?? [])
-            ->firstWhere('type', 'effort')['values'] ?? [];
+        $options = $model['reasoning_options'] ?? [];
+        $efforts = is_array($options) ? (collect($options)->firstWhere('type', 'effort')['values'] ?? []) : [];
 
         return [
             'id' => $id,

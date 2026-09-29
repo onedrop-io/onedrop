@@ -1,23 +1,23 @@
-import { EllipsisVertical } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
-import type { FormEvent } from "react";
-import ProjectFlagController from "@/actions/App/Http/Controllers/ProjectFlagController";
-import { Button } from "@/components/ui/button";
+import { EllipsisVertical } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import type { FormEvent } from 'react';
+import ProjectFlagController from '@/actions/App/Http/Controllers/ProjectFlagController';
+import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Switch } from "@/components/ui/switch";
-import { askAgent } from "@/lib/ask-agent";
-import { jsonRequest } from "@/lib/json-request";
-import { cn } from "@/lib/utils";
+} from '@/components/ui/dropdown-menu';
+import { Switch } from '@/components/ui/switch';
+import { askAgent } from '@/lib/ask-agent';
+import { jsonRequest } from '@/lib/json-request';
+import { cn } from '@/lib/utils';
 
 type Flag = { key: string; description: string | null; enabled: boolean };
 
 const QUEUED =
-    "Asked the agent. It runs after the current task; follow along in the chat.";
+    'Asked the agent. It runs after the current task; follow along in the chat.';
 
 /**
  * Feature flags: switch the app's flags (.zap/flags.json) on and off, and ask the agent to add or remove them.
@@ -94,7 +94,7 @@ export default function FlagsPanel({
                 flag: flag.key,
             }),
             { enabled },
-            "PATCH",
+            'PATCH',
         )
             .then(({ flags }) => {
                 setFlags(flags);
@@ -117,7 +117,7 @@ export default function FlagsPanel({
                 flag: flag.key,
             }),
             {},
-            "DELETE",
+            'DELETE',
         )
             .then(({ queued }) =>
                 setNotice({
@@ -136,8 +136,8 @@ export default function FlagsPanel({
             {notice && (
                 <p
                     className={cn(
-                        "text-sm",
-                        notice.error ? "text-red-600" : "text-muted-foreground",
+                        'text-sm',
+                        notice.error ? 'text-red-600' : 'text-muted-foreground',
                     )}
                     data-test="flags-notice"
                 >
@@ -164,7 +164,7 @@ export default function FlagsPanel({
                             <Switch
                                 checked={flag.enabled}
                                 onChange={(enabled) => toggle(flag, enabled)}
-                                label={`Turn ${flag.key} ${flag.enabled ? "off" : "on"}`}
+                                label={`Turn ${flag.key} ${flag.enabled ? 'off' : 'on'}`}
                                 testId={`flag-switch-${flag.key}`}
                             />
                             <div className="min-w-0 flex-1">
@@ -176,7 +176,7 @@ export default function FlagsPanel({
                                 </p>
                             </div>
                             <span className="text-xs text-muted-foreground">
-                                {flag.enabled ? "On" : "Off"}
+                                {flag.enabled ? 'On' : 'Off'}
                             </span>
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
@@ -195,8 +195,8 @@ export default function FlagsPanel({
                                         onSelect={() => remove(flag)}
                                         data-test={`flag-remove-${flag.key}`}
                                     >
-                                        Remove with agent (keep it{" "}
-                                        {flag.enabled ? "on" : "off"})
+                                        Remove with agent (keep it{' '}
+                                        {flag.enabled ? 'on' : 'off'})
                                     </DropdownMenuItem>
                                 </DropdownMenuContent>
                             </DropdownMenu>
@@ -207,7 +207,7 @@ export default function FlagsPanel({
 
             <p className="text-xs text-muted-foreground">
                 Switching a flag applies right away, in the preview and the
-                published app. Flags are saved in{" "}
+                published app. Flags are saved in{' '}
                 <code className="font-mono">.zap/flags.json</code>.
             </p>
         </div>
@@ -222,7 +222,7 @@ function AddFlag({
     projectId: number;
     onSent: (notice: { text: string; error?: boolean }) => void;
 }) {
-    const [feature, setFeature] = useState("");
+    const [feature, setFeature] = useState('');
     const [sending, setSending] = useState(false);
 
     const submit = (event: FormEvent) => {
@@ -231,11 +231,11 @@ function AddFlag({
 
         askAgent(ProjectFlagController.store.url(projectId), { feature })
             .then(({ queued }) => {
-                setFeature("");
+                setFeature('');
                 onSent({
                     text: queued
                         ? QUEUED
-                        : "The agent is adding the flag. Follow along in the chat; it shows up here when it’s done.",
+                        : 'The agent is adding the flag. Follow along in the chat; it shows up here when it’s done.',
                 });
             })
             .catch((e: Error) => onSent({ text: e.message, error: true }))
@@ -263,7 +263,7 @@ function AddFlag({
             <Button
                 type="submit"
                 size="sm"
-                disabled={sending || feature.trim() === ""}
+                disabled={sending || feature.trim() === ''}
                 data-test="flag-add"
             >
                 Add with agent
@@ -277,13 +277,13 @@ function Empty({
     tone,
 }: {
     children: React.ReactNode;
-    tone?: "error";
+    tone?: 'error';
 }) {
     return (
         <div
             className={cn(
-                "rounded-xl border border-dashed border-sidebar-border p-6 text-sm",
-                tone === "error" ? "text-red-600" : "text-muted-foreground",
+                'rounded-xl border border-dashed border-sidebar-border p-6 text-sm',
+                tone === 'error' ? 'text-red-600' : 'text-muted-foreground',
             )}
             data-test="flags-empty"
         >

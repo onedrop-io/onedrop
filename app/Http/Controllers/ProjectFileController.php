@@ -35,7 +35,7 @@ class ProjectFileController extends Controller
     {
         Gate::authorize('view', $project);
 
-        return response()->json(['version' => $project->sandbox?->files_version ?? 0]);
+        return response()->json(['version' => $project->sandbox->files_version ?? 0]);
     }
 
     /**
@@ -141,7 +141,10 @@ class ProjectFileController extends Controller
     /**
      * Run a call against a running sandbox, turning failures into JSON errors.
      *
-     * @param  callable(Sandbox): (array<string, mixed>|JsonResponse|Response)  $call
+     * @template TResponse of JsonResponse|Response = JsonResponse
+     *
+     * @param  callable(Sandbox): (array<string, mixed>|TResponse)  $call
+     * @return JsonResponse|TResponse
      */
     protected function fromSandbox(Project $project, callable $call): JsonResponse|Response
     {

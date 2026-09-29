@@ -34,6 +34,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property string|null $remember_token
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
+ * @property-read GroupMember $pivot Set on users loaded through a group's members
  */
 #[Fillable(['name', 'email', 'password'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
@@ -60,6 +61,16 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     }
 
     /**
+     * Make the first person to sign up on a new install its admin, so nobody needs a command to get in.
+     */
+    public function becomeAdminIfFirst(): void
+    {
+        if (! static::whereKeyNot($this->getKey())->exists()) {
+            $this->forceFill(['is_admin' => true])->save();
+        }
+    }
+
+    /**
      * Put a model ("provider:model") at the front of the user's recently chosen models.
      */
     public function rememberModel(AgentProvider $provider, string $model): void
@@ -73,11 +84,12 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     /**
      * The groups the user belongs to.
      *
-     * @return BelongsToMany<Group, $this>
+     * @return BelongsToMany<Group, $this, GroupMember, 'pivot'>
      */
     public function groups(): BelongsToMany
     {
         return $this->belongsToMany(Group::class)
+            ->using(GroupMember::class)
             ->withPivot('role')
             ->withTimestamps();
     }

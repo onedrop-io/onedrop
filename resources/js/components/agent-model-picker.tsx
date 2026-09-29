@@ -5,17 +5,17 @@ import {
     ChevronRight,
     Search,
     Star,
-} from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import AgentModelController from "@/actions/App/Http/Controllers/AgentModelController";
+} from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import AgentModelController from '@/actions/App/Http/Controllers/AgentModelController';
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuLabel,
     DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { cn } from "@/lib/utils";
+} from '@/components/ui/dropdown-menu';
+import { cn } from '@/lib/utils';
 import type {
     AgentHarness,
     AgentProvider,
@@ -23,20 +23,20 @@ import type {
     CatalogHarness,
     CatalogModel,
     CatalogProvider,
-} from "@/types";
+} from '@/types';
 
 const EFFORT_LABELS: Record<string, string> = {
-    none: "None",
-    minimal: "Minimal",
-    low: "Low",
-    medium: "Medium",
-    high: "High",
-    xhigh: "Extra high",
-    max: "Max",
+    none: 'None',
+    minimal: 'Minimal',
+    low: 'Low',
+    medium: 'Medium',
+    high: 'High',
+    xhigh: 'Extra high',
+    max: 'Max',
 };
 
 export function effortLabel(effort: string | null): string {
-    return effort ? (EFFORT_LABELS[effort] ?? effort) : "Default";
+    return effort ? (EFFORT_LABELS[effort] ?? effort) : 'Default';
 }
 
 function ProviderIcon({
@@ -47,19 +47,19 @@ function ProviderIcon({
     className?: string;
 }) {
     const style = {
-        claude: ["A", "bg-orange-500/15 text-orange-600 dark:text-orange-400"],
+        claude: ['A', 'bg-orange-500/15 text-orange-600 dark:text-orange-400'],
         codex: [
-            "O",
-            "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+            'O',
+            'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
         ],
-        openrouter: ["OR", "bg-sky-500/15 text-sky-600 dark:text-sky-400"],
-        gemini: ["G", "bg-blue-500/15 text-blue-600 dark:text-blue-400"],
+        openrouter: ['OR', 'bg-sky-500/15 text-sky-600 dark:text-sky-400'],
+        gemini: ['G', 'bg-blue-500/15 text-blue-600 dark:text-blue-400'],
     }[provider];
 
     return (
         <span
             className={cn(
-                "inline-flex size-5 shrink-0 items-center justify-center rounded text-[10px] font-semibold",
+                'inline-flex size-5 shrink-0 items-center justify-center rounded text-[10px] font-semibold',
                 style[1],
                 className,
             )}
@@ -95,12 +95,12 @@ let cachedCatalog: Promise<Catalog> | null = null;
 
 function loadCatalog(): Promise<Catalog> {
     cachedCatalog ??= fetch(AgentModelController.index.url(), {
-        headers: { Accept: "application/json" },
-        credentials: "same-origin",
+        headers: { Accept: 'application/json' },
+        credentials: 'same-origin',
     }).then((response) => {
         if (!response.ok) {
             cachedCatalog = null;
-            throw new Error("Could not load models");
+            throw new Error('Could not load models');
         }
 
         return response.json() as Promise<Catalog>;
@@ -112,19 +112,19 @@ function loadCatalog(): Promise<Catalog> {
 function csrfToken(): string {
     const match = document.cookie.match(/(?:^|; )XSRF-TOKEN=([^;]+)/);
 
-    return match ? decodeURIComponent(match[1]) : "";
+    return match ? decodeURIComponent(match[1]) : '';
 }
 
 /** Every agent, so the menu can say how to unlock the ones the user can't run yet. */
 const HARNESSES: { id: AgentHarness; label: string; hint: string }[] = [
     {
-        id: "opencode",
-        label: "OpenCode",
-        hint: "Any connected provider except Claude subscriptions",
+        id: 'opencode',
+        label: 'OpenCode',
+        hint: 'Any connected provider except Claude subscriptions',
     },
     {
-        id: "claude_code",
-        label: "Claude Code",
+        id: 'claude_code',
+        label: 'Claude Code',
         hint: "Anthropic's agent: Claude models, including your Claude subscription",
     },
 ];
@@ -180,10 +180,10 @@ function ModelMenu({
     const [open, setOpen] = useState(false);
     const [catalog, setCatalog] = useState<Catalog | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const [tab, setTab] = useState<AgentProvider | "favorites">(
+    const [tab, setTab] = useState<AgentProvider | 'favorites'>(
         selection.provider,
     );
-    const [query, setQuery] = useState("");
+    const [query, setQuery] = useState('');
     const [showMore, setShowMore] = useState(false);
 
     // A different agent may not run the provider this tab shows.
@@ -217,7 +217,7 @@ function ModelMenu({
         );
         const needle = query.trim().toLowerCase();
         const inTab = entries.filter(({ provider, model }) =>
-            tab === "favorites"
+            tab === 'favorites'
                 ? favorites.has(`${provider.id}:${model.id}`)
                 : provider.id === tab,
         );
@@ -232,7 +232,7 @@ function ModelMenu({
             return { recent: [], featured: matches.slice(0, 100), more: [] };
         }
 
-        if (tab === "favorites") {
+        if (tab === 'favorites') {
             return { recent: [], featured: inTab, more: [] };
         }
 
@@ -275,7 +275,7 @@ function ModelMenu({
                     : null,
         });
         setOpen(false);
-        setQuery("");
+        setQuery('');
 
         if (catalog) {
             const key = `${provider.id}:${model.id}`;
@@ -304,12 +304,12 @@ function ModelMenu({
         cachedCatalog = Promise.resolve({ ...catalog, favorites: next });
 
         void fetch(AgentModelController.favorite.url(), {
-            method: "PUT",
-            credentials: "same-origin",
+            method: 'PUT',
+            credentials: 'same-origin',
             headers: {
-                Accept: "application/json",
-                "Content-Type": "application/json",
-                "X-XSRF-TOKEN": csrfToken(),
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'X-XSRF-TOKEN': csrfToken(),
             },
             body: JSON.stringify({ provider, model, favorite }),
         });
@@ -335,8 +335,8 @@ function ModelMenu({
             <div
                 key={key}
                 className={cn(
-                    "group flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted",
-                    selected && "bg-muted",
+                    'group flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted',
+                    selected && 'bg-muted',
                 )}
             >
                 <button
@@ -351,7 +351,7 @@ function ModelMenu({
                             {model.name}
                         </span>
                         <span className="block truncate text-xs text-muted-foreground">
-                            {details.join(" · ")}
+                            {details.join(' · ')}
                         </span>
                     </span>
                     {selected && <Check className="size-4 shrink-0" />}
@@ -365,17 +365,17 @@ function ModelMenu({
                             : `Star ${model.name}`
                     }
                     className={cn(
-                        "shrink-0 rounded p-1 text-muted-foreground hover:text-foreground",
+                        'shrink-0 rounded p-1 text-muted-foreground hover:text-foreground',
                         !favorites.has(key) &&
-                            "opacity-0 group-hover:opacity-100 focus:opacity-100",
+                            'opacity-0 group-hover:opacity-100 focus:opacity-100',
                     )}
                     data-test={`star-${key}`}
                 >
                     <Star
                         className={cn(
-                            "size-3.5",
+                            'size-3.5',
                             favorites.has(key) &&
-                                "fill-amber-400 text-amber-400",
+                                'fill-amber-400 text-amber-400',
                         )}
                     />
                 </button>
@@ -411,9 +411,9 @@ function ModelMenu({
                     className="flex w-12 shrink-0 flex-col items-center gap-1 border-r py-2"
                 >
                     <RailButton
-                        active={tab === "favorites"}
+                        active={tab === 'favorites'}
                         label="Favorites"
-                        onClick={() => setTab("favorites")}
+                        onClick={() => setTab('favorites')}
                     >
                         <Star className="size-4" />
                     </RailButton>
@@ -457,9 +457,9 @@ function ModelMenu({
                           rows.featured.length === 0 &&
                           rows.more.length === 0 ? (
                             <p className="p-3 text-sm text-muted-foreground">
-                                {tab === "favorites"
-                                    ? "Star a model to keep it here."
-                                    : "No matching models."}
+                                {tab === 'favorites'
+                                    ? 'Star a model to keep it here.'
+                                    : 'No matching models.'}
                             </p>
                         ) : (
                             <>
@@ -493,8 +493,8 @@ function ModelMenu({
                                             </span>
                                             <ChevronRight
                                                 className={cn(
-                                                    "size-4 text-muted-foreground transition-transform",
-                                                    showMore && "rotate-90",
+                                                    'size-4 text-muted-foreground transition-transform',
+                                                    showMore && 'rotate-90',
                                                 )}
                                             />
                                         </button>
@@ -587,7 +587,7 @@ function HarnessMenu({
                 <button
                     type="button"
                     className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-foreground hover:bg-muted disabled:opacity-50"
-                    title={locked ?? "Choose the agent"}
+                    title={locked ?? 'Choose the agent'}
                     data-test="harness-picker"
                 >
                     <Bot className="size-3.5 shrink-0 text-muted-foreground" />
@@ -628,9 +628,9 @@ function HarnessMenu({
                                 </span>
                                 <span className="block text-xs text-muted-foreground">
                                     {catalog && !usable
-                                        ? harness.id === "claude_code"
-                                            ? "Connect Claude in Settings → AI to use it"
-                                            : "Connect a provider other than a Claude subscription to use it"
+                                        ? harness.id === 'claude_code'
+                                            ? 'Connect Claude in Settings → AI to use it'
+                                            : 'Connect a provider other than a Claude subscription to use it'
                                         : harness.hint}
                                 </span>
                             </span>
@@ -672,8 +672,8 @@ function RailButton({
             title={label}
             aria-pressed={active}
             className={cn(
-                "flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted",
-                active && "bg-muted text-foreground",
+                'flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted',
+                active && 'bg-muted text-foreground',
             )}
         >
             {children}
@@ -712,11 +712,11 @@ function ReasoningMenu({
                 </DropdownMenuLabel>
                 {[null, ...selection.efforts].map((effort) => (
                     <DropdownMenuItem
-                        key={effort ?? "default"}
+                        key={effort ?? 'default'}
                         onSelect={() =>
                             onChange({ ...selection, variant: effort })
                         }
-                        data-test={`reasoning-${effort ?? "default"}`}
+                        data-test={`reasoning-${effort ?? 'default'}`}
                     >
                         <span className="flex-1">{effortLabel(effort)}</span>
                         {effort === selection.variant && (

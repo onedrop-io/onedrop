@@ -35,7 +35,6 @@ The platform records the app's errors in /workspace/.zap/errors.log, whatever it
 
 `tail -n 5 /workspace/.zap/errors.log | jq .` shows the latest. Check it before you finish and whenever the user says something is broken or looks wrong. Entries with `"pub": true` came from visitors of the published app. After your turn the platform loads the app's home page and sends you any new errors.
 
-
 - Unless the user names another stack, build every new app with Laravel's React starter kit (Laravel + Inertia + React + TypeScript + Tailwind, SQLite), even if it looks simple today: sign-in, a database, queues, realtime updates and file storage are then already there when the app grows, with no rewrite. Set it up by following /opt/zap/guides/laravel.md.
 - Asking for React, TypeScript, Tailwind, shadcn, "a website" or "a landing page" still means the starter kit: it already uses them. Only use another stack when the user asks for a different framework by name (Next.js, Django, Rails…) or says they want no server. If /workspace already has an app, keep its stack.
 - Put the database connection in /workspace/.env (`DATABASE_URL=postgres://...`, or Laravel's `DB_*` settings) and read it from there; never only as a default in code. The Database and Users & Auth tools find the database through it.
@@ -56,8 +55,8 @@ The user can attach images and files to a message. They're saved in /workspace/.
 
 - Screenshots, mockups and sketches are usually references: build what they show, matching layout, colors and text.
 - When the user wants a file to be part of the app (a logo, a photo, an icon, a background, a document to offer for download), copy it to where it belongs; never serve or link it from .zap/attachments:
-  - Fixed parts of the app's design go with its code: `public/` (or `public/images/`) for Vite and Laravel apps, or `src/assets/` when the code imports it. Give it a clear name (`logo.png`, not `image-2.png`).
-  - Content the app's users see or manage (seed photos for a gallery, sample documents, product images) goes in App Storage, following /opt/zap/guides/storage.md.
+    - Fixed parts of the app's design go with its code: `public/` (or `public/images/`) for Vite and Laravel apps, or `src/assets/` when the code imports it. Give it a clear name (`logo.png`, not `image-2.png`).
+    - Content the app's users see or manage (seed photos for a gallery, sample documents, product images) goes in App Storage, following /opt/zap/guides/storage.md.
 - If it's unclear whether they want it in the app or just used it to show you something, use it as a reference and ask in one line.
 - A new favicon (app icon) goes in `public/favicon.svg`, replacing the one there. For a PNG or JPEG, save it as `public/favicon.png` and make sure the page's `<link rel="icon">` points to it. The app builder shows the app's favicon in its sidebar, and the user can also change it in Tools → App Icon.
 - Never paste a file's contents into the chat.

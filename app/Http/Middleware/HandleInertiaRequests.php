@@ -83,7 +83,7 @@ class HandleInertiaRequests extends Middleware
             'archived' => $query()->whereNotNull('archived_at')->latest('archived_at')->limit(20)->get(),
         ];
 
-        $ids = collect($lists)->collapse()->pluck('id')->all();
+        $ids = array_values(collect($lists)->collapse()->map(fn (Project $project): int => $project->id)->all());
         $naming = ProjectNamer::naming($ids);
         $drawing = ProjectIcons::drawing($ids);
 
@@ -104,7 +104,7 @@ class HandleInertiaRequests extends Middleware
             'drawing_icon' => in_array($project->id, $drawing, true),
         ];
 
-        return array_map(fn ($projects) => $projects->map($summarize)->all(), $lists);
+        return array_map(fn ($projects) => array_values($projects->map($summarize)->all()), $lists);
     }
 
     /**
@@ -124,7 +124,7 @@ class HandleInertiaRequests extends Middleware
             'id' => $project->id,
             'name' => $project->name,
             'working' => $project->status === ProjectStatus::Working,
-            'tasks' => $project->tasks()->get()->map($this->summarizeTask(...))->all(),
+            'tasks' => array_values($project->tasks()->get()->map($this->summarizeTask(...))->all()),
         ];
     }
 

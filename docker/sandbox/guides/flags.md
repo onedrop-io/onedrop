@@ -8,10 +8,14 @@ editing that file, so stick to the contract below.
 
 ```json
 {
-  "version": 1,
-  "flags": [
-    { "key": "new-checkout", "description": "The redesigned checkout page", "enabled": false }
-  ]
+    "version": 1,
+    "flags": [
+        {
+            "key": "new-checkout",
+            "description": "The redesigned checkout page",
+            "enabled": false
+        }
+    ]
 }
 ```
 

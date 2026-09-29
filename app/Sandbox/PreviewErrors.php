@@ -29,7 +29,7 @@ class PreviewErrors
      * errors worth fixing that the preview recorded since $since (Unix ms), oldest first.
      * Published-address errors are left out: visitors shouldn't be able to set the agent to work.
      *
-     * @return list<array<string, mixed>>
+     * @return list<array<mixed>>
      *
      * @throws SandboxException
      */
@@ -49,7 +49,7 @@ class PreviewErrors
         // The proxy answers 502 itself when the app is down; any other answer means it's up now.
         $down = in_array(trim($status), ['', '000', '502'], true);
 
-        return collect(explode("\n", $log))
+        return array_values(collect(explode("\n", $log))
             ->map(fn (string $line) => json_decode($line, true))
             ->filter(fn ($error) => is_array($error)
                 && (int) ($error['t'] ?? 0) >= $since
@@ -61,14 +61,13 @@ class PreviewErrors
                     default => false,
                 })
             ->unique(fn (array $error) => self::describe($error))
-            ->values()
-            ->all();
+            ->all());
     }
 
     /**
      * The message asking the agent to fix the errors.
      *
-     * @param  list<array<string, mixed>>  $errors
+     * @param  list<array<mixed>>  $errors
      */
     public static function request(array $errors): string
     {
@@ -85,7 +84,7 @@ class PreviewErrors
     /**
      * One line saying what went wrong.
      *
-     * @param  array<string, mixed>  $error
+     * @param  array<mixed>  $error
      */
     public static function describe(array $error): string
     {

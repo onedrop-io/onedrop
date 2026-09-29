@@ -136,7 +136,7 @@ export default function AuthPanel({
                 <Button
                     size="sm"
                     variant="outline"
-                    className="mt-4 flex mx-auto"
+                    className="mx-auto mt-4 flex"
                     onClick={load}
                 >
                     <RefreshCw /> Try again
@@ -311,7 +311,9 @@ function SetUp({
                             );
                         })}
                     </fieldset>
-                    {methods.some((m) => m !== 'password' && m !== 'onedrop') && (
+                    {methods.some(
+                        (m) => m !== 'password' && m !== 'onedrop',
+                    ) && (
                         <p className="mt-2 text-left text-xs text-muted-foreground">
                             Google, GitHub and Microsoft need keys from the
                             provider. You add them here afterwards; we'll show

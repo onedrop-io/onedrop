@@ -18,6 +18,7 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use SplFileObject;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ProjectAuthController extends Controller
@@ -129,11 +130,11 @@ class ProjectAuthController extends Controller
         }
 
         return response()->streamDownload(function () use ($users) {
-            $out = fopen('php://output', 'w');
-            fputcsv($out, ['id', 'name', 'email', 'role', 'status', 'joined', 'last_signed_in'], escape: '');
+            $out = new SplFileObject('php://output', 'w');
+            $out->fputcsv(['id', 'name', 'email', 'role', 'status', 'joined', 'last_signed_in'], escape: '');
 
             foreach ($users as $user) {
-                fputcsv($out, array_map(self::csvCell(...), [
+                $out->fputcsv(array_map(self::csvCell(...), [
                     $user['id'],
                     $user['name'],
                     $user['email'],
@@ -143,8 +144,6 @@ class ProjectAuthController extends Controller
                     $user['last_login_at'],
                 ]), escape: '');
             }
-
-            fclose($out);
         }, Str::slug($project->name).'-users.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
     }
 
@@ -291,7 +290,7 @@ class ProjectAuthController extends Controller
         return [
             'enabled' => (bool) $project->onedrop_enabled,
             'group_ids' => $project->onedrop_group_ids,
-            'groups' => Group::orderBy('name')->get(['id', 'name'])->map(fn (Group $group) => $group->only('id', 'name'))->all(),
+            'groups' => array_values(Group::orderBy('name')->get(['id', 'name'])->map(fn (Group $group) => $group->only('id', 'name'))->all()),
         ];
     }
 

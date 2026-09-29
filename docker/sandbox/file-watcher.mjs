@@ -91,7 +91,10 @@ createInterface({ input: watcher.stdout }).on('line', (line) => {
 
     quietTimer = setTimeout(
         settle,
-        Math.max(0, Math.min(QUIET_MS, firstEventAt + MAX_WAIT_MS - Date.now())),
+        Math.max(
+            0,
+            Math.min(QUIET_MS, firstEventAt + MAX_WAIT_MS - Date.now()),
+        ),
     );
 });
 

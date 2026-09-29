@@ -38,6 +38,11 @@ use Illuminate\Support\Str;
  * @property Carbon|null $published_at
  * @property int|null $published_by
  * @property string|null $publish_error
+ * @property bool $onedrop_enabled
+ * @property string|null $onedrop_client_id
+ * @property string|null $onedrop_client_secret
+ * @property string|null $onedrop_callback_path
+ * @property list<int>|null $onedrop_group_ids
  * @property string|null $publish_login_url
  * @property Carbon|null $pinned_at
  * @property Carbon|null $read_at
@@ -56,6 +61,8 @@ use Illuminate\Support\Str;
  * @property Carbon|null $git_synced_at
  * @property int|null $github_installation_id
  * @property Carbon|null $updated_at
+ * @property-read string|null $last_reply_at When the agent last replied (loaded with withMax, for the sidebar).
+ * @property-read bool|null $task_working Whether any of its tasks' agents is running (loaded with withExists, for the sidebar).
  */
 #[Fillable(['name', 'prompt', 'status', 'agent_session_id', 'agent_harness', 'agent_provider', 'agent_model', 'agent_variant', 'publish_status', 'publish_visibility', 'published_url', 'published_at', 'published_by', 'publish_error', 'publish_login_url', 'onedrop_enabled', 'onedrop_client_id', 'onedrop_client_secret', 'onedrop_callback_path', 'onedrop_group_ids', 'pinned_at', 'read_at', 'archived_at', 'backup_commit', 'backed_up_at', 'icon_path', 'icon_mime', 'icon_hash', 'git_remote_url', 'git_remote_username', 'git_remote_token', 'git_sync_status', 'git_sync_error', 'git_synced_at', 'github_installation_id', 'autofix'])]
 #[Hidden(['onedrop_client_secret', 'git_remote_token'])]
@@ -194,7 +201,7 @@ class Project extends Model implements Conversation
 
         return $this->tasks()->reorder()
             ->where('status', ProjectStatus::Working)
-            ->when($except instanceof Task, fn ($query) => $query->whereKeyNot($except->id))
+            ->when($except instanceof Task, fn ($query) => $query->whereKeyNot($except))
             ->exists();
     }
 

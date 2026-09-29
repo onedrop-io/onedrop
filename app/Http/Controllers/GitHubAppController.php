@@ -62,7 +62,8 @@ class GitHubAppController extends Controller
         abort_unless($github->configured(), 404);
 
         $pending = $request->session()->get('github_app');
-        $project = Project::find($pending['project'] ?? null);
+        $projectId = is_array($pending) ? ($pending['project'] ?? null) : null;
+        $project = is_int($projectId) ? Project::find($projectId) : null;
 
         if (! is_array($pending) || ! hash_equals((string) $pending['state'], (string) $request->query('state')) || ! $project || $request->user()->cannot('update', $project)) {
             abort(403, __('This GitHub connection was started from another session. Start again from Tools → Git.'));

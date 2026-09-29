@@ -72,7 +72,8 @@ class FortifyServiceProvider extends ServiceProvider
         ]));
 
         Fortify::registerView(function (Request $request) {
-            $invitation = Invitation::find($request->session()->get(AcceptInvitationController::SESSION_KEY));
+            $id = $request->session()->get(AcceptInvitationController::SESSION_KEY);
+            $invitation = is_int($id) || is_string($id) ? Invitation::find($id) : null;
 
             return Inertia::render('auth/register', [
                 'passwordRules' => Password::defaults()->toPasswordRulesString(),

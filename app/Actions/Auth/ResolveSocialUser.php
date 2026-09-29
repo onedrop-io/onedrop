@@ -103,9 +103,15 @@ class ResolveSocialUser
             $user->forceFill(['email_verified_at' => now()])->save();
         }
 
+        $user->becomeAdminIfFirst();
+
         $this->link($user, $provider, $identity);
 
-        Invitation::find(session()->pull(AcceptInvitationController::SESSION_KEY))?->acceptFor($user);
+        $invitationId = session()->pull(AcceptInvitationController::SESSION_KEY);
+
+        if (is_int($invitationId) || is_string($invitationId)) {
+            Invitation::find($invitationId)?->acceptFor($user);
+        }
 
         event(new Registered($user));
 

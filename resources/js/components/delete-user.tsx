@@ -1,10 +1,10 @@
-import { Form } from "@inertiajs/react";
-import { useRef } from "react";
-import ProfileController from "@/actions/App/Http/Controllers/Settings/ProfileController";
-import Heading from "@/components/heading";
-import InputError from "@/components/input-error";
-import PasswordInput from "@/components/password-input";
-import { Button } from "@/components/ui/button";
+import { Form } from '@inertiajs/react';
+import { useRef } from 'react';
+import ProfileController from '@/actions/App/Http/Controllers/Settings/ProfileController';
+import Heading from '@/components/heading';
+import InputError from '@/components/input-error';
+import PasswordInput from '@/components/password-input';
+import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogClose,
@@ -13,8 +13,8 @@ import {
     DialogFooter,
     DialogTitle,
     DialogTrigger,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 
 export default function DeleteUser({ hasPassword }: { hasPassword: boolean }) {
     const passwordInput = useRef<HTMLInputElement>(null);
@@ -51,7 +51,7 @@ export default function DeleteUser({ hasPassword }: { hasPassword: boolean }) {
                             Once your account is deleted, all of its resources
                             and data will also be permanently deleted.
                             {hasPassword &&
-                                " Please enter your password to confirm you would like to permanently delete your account."}
+                                ' Please enter your password to confirm you would like to permanently delete your account.'}
                         </DialogDescription>
 
                         <Form

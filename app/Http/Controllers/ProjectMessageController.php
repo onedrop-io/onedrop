@@ -8,6 +8,7 @@ use App\Models\Project;
 use App\Sandbox\Agents\AgentQueue;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 
@@ -31,7 +32,7 @@ class ProjectMessageController extends Controller
             $project,
             $validated['content'] ?? '',
             now: ($validated['mode'] ?? 'queue') === 'now',
-            attachments: $request->file('attachments', []),
+            attachments: array_values(Arr::wrap($request->file('attachments'))),
         );
 
         return to_route('projects.show', $project);

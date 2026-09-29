@@ -133,7 +133,7 @@ class ProjectBackups
      * Copy the project's backup into a new local directory (as repo.bundle) and return the directory.
      * The caller deletes it.
      *
-     * @throws SandboxException when there's no backup
+     * @throws SandboxException when there's no backup or it can't be read
      */
     public function download(Project $project): string
     {
@@ -141,8 +141,14 @@ class ProjectBackups
             throw new SandboxException(__('The project has no commits to push yet.'));
         }
 
+        $backup = $this->disk()->readStream($this->bundlePath($project));
+
+        if ($backup === null) {
+            throw new SandboxException(__('Couldn\'t read the project\'s backup. Try again.'));
+        }
+
         $directory = $this->localDirectory();
-        File::put("{$directory}/repo.bundle", $this->disk()->readStream($this->bundlePath($project)));
+        Storage::build(['driver' => 'local', 'root' => $directory])->writeStream('repo.bundle', $backup);
 
         return $directory;
     }

@@ -49,7 +49,7 @@ class SshKey extends Model
     {
         $parts = preg_split('/\s+/', trim($line), 3);
 
-        if (count($parts) < 2 || ! in_array($parts[0], self::TYPES, true)) {
+        if ($parts === false || count($parts) < 2 || ! in_array($parts[0], self::TYPES, true)) {
             return null;
         }
 
@@ -59,9 +59,9 @@ class SshKey extends Model
             return null;
         }
 
-        $length = unpack('N', substr($blob, 0, 4))[1];
+        $header = unpack('N', substr($blob, 0, 4));
 
-        if (substr($blob, 4, $length) !== $parts[0]) {
+        if ($header === false || substr($blob, 4, $header[1]) !== $parts[0]) {
             return null;
         }
 
@@ -78,7 +78,7 @@ class SshKey extends Model
      */
     public function type(): string
     {
-        return strtok($this->public_key, ' ');
+        return explode(' ', $this->public_key, 2)[0];
     }
 
     /**

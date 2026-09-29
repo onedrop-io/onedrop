@@ -26,11 +26,12 @@ class Group extends Model
     /**
      * The users that belong to the group.
      *
-     * @return BelongsToMany<User, $this>
+     * @return BelongsToMany<User, $this, GroupMember, 'pivot'>
      */
     public function members(): BelongsToMany
     {
         return $this->belongsToMany(User::class)
+            ->using(GroupMember::class)
             ->withPivot('role')
             ->withTimestamps();
     }

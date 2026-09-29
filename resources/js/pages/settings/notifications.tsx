@@ -1,8 +1,8 @@
-import { Head } from "@inertiajs/react";
-import Heading from "@/components/heading";
-import { Switch } from "@/components/ui/switch";
-import { useDesktopNotifications } from "@/hooks/use-desktop-notifications";
-import { edit as editNotifications } from "@/routes/notifications";
+import { Head } from '@inertiajs/react';
+import Heading from '@/components/heading';
+import { Switch } from '@/components/ui/switch';
+import { useDesktopNotifications } from '@/hooks/use-desktop-notifications';
+import { edit as editNotifications } from '@/routes/notifications';
 
 export default function Notifications() {
     const { status, enable, disable } = useDesktopNotifications();
@@ -29,25 +29,25 @@ export default function Notifications() {
                             className="text-sm text-muted-foreground"
                             data-test="notifications-status"
                         >
-                            {status === "unsupported" &&
+                            {status === 'unsupported' &&
                                 "This browser can't show desktop notifications."}
-                            {status === "denied" &&
-                                "Notifications are blocked for this site. Allow them in your browser’s site settings (the icon next to the address), then come back here."}
-                            {status === "off" &&
-                                "Off. Turning them on asks your browser for permission."}
-                            {status === "on" &&
-                                "On. You’ll be notified when a project is ready for review."}
+                            {status === 'denied' &&
+                                'Notifications are blocked for this site. Allow them in your browser’s site settings (the icon next to the address), then come back here.'}
+                            {status === 'off' &&
+                                'Off. Turning them on asks your browser for permission.'}
+                            {status === 'on' &&
+                                'On. You’ll be notified when a project is ready for review.'}
                         </p>
                     </div>
                     <Switch
-                        checked={status === "on"}
+                        checked={status === 'on'}
                         onChange={(checked) =>
                             checked ? void enable() : disable()
                         }
                         label="Desktop notifications"
                         testId="notifications-toggle"
                         disabled={
-                            status === "unsupported" || status === "denied"
+                            status === 'unsupported' || status === 'denied'
                         }
                     />
                 </div>
@@ -59,7 +59,7 @@ export default function Notifications() {
 Notifications.layout = {
     breadcrumbs: [
         {
-            title: "Notification settings",
+            title: 'Notification settings',
             href: editNotifications(),
         },
     ],

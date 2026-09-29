@@ -60,6 +60,7 @@ If your OneDrop has a [GitHub App](/self-hosting/github-app) set up, click **Con
 
         Don't see a repository? Click **Choose which repositories OneDrop can reach**, change it on GitHub, and come back. The list updates by itself.
     </Tab>
+
 </Tabs>
 
 The dialog opens on **New repository** when your project has commits, and on **Existing repository** when it doesn't. **Add account or organization** installs the app somewhere else.
@@ -72,16 +73,20 @@ Without the GitHub App, or for another git host (**Other git host**), connect wi
 
 <Tabs>
     <Tab title="Create on GitHub">
-        1. Click **Create on GitHub**.
-        2. Enter a repository name and a GitHub [personal access token](https://github.com/settings/tokens) that can create repositories (a fine-grained token with **Administration** and **Contents** read and write, or a classic token with the `repo` scope).
+        1. Click **Create on GitHub**. 2. Enter a repository name and a GitHub
+        [personal access token](https://github.com/settings/tokens) that can
+        create repositories (a fine-grained token with **Administration** and
+        **Contents** read and write, or a classic token with the `repo` scope).
         3. Leave **Private repository** checked, or uncheck it for a public one.
-        4. Click **Create and push**. The repository is made on your account and the current branch is pushed to it.
+        4. Click **Create and push**. The repository is made on your account and
+        the current branch is pushed to it.
     </Tab>
     <Tab title="Connect existing">
-        1. Click **Connect existing**.
-        2. Enter the repository's HTTPS URL, for example `https://gitlab.com/you/my-app.git`.
-        3. Enter an access token that can read and write the repository. Some hosts also need your username (Forgejo and Gitea, for example); GitHub and GitLab don't.
-        4. Click **Connect**, then **Push**.
+        1. Click **Connect existing**. 2. Enter the repository's HTTPS URL, for
+        example `https://gitlab.com/you/my-app.git`. 3. Enter an access token
+        that can read and write the repository. Some hosts also need your
+        username (Forgejo and Gitea, for example); GitHub and GitLab don't. 4.
+        Click **Connect**, then **Push**.
     </Tab>
 </Tabs>
 
@@ -92,5 +97,9 @@ Without the GitHub App, or for another git host (**Other git host**), connect wi
 - **Disconnect** in the **⋮** menu forgets the remote and its token. The repository itself is untouched.
 
 <Note>
-    The token is stored encrypted by OneDrop and never shown again. It never goes into the sandbox: pushes and pulls run on OneDrop's server, which carries commits in and out of the sandbox. Remotes must use HTTPS, and on the public internet unless your admin allows private networks (see [configuration](/self-hosting/configuration)).
+    The token is stored encrypted by OneDrop and never shown again. It never
+    goes into the sandbox: pushes and pulls run on OneDrop's server, which
+    carries commits in and out of the sandbox. Remotes must use HTTPS, and on
+    the public internet unless your admin allows private networks (see
+    [configuration](/self-hosting/configuration)).
 </Note>

@@ -13,6 +13,7 @@ use App\Models\Task;
 use App\Sandbox\Agents\AgentQueue;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -76,7 +77,7 @@ class TaskController extends Controller
         ]);
 
         $content = trim($validated['content'] ?? '');
-        $attachments = $request->file('attachments', []);
+        $attachments = array_values(Arr::wrap($request->file('attachments')));
         $starting = $content !== '' || $attachments !== [];
         $title = Str::squish($validated['title'] ?? '');
 
@@ -173,7 +174,7 @@ class TaskController extends Controller
     {
         $problem = match (true) {
             $task->sync_status !== null => __('Wait for the current merge to finish.'),
-            ! $task->agentSandbox()?->external_id || $task->agentSandbox()?->task_id === null => __("This task doesn't have its own copy of the app."),
+            ! $task->agentSandbox()?->external_id || $task->agentSandbox()->task_id === null => __("This task doesn't have its own copy of the app."),
             $task->isWorking() => __("Wait for the task's agent to finish, or stop it."),
             $direction === TaskSyncStatus::Applying && $project->status === ProjectStatus::Working => __("Wait for Main's agent to finish, or stop it."),
             default => null,

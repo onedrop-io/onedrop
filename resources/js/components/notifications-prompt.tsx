@@ -1,13 +1,13 @@
-import { Bell } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { useDesktopNotifications } from "@/hooks/use-desktop-notifications";
+import { Bell } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useDesktopNotifications } from '@/hooks/use-desktop-notifications';
 
 /** Offers desktop notifications while the agent works, until they're on or the user says "Not now". */
 export default function NotificationsPrompt() {
     const { status, dismissed, enable, dismissPrompt } =
         useDesktopNotifications();
 
-    if (status !== "off" || dismissed) {
+    if (status !== 'off' || dismissed) {
         return null;
     }
 

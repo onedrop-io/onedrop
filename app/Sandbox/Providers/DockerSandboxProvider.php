@@ -23,7 +23,7 @@ class DockerSandboxProvider implements SandboxProvider
     public const STORAGE_MOUNT = '/data/storage';
 
     /**
-     * @param  array{image: string, memory: string, cpus: string, host: string, runtime?: ?string, storage_path?: ?string}  $config
+     * @param  array{image: string, memory: string, cpus: string, host: string, runtime?: ?string, network?: ?string, storage_path?: ?string}  $config
      */
     public function __construct(protected array $config) {}
 
@@ -43,6 +43,10 @@ class DockerSandboxProvider implements SandboxProvider
 
         if (filled($this->config['runtime'] ?? null)) {
             array_push($command, '--runtime', $this->config['runtime']);
+        }
+
+        if (filled($this->config['network'] ?? null)) {
+            array_push($command, '--network', $this->config['network']);
         }
 
         if ($spec->proxyPort) {
@@ -124,7 +128,7 @@ class DockerSandboxProvider implements SandboxProvider
         }
 
         // e.g. "127.0.0.1:55012" (first line; IPv6 bindings may follow)
-        $binding = strtok(trim($result->output()), "\n");
+        $binding = explode("\n", trim($result->output()))[0];
         $hostPort = substr($binding, strrpos($binding, ':') + 1);
 
         return ctype_digit($hostPort) ? "http://{$this->config['host']}:{$hostPort}" : null;

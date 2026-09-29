@@ -48,6 +48,23 @@ test('a shell port is published alongside the app port', function () {
         && in_array('127.0.0.1::8000', $process->command));
 })->group('TAB-001');
 
+test('sandboxes join the configured network so a containerized app is reachable by name', function () {
+    Process::fake(['*' => Process::result('abc123')]);
+
+    (new DockerSandboxProvider([...$this->dockerConfig, 'network' => 'drop']))->create(new SandboxSpec('zap-project-1-x'));
+
+    Process::assertRan(fn (PendingProcess $process) => in_array('drop', $process->command)
+        && $process->command[array_search('drop', $process->command) - 1] === '--network');
+})->group('INSTALL-001');
+
+test('sandboxes stay on the default network when none is configured', function () {
+    Process::fake(['*' => Process::result('abc123')]);
+
+    $this->docker->create(new SandboxSpec('zap-project-1-x'));
+
+    Process::assertRan(fn (PendingProcess $process) => $process->command[1] === 'run' && ! in_array('--network', $process->command));
+})->group('INSTALL-001');
+
 test('the host proxy port is published for the preview', function () {
     Process::fake(['*' => Process::result('abc123')]);
 

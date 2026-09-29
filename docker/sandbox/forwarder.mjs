@@ -141,7 +141,11 @@ function compactClaudeEvent(event) {
                                 input.command = input.command.slice(0, 500);
                             }
 
-                            return { type: 'tool_use', name: block.name, input };
+                            return {
+                                type: 'tool_use',
+                                name: block.name,
+                                input,
+                            };
                         }
 
                         return { type: block.type };

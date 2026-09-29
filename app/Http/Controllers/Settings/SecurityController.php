@@ -64,17 +64,16 @@ class SecurityController extends Controller
     {
         $accounts = $user->socialAccounts()->get()->keyBy(fn (SocialAccount $account) => $account->provider->value);
 
-        return collect(SocialProvider::cases())
+        return array_values(collect(SocialProvider::cases())
             ->filter(fn (SocialProvider $provider) => $provider->isConfigured() || $accounts->has($provider->value))
             ->map(fn (SocialProvider $provider) => [
                 'provider' => $provider->value,
                 'label' => $provider->label(),
                 'account' => $accounts->has($provider->value)
-                    ? $accounts[$provider->value]->only(['id', 'email'])
+                    ? ['id' => $accounts[$provider->value]->id, 'email' => $accounts[$provider->value]->email]
                     : null,
             ])
-            ->values()
-            ->all();
+            ->all());
     }
 
     /**

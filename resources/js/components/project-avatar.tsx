@@ -1,28 +1,28 @@
-import { cn } from "@/lib/utils";
-import type { SidebarProject } from "@/types";
+import { cn } from '@/lib/utils';
+import type { SidebarProject } from '@/types';
 
-type AvatarState = "working" | "live" | "failed" | null;
+type AvatarState = 'working' | 'live' | 'failed' | null;
 
 const badges: Record<
     Exclude<AvatarState, null>,
     { className: string; label: string }
 > = {
-    working: { className: "bg-amber-500", label: "Agent working" },
-    live: { className: "bg-emerald-500", label: "Published" },
-    failed: { className: "bg-red-500", label: "Sandbox failed" },
+    working: { className: 'bg-amber-500', label: 'Agent working' },
+    live: { className: 'bg-emerald-500', label: 'Published' },
+    failed: { className: 'bg-red-500', label: 'Sandbox failed' },
 };
 
 /** What the project's badge shows: a failure beats work in progress, which beats being live. */
 export function avatarState(project: SidebarProject): AvatarState {
     if (project.failed) {
-        return "failed";
+        return 'failed';
     }
 
     if (project.working) {
-        return "working";
+        return 'working';
     }
 
-    return project.published_url ? "live" : null;
+    return project.published_url ? 'live' : null;
 }
 
 /**
@@ -41,7 +41,7 @@ export function ProjectAvatar({
 
     return (
         <span
-            className={cn("relative flex size-5 shrink-0", className)}
+            className={cn('relative flex size-5 shrink-0', className)}
             data-test="sidebar-project-avatar"
         >
             {project.icon_url ? (
@@ -54,15 +54,15 @@ export function ProjectAvatar({
             ) : (
                 <span
                     className={cn(
-                        "flex size-full items-center justify-center rounded-md text-[11px] font-semibold text-white uppercase shadow-xs",
-                        project.drawing_icon && "animate-pulse",
+                        'flex size-full items-center justify-center rounded-md text-[11px] font-semibold text-white uppercase shadow-xs',
+                        project.drawing_icon && 'animate-pulse',
                     )}
                     style={{
                         background: `linear-gradient(135deg, oklch(0.68 0.15 ${hue}), oklch(0.55 0.17 ${(hue + 40) % 360}))`,
                     }}
                     aria-hidden
                 >
-                    {project.name.trim().charAt(0) || "?"}
+                    {project.name.trim().charAt(0) || '?'}
                 </span>
             )}
             {state && (
@@ -72,17 +72,17 @@ export function ProjectAvatar({
                     aria-label={badges[state].label}
                     data-test={`sidebar-project-${state}`}
                 >
-                    {state === "working" && (
+                    {state === 'working' && (
                         <span
                             className={cn(
-                                "absolute inline-flex size-full animate-ping rounded-full opacity-75",
+                                'absolute inline-flex size-full animate-ping rounded-full opacity-75',
                                 badges[state].className,
                             )}
                         />
                     )}
                     <span
                         className={cn(
-                            "relative inline-flex size-full rounded-full ring-2 ring-sidebar",
+                            'relative inline-flex size-full rounded-full ring-2 ring-sidebar',
                             badges[state].className,
                         )}
                     />

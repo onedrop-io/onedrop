@@ -7,11 +7,11 @@ import {
     FolderPlus,
     FolderUp,
     PanelRightClose,
-} from "lucide-react";
-import { useRef, useState } from "react";
-import { toast } from "sonner";
-import InputError from "@/components/input-error";
-import { Button } from "@/components/ui/button";
+} from 'lucide-react';
+import { useRef, useState } from 'react';
+import { toast } from 'sonner';
+import InputError from '@/components/input-error';
+import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogClose,
@@ -19,24 +19,24 @@ import {
     DialogDescription,
     DialogFooter,
     DialogTitle,
-} from "@/components/ui/dialog";
+} from '@/components/ui/dialog';
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
+} from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
 import {
     createWorkspaceEntry,
     downloadWorkspaceZip,
     uploadWorkspaceFile,
-} from "@/hooks/use-workspace-files";
-import type { WorkspaceEntry } from "@/types";
+} from '@/hooks/use-workspace-files';
+import type { WorkspaceEntry } from '@/types';
 
 /** Folders left out of uploads, like the server leaves them unexpanded. */
-const SKIPPED = new Set(["node_modules", ".git", "vendor", ".cache"]);
+const SKIPPED = new Set(['node_modules', '.git', 'vendor', '.cache']);
 
 /**
  * The "⋮" menu in the files panel header: create, upload, download, filter, close.
@@ -60,18 +60,18 @@ export default function FilesMenu({
     onChanged: () => void;
     onCreatedFile: (path: string) => void;
 }) {
-    const [creating, setCreating] = useState<WorkspaceEntry["type"] | null>(
+    const [creating, setCreating] = useState<WorkspaceEntry['type'] | null>(
         null,
     );
     /** Chosen from the menu; the dialog opens once the menu has fully closed. */
-    const pendingCreate = useRef<WorkspaceEntry["type"] | null>(null);
+    const pendingCreate = useRef<WorkspaceEntry['type'] | null>(null);
     const folderInput = useRef<HTMLInputElement>(null);
 
     const upload = async (list: FileList) => {
         const files = Array.from(list).filter(
             (file) =>
                 !file.webkitRelativePath
-                    .split("/")
+                    .split('/')
                     .some((part) => SKIPPED.has(part)),
         );
 
@@ -95,7 +95,7 @@ export default function FilesMenu({
             }
 
             toast.success(
-                `Uploaded ${files.length} ${files.length === 1 ? "file" : "files"}.`,
+                `Uploaded ${files.length} ${files.length === 1 ? 'file' : 'files'}.`,
                 { id },
             );
         } catch (e) {
@@ -106,7 +106,7 @@ export default function FilesMenu({
     };
 
     const download = () => {
-        const id = toast.loading("Zipping your project…");
+        const id = toast.loading('Zipping your project…');
 
         downloadWorkspaceZip(projectId)
             .then(() => toast.dismiss(id))
@@ -142,7 +142,7 @@ export default function FilesMenu({
                 >
                     <DropdownMenuItem
                         disabled={disabled}
-                        onSelect={() => (pendingCreate.current = "file")}
+                        onSelect={() => (pendingCreate.current = 'file')}
                         data-test="files-new-file"
                     >
                         <FilePlus />
@@ -150,7 +150,7 @@ export default function FilesMenu({
                     </DropdownMenuItem>
                     <DropdownMenuItem
                         disabled={disabled}
-                        onSelect={() => (pendingCreate.current = "dir")}
+                        onSelect={() => (pendingCreate.current = 'dir')}
                         data-test="files-new-folder"
                     >
                         <FolderPlus />
@@ -178,7 +178,7 @@ export default function FilesMenu({
                         data-test="files-toggle-hidden"
                     >
                         {hideHidden ? <Eye /> : <EyeOff />}
-                        {hideHidden ? "Show hidden files" : "Hide hidden files"}
+                        {hideHidden ? 'Show hidden files' : 'Hide hidden files'}
                     </DropdownMenuItem>
                     <DropdownMenuItem
                         onSelect={onClose}
@@ -197,13 +197,13 @@ export default function FilesMenu({
                 className="hidden"
                 data-test="files-folder-input"
                 // Not in React's types; lets the picker choose a whole folder.
-                {...{ webkitdirectory: "" }}
+                {...{ webkitdirectory: '' }}
                 onChange={(event) => {
                     if (event.target.files) {
                         void upload(event.target.files);
                     }
 
-                    event.target.value = "";
+                    event.target.value = '';
                 }}
             />
 
@@ -217,7 +217,7 @@ export default function FilesMenu({
                     if (path) {
                         onChanged();
 
-                        if (type === "file") {
+                        if (type === 'file') {
                             onCreatedFile(path);
                         }
                     }
@@ -233,17 +233,17 @@ function NewEntryDialog({
     onDone,
 }: {
     projectId: number;
-    type: WorkspaceEntry["type"] | null;
+    type: WorkspaceEntry['type'] | null;
     /** Called with the new path, or null if cancelled. */
     onDone: (path: string | null) => void;
 }) {
-    const [path, setPath] = useState("");
+    const [path, setPath] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
-    const noun = type === "dir" ? "folder" : "file";
+    const noun = type === 'dir' ? 'folder' : 'file';
 
     const close = (created: string | null) => {
-        setPath("");
+        setPath('');
         setError(null);
         onDone(created);
     };
@@ -251,9 +251,9 @@ function NewEntryDialog({
     const submit = async (event: React.FormEvent) => {
         event.preventDefault();
 
-        const trimmed = path.trim().replace(/^\/+|\/+$/g, "");
+        const trimmed = path.trim().replace(/^\/+|\/+$/g, '');
 
-        if (!type || trimmed === "") {
+        if (!type || trimmed === '') {
             return;
         }
 
@@ -278,8 +278,8 @@ function NewEntryDialog({
                 <form onSubmit={submit} className="space-y-4">
                     <DialogTitle>New {noun}</DialogTitle>
                     <DialogDescription>
-                        A name, or a path inside the project like{" "}
-                        {type === "dir" ? "src/components" : "src/utils.ts"}.
+                        A name, or a path inside the project like{' '}
+                        {type === 'dir' ? 'src/components' : 'src/utils.ts'}.
                         Missing folders are created too.
                     </DialogDescription>
                     <div className="space-y-1">
@@ -292,7 +292,7 @@ function NewEntryDialog({
                                 setError(null);
                             }}
                             placeholder={
-                                type === "dir" ? "components" : "notes.md"
+                                type === 'dir' ? 'components' : 'notes.md'
                             }
                             data-test="files-new-path"
                         />
@@ -306,7 +306,7 @@ function NewEntryDialog({
                         </DialogClose>
                         <Button
                             type="submit"
-                            disabled={saving || path.trim() === ""}
+                            disabled={saving || path.trim() === ''}
                             data-test="files-new-submit"
                         >
                             Create {noun}

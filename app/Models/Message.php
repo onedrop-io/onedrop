@@ -48,7 +48,7 @@ class Message extends Model
     {
         // Messages created through a task's chat belong to its project too.
         static::creating(function (self $message) {
-            if ($message->task_id !== null && $message->project_id === null) {
+            if ($message->task_id !== null && $message->getAttribute('project_id') === null) {
                 $message->project_id = Task::query()->whereKey($message->task_id)->value('project_id');
             }
         });

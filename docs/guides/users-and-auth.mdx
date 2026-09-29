@@ -33,23 +33,23 @@ The **Users** tab lists everyone who has signed up, with their name, email, when
 
 Each user's **⋯** menu has:
 
-| Action | What happens |
-| --- | --- |
-| **Edit name and email** | Saved straight to the app's database. |
-| **Set password** | Gives them a new password. **Sign them out everywhere** is on by default. |
-| **Require a new password** | Next time they use the app, they must choose a new password before anything else. Shows **Must choose new password** until they do. |
-| **Sign out everywhere** | Ends all their sessions on every device. |
-| **Role** | Choose from the roles your app has (admin and member unless you asked for others). Takes effect on their next page. |
-| **Sign in as** | Opens the app in a new tab, signed in as them, so you can see what they see. A banner shows who you're signed in as, with **Stop** to sign out. The link works once and only for a minute. |
-| **Turn account off** / **on** | They can't sign in, and anyone already signed in as them is signed out. Shows **Turned off**. Reversible, and their data is kept. |
-| **Delete user** | Removes the account after you confirm. If other data in the app belongs to the user and the app doesn't allow removing it, the panel explains and nothing is deleted. |
+| Action                        | What happens                                                                                                                                                                               |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Edit name and email**       | Saved straight to the app's database.                                                                                                                                                      |
+| **Set password**              | Gives them a new password. **Sign them out everywhere** is on by default.                                                                                                                  |
+| **Require a new password**    | Next time they use the app, they must choose a new password before anything else. Shows **Must choose new password** until they do.                                                        |
+| **Sign out everywhere**       | Ends all their sessions on every device.                                                                                                                                                   |
+| **Role**                      | Choose from the roles your app has (admin and member unless you asked for others). Takes effect on their next page.                                                                        |
+| **Sign in as**                | Opens the app in a new tab, signed in as them, so you can see what they see. A banner shows who you're signed in as, with **Stop** to sign out. The link works once and only for a minute. |
+| **Turn account off** / **on** | They can't sign in, and anyone already signed in as them is signed out. Shows **Turned off**. Reversible, and their data is kept.                                                          |
+| **Delete user**               | Removes the account after you confirm. If other data in the app belongs to the user and the app doesn't allow removing it, the panel explains and nothing is deleted.                      |
 
 The app enforces turned-off accounts and required password changes on every request, so they apply to people who are already signed in. Adding users, setting passwords and signing people out go through a small helper in the app (`.zap/users`), which uses the app's own sign-in library so passwords are stored the way sign-in expects.
 
 <Note>
-    The agent adds these controls when it sets up sign-in. If your app's
-    sign-in was set up before a control existed, choosing it offers **Ask the
-    agent**, which asks the agent to add just what's missing.
+    The agent adds these controls when it sets up sign-in. If your app's sign-in
+    was set up before a control existed, choosing it offers **Ask the agent**,
+    which asks the agent to add just what's missing.
 </Note>
 
 ## Configure
@@ -72,9 +72,9 @@ Once it's on, choose **Who can sign in**:
 Someone who isn't signed in to Zap signs in first, then lands back in the app. Someone outside the chosen groups sees an explanation and isn't signed in. Turning the method off stops sign-ins through OneDrop right away.
 
 <Note>
-    People sign in on Zap's own address, so they must be able to reach it. That's
-    fine when Zap runs on a server or your tailnet. A public app can't use it
-    while Zap runs on a laptop that visitors can't reach.
+    People sign in on Zap's own address, so they must be able to reach it.
+    That's fine when Zap runs on a server or your tailnet. A public app can't
+    use it while Zap runs on a laptop that visitors can't reach.
 </Note>
 
 Under the hood this is standard OAuth 2.0 (authorization code with PKCE, plus a user-info endpoint returning `sub`, `name`, `email`, `email_verified` and `groups`), so it works with any stack's auth library.

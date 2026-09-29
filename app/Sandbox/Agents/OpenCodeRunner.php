@@ -77,7 +77,7 @@ class OpenCodeRunner extends SandboxAgentRunner
             ...$connection->sandboxEnvironment(),
             'APP_AGENT' => AgentHarness::OpenCode->value,
             'APP_PROMPT' => $this->prompt($message, $attached),
-            'APP_FILES' => json_encode($images, JSON_UNESCAPED_SLASHES),
+            'APP_FILES' => json_encode($images, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES),
             'APP_MODEL' => $this->catalog->opencodeId($selection['provider'], $selection['model']),
             'APP_VARIANT' => $selection['variant'] ?? '',
         ]);

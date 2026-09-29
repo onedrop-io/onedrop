@@ -33,7 +33,7 @@ class WorkspaceAuth
     /**
      * How the app's sign-in is set up: ['configured' => false] until the agent has built it.
      *
-     * @return array{configured: bool, library?: ?string, login_path?: string, callback_path?: string, methods?: list<string>, env_file?: string, users_table?: string, keys?: array<string, array{client_id: bool, client_secret: bool}>}
+     * @return array{configured: false}|array{configured: true, library: ?string, login_path: string, callback_path: string, methods: list<string>, env_file: string, users_table: string, keys: array<string, array{client_id: bool, client_secret: bool}>}
      *
      * @throws SandboxException|DatabaseException
      */

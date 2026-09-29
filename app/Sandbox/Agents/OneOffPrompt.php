@@ -51,7 +51,7 @@ class OneOffPrompt
                 'autoupdate' => false,
                 'share' => 'disabled',
                 'permission' => ['edit' => 'deny', 'bash' => 'deny', 'webfetch' => 'deny'],
-            ]),
+            ], JSON_THROW_ON_ERROR),
         ]);
 
         $text = $this->textFrom($result->output);

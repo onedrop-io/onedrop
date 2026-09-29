@@ -66,7 +66,7 @@ class AgentConnection extends Model
     public function sandboxEnvironment(): array
     {
         if ($this->credential_type === CredentialType::ChatGpt) {
-            return ['OPENCODE_AUTH_CONTENT' => json_encode($this->opencodeAuth())];
+            return ['OPENCODE_AUTH_CONTENT' => json_encode($this->opencodeAuth(), JSON_THROW_ON_ERROR)];
         }
 
         $variable = match ($this->provider) {

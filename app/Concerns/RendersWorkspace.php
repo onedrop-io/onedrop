@@ -129,7 +129,7 @@ trait RendersWorkspace
     {
         $sandbox = $project->sandbox;
 
-        if (! in_array($sandbox?->provider, ['blaxel', 'runtime'], true) || $sandbox?->status !== SandboxStatus::Running || ! $sandbox->external_id
+        if ($sandbox === null || ! in_array($sandbox->provider, ['blaxel', 'runtime'], true) || $sandbox->status !== SandboxStatus::Running || ! $sandbox->external_id
             || ! Cache::add("sandbox-addresses:{$sandbox->id}", true, now()->addDay())) {
             return;
         }

@@ -72,7 +72,7 @@ class OpenRouterAuthController extends Controller
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('OpenRouter connected.')]);
 
-        return $returnTo === route('onboarding.ai') ? to_route('dashboard') : redirect($returnTo);
+        return $returnTo === route('onboarding.ai') ? to_route('dashboard') : redirect()->to($returnTo);
     }
 
     /**

@@ -1,5 +1,9 @@
 export type AppAuthMethod =
-    'password' | 'google' | 'github' | 'microsoft' | 'onedrop';
+    | 'password'
+    | 'google'
+    | 'github'
+    | 'microsoft'
+    | 'onedrop';
 
 export type AppAuthProvider = {
     id: Exclude<AppAuthMethod, 'password' | 'onedrop'>;

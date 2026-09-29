@@ -1,0 +1,88 @@
+---
+title: 'Install on your computer'
+description: 'Run OneDrop on macOS or Linux with one command. Docker is the only requirement.'
+---
+
+OneDrop runs on your computer as a single Docker container with its own SQLite database. Each project you build gets its own sandbox container next to it.
+
+## Requirements
+
+- macOS or Linux
+- Docker: [Docker Desktop](https://www.docker.com/products/docker-desktop/) or [OrbStack](https://orbstack.dev) on a Mac, Docker Engine on Linux
+- About 5 GB of free disk space for the images
+- An API key for Anthropic, OpenAI, Google (Gemini), or OpenRouter, or a ChatGPT Plus or Pro plan
+
+## Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/onedrop-io/onedrop/main/install.sh | sh
+```
+
+The installer:
+
+1. Checks for Docker. On Linux it offers to install it; on a Mac it links to the download. If Docker is installed but not running, it starts it.
+2. Adds the `drop` command to `~/.local/bin`.
+3. Downloads the OneDrop images and starts OneDrop at `http://localhost:8000`, or the next free port.
+4. Opens the sign-up page in your browser.
+
+The first account you create is the admin. After signing up, [connect your AI](/guides/set-up-ai) and describe your first app.
+
+<Note>
+    You don't need `sudo`. On Linux, installing Docker itself asks for your
+    password.
+</Note>
+
+## Manage OneDrop
+
+| Command          | What it does                                                          |
+| ---------------- | --------------------------------------------------------------------- |
+| `drop update`    | Download the latest version and restart. Your data is kept.           |
+| `drop start`     | Start OneDrop. Unless you stopped it, it starts whenever Docker does. |
+| `drop stop`      | Stop OneDrop                                                          |
+| `drop status`    | Show whether it's running, and its address                            |
+| `drop open`      | Open OneDrop in your browser                                          |
+| `drop logs`      | Follow OneDrop's logs                                                 |
+| `drop config`    | List settings; `drop config KEY=VALUE` changes one and restarts       |
+| `drop uninstall` | Remove OneDrop. It asks before deleting your projects and data.       |
+
+Running the install command again does the same as `drop update`.
+
+## Settings
+
+Settings live in the container's `.env` file. Use `drop config` for any setting in [Configuration](/self-hosting/configuration), for example to turn on [social login](/self-hosting/social-login):
+
+```bash
+drop config GOOGLE_CLIENT_ID=your-client-id GOOGLE_CLIENT_SECRET=your-client-secret
+```
+
+To install on a different port, set `DROP_PORT` when you run the installer:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/onedrop-io/onedrop/main/install.sh | DROP_PORT=9000 sh
+```
+
+## How it's set up
+
+| Part               | Details                                                                   |
+| ------------------ | ------------------------------------------------------------------------- |
+| `drop` container   | The web app and its queue worker, from `ghcr.io/onedrop-io/drop`          |
+| `drop-data` volume | The database, settings, and code backups. Kept across updates.            |
+| Project sandboxes  | One container per project, from `ghcr.io/onedrop-io/drop-sandbox`         |
+| `drop` network     | Connects the sandboxes to the app so the agent can report what it's doing |
+| Docker socket      | Mounted into the `drop` container so OneDrop can start and stop sandboxes |
+
+OneDrop and project previews listen only on `127.0.0.1`, so other computers on your network can't reach them. To share a project, [publish it](/guides/publish).
+
+<Warning>
+    Access to the Docker socket gives the `drop` container full control of
+    Docker on your computer. That's how it manages sandboxes; run only images
+    you trust this way.
+</Warning>
+
+## Uninstall
+
+```bash
+drop uninstall
+```
+
+If you keep your data, the `drop-data` volume stays, and installing again picks it up.

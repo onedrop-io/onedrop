@@ -15,6 +15,7 @@ use Laravel\Fortify\Features;
 use Laravel\Socialite\Contracts\Provider;
 use Laravel\Socialite\Contracts\User as SocialiteUser;
 use Laravel\Socialite\Facades\Socialite;
+use Laravel\Socialite\Two\AbstractProvider;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
@@ -125,7 +126,8 @@ class SocialLoginController extends Controller
      */
     protected function driver(SocialProvider $provider): Provider
     {
-        return Socialite::driver($provider->driver())
-            ->redirectUrl(route('social.callback', $provider));
+        $driver = Socialite::driver($provider->driver());
+
+        return $driver instanceof AbstractProvider ? $driver->redirectUrl(route('social.callback', $provider)) : $driver;
     }
 }

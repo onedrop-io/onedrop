@@ -11,15 +11,18 @@ When a task starts, OneDrop copies Main's sandbox for it: the code, installed pa
 
 The task's page shows its copy: its own preview, files, console, shell and tools. Nothing you or its agent change there touches Main until you apply it.
 
-| Button | What it does |
-| --- | --- |
-| **Apply to Main** | Merges the task's code into Main with git. Main's agent then does what your app needs, such as installing new packages or running database migrations, resolves any conflicts, and checks the preview. The task moves to **Done** and its copy is removed. |
-| **Update from Main** | Merges Main's newer work into the task's copy, and the task's agent brings its copy up to date. Use it when Main moved on while the task worked. |
+| Button               | What it does                                                                                                                                                                                                                                               |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Apply to Main**    | Merges the task's code into Main with git. Main's agent then does what your app needs, such as installing new packages or running database migrations, resolves any conflicts, and checks the preview. The task moves to **Done** and its copy is removed. |
+| **Update from Main** | Merges Main's newer work into the task's copy, and the task's agent brings its copy up to date. Use it when Main moved on while the task worked.                                                                                                           |
 
 Only code merges. Rows added to a database in a task's copy stay there, while schema changes come to Main as migrations, which Main's agent runs.
 
 <Warning>
-If your app's settings point at a database or other service outside the sandbox (for example a hosted Postgres in `DATABASE_URL`), the task's copy still uses that same service. The task's chat says so when the copy is made. Agents keep databases inside the sandbox unless you ask for an outside one.
+    If your app's settings point at a database or other service outside the
+    sandbox (for example a hosted Postgres in `DATABASE_URL`), the task's copy
+    still uses that same service. The task's chat says so when the copy is made.
+    Agents keep databases inside the sandbox unless you ask for an outside one.
 </Warning>
 
 Each copy is a sandbox of its own, so a project runs up to three at once by default. Apply or delete a task to start another. Self-hosters can change this, or turn copies off so tasks share Main's sandbox, in [configuration](/self-hosting/configuration).
@@ -42,13 +45,13 @@ While a task's agent works, you can keep messaging it (messages wait in that tas
 
 Choose **Open** from a project's **⋮** menu. The sidebar then shows only that project:
 
-| Item         | What it does                                                    |
-| ------------ | --------------------------------------------------------------- |
-| **Back**     | Returns to the full sidebar with all your projects               |
-| **Main**     | The project's main chat                                         |
-| **Board**    | The project's kanban board                                      |
-| **New task** | Starts a new task                                               |
-| Task lists   | Tasks grouped into In progress, Review, To do and Done          |
+| Item         | What it does                                           |
+| ------------ | ------------------------------------------------------ |
+| **Back**     | Returns to the full sidebar with all your projects     |
+| **Main**     | The project's main chat                                |
+| **Board**    | The project's kanban board                             |
+| **New task** | Starts a new task                                      |
+| Task lists   | Tasks grouped into In progress, Review, To do and Done |
 
 Without opening a project, its unfinished tasks show under it in the sidebar. Click the arrow on the project's icon to show or hide them.
 
@@ -56,12 +59,12 @@ Without opening a project, its unfinished tasks show under it in the sidebar. Cl
 
 Each project has a board with four columns:
 
-| Column          | What's in it                                                 |
-| --------------- | ------------------------------------------------------------ |
-| **To do**       | Cards you added but haven't started                          |
+| Column          | What's in it                                                          |
+| --------------- | --------------------------------------------------------------------- |
+| **To do**       | Cards you added but haven't started                                   |
 | **In progress** | Tasks whose agent is working, or whose last run failed or was stopped |
-| **Review**      | Tasks whose agent finished a turn and is waiting for you     |
-| **Done**        | Tasks you marked done                                        |
+| **Review**      | Tasks whose agent finished a turn and is waiting for you              |
+| **Done**        | Tasks you marked done                                                 |
 
 Tasks move to **In progress** when their agent starts and to **Review** when it finishes. Drag a card to another column, or use its **⋮** menu, to move it yourself.
 

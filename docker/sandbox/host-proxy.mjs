@@ -27,11 +27,17 @@ const appHost = `localhost:${appPort}`;
 // server): /workspace/.zap/routes.json maps path prefixes to local ports, e.g. {"/app": 8080}. Requests
 // and WebSockets under a prefix go to its port instead of the app's. The sandbox's own services
 // (this proxy, the web terminal, SSH) can never be routed to, so they stay behind the platform's auth.
-const ROUTES_FILE = process.env.ZAP_ROUTES_FILE || '/workspace/.zap/routes.json';
+const ROUTES_FILE =
+    process.env.ZAP_ROUTES_FILE || '/workspace/.zap/routes.json';
 const RESERVED_PORTS = new Set(
-    [listenPort, process.env.SHELL_PORT || 7681, process.env.SSH_PORT || 2222].map(Number),
+    [
+        listenPort,
+        process.env.SHELL_PORT || 7681,
+        process.env.SSH_PORT || 2222,
+    ].map(Number),
 );
 const ROUTES_TTL_MS = 1000;
+/** @type {{ at: number, list: Array<[string, number]> }} */
 let routes = { at: 0, list: [] };
 
 /** The routes in routes.json, longest prefix first; invalid entries are skipped. */
@@ -102,8 +108,9 @@ function visitorProto(req) {
     const host = String(req.headers.host ?? '');
 
     return (
-        String(req.headers['x-forwarded-proto'] ?? '').split(',')[0].trim() ||
-        (host.endsWith('.ts.net') ? 'https' : 'http')
+        String(req.headers['x-forwarded-proto'] ?? '')
+            .split(',')[0]
+            .trim() || (host.endsWith('.ts.net') ? 'https' : 'http')
     );
 }
 
@@ -213,7 +220,10 @@ function relay(req, res, response) {
         if (size <= MAX_REWRITE_BYTES) {
             let text = toVisitor(body.toString('utf8'), req);
 
-            if (isPreview(host) && /^text\/html/i.test(String(headers['content-type']))) {
+            if (
+                isPreview(host) &&
+                /^text\/html/i.test(String(headers['content-type']))
+            ) {
                 text = withErrorReporter(text, response.statusCode ?? 502);
             }
 
@@ -417,7 +427,12 @@ const ERRORS_LOG = `${MONITOR_DIR}/errors.log`;
 const ERROR_PATH = '/__zap/error';
 const ERROR_SCRIPT_PATH = '/__zap/errors.js';
 const SERVER_LOG = '/tmp/zap-server.log';
-const BROWSER_ERROR_TYPES = new Set(['error', 'rejection', 'console', 'resource']);
+const BROWSER_ERROR_TYPES = new Set([
+    'error',
+    'rejection',
+    'console',
+    'resource',
+]);
 const MAX_ERROR_REPORT_BYTES = 16_384;
 const MAX_ERROR_BODY_BYTES = 200_000;
 const MAX_ERROR_TEXT = 2000;
@@ -425,7 +440,9 @@ const MAX_LOG_TAIL_BYTES = 4000;
 // The same error again within this window isn't logged twice; the app being down is logged at most this often.
 const ERROR_REPEAT_MS = 5000;
 const DOWN_REPEAT_MS = 30_000;
-const ANSI = /\x1b\[[0-9;?]*[A-Za-z]/g;
+// Terminal colour codes, stripped from logged errors; matching the ESC control character is the point.
+// eslint-disable-next-line no-control-regex
+const ANSI = /\u001b\[[0-9;?]*[A-Za-z]/g;
 const lastErrors = new Map();
 
 // Added to preview pages. Reports to the proxy (for errors.log) and to the app builder around the preview.
@@ -526,7 +543,9 @@ function pageText(raw, type) {
               .replace(/&amp;/g, '&')
         : raw;
 
-    return text.replace(/\s+/g, ' ').trim().slice(0, MAX_ERROR_TEXT) || undefined;
+    return (
+        text.replace(/\s+/g, ' ').trim().slice(0, MAX_ERROR_TEXT) || undefined
+    );
 }
 
 /** The end of the dev server's output, where most stacks print what went wrong. */
@@ -596,12 +615,24 @@ function watchServerError(req, response) {
         // Compressed answers (to requests from inside the sandbox) can't be read here; the log still helps.
         const text = response.headers['content-encoding']
             ? undefined
-            : pageText(Buffer.concat(chunks).toString('utf8').slice(0, MAX_ERROR_BODY_BYTES), type);
+            : pageText(
+                  Buffer.concat(chunks)
+                      .toString('utf8')
+                      .slice(0, MAX_ERROR_BODY_BYTES),
+                  type,
+              );
         const path = requestPath(req);
 
         recordError(
             req,
-            { k: 'server', s: response.statusCode, m: req.method, p: path, text, log: serverLogTail() },
+            {
+                k: 'server',
+                s: response.statusCode,
+                m: req.method,
+                p: path,
+                text,
+                log: serverLogTail(),
+            },
             `server ${response.statusCode} ${path} ${text?.slice(0, 200)}`,
         );
     });
@@ -609,7 +640,12 @@ function watchServerError(req, response) {
 
 /** The app didn't answer (not started, restarting, or crashed). */
 function recordDown(req) {
-    recordError(req, { k: 'down', m: req.method, p: requestPath(req), log: serverLogTail() }, 'down', DOWN_REPEAT_MS);
+    recordError(
+        req,
+        { k: 'down', m: req.method, p: requestPath(req), log: serverLogTail() },
+        'down',
+        DOWN_REPEAT_MS,
+    );
 }
 
 /** A browser error from the preview's reporter, or null when it doesn't look like one. */
@@ -633,7 +669,9 @@ function parseBrowserError(body) {
     }
 
     const text = (value, max) =>
-        typeof value === 'string' && value !== '' ? value.slice(0, max) : undefined;
+        typeof value === 'string' && value !== ''
+            ? value.slice(0, max)
+            : undefined;
 
     return {
         type: error.type,
@@ -652,7 +690,11 @@ function recordBrowserError(req, res) {
                 : null;
 
         if (error) {
-            recordError(req, { k: 'browser', ...error }, `browser ${error.type} ${error.msg.slice(0, 200)}`);
+            recordError(
+                req,
+                { k: 'browser', ...error },
+                `browser ${error.type} ${error.msg.slice(0, 200)}`,
+            );
         }
 
         res.writeHead(error ? 204 : 400, { 'cache-control': 'no-store' });

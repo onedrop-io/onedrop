@@ -24,13 +24,13 @@ By stack:
 
 - **Laravel**: add a disk in `config/filesystems.php` and use `Storage::disk('photos')`:
 
-  ```php
-  'photos' => [
-      'driver' => 'local',
-      'root' => rtrim(env('APP_STORAGE_DIR', storage_path('app/zap-storage')), '/').'/photos',
-      'throw' => true,
-  ],
-  ```
+    ```php
+    'photos' => [
+        'driver' => 'local',
+        'root' => rtrim(env('APP_STORAGE_DIR', storage_path('app/zap-storage')), '/').'/photos',
+        'throw' => true,
+    ],
+    ```
 
 - **Node (Express, Next, Remix, …)**: one small module (e.g. `src/server/storage.ts`) that joins keys onto
   `path.join(process.env.APP_STORAGE_DIR ?? '.storage', 'photos')` and uses `node:fs/promises`. Reject keys

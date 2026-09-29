@@ -1,4 +1,4 @@
-import { Link, router, usePage } from "@inertiajs/react";
+import { Link, router, usePage } from '@inertiajs/react';
 import {
     Bell,
     Palette,
@@ -9,52 +9,52 @@ import {
     UserCog,
     UserPlus,
     Users,
-} from "lucide-react";
-import type { PropsWithChildren } from "react";
+} from 'lucide-react';
+import type { PropsWithChildren } from 'react';
 import {
     Dialog,
     DialogContent,
     DialogDescription,
     DialogTitle,
-} from "@/components/ui/dialog";
-import { useCurrentUrl } from "@/hooks/use-current-url";
-import { settingsReturnUrl } from "@/lib/settings";
-import { cn, toUrl } from "@/lib/utils";
-import { dashboard } from "@/routes";
-import { index as aiSettings } from "@/routes/agent-connections";
-import { edit as editAppearance } from "@/routes/appearance";
-import { index as groupsIndex } from "@/routes/groups";
-import { index as invitationsIndex } from "@/routes/invitations";
-import { edit as editNotifications } from "@/routes/notifications";
-import { edit } from "@/routes/profile";
-import { edit as editSecurity } from "@/routes/security";
-import { index as usersIndex } from "@/routes/users";
-import type { NavItem } from "@/types";
+} from '@/components/ui/dialog';
+import { useCurrentUrl } from '@/hooks/use-current-url';
+import { settingsReturnUrl } from '@/lib/settings';
+import { cn, toUrl } from '@/lib/utils';
+import { dashboard } from '@/routes';
+import { index as aiSettings } from '@/routes/agent-connections';
+import { edit as editAppearance } from '@/routes/appearance';
+import { index as groupsIndex } from '@/routes/groups';
+import { index as invitationsIndex } from '@/routes/invitations';
+import { edit as editNotifications } from '@/routes/notifications';
+import { edit } from '@/routes/profile';
+import { edit as editSecurity } from '@/routes/security';
+import { index as usersIndex } from '@/routes/users';
+import type { NavItem } from '@/types';
 
 type NavSection = { title: string; items: NavItem[] };
 
 const accountSection: NavSection = {
-    title: "Account",
+    title: 'Account',
     items: [
-        { title: "Profile", href: edit(), icon: User },
-        { title: "Security", href: editSecurity(), icon: Shield },
-        { title: "AI", href: aiSettings(), icon: Sparkles },
-        { title: "Appearance", href: editAppearance(), icon: Palette },
-        { title: "Notifications", href: editNotifications(), icon: Bell },
+        { title: 'Profile', href: edit(), icon: User },
+        { title: 'Security', href: editSecurity(), icon: Shield },
+        { title: 'AI', href: aiSettings(), icon: Sparkles },
+        { title: 'Appearance', href: editAppearance(), icon: Palette },
+        { title: 'Notifications', href: editNotifications(), icon: Bell },
     ],
 };
 
 const peopleSection: NavSection = {
-    title: "People",
+    title: 'People',
     items: [
-        { title: "Groups", href: groupsIndex(), icon: Users },
-        { title: "Invite people", href: invitationsIndex(), icon: UserPlus },
+        { title: 'Groups', href: groupsIndex(), icon: Users },
+        { title: 'Invite people', href: invitationsIndex(), icon: UserPlus },
     ],
 };
 
 const adminSection: NavSection = {
-    title: "Admin",
-    items: [{ title: "Users", href: usersIndex(), icon: UserCog }],
+    title: 'Admin',
+    items: [{ title: 'Users', href: usersIndex(), icon: UserCog }],
 };
 
 /** Settings pages render in a modal over the app; closing it returns to the page you came from. */
@@ -112,9 +112,9 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
                                         href={item.href}
                                         prefetch
                                         className={cn(
-                                            "flex shrink-0 items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-foreground/80 transition-colors hover:bg-muted hover:text-foreground",
+                                            'flex shrink-0 items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-foreground/80 transition-colors hover:bg-muted hover:text-foreground',
                                             isCurrentOrParentUrl(item.href) &&
-                                                "bg-muted font-medium text-foreground",
+                                                'bg-muted font-medium text-foreground',
                                         )}
                                     >
                                         {item.icon && (

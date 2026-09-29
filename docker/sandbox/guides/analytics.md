@@ -25,12 +25,19 @@ Put a single `track` function in the app's front end (e.g. `resources/js/lib/ana
 `src/lib/analytics.ts`) and call it everywhere. It must never throw or slow the app down:
 
 ```ts
-export function track(name: string, props?: Record<string, string | number | boolean>): void {
+export function track(
+    name: string,
+    props?: Record<string, string | number | boolean>,
+): void {
     try {
         const body = JSON.stringify({ name, props });
 
         if (!navigator.sendBeacon?.('/__zap/event', body)) {
-            void fetch('/__zap/event', { method: 'POST', body, keepalive: true }).catch(() => {});
+            void fetch('/__zap/event', {
+                method: 'POST',
+                body,
+                keepalive: true,
+            }).catch(() => {});
         }
     } catch {
         // Analytics must never break the app.
@@ -65,7 +72,11 @@ List every event the app sends, in the order a person meets them:
     "version": 1,
     "events": [
         { "name": "signed_up", "description": "Someone created an account." },
-        { "name": "project_created", "description": "Someone created a project.", "props": ["template"] }
+        {
+            "name": "project_created",
+            "description": "Someone created a project.",
+            "props": ["template"]
+        }
     ]
 }
 ```

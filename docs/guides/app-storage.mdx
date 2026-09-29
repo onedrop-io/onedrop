@@ -15,9 +15,8 @@ Buckets live outside your app's code. They aren't in git, the Files panel or the
     </Step>
     <Step title="Name it">
         The dialog suggests a name like `swift-otter-42`; change it to something
-        that says what the bucket holds, like `photos`. Names use 3–63
-        lowercase letters, digits and dashes, and start and end with a letter
-        or digit.
+        that says what the bucket holds, like `photos`. Names use 3–63 lowercase
+        letters, digits and dashes, and start and end with a letter or digit.
     </Step>
 </Steps>
 
@@ -58,8 +57,9 @@ With Docker sandboxes, on a laptop or a server, `/data/storage` is a folder on t
 The agent follows a guide (`/opt/zap/guides/storage.md` in the sandbox): it validates uploads on the server, names objects itself instead of trusting uploaded file names, stores object keys in the database, and serves files through app routes that check who can see them.
 
 <Note>
-    Sandboxes created before App Storage existed need the new sandbox image. After
-    `php artisan sandbox:build-image`, they
-    [update themselves](/self-hosting/sandboxes#sandboxes-update-themselves) and keep
-    their buckets; buckets that were inside the container move to the host folder.
+    Sandboxes created before App Storage existed need the new sandbox image.
+    After `php artisan sandbox:build-image`, they [update
+    themselves](/self-hosting/sandboxes#sandboxes-update-themselves) and keep
+    their buckets; buckets that were inside the container move to the host
+    folder.
 </Note>
