@@ -16,6 +16,8 @@ use App\Sandbox\Publishing\Publisher;
 use App\Sandbox\SandboxProvider;
 use App\Sandbox\WorkspaceFiles;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
@@ -41,6 +43,7 @@ function iconSandbox(array $appFiles = [], string $answer = DRAWN_ICON, bool $ha
                 ->map(fn (string $bytes, string $path) => $path."\t".base64_encode($bytes))
                 ->implode("\n")."\n"),
             str_contains($script, 'opencode run') => new ExecResult(0, json_encode(['type' => 'text', 'part' => ['text' => "Here you go:\n{$answer}"]])),
+            str_contains($script, 'claude -p') => new ExecResult(0, json_encode(['type' => 'result', 'is_error' => false, 'result' => "Here you go:\n{$answer}"])),
             str_contains($script, 'printf %s "$APP_CONTENT"') => (function () use ($command, $env, &$temp) {
                 $temp[$command[4]] = (str_contains($command[2], '>>') ? ($temp[$command[4]] ?? '') : '').$env['APP_CONTENT'];
 
@@ -57,6 +60,16 @@ function iconSandbox(array $appFiles = [], string $answer = DRAWN_ICON, bool $ha
     app()->instance(SandboxProvider::class, $provider);
 
     return $provider;
+}
+
+/**
+ * The call that points the app's logo component at its icon, if one was made.
+ *
+ * @return array{id: string, command: list<string>, env: array<string, string>}|null
+ */
+function logoCall(FakeSandboxProvider $provider): ?array
+{
+    return collect($provider->executed)->firstWhere(fn ($call) => str_contains($call['command'][2] ?? '', 'app-logo-icon.tsx'));
 }
 
 beforeEach(function () {
@@ -89,7 +102,8 @@ test('the app\'s own favicon becomes the project\'s icon', function () {
     expect($this->project->icon_mime)->toBe('image/png')
         ->and(Storage::disk(ProjectIcons::DISK)->get($this->project->icon_path))->toBe($png)
         ->and($provider->written)->toBe([])
-        ->and(collect($provider->executed)->pluck('command')->flatten()->contains(fn ($part) => str_contains((string) $part, 'opencode run')))->toBeFalse();
+        ->and(collect($provider->executed)->pluck('command')->flatten()->contains(fn ($part) => str_contains((string) $part, 'opencode run')))->toBeFalse()
+        ->and(logoCall($provider)['env']['APP_CONTENT'])->toContain('src="/favicon.png?v='.substr($this->project->icon_hash, 0, 12).'"');
 
     $sidebar = $this->actingAs($this->user)->get(route('dashboard'))->inertiaProps('sidebarProjects');
     expect($sidebar['recent'][0]['icon_url'])->toBe(ProjectIcons::url($this->project));
@@ -129,7 +143,55 @@ test('an app with only the starter kit\'s logo gets an icon drawn by its AI, cle
         ->and($prompt)->toContain('Team CRM')->toContain('A CRM for our sales team')
         ->and(ProjectIcons::drawing([$this->project->id]))->toBe([])
         // The starter kit's other icons are taken out so browsers don't pick them instead.
-        ->and(collect($provider->executed)->contains(fn ($call) => str_contains($call['command'][2] ?? '', 'apple-touch-icon.png')))->toBeTrue();
+        ->and(collect($provider->executed)->contains(fn ($call) => str_contains($call['command'][2] ?? '', 'apple-touch-icon.png')))->toBeTrue()
+        // And its logo shows the new icon.
+        ->and(logoCall($provider)['env']['APP_CONTENT'])->toContain('src="/favicon.svg?v='.substr($this->project->icon_hash, 0, 12).'"');
+})->group('PRJ-007');
+
+test('the icon replaces the starter kit\'s Laravel logo, but not a logo the agent drew', function () {
+    $provider = iconSandbox();
+    UpdateProjectIcon::dispatchSync($this->project);
+    $call = logoCall($provider);
+    $root = storage_path('framework/testing/logo-'.uniqid());
+    $component = "{$root}/resources/js/components/app-logo-icon.tsx";
+    $runLogoScript = fn () => Process::env($call['env'])->run([...array_slice($call['command'], 0, -1), $root])->throw();
+    File::ensureDirectoryExists(dirname($component));
+
+    try {
+        File::copy(base_path('tests/Fixtures/starter-kit-app-logo-icon.tsx'), $component);
+        $runLogoScript();
+        expect(File::get($component))->toBe($call['env']['APP_CONTENT']);
+
+        // A later icon updates the logo OneDrop wrote.
+        File::put($component, str_replace('?v=', '?v=old', $call['env']['APP_CONTENT']));
+        $runLogoScript();
+        expect(File::get($component))->toBe($call['env']['APP_CONTENT']);
+
+        $ownLogo = 'export default function AppLogoIcon() { return <svg viewBox="0 0 10 10"><circle r="5" /></svg>; }';
+        File::put($component, $ownLogo);
+        $runLogoScript();
+        expect(File::get($component))->toBe($ownLogo);
+    } finally {
+        File::deleteDirectory($root);
+    }
+})->group('PRJ-007');
+
+test('a project on a Claude subscription gets its icon drawn through Claude Code', function () {
+    $user = User::factory()->has(AgentConnection::factory()->claudeLogin())->create();
+    $project = Project::factory()->for($user)->create([
+        'agent_harness' => 'claude_code', 'agent_provider' => 'claude', 'agent_model' => 'claude-sonnet-5',
+    ]);
+    Sandbox::factory()->for($project)->create(['external_id' => 'sbx-2', 'status' => SandboxStatus::Running]);
+    $provider = iconSandbox();
+
+    UpdateProjectIcon::dispatchSync($project);
+
+    $call = collect($provider->executed)->firstWhere(fn ($call) => str_contains($call['command'][2] ?? '', 'claude -p'));
+    expect($project->refresh()->icon_mime)->toBe('image/svg+xml')
+        ->and($provider->written['public/favicon.svg'])->toContain('rx="14"')
+        ->and($call['command'][2])->toContain('--tools ""')->toContain('-u ANTHROPIC_API_KEY')
+        ->and($call['env'])->toMatchArray(['APP_MODEL' => 'claude-sonnet-5'])
+        ->and($call['env']['APP_PROMPT'])->toContain('Design a favicon');
 })->group('PRJ-007');
 
 test('a drawn icon is put back when the app loses its favicon, without asking the AI again', function () {

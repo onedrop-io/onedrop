@@ -9,8 +9,9 @@ use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxProvider;
 
 /**
- * Asks the project's AI a single question with a one-off OpenCode run in the sandbox (where the user's
- * AI credentials already go). The run gets no tools and doesn't touch the agent's session.
+ * Asks the project's AI a single question with a one-off run in the sandbox (where the user's AI
+ * credentials already go): OpenCode, or Claude Code on a Claude subscription (which OpenCode can't use).
+ * The run gets no tools and doesn't touch the agent's session.
  */
 class OneOffPrompt
 {
@@ -32,8 +33,12 @@ class OneOffPrompt
             throw new SandboxException("The project's sandbox isn't running.");
         }
 
-        if ($selection === null || $connection === null || $connection->credential_type === CredentialType::ClaudeLogin) {
+        if ($selection === null || $connection === null) {
             throw new SandboxException('No connected AI can be asked.');
+        }
+
+        if ($connection->credential_type === CredentialType::ClaudeLogin) {
+            return $this->askClaudeCode($sandbox->external_id, $selection['model'], $prompt);
         }
 
         if ($connection->credential_type === CredentialType::ChatGpt) {
@@ -58,6 +63,33 @@ class OneOffPrompt
 
         if (! $result->successful() || trim($text) === '') {
             throw new SandboxException(strtok(trim($result->errorOutput), "\n") ?: 'no answer');
+        }
+
+        return $text;
+    }
+
+    /**
+     * Ask through Claude Code's own sign-in in the sandbox (AI-005), with no tools. The prompt goes in on
+     * stdin, and any key is left out so the run can't bill an API account instead of the subscription.
+     *
+     * @throws SandboxException
+     */
+    protected function askClaudeCode(string $sandboxId, string $model, string $prompt): string
+    {
+        $result = $this->provider->exec($sandboxId, [
+            'bash', '-c', 'cd /tmp && printf %s "$APP_PROMPT" | exec env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u CLAUDE_CODE_OAUTH_TOKEN DISABLE_AUTOUPDATER=1 claude -p --output-format json --no-session-persistence --tools "" --model "$APP_MODEL"',
+        ], [
+            'APP_MODEL' => $model,
+            'APP_PROMPT' => $prompt,
+        ]);
+
+        $answer = json_decode($result->output, true);
+        $text = is_array($answer) && ! ($answer['is_error'] ?? false) ? (string) ($answer['result'] ?? '') : '';
+
+        if (! $result->successful() || trim($text) === '') {
+            $error = is_array($answer) ? (string) ($answer['result'] ?? '') : '';
+
+            throw new SandboxException(strtok(trim($error ?: $result->errorOutput), "\n") ?: 'no answer');
         }
 
         return $text;

@@ -11,10 +11,12 @@ After each agent run, OneDrop checks the app for a favicon (such as `public/favi
 
 If the app has no favicon of its own, the project's AI draws one: a simple symbol for what the app does, on a colored rounded square. It's saved in your app as `public/favicon.svg`, so the published app uses it too. An empty favicon or the Laravel logo from the starter kit doesn't count as the app's own.
 
+In a Laravel app, the icon is also the app's logo: the sign-in and sign-up pages and the app's header show it instead of the Laravel logo. If the agent designs a separate logo there, OneDrop leaves it alone.
+
 <Note>
-    Drawing an icon needs the sandbox to be running and an AI connected with an
-    API key or ChatGPT sign-in. Until the project has an icon, its tile shows
-    the project's first letter.
+    Drawing an icon needs the sandbox to be running and a connected AI (an API
+    key, a ChatGPT sign-in, or your Claude subscription). Until the project has
+    an icon, its tile shows the project's first letter.
 </Note>
 
 ## Change the icon

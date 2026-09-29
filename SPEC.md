@@ -180,6 +180,8 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see their app's favicon on the project's tile in the sidebar (instead of its initial), with the status badge still on top.
 - After each agent run, the icon should follow the app: if the agent added or changed the favicon (for example after the user pasted an image and asked for it to be the favicon), the sidebar shows the new one.
 - When the app has no favicon of its own (none, an empty one, or the Laravel starter kit's logo), the project's AI should draw a simple icon for it, which is shown in the sidebar and installed in the app as `public/favicon.svg`.
+- The app's logo should follow its icon: in a Laravel starter kit app, the logo on its sign-in and sign-up pages and in its header shows the app's icon instead of the Laravel logo (unless the agent has drawn its own logo there).
+- Projects on a Claude subscription should get icons drawn (and names suggested) too, through Claude Code in the sandbox.
 - Drawn icons should be cleaned of anything that could run code (scripts, event handlers, external links) before they're stored or installed.
 - User should be able to see the app's icon under Tools → App Icon, upload a PNG, JPEG, WebP or SVG to replace it, or have the AI draw a new one; the new icon is installed in the app and shown in the sidebar.
 - Projects whose AI can't be asked (sandbox not running, no usable AI) should keep the initial until an icon is added.
@@ -472,9 +474,9 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 - User should be able to choose which agent works on a project, OpenCode or Claude Code, next to the model picker when starting a project and in the project's chat.
 - User should only be offered Claude Code once they've connected Claude (an Anthropic API key or their Claude subscription), and only Claude models while it's chosen.
+- User should be able to pick Claude Code right after connecting Claude in Settings → AI, without reloading the page.
 - User should be able to build on their Claude Pro/Max subscription with Claude Code (AI-005); OpenCode can't use a Claude subscription.
 - New projects should start on the agent and model the user last chose (when starting a project or in a project's chat), while they can still run it.
-- User should be able to pick Claude Code right after connecting Claude in Settings → AI, without reloading the page.
 - Until the user chooses one, new projects should start on their AI subscription: Claude Code for a Claude subscription, OpenCode with Codex for a ChatGPT sign-in (their default connection first if they have both).
 - Without a subscription, new projects should start on OpenCode, or on Claude Code when Claude Code is the only agent the user's connections can run.
 - Starting a project without touching the picker should not pin the default as the user's choice.

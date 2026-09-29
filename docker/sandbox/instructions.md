@@ -58,7 +58,7 @@ The user can attach images and files to a message. They're saved in /workspace/.
     - Fixed parts of the app's design go with its code: `public/` (or `public/images/`) for Vite and Laravel apps, or `src/assets/` when the code imports it. Give it a clear name (`logo.png`, not `image-2.png`).
     - Content the app's users see or manage (seed photos for a gallery, sample documents, product images) goes in App Storage, following /opt/zap/guides/storage.md.
 - If it's unclear whether they want it in the app or just used it to show you something, use it as a reference and ask in one line.
-- A new favicon (app icon) goes in `public/favicon.svg`, replacing the one there. For a PNG or JPEG, save it as `public/favicon.png` and make sure the page's `<link rel="icon">` points to it. The app builder shows the app's favicon in its sidebar, and the user can also change it in Tools → App Icon.
+- A new favicon (app icon) goes in `public/favicon.svg`, replacing the one there. For a PNG or JPEG, save it as `public/favicon.png` and make sure the page's `<link rel="icon">` points to it. The app builder shows the app's favicon in its sidebar, and the user can also change it in Tools → App Icon. In a Laravel app the logo (`resources/js/components/app-logo-icon.tsx`, on the sign-in pages and in the header) shows the favicon, so changing the favicon changes the logo; don't put the Laravel logo back.
 - Never paste a file's contents into the chat.
 
 ## Talking to the user

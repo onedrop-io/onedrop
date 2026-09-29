@@ -37,6 +37,11 @@ class ProjectIcons
         '4001aa032ff113e1a268a9bbf1ab0fd9949439f9f54a85895956eb323aba977d', // public/apple-touch-icon.png
     ];
 
+    /** The starter kit's logo component, and a mark of the Laravel logo it draws (or of the one OneDrop writes). */
+    protected const LOGO_COMPONENT = 'resources/js/components/app-logo-icon.tsx';
+
+    protected const LOGO_MARKS = ['M17.2 5.63325L8.6 0.855469', '@onedrop-app-icon'];
+
     protected const MIME_TYPES = [
         'svg' => 'image/svg+xml',
         'png' => 'image/png',
@@ -105,8 +110,14 @@ class ProjectIcons
         $found = $this->appIcon($sandbox);
 
         if ($found !== null) {
-            if (hash('sha256', $found['bytes']) !== $project->icon_hash) {
+            $hash = hash('sha256', $found['bytes']);
+
+            if ($hash !== $project->icon_hash) {
                 $this->store($project, $found['bytes'], $found['mime']);
+            }
+
+            if (str_starts_with($found['path'], 'public/')) {
+                $this->showInLogo($sandbox, '/'.substr($found['path'], strlen('public/')), $hash);
             }
 
             return;
@@ -228,12 +239,39 @@ class ProjectIcons
         }
 
         $this->files->upload($sandbox, 'public/favicon.svg', $svg);
+        $this->showInLogo($sandbox, '/favicon.svg', hash('sha256', $svg));
 
         $this->provider->exec($sandbox->external_id, [
             'sh', '-c',
             'for f in "$1/public/favicon.ico" "$1/public/apple-touch-icon.png"; do [ -f "$f" ] || continue; case "$(sha256sum "$f" | cut -d" " -f1)" in '.implode('|', self::STARTER_KIT).') rm -f "$f" ;; esac; done',
             'sh', $root,
         ]);
+    }
+
+    /**
+     * Show the icon as the app's logo (the starter kit's sign-in pages and header), while the logo is still
+     * the Laravel one or one written here; a logo the agent drew itself is kept.
+     */
+    protected function showInLogo(Sandbox $sandbox, string $url, string $hash): void
+    {
+        $src = $url.'?v='.substr($hash, 0, 12);
+        $component = <<<TSX
+        import type { ImgHTMLAttributes } from 'react';
+
+        /** The app's logo: its icon ({$url}). @onedrop-app-icon (change the icon to change the logo) */
+        export default function AppLogoIcon(props: ImgHTMLAttributes<HTMLImageElement>) {
+            return <img src="{$src}" alt="" {...props} />;
+        }
+
+        TSX;
+
+        $marks = implode(' ', array_map(fn (string $mark) => '-e '.escapeshellarg($mark), self::LOGO_MARKS));
+
+        $this->provider->exec($sandbox->external_id, [
+            'sh', '-c',
+            'f="$1/'.self::LOGO_COMPONENT.'"; [ -f "$f" ] && grep -qF '.$marks.' "$f" || exit 0; printf %s "$APP_CONTENT" | cmp -s - "$f" || printf %s "$APP_CONTENT" > "$f"',
+            'sh', WorkspaceFiles::ROOT,
+        ], ['APP_CONTENT' => $component]);
     }
 
     protected function store(Project $project, string $bytes, string $mime): void

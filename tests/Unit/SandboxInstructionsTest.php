@@ -38,7 +38,8 @@ test('the agent knows the platform commits its turns and keeps history intact', 
 test('the agent puts a new favicon where the sidebar picks it up', function () use ($sandbox) {
     expect(file_get_contents("{$sandbox}/instructions.md"))
         ->toContain('A new favicon (app icon) goes in `public/favicon.svg`')
-        ->toContain('Tools → App Icon');
+        ->toContain('Tools → App Icon')
+        ->toContain('shows the favicon, so changing the favicon changes the logo');
 })->group('PRJ-007');
 
 test('the agent knows where the app\'s errors are recorded and to check them', function () use ($sandbox) {
