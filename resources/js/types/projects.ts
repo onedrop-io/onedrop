@@ -142,7 +142,23 @@ export type Publication = {
     error: string | null;
     /** Tailscale sign-in link to approve this project (no auth key configured). */
     login_url: string | null;
-    /** Why publishing can't be used here (e.g. Tailscale not set up). */
+    /** Why publishing can't be used here at all; each target's own reason is in targets. */
+    unavailable: string | null;
+    /** Who can open it where it's published, e.g. "People signed in to OneDrop". */
+    audience: string | null;
+    /** Where it's (last) published; null before it ever was. */
+    target: PublishTarget | null;
+    /** Where it can be published, and who Private and Public mean there. */
+    targets: PublishTargetOption[];
+};
+
+export type PublishTarget = 'domain' | 'tailscale';
+
+export type PublishTargetOption = {
+    target: PublishTarget;
+    label: string;
+    private: string;
+    public: string;
     unavailable: string | null;
 };
 

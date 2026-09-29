@@ -73,7 +73,7 @@ abstract class AgentEvents
             'harness' => $harness,
             'provider' => $provider,
             'model' => $model,
-            'session_id' => is_string($sessionId) && $sessionId !== '' ? $sessionId : $conversation->agent_session_id,
+            'session_id' => is_string($sessionId) && $sessionId !== '' ? $sessionId : $conversation->getAttribute('agent_session_id'),
             'input_tokens' => $tokens['input'],
             'output_tokens' => $tokens['output'],
             'cache_read_tokens' => $tokens['cache_read'],

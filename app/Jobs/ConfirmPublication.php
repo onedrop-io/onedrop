@@ -4,7 +4,7 @@ namespace App\Jobs;
 
 use App\Enums\PublishStatus;
 use App\Models\Project;
-use App\Sandbox\Publishing\Publisher;
+use App\Sandbox\Publishing\Publishers;
 use App\Sandbox\Publishing\PublishException;
 use App\Sandbox\Publishing\PublishNeedsLogin;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -30,7 +30,7 @@ class ConfirmPublication implements ShouldQueue
      */
     public function __construct(public Project $project, public int $attempt = 1) {}
 
-    public function handle(Publisher $publisher): void
+    public function handle(Publishers $publishers): void
     {
         $project = $this->project->fresh();
 
@@ -40,7 +40,7 @@ class ConfirmPublication implements ShouldQueue
         }
 
         try {
-            $url = $publisher->confirm($project, $project->publish_visibility);
+            $url = $publishers->forProject($project)->confirm($project, $project->publish_visibility);
         } catch (PublishNeedsLogin $e) {
             if ($project->publish_login_url !== $e->loginUrl) {
                 $project->update(['publish_login_url' => $e->loginUrl]);

@@ -93,6 +93,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('auth/chatgpt', [ChatGptAuthController::class, 'store'])->middleware('throttle:10,1')->name('chatgpt.store');
     Route::post('auth/chatgpt/poll', [ChatGptAuthController::class, 'poll'])->middleware('throttle:60,1')->name('chatgpt.poll');
 
+    // Previews and shells (the project's people), and privately published apps (anyone signed in, AI set up or not).
+    Route::get('projects/{project}/open/{kind}', [SandboxGatewayController::class, 'open'])->name('projects.gateway.open');
+
     Route::middleware('agent.connected')->group(function () {
         Route::get('dashboard', [ProjectController::class, 'create'])->name('dashboard');
 
@@ -181,7 +184,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('ssh-keys', [SshKeyController::class, 'index'])->name('ssh-keys.index');
         Route::post('ssh-keys', [SshKeyController::class, 'store'])->name('ssh-keys.store');
         Route::delete('ssh-keys/{sshKey}', [SshKeyController::class, 'destroy'])->name('ssh-keys.destroy');
-        Route::get('projects/{project}/open/{kind}', [SandboxGatewayController::class, 'open'])->name('projects.gateway.open');
         Route::patch('projects/{project}/agent', [ProjectAgentController::class, 'update'])->name('projects.agent.update');
         Route::get('projects/{project}/claude-login', [ClaudeLoginController::class, 'show'])->middleware('throttle:30,1')->name('projects.claude-login.show');
         Route::patch('projects/{project}/agent/autofix', [ProjectAgentController::class, 'autofix'])->name('projects.agent.autofix');

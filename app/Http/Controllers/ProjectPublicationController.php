@@ -3,11 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Enums\PublishStatus;
+use App\Enums\PublishTarget;
 use App\Enums\PublishVisibility;
 use App\Enums\SandboxStatus;
 use App\Jobs\PublishProject;
 use App\Models\Project;
-use App\Sandbox\Publishing\Publisher;
+use App\Sandbox\Publishing\Publishers;
 use App\Sandbox\Publishing\PublishException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -21,23 +22,40 @@ class ProjectPublicationController extends Controller
     /**
      * Publish (or republish) the project.
      */
-    public function store(Request $request, Project $project, Publisher $publisher): RedirectResponse
+    public function store(Request $request, Project $project, Publishers $publishers): RedirectResponse
     {
         Gate::authorize('update', $project);
 
-        $visibility = PublishVisibility::from($request->validate([
+        $validated = $request->validate([
             'visibility' => ['required', Rule::enum(PublishVisibility::class)],
-        ])['visibility']);
+            'target' => ['nullable', Rule::enum(PublishTarget::class)],
+        ]);
+        $visibility = PublishVisibility::from($validated['visibility']);
+        $target = isset($validated['target']) ? PublishTarget::from($validated['target']) : $publishers->default();
 
-        $problem = $publisher->unavailableReason()
+        $problem = $publishers->for($target)->unavailableReason()
             ?? ($project->sandbox?->status !== SandboxStatus::Running ? __("The project's sandbox isn't running.") : null);
 
         if ($problem) {
             throw ValidationException::withMessages(['publish' => $problem]);
         }
 
+        // Moving to another target: take it down from the old one, which would otherwise keep serving it.
+        $previous = $project->publish_target ?? PublishTarget::Tailscale;
+
+        if ($project->publish_status !== null && $previous !== $target) {
+            try {
+                $publishers->for($previous)->stop($project);
+            } catch (PublishException $e) {
+                throw ValidationException::withMessages(['publish' => $e->getMessage()]);
+            }
+
+            $project->update(['published_url' => null]);
+        }
+
         $project->update([
             'publish_status' => PublishStatus::Publishing,
+            'publish_target' => $target,
             'publish_visibility' => $visibility,
             'published_by' => $request->user()->id,
             'publish_error' => null,
@@ -52,12 +70,12 @@ class ProjectPublicationController extends Controller
     /**
      * Take the project offline.
      */
-    public function destroy(Project $project, Publisher $publisher): RedirectResponse
+    public function destroy(Project $project, Publishers $publishers): RedirectResponse
     {
         Gate::authorize('update', $project);
 
         try {
-            $publisher->stop($project);
+            $publishers->forProject($project)->stop($project);
         } catch (PublishException $e) {
             throw ValidationException::withMessages(['publish' => $e->getMessage()]);
         }

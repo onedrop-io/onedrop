@@ -10,6 +10,7 @@ use App\Models\Sandbox;
 use App\Models\User;
 use App\Sandbox\Publishing\FakePublisher;
 use App\Sandbox\Publishing\Publisher;
+use App\Sandbox\Publishing\Publishers;
 use App\Sandbox\Publishing\PublishException;
 use Illuminate\Support\Facades\Queue;
 
@@ -107,10 +108,10 @@ test('confirmation retries while the node comes up, then gives up', function () 
     });
     $this->project->update(['publish_status' => PublishStatus::Publishing, 'publish_visibility' => PublishVisibility::Private]);
 
-    (new ConfirmPublication($this->project))->handle(app(Publisher::class));
+    (new ConfirmPublication($this->project))->handle(app(Publishers::class));
     Queue::assertPushed(ConfirmPublication::class, fn ($job) => $job->attempt === 2);
 
-    (new ConfirmPublication($this->project, ConfirmPublication::ATTEMPTS))->handle(app(Publisher::class));
+    (new ConfirmPublication($this->project, ConfirmPublication::ATTEMPTS))->handle(app(Publishers::class));
     expect($this->project->fresh()->publish_status)->toBe(PublishStatus::Failed);
 })->group('PUB-001');
 
@@ -119,7 +120,7 @@ test('publishing waits for browser approval, shows the link, then goes live', fu
     $this->publisher->loginUrl = 'https://login.tailscale.com/a/abc123';
     $this->project->update(['publish_status' => PublishStatus::Publishing, 'publish_visibility' => PublishVisibility::Public]);
 
-    (new ConfirmPublication($this->project))->handle($this->publisher);
+    (new ConfirmPublication($this->project))->handle(app(Publishers::class));
 
     expect($this->project->fresh()->publish_login_url)->toBe('https://login.tailscale.com/a/abc123');
     Queue::assertPushed(ConfirmPublication::class, fn ($job) => $job->attempt === 2);
@@ -129,7 +130,7 @@ test('publishing waits for browser approval, shows the link, then goes live', fu
         ->assertInertia(fn ($page) => $page->where('publication.login_url', 'https://login.tailscale.com/a/abc123'));
 
     $this->publisher->approved = true;
-    (new ConfirmPublication($this->project, 2))->handle($this->publisher);
+    (new ConfirmPublication($this->project, 2))->handle(app(Publishers::class));
 
     $project = $this->project->fresh();
     expect($project->publish_status)->toBe(PublishStatus::Live)
@@ -140,7 +141,7 @@ test('waiting for approval eventually gives up', function () {
     $this->publisher->loginUrl = 'https://login.tailscale.com/a/abc123';
     $this->project->update(['publish_status' => PublishStatus::Publishing, 'publish_visibility' => PublishVisibility::Public]);
 
-    (new ConfirmPublication($this->project, ConfirmPublication::LOGIN_ATTEMPTS))->handle($this->publisher);
+    (new ConfirmPublication($this->project, ConfirmPublication::LOGIN_ATTEMPTS))->handle(app(Publishers::class));
 
     expect($this->project->fresh()->publish_status)->toBe(PublishStatus::Failed)
         ->and($this->project->fresh()->publish_error)->toContain('Nobody approved');

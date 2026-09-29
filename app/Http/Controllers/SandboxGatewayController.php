@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\PublishVisibility;
 use App\Enums\SandboxStatus;
 use App\Models\Project;
 use App\Models\Sandbox;
@@ -21,6 +22,17 @@ class SandboxGatewayController extends Controller
      */
     public function open(Request $request, Project $project, string $kind, Gateway $gateway): RedirectResponse
     {
+        // A project published privately to the domain opens for anyone signed in to OneDrop, not just its owners.
+        if ($kind === Gateway::APP) {
+            $sandbox = $project->sandbox;
+
+            abort_unless($sandbox && $gateway->parse((string) parse_url((string) $project->published_url, PHP_URL_HOST)) !== null, 404);
+
+            $path = (string) $request->query('path', '/');
+
+            return redirect()->away($gateway->enterUrl($sandbox, $kind, $request->user(), self::safePath($path)));
+        }
+
         Gate::authorize('view', $project);
 
         // A task's own copy of the app (TASK-003), when asked for one.
@@ -67,7 +79,7 @@ class SandboxGatewayController extends Controller
     /**
      * Called by Caddy (forward_auth) or the Cloudflare Worker: may this browser open the preview or shell? If so, where does it live?
      */
-    public function authorize(Request $request, Gateway $gateway): Response
+    public function authorize(Request $request, Gateway $gateway): Response|RedirectResponse
     {
         $target = $gateway->parse((string) $gateway->requestedHost($request, $request->header('X-Forwarded-Host')));
         $sandbox = $target ? Sandbox::with('project')->find($target['sandbox_id']) : null;
@@ -76,16 +88,29 @@ class SandboxGatewayController extends Controller
             return response('Not found', 404);
         }
 
-        $pass = $request->cookie(Gateway::COOKIE);
-        $userId = $gateway->userFromPass(is_string($pass) ? $pass : null, $target);
-        $user = $userId ? User::find($userId) : null;
+        // A project published publicly to the domain: anyone may open it.
+        $public = $target['kind'] === Gateway::APP && $sandbox->project->publish_visibility === PublishVisibility::Public;
 
-        if (! $user) {
-            return $this->loginRequired($target, $pass ? 'expired' : 'no-cookie', $sandbox->project);
-        }
+        if (! $public) {
+            $pass = $request->cookie(Gateway::COOKIE);
+            $userId = $gateway->userFromPass(is_string($pass) ? $pass : null, $target);
+            $user = $userId ? User::find($userId) : null;
 
-        if ($user->cannot('view', $sandbox->project)) {
-            return response('Forbidden', 403);
+            // Someone opening a private app's link: sign in to OneDrop, then come back to the page they asked for.
+            if (! $user && $target['kind'] === Gateway::APP) {
+                return redirect()->away(self::appUrl(route('projects.gateway.open', [
+                    $sandbox->project, Gateway::APP, 'path' => self::safePath((string) $request->header('X-Forwarded-Uri', '/')),
+                ], false)));
+            }
+
+            if (! $user) {
+                return $this->loginRequired($target, $pass ? 'expired' : 'no-cookie', $sandbox->project);
+            }
+
+            // Previews and shells are for the project's people; a privately published app for anyone signed in.
+            if ($target['kind'] !== Gateway::APP && $user->cannot('view', $sandbox->project)) {
+                return response('Forbidden', 403);
+            }
         }
 
         // The Worker forwards to the provider's address with its token; Caddy to a published host:port.

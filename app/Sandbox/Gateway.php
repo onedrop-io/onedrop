@@ -2,6 +2,9 @@
 
 namespace App\Sandbox;
 
+use App\Enums\PublishStatus;
+use App\Enums\PublishTarget;
+use App\Models\Project;
 use App\Models\Sandbox;
 use App\Models\User;
 use Illuminate\Contracts\Encryption\DecryptException;
@@ -10,7 +13,8 @@ use Illuminate\Support\Facades\Crypt;
 
 /**
  * Public addresses for sandbox previews and shells on a server:
- * preview-<sandbox id>.<gateway domain> and shell-<sandbox id>.<gateway domain>.
+ * preview-<sandbox id>.<gateway domain> and shell-<sandbox id>.<gateway domain>,
+ * plus projects published to the domain (DomainPublisher): <name>-<project id>.<gateway domain>.
  * Caddy routes them to the sandbox after SandboxGatewayController authorizes the request.
  *
  * The app's login cookie never reaches these addresses: code in a sandbox could read it, and a
@@ -20,6 +24,9 @@ use Illuminate\Support\Facades\Crypt;
 class Gateway
 {
     public const KINDS = ['preview', 'shell'];
+
+    /** The kind for a project published to the domain: its app, served like the preview. */
+    public const APP = 'app';
 
     /** The per-address cookie. Caddy strips it before traffic reaches the sandbox. */
     public const COOKIE = 'zap_gateway';
@@ -103,15 +110,37 @@ class Gateway
     }
 
     /**
-     * The public URL for a sandbox's preview or shell, or null when the gateway is off.
+     * The public URL for a sandbox's preview or shell (or its project's published app), or null when the gateway is off.
      */
     public function url(Sandbox $sandbox, string $kind): ?string
     {
-        return $this->enabled() ? "https://{$kind}-{$sandbox->id}.{$this->domain}" : null;
+        if (! $this->enabled()) {
+            return null;
+        }
+
+        return $kind === self::APP
+            ? $sandbox->project?->published_url
+            : "https://{$kind}-{$sandbox->id}.{$this->domain}";
     }
 
     /**
-     * Parse a gateway hostname into its kind and sandbox id.
+     * The address a project gets when published to the domain: <name>-<id>.<domain>. A name that would read as a
+     * preview or shell address (a project called "Preview") gets an "app-" prefix.
+     */
+    public function publishedHost(Project $project): string
+    {
+        $label = $project->publishHostname();
+
+        if (preg_match('/^('.implode('|', self::KINDS).')-\d+$/', $label)) {
+            $label = "app-{$label}";
+        }
+
+        return "{$label}.".strtolower((string) $this->domain);
+    }
+
+    /**
+     * Parse a gateway hostname into its kind and sandbox id: a preview or shell, or a project published to the domain
+     * (kind "app", its main sandbox), while it's live there.
      *
      * @return array{kind: string, sandbox_id: int}|null
      */
@@ -122,13 +151,25 @@ class Gateway
         }
 
         $host = strtolower(explode(':', $host)[0]);
-        $pattern = '/^('.implode('|', self::KINDS).')-(\d+)\.'.preg_quote(strtolower($this->domain), '/').'$/';
+        $domain = preg_quote(strtolower((string) $this->domain), '/');
 
-        if (! preg_match($pattern, $host, $matches)) {
+        if (preg_match('/^('.implode('|', self::KINDS).')-(\d+)\.'.$domain.'$/', $host, $matches)) {
+            return ['kind' => $matches[1], 'sandbox_id' => (int) $matches[2]];
+        }
+
+        if (! preg_match('/^[a-z0-9-]+-(\d+)\.'.$domain.'$/', $host, $matches)) {
             return null;
         }
 
-        return ['kind' => $matches[1], 'sandbox_id' => (int) $matches[2]];
+        $project = Project::with('sandbox')->find((int) $matches[1]);
+
+        $live = $project
+            && $project->publish_target === PublishTarget::Domain
+            && $project->publish_status === PublishStatus::Live
+            && $project->published_url === "https://{$host}"
+            && $project->sandbox;
+
+        return $live ? ['kind' => self::APP, 'sandbox_id' => $project->sandbox->id] : null;
     }
 
     /**

@@ -10,24 +10,14 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useClipboard } from '@/hooks/use-clipboard';
 import { cn } from '@/lib/utils';
-import type { Publication } from '@/types';
+import type { Publication, PublishTarget } from '@/types';
 
 type Visibility = 'private' | 'public';
 
-const VISIBILITY: Record<
-    Visibility,
-    { label: string; description: string; icon: typeof Globe }
-> = {
-    private: {
-        label: 'Private',
-        description: "People on your team's tailnet",
-        icon: Lock,
-    },
-    public: {
-        label: 'Public',
-        description: 'Anyone on the internet with the URL',
-        icon: Globe,
-    },
+/** Who each means depends on the target (e.g. the tailnet, or people signed in to OneDrop). */
+const VISIBILITY: Record<Visibility, { label: string; icon: typeof Globe }> = {
+    private: { label: 'Private', icon: Lock },
+    public: { label: 'Public', icon: Globe },
 };
 
 function timeAgo(iso: string): string {
@@ -58,6 +48,17 @@ export default function PublishMenu({
     const [visibility, setVisibility] = useState<Visibility>(
         publication.visibility ?? 'private',
     );
+    const [target, setTarget] = useState<PublishTarget>(
+        publication.target ??
+            publication.targets.find((option) => !option.unavailable)?.target ??
+            'tailscale',
+    );
+    const chosen =
+        publication.targets.find((option) => option.target === target) ??
+        publication.targets[0];
+    const publishedTo = publication.targets.find(
+        (option) => option.target === publication.target,
+    );
     const [copiedText, copy] = useClipboard();
     const published = publication.status === 'live';
     const publishing = publication.status === 'publishing';
@@ -67,7 +68,7 @@ export default function PublishMenu({
     const publish = () =>
         router.post(
             ProjectPublicationController.store.url(projectId),
-            { visibility },
+            { visibility, target },
             { preserveScroll: true },
         );
 
@@ -130,6 +131,18 @@ export default function PublishMenu({
                                         ? 'Failed'
                                         : 'Not published'}
                             </dd>
+                            {published &&
+                                publishedTo &&
+                                publication.targets.length > 1 && (
+                                    <>
+                                        <dt className="text-muted-foreground">
+                                            Where
+                                        </dt>
+                                        <dd data-test="published-target">
+                                            {publishedTo.label}
+                                        </dd>
+                                    </>
+                                )}
                             {published && publication.visibility && (
                                 <>
                                     <dt className="text-muted-foreground">
@@ -189,6 +202,51 @@ export default function PublishMenu({
                             )}
                         </dl>
 
+                        {publication.targets.length > 1 && (
+                            <fieldset>
+                                <legend className="mb-2 text-sm text-muted-foreground">
+                                    Publish to
+                                </legend>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {publication.targets.map((option) => (
+                                        <label
+                                            key={option.target}
+                                            className={cn(
+                                                'cursor-pointer rounded-lg border p-2 text-center text-sm font-medium',
+                                                target === option.target
+                                                    ? 'border-primary'
+                                                    : 'border-input hover:bg-muted/50',
+                                            )}
+                                        >
+                                            <input
+                                                type="radio"
+                                                name="target"
+                                                value={option.target}
+                                                checked={
+                                                    target === option.target
+                                                }
+                                                onChange={() =>
+                                                    setTarget(option.target)
+                                                }
+                                                className="sr-only"
+                                                data-test={`target-${option.target}`}
+                                            />
+                                            {option.label}
+                                        </label>
+                                    ))}
+                                </div>
+                            </fieldset>
+                        )}
+
+                        {chosen?.unavailable && (
+                            <p
+                                className="text-sm text-muted-foreground"
+                                data-test="publish-target-unavailable"
+                            >
+                                {chosen.unavailable}
+                            </p>
+                        )}
+
                         <fieldset className="space-y-2">
                             <legend className="mb-2 text-sm text-muted-foreground">
                                 Who can open it
@@ -224,7 +282,7 @@ export default function PublishMenu({
                                                     {option.label}
                                                 </span>
                                                 <span className="text-muted-foreground">
-                                                    {option.description}
+                                                    {chosen?.[key]}
                                                 </span>
                                             </span>
                                         </label>
@@ -284,7 +342,7 @@ export default function PublishMenu({
                             <Button
                                 className="flex-1"
                                 onClick={publish}
-                                disabled={publishing}
+                                disabled={publishing || !!chosen?.unavailable}
                                 data-test="publish-submit"
                             >
                                 {publishing

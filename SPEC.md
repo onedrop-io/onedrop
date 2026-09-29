@@ -311,7 +311,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 ## PUB-001: Publish a project
 
 - User should be able to publish a project from a Publish button in the workspace header.
-- User should be able to choose who can open it: Private (people on the team's tailnet) or Public (anyone on the internet with the URL).
+- User should be able to choose who can open it: Private (the team: people on its tailnet, or signed in to OneDrop when published to the server's domain, see PUB-002) or Public (anyone on the internet with the URL).
 - User should see the status (publishing, live, failed), who published it and when, and the URL with a copy button.
 - The button should say Republish once published; republishing can change who can open it.
 - User should be able to unpublish.
@@ -744,9 +744,19 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Running the installer again keeps the domain; `--domain` changes it and `--local` goes back to localhost only.
 
 ## USAGE-001: AI usage
+
 - The platform should record the tokens and estimated cost of every agent run, per model, from Claude Code's result and OpenCode's steps, charged to the project's owner (whose AI connection ran it).
 - User should be able to open Usage from their account menu and see, for the past 24 hours, 7, 30 or 90 days (30 by default): the total estimated cost, how many agent sessions it came from, and each agent's (OpenCode, Claude Code) share of cost and tokens.
 - User should see a chart of cost (or tokens) over the period, one line per agent, and be able to switch the page between Cost and Tokens.
 - User should see totals: processed tokens, cached input, uncached input, output, and the share of input served from the cache.
 - User should see a breakdown by model, by project, or by day, with each row's cost, share and tokens.
 - User should only see usage their own AI connections paid for; costs are API-price estimates (what a subscription run would have cost on an API key).
+
+## PUB-002: Publish to the server's own domain
+
+- On a server install (INSTALL-002), user should be able to choose where to publish in the Publish panel: Your domain or Tailscale. The domain is the default; on a laptop only Tailscale is offered.
+- Published to the domain, the project should get https://<name>-<id>.<domain>, with its own certificate. A project whose name reads like a preview address (e.g. "Preview") gets an `app-` prefix so it never takes over a preview.
+- Public should let anyone open it without signing in; Private should let anyone signed in to OneDrop open it (not only the project's people, and without having set up an AI). Someone who isn't signed in should be sent to sign in and then back to the page they asked for.
+- User should see where it's published and who can open it (in the Publish panel, Tools → Publishing, and Developer tools).
+- Moving a published project to the other target should take it down from the first. Unpublishing, or a failed publish, should stop it being served on the domain.
+- Not available with the Cloudflare preview gateway (GW-002) yet: there, only Tailscale is offered.

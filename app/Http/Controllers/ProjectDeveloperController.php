@@ -7,6 +7,7 @@ use App\Enums\SandboxStatus;
 use App\Models\Project;
 use App\Models\Sandbox;
 use App\Sandbox\Gateway;
+use App\Sandbox\Publishing\Publishers;
 use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxInspector;
 use App\Sandbox\WorkspaceSsh;
@@ -39,7 +40,7 @@ class ProjectDeveloperController extends Controller
 
             return [
                 'preview' => $preview ? ['url' => $preview, 'local' => $local, 'qr' => $local ? null : $this->qrCode($preview)] : null,
-                'published' => $published ? ['url' => $published, 'visibility' => $project->publish_visibility, 'qr' => $this->qrCode($published)] : null,
+                'published' => $published ? ['url' => $published, 'visibility' => $project->publish_visibility, 'audience' => app(Publishers::class)->audience($project), 'qr' => $this->qrCode($published)] : null,
                 'app_port' => config('sandbox.port'),
                 'ports' => $inspector->ports($sandbox),
             ];

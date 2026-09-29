@@ -15,7 +15,7 @@ use App\Models\Task;
 use App\Sandbox\Agents\Conversation;
 use App\Sandbox\Agents\ModelCatalog;
 use App\Sandbox\Gateway;
-use App\Sandbox\Publishing\Publisher;
+use App\Sandbox\Publishing\Publishers;
 use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxProvider;
 use App\Sandbox\SandboxUpdater;
@@ -74,7 +74,13 @@ trait RendersWorkspace
                 'published_by' => $project->publisher?->name,
                 'error' => $project->publish_error,
                 'login_url' => $project->publish_status === PublishStatus::Publishing ? $project->publish_login_url : null,
-                'unavailable' => app(Publisher::class)->unavailableReason(),
+                'target' => $project->publish_target,
+                'audience' => app(Publishers::class)->audience($project),
+                'targets' => app(Publishers::class)->options(),
+                // Nowhere to publish at all (each target's own reason is in targets).
+                'unavailable' => collect(app(Publishers::class)->options())->every(fn (array $option) => $option['unavailable'] !== null)
+                    ? app(Publishers::class)->options()[0]['unavailable']
+                    : null,
             ],
             'sandbox' => $sandbox ? [
                 ...$sandbox->only('status', 'error'),

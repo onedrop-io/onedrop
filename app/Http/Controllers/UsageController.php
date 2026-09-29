@@ -82,21 +82,22 @@ class UsageController extends Controller
         $buckets = [];
 
         for ($time = $since; $time <= $until; $time = $hourly ? $time->addHour() : $time->addDay()) {
-            $buckets[$time->timestamp] = ['t' => $time->timestamp, 'cost' => [], 'tokens' => []];
+            $buckets[$time->getTimestamp()] = ['t' => $time->getTimestamp(), 'cost' => [], 'tokens' => []];
         }
 
         $rows = $usages->toBase()->select(['created_at', 'harness', 'cost', 'input_tokens', 'output_tokens', 'cache_read_tokens', 'cache_write_tokens'])->cursor();
 
         foreach ($rows as $row) {
             $time = Carbon::parse($row->created_at);
-            $key = ($hourly ? $time->startOfHour() : $time->startOfDay())->timestamp;
+            $key = ($hourly ? $time->startOfHour() : $time->startOfDay())->getTimestamp();
+            $harness = (string) $row->harness;
 
             if (! isset($buckets[$key])) {
                 continue;
             }
 
-            $buckets[$key]['cost'][$row->harness] = ($buckets[$key]['cost'][$row->harness] ?? 0) + (float) $row->cost;
-            $buckets[$key]['tokens'][$row->harness] = ($buckets[$key]['tokens'][$row->harness] ?? 0)
+            $buckets[$key]['cost'][$harness] = ($buckets[$key]['cost'][$harness] ?? 0) + (float) $row->cost;
+            $buckets[$key]['tokens'][$harness] = ($buckets[$key]['tokens'][$harness] ?? 0)
                 + (int) $row->input_tokens + (int) $row->output_tokens + (int) $row->cache_read_tokens + (int) $row->cache_write_tokens;
         }
 

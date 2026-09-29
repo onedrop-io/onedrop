@@ -7,13 +7,13 @@ use App\Models\Attachment;
 use App\Models\Project;
 use App\Sandbox\ProjectBackups;
 use App\Sandbox\ProjectIcons;
-use App\Sandbox\Publishing\Publisher;
+use App\Sandbox\Publishing\Publishers;
 use App\Sandbox\Publishing\PublishException;
 use Illuminate\Support\Facades\Storage;
 
 class DeleteProject
 {
-    public function __construct(protected Publisher $publisher, protected ProjectBackups $backups, protected ProjectIcons $icons) {}
+    public function __construct(protected Publishers $publishers, protected ProjectBackups $backups, protected ProjectIcons $icons) {}
 
     /**
      * Delete the project: take its app offline, then remove its chat, attachments, code backup, icon, and sandbox.
@@ -22,7 +22,7 @@ class DeleteProject
     {
         if ($project->publish_status) {
             try {
-                $this->publisher->stop($project);
+                $this->publishers->forProject($project)->stop($project);
             } catch (PublishException $e) {
                 report($e);
             }

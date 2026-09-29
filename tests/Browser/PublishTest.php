@@ -65,3 +65,32 @@ test('without an auth key the panel offers a Tailscale sign-in link', function (
         ->assertSeeIn('@publish-status', 'Publishing')
         ->assertNoJavaScriptErrors();
 })->group('PUB-001');
+
+test('on a server, the user picks their domain or Tailscale, and each says who can open it', function () {
+    config(['sandbox.gateway_domain' => 'onedrop.example.com']);
+
+    $page = visit("/projects/{$this->project->id}")
+        ->click('@publish-button')
+        ->assertSeeIn('@publish-panel', 'Your domain')
+        ->assertSeeIn('@publish-panel', 'People signed in to OneDrop')
+        ->click('Tailscale')
+        ->assertSeeIn('@publish-panel', "People on your team's tailnet")
+        ->click('Your domain')
+        ->click('Public')
+        ->click('@publish-submit')
+        ->assertSeeIn('@publish-status', 'Jeff Loiselle published')
+        ->assertSeeIn('@published-target', 'Your domain')
+        ->assertSeeIn('@published-url', "time-tracker-{$this->project->id}.onedrop.example.com")
+        ->assertNoJavaScriptErrors();
+
+    expect($this->publisher->published)->toBe([]);
+
+    // Moving it to Tailscale takes it off the domain.
+    $page->click('Tailscale')
+        ->click('@publish-submit')
+        ->assertSeeIn('@published-target', 'Tailscale')
+        ->assertSeeIn('@published-url', "time-tracker-{$this->project->id}.example.ts.net")
+        ->assertNoJavaScriptErrors();
+
+    expect($this->publisher->published)->toHaveKey($this->project->id);
+})->group('PUB-002');

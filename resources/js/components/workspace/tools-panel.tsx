@@ -328,11 +328,7 @@ function PublishingOverview({ publication }: { publication: Publication }) {
                         <dt className="text-muted-foreground">
                             Who can open it
                         </dt>
-                        <dd>
-                            {publication.visibility === 'public'
-                                ? 'Anyone with the URL'
-                                : "People on your team's tailnet"}
-                        </dd>
+                        <dd>{publication.audience}</dd>
                     </>
                 )}
                 {live && publication.url && (

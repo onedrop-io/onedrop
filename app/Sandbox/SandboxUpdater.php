@@ -9,7 +9,7 @@ use App\Jobs\CreateSandbox;
 use App\Jobs\PublishProject;
 use App\Models\Project;
 use App\Models\Sandbox;
-use App\Sandbox\Publishing\Publisher;
+use App\Sandbox\Publishing\Publishers;
 use Closure;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
@@ -37,7 +37,7 @@ class SandboxUpdater
     /** Longest an update may hold its lock, in seconds (copying a large workspace takes a while). */
     protected const LOCK_SECONDS = 900;
 
-    public function __construct(protected SandboxProvider $provider, protected Publisher $publisher, protected ProjectBackups $backups) {}
+    public function __construct(protected SandboxProvider $provider, protected Publishers $publishers, protected ProjectBackups $backups) {}
 
     /**
      * Whether the project's running sandbox was made from an older image, or lives on another provider than the configured one.
@@ -136,7 +136,7 @@ class SandboxUpdater
 
             // The publish sidecar shares the old sandbox's network, so it goes too; republished below.
             if ($project->publish_status) {
-                $this->publisher->stop($project);
+                $this->publishers->forProject($project)->stop($project);
                 $project->update(['publish_status' => null, 'published_url' => null]);
             }
 

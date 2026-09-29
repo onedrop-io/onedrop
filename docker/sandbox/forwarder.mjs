@@ -102,7 +102,11 @@ function claudeCommand(resume) {
         // A key would win over the user's Claude sign-in and bill their API account instead.
         unset:
             APP_CLAUDE_AUTH === 'subscription'
-                ? ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN']
+                ? [
+                      'ANTHROPIC_API_KEY',
+                      'ANTHROPIC_AUTH_TOKEN',
+                      'CLAUDE_CODE_OAUTH_TOKEN',
+                  ]
                 : [],
         input: APP_PROMPT,
     };

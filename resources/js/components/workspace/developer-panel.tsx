@@ -52,6 +52,8 @@ type Networking = {
     published: {
         url: string;
         visibility: 'private' | 'public' | null;
+        /** Who can open it, e.g. "People signed in to OneDrop". */
+        audience: string | null;
         qr: string;
     } | null;
     app_port: number;
@@ -302,9 +304,9 @@ function NetworkingPage({ projectId }: { projectId: number }) {
                         qr={data.published.qr}
                         testId="developer-published-url"
                         note={
-                            data.published.visibility === 'public'
-                                ? 'Anyone with the URL can open it.'
-                                : "People on your team's tailnet can open it."
+                            data.published.audience
+                                ? `${data.published.audience} can open it.`
+                                : undefined
                         }
                     />
                 ) : (
@@ -415,7 +417,7 @@ function Address({
     label: string;
     url: string;
     qr: string | null;
-    note: string;
+    note?: string;
     testId: string;
 }) {
     return (
@@ -439,7 +441,9 @@ function Address({
                         label={`Copy ${label.toLowerCase()} URL`}
                     />
                 </div>
-                <p className="text-sm text-muted-foreground">{note}</p>
+                {note && (
+                    <p className="text-sm text-muted-foreground">{note}</p>
+                )}
             </div>
             {qr && (
                 <div
