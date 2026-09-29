@@ -1,14 +1,19 @@
-// OneDrop preview gateway: previews and shells at preview-<id>.<domain> / shell-<id>.<domain>, in front of
-// whichever provider runs the sandbox (Blaxel, Runtime). It does what Caddy does on a server (GW-001):
+// OneDrop preview gateway: previews and shells at preview-<id>.<domain> / shell-<id>.<domain>, and projects
+// published to the domain at <name>-<project id>.<domain> (PUB-002), in front of whichever provider runs the
+// sandbox (Blaxel, Runtime). It does what Caddy does on a server (GW-001):
 //
 //   /__zap/enter  → the app trades its short-lived hand-off token for this address's own cookie.
 //   anything else → the app checks that cookie (who may see the project), answers with the provider's address
 //                   and private preview token, and the Worker forwards the request there with the token in a
-//                   header, so the browser only ever deals with onedrop.io addresses and cookies.
+//                   header, so the browser only ever deals with onedrop.io addresses and cookies. A public app
+//                   needs no cookie; a private one answers with a redirect to sign in, passed on to the browser.
 //
 // Only this Worker can ask the app where a sandbox lives: it proves itself with GATEWAY_SECRET.
 
 const GATEWAY_HOST = /^(preview|shell)-\d+\./;
+
+/** A project published to the domain. Names like this that the app doesn't know go on to their own origin. */
+const APP_HOST = /^[a-z0-9-]+-\d+\./;
 const COOKIE = 'zap_gateway';
 
 /** How long an authorization answer is reused for the same cookie on the same address. */
@@ -23,9 +28,11 @@ export default {
     async fetch(request, env, ctx) {
         const url = new URL(request.url);
 
+        const preview = GATEWAY_HOST.test(url.hostname);
+
         // Other names under the wildcard go on to their own origin.
         if (
-            !GATEWAY_HOST.test(url.hostname) ||
+            !(preview || APP_HOST.test(url.hostname)) ||
             !url.hostname.endsWith(`.${env.GATEWAY_DOMAIN}`)
         ) {
             return fetch(request);
@@ -38,6 +45,11 @@ export default {
         }
 
         const auth = await authorize(request, env, ctx, url.hostname);
+
+        // Looked like a published app, but isn't one: some other name under the wildcard.
+        if (!preview && auth.status === 404) {
+            return fetch(request);
+        }
 
         if (auth.status !== 200) {
             return withoutFrameBlock(auth);
@@ -68,16 +80,12 @@ function askApp(env, path, host, cookie = '') {
 
 /**
  * The app's answer for this browser on this address, reused for a minute so assets don't each cost a request.
+ * Without a cookie only a public app is let through, so that answer is shared by everyone on the address.
  */
 async function authorize(request, env, ctx, host) {
     const cookie = readCookie(request.headers.get('Cookie'), COOKIE);
-
-    if (!cookie) {
-        return askApp(env, '/sandbox-gateway/authorize', host);
-    }
-
     const key = new Request(
-        `https://gateway-auth.internal/${host}/${await sha256(cookie)}`,
+        `https://gateway-auth.internal/${host}/${cookie ? await sha256(cookie) : 'public'}`,
     );
     const cached = await caches.default.match(key);
 
@@ -89,7 +97,7 @@ async function authorize(request, env, ctx, host) {
         env,
         '/sandbox-gateway/authorize',
         host,
-        cookie,
+        cookie ?? '',
     );
 
     if (answer.status === 200) {

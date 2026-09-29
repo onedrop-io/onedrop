@@ -39,23 +39,16 @@ Each container gets:
 Blaxel runs each sandbox in its own microVM. OneDrop talks to its REST APIs, so the server needs no Docker.
 
 <Steps>
-    <Step title="Create an API key">
-        In the Blaxel console, create an API key. Set it as `BL_API_KEY`, and
-        your workspace name as `BL_WORKSPACE`, in your secret manager, with
-        `SANDBOX_PROVIDER=blaxel`. Set `SANDBOX_CALLBACK_URL` to your public
-        `APP_URL`, and leave `SANDBOX_GATEWAY_DOMAIN` empty.
-    </Step>
-    <Step title="Push the image to Blaxel">
-        Install the [Blaxel
-        CLI](https://docs.blaxel.ai/cli-reference/introduction) (`bl`), then
-        run: ```bash php artisan sandbox:build-image ``` With
-        `SANDBOX_PROVIDER=blaxel`, this builds `docker/sandbox` on Blaxel with
-        the steps in `docker/sandbox/blaxel/` appended: Blaxel's sandbox API and
-        an entrypoint that starts it, then `start.sh` as the sandbox user. The
-        Docker image is unchanged. Set `BLAXEL_CLI` if `bl` isn't on the `PATH`.
-        Run it again after changing `docker/sandbox/`; existing sandboxes then
-        update themselves.
-    </Step>
+  <Step title="Create an API key">
+    In the Blaxel console, create an API key. Set it as `BL_API_KEY`, and your workspace name as `BL_WORKSPACE`, in your secret manager, with `SANDBOX_PROVIDER=blaxel`. Set `SANDBOX_CALLBACK_URL` to your public `APP_URL`, and leave `SANDBOX_GATEWAY_DOMAIN` empty.
+  </Step>
+  <Step title="Push the image to Blaxel">
+    Install the [Blaxel CLI](https://docs.blaxel.ai/cli-reference/introduction) (`bl`), then run:
+    ```bash
+    php artisan sandbox:build-image
+    ```
+    With `SANDBOX_PROVIDER=blaxel`, this builds `docker/sandbox` on Blaxel with the steps in `docker/sandbox/blaxel/` appended: Blaxel's sandbox API and an entrypoint that starts it, then `start.sh` as the sandbox user. The Docker image is unchanged. Set `BLAXEL_CLI` if `bl` isn't on the `PATH`. Run it again after changing `docker/sandbox/`; existing sandboxes then update themselves.
+  </Step>
 </Steps>
 
 How it differs from Docker:
@@ -78,24 +71,18 @@ bl delete sandbox <name>
 Runtime Cloud runs each sandbox in its own Firecracker microVM. OneDrop talks to its HTTPS API, so the server needs no Docker.
 
 <Steps>
-    <Step title="Create an API key">
-        Create a key at [API keys](https://withruntime.com/account/keys) and set
-        it as `RUNTIME_API_KEY` in your secret manager, with
-        `SANDBOX_PROVIDER=runtime`. Set `SANDBOX_CALLBACK_URL` to your public
-        `APP_URL`, and leave `SANDBOX_GATEWAY_DOMAIN` empty.
-    </Step>
-    <Step title="Build the image on Runtime">
-        ```bash php artisan sandbox:build-image ``` With
-        `SANDBOX_PROVIDER=runtime`, this builds `docker/sandbox` on Runtime as
-        `zap-sandbox:latest`. It needs Node.js 22.12 or later. Run it again
-        after changing `docker/sandbox/`; existing sandboxes then update
-        themselves.
-    </Step>
-    <Step title="Choose paid credit when ready">
-        Sandboxes use the free trial until you set `RUNTIME_FUNDING=paid`. Add
-        credit at [billing](https://withruntime.com/account/billing) before
-        production traffic runs.
-    </Step>
+  <Step title="Create an API key">
+    Create a key at [API keys](https://withruntime.com/account/keys) and set it as `RUNTIME_API_KEY` in your secret manager, with `SANDBOX_PROVIDER=runtime`. Set `SANDBOX_CALLBACK_URL` to your public `APP_URL`, and leave `SANDBOX_GATEWAY_DOMAIN` empty.
+  </Step>
+  <Step title="Build the image on Runtime">
+    ```bash
+    php artisan sandbox:build-image
+    ```
+    With `SANDBOX_PROVIDER=runtime`, this builds `docker/sandbox` on Runtime as `zap-sandbox:latest`. It needs Node.js 22.12 or later. Run it again after changing `docker/sandbox/`; existing sandboxes then update themselves.
+  </Step>
+  <Step title="Choose paid credit when ready">
+    Sandboxes use the free trial until you set `RUNTIME_FUNDING=paid`. Add credit at [billing](https://withruntime.com/account/billing) before production traffic runs.
+  </Step>
 </Steps>
 
 How it differs from Docker:
@@ -124,10 +111,10 @@ After a switch:
 - Deleting a project, or the account that owns it, removes its sandbox from the provider it's on, even if that's no longer the configured one. On Runtime Cloud, which has no delete, the sandbox is stopped.
 - To move every project now, or one:
 
-    ```bash
-    php artisan sandbox:update
-    php artisan sandbox:update 12
-    ```
+  ```bash
+  php artisan sandbox:update
+  php artisan sandbox:update 12
+  ```
 
 Build the image on the new provider first (`php artisan sandbox:build-image` with the new `SANDBOX_PROVIDER`). Moves copy files through your queue workers, so give them enough time: a timeout of 900 seconds, and on Laravel Cloud managed queues a visibility timeout above that.
 
@@ -174,9 +161,7 @@ Checkpoints never include `node_modules`, `vendor`, `.cache` or `.env` files (ex
 When a sandbox is replaced without its files, the backup is cloned into the new one, with every branch, and the app starts. That covers a sandbox that's broken or gone, including one on a provider you've stopped using: if a [provider switch](#switch-providers) can't copy files out of the old sandbox, run `php artisan sandbox:recreate <project>` to start the project on the new provider from its backup. Deleting a project deletes its backup.
 
 <Tip>
-    In production, point `SANDBOX_BACKUP_DISK` at object storage (an `s3` disk
-    in `config/filesystems.php`, which needs the `league/flysystem-aws-s3-v3`
-    package) so backups outlive the server.
+    In production, point `SANDBOX_BACKUP_DISK` at object storage (an `s3` disk in `config/filesystems.php`, which needs the `league/flysystem-aws-s3-v3` package) so backups outlive the server.
 </Tip>
 
 ## Clean up

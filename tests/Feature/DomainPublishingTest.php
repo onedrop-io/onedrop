@@ -124,8 +124,31 @@ test('on a server both targets are offered, the domain first; elsewhere only Tai
     config(['sandbox.gateway_domain' => null]);
     expect(collect(app(Publishers::class)->options())->pluck('target')->all())->toBe(['tailscale']);
 
+    // Laravel Cloud: the Cloudflare Worker serves the domain instead of Caddy.
     config(['sandbox.gateway_domain' => 'onedrop.example.com', 'sandbox.gateway_secret' => 'worker-secret']);
-    expect(collect(app(Publishers::class)->options())->pluck('target')->all())->toBe(['tailscale']);
+    expect(collect(app(Publishers::class)->options())->pluck('target')->all())->toBe(['domain', 'tailscale']);
+})->group('PUB-002');
+
+test('behind the Cloudflare Worker, a public app gets the provider address and token, and a private one a sign-in redirect', function () {
+    config(['sandbox.gateway_secret' => 'worker-secret']);
+    $this->sandbox->update(['preview_url' => 'https://abc.preview.bl.run/?bl_preview_token=secret-token']);
+    $project = publishToDomain($this->project, $this->owner, 'public');
+    $worker = ['X-Zap-Gateway-Secret' => 'worker-secret', 'X-Zap-Gateway-Host' => appHost($project)];
+
+    $this->withHeaders($worker)->get(route('sandbox-gateway.authorize'))
+        ->assertOk()
+        ->assertHeader('X-Zap-Upstream', 'https://abc.preview.bl.run')
+        ->assertHeader('X-Zap-Upstream-Header', 'X-Blaxel-Preview-Token')
+        ->assertHeader('X-Zap-Upstream-Token', 'secret-token');
+
+    $project->update(['publish_visibility' => PublishVisibility::Private]);
+
+    $this->withHeaders($worker)->get(route('sandbox-gateway.authorize'))
+        ->assertRedirect(rtrim(config('app.url'), '/')."/projects/{$project->id}/open/app?path=%2F")
+        ->assertHeaderMissing('X-Zap-Upstream');
+
+    // Without the Worker's secret, nobody learns where it lives.
+    $this->flushHeaders()->withHeaders(['X-Zap-Gateway-Host' => appHost($project)])->get(route('sandbox-gateway.authorize'))->assertNotFound();
 })->group('PUB-002');
 
 test('the publish panel says who private and public mean for each target', function () {

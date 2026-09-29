@@ -69,6 +69,8 @@ export default defineConfig({
         htmlWhitespaceSensitivity: 'css',
         ignorePatterns: [
             '.github/**',
+            // It collapses code blocks and lists inside MDX components (Steps, Tabs) into one line.
+            '**/*.mdx',
             'composer.json',
             'resources/js/components/ui/*',
             'resources/views/mail/*',

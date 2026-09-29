@@ -1,12 +1,57 @@
 // Run with: node --test infra/cloudflare/preview-gateway/worker.test.mjs
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {
+import worker, {
     pointAtGateway,
     readCookie,
     withoutCookie,
     withoutFrameBlock,
 } from './worker.js';
+
+const env = {
+    APP_URL: 'https://onedrop.io',
+    GATEWAY_DOMAIN: 'onedrop.io',
+    GATEWAY_SECRET: 'the-secret',
+};
+
+/**
+ * Run the Worker on a request, with the app's authorize answer given and every outgoing fetch recorded.
+ */
+async function run(url, authorize, { cookie } = {}) {
+    const sent = [];
+    const store = new Map();
+
+    globalThis.caches = {
+        default: {
+            match: async (key) => store.get(key.url)?.clone(),
+            put: async (key, response) => store.set(key.url, response),
+        },
+    };
+    globalThis.fetch = async (input, init = {}) => {
+        const target = String(input instanceof Request ? input.url : input);
+        sent.push({
+            url: target,
+            headers: new Headers(init.headers ?? input.headers),
+        });
+
+        if (target.startsWith('https://onedrop.io/sandbox-gateway/authorize')) {
+            return authorize();
+        }
+
+        return new Response(`from ${target}`, {
+            headers: { 'Content-Type': 'text/plain' },
+        });
+    };
+
+    const headers = cookie ? { Cookie: `zap_gateway=${cookie}` } : {};
+    const waits = [];
+    const response = await worker.fetch(new Request(url, { headers }), env, {
+        waitUntil: (p) => waits.push(p),
+    });
+    await Promise.all(waits);
+
+    return { response, sent, store };
+}
 
 test('links and redirects to the provider address point at the gateway address', async () => {
     const response = new Response(
@@ -73,4 +118,89 @@ test("the app's own gateway pages can be shown in the workspace frame", () => {
 
     assert.equal(out.headers.get('X-Frame-Options'), null);
     assert.equal(out.status, 401);
+});
+
+test('a public app is served without a cookie, and the answer is shared for a minute', async () => {
+    const { response, sent, store } = await run(
+        'https://time-tracker-4.onedrop.io/invoices',
+        () =>
+            new Response(null, {
+                status: 200,
+                headers: {
+                    'X-Zap-Upstream': 'https://abc.preview.bl.run',
+                    'X-Zap-Upstream-Header': 'X-Blaxel-Preview-Token',
+                    'X-Zap-Upstream-Token': 'secret-token',
+                },
+            }),
+    );
+
+    assert.equal(response.status, 200);
+    // Forwarded to the provider; its links in the answer point back at the app's own address.
+    assert.equal(sent[1].url, 'https://abc.preview.bl.run/invoices');
+    assert.equal(
+        await response.text(),
+        'from https://time-tracker-4.onedrop.io/invoices',
+    );
+    assert.equal(
+        sent[0].headers.get('X-Zap-Gateway-Host'),
+        'time-tracker-4.onedrop.io',
+    );
+    assert.equal(sent[1].headers.get('X-Blaxel-Preview-Token'), 'secret-token');
+    assert.ok(
+        store.has(
+            'https://gateway-auth.internal/time-tracker-4.onedrop.io/public',
+        ),
+    );
+});
+
+test("a private app's sign-in redirect reaches the browser, and isn't cached", async () => {
+    const { response, sent, store } = await run(
+        'https://time-tracker-4.onedrop.io/',
+        () =>
+            new Response(null, {
+                status: 302,
+                headers: {
+                    Location: 'https://onedrop.io/projects/4/open/app?path=%2F',
+                },
+            }),
+    );
+
+    assert.equal(response.status, 302);
+    assert.equal(
+        response.headers.get('Location'),
+        'https://onedrop.io/projects/4/open/app?path=%2F',
+    );
+    assert.equal(sent.length, 1);
+    assert.equal(store.size, 0);
+});
+
+test('a name that only looks like a published app goes on to its own origin', async () => {
+    const { response, sent } = await run(
+        'https://status-2.onedrop.io/',
+        () => new Response('Not found', { status: 404 }),
+    );
+
+    assert.equal(await response.text(), 'from https://status-2.onedrop.io/');
+    assert.equal(sent.length, 2);
+});
+
+test('an unknown preview is not found, not passed on', async () => {
+    const { response } = await run(
+        'https://preview-99.onedrop.io/',
+        () => new Response('Not found', { status: 404 }),
+    );
+
+    assert.equal(response.status, 404);
+});
+
+test("the app's other names are never sent to the gateway", async () => {
+    const { response, sent } = await run(
+        'https://docs.onedrop.io/install',
+        () => {
+            throw new Error('asked the app');
+        },
+    );
+
+    assert.equal(await response.text(), 'from https://docs.onedrop.io/install');
+    assert.equal(sent.length, 1);
 });

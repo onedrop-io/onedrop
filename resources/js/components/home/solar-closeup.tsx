@@ -340,7 +340,9 @@ async function build(): Promise<Scene> {
     const [earthMaps, maps, ring] = await Promise.all([
         Promise.all(EARTH_MAPS.map(loadImage)),
         Promise.all(
-            WORLDS.map((world) => (world.map ? loadImage(world.map) : null)),
+            WORLDS.map((world) =>
+                world.map ? loadImage(world.map) : Promise.resolve(null),
+            ),
         ),
         loadImage(SATURN_RING),
     ]);

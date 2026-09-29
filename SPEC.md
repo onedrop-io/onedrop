@@ -769,4 +769,4 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Public should let anyone open it without signing in; Private should let anyone signed in to OneDrop open it (not only the project's people, and without having set up an AI). Someone who isn't signed in should be sent to sign in and then back to the page they asked for.
 - User should see where it's published and who can open it (in the Publish panel, Tools → Publishing, and Developer tools).
 - Moving a published project to the other target should take it down from the first. Unpublishing, or a failed publish, should stop it being served on the domain.
-- Not available with the Cloudflare preview gateway (GW-002) yet: there, only Tailscale is offered.
+- With the Cloudflare preview gateway (GW-002, e.g. on Laravel Cloud), the Worker serves published apps the same way: public ones without a cookie (its answer shared for a minute), private ones by passing the sign-in redirect on. Names under the domain that only look like a published app still reach their own origin.

@@ -21,16 +21,18 @@ Publishing gives a project its own address. On a [server install](/install#insta
         always Tailscale.
     </Step>
     <Step title="Choose who can open it">
-        | | Your domain | Tailscale | | --- | --- | --- | | **Private** | Anyone
-        signed in to OneDrop | People on your team's tailnet (Tailscale Serve) |
-        | **Public** | Anyone on the internet with the URL | Anyone on the
-        internet with the URL (Tailscale Funnel) |
+        **Private** or **Public** (see the table below).
     </Step>
     <Step title="Click Publish">
         The status changes to **Publishing…** and then shows the URL with a copy
         button.
     </Step>
 </Steps>
+
+|             | Your domain                         | Tailscale                                              |
+| ----------- | ----------------------------------- | ------------------------------------------------------ |
+| **Private** | Anyone signed in to OneDrop         | People on your team's tailnet (Tailscale Serve)        |
+| **Public**  | Anyone on the internet with the URL | Anyone on the internet with the URL (Tailscale Funnel) |
 
 Someone who opens a private app on your domain without being signed in is sent to sign in to OneDrop first, then back to the page they asked for. They don't need to set up an AI or be part of the project.
 
