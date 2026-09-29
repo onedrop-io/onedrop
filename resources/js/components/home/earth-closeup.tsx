@@ -4,360 +4,368 @@
  * Shuttle, Hubble, a few satellites, a Starlink train, and Starman's Roadster
  * circle it (none of it to scale). Then it shrinks back into its orbit.
  *
- * The globe is drawn pixel by pixel from flat maps of the land, the clouds,
- * and city lights, which are painted once, the first time it's shown.
+ * The globe is a small WebGL shader over real maps of the Earth by day, by
+ * night, and its clouds, lit like the three.js Earth example
+ * (threejs.org/examples/webgpu_tsl_earth.html). The maps are by Solar System
+ * Scope (solarsystemscope.com/textures), CC BY 4.0, resized for the web. The
+ * Moon is lit the same way over NASA's Lunar Reconnaissance Orbiter color and
+ * elevation maps (NASA's Scientific Visualization Studio, CGI Moon Kit), and
+ * the hurricane is NASA's MODIS photo of Hurricane Isabel (Jeff Schmaltz,
+ * MODIS Land Rapid Response Team, NASA GSFC). The home page's footer credits
+ * them all.
  */
 
 /** Size of the close-up's canvas, and the Earth's radius in it (CSS pixels). */
-export const EARTH_CLOSEUP_SIZE = 720;
+export const EARTH_CLOSEUP_SIZE = 780;
 export const EARTH_CLOSEUP_RADIUS = 140;
 
 /** How long the Earth takes to grow, how long it stays big, and how long it takes to shrink back (seconds). */
 export const EARTH_SHOW = { grow: 1.6, hold: 11, shrink: 1.4 };
 
-const MAP_WIDTH = 1024;
-const MAP_HEIGHT = 512;
+/**
+ * The day and night maps, one with elevation, roughness, and clouds in its
+ * red, green, and blue, and how cloudy a real hurricane is (NASA's photo of
+ * Hurricane Isabel, turned into a cloud map).
+ */
+const MAPS = [
+    '/images/earth/day.jpg',
+    '/images/earth/night.jpg',
+    '/images/earth/bump-roughness-clouds.jpg',
+    '/images/hurricane/isabel.jpg',
+];
+
+/** The Moon's color map and its elevation map, for the shadows its craters and mountains cast. */
+const MOON_MAPS = ['/images/moon/color.jpg', '/images/moon/elevation.jpg'];
+
+/** The Moon's radius at full size (CSS pixels), and how much its relief is exaggerated so it shows at that size. */
+const MOON_RADIUS = 28;
+const MOON_RELIEF = 0.05;
 
 /** Longitude facing us when the show starts, and how fast the Earth turns (degrees, degrees per second). */
 const START_LONGITUDE = 25;
-const TURN_SPEED = 9;
+const TURN_SPEED = 6;
 
-/** Clouds drift a little faster than the ground turns (degrees per second). */
-const CLOUD_DRIFT = 2.5;
+/** The clouds drift across the ground much faster than real ones do (degrees per second). */
+const CLOUD_DRIFT = 4;
 
 /** How far the north pole leans right, and how far it tips toward us (radians). */
 const AXIAL_TILT = 0.41;
 const VIEW_LATITUDE = 0.3;
 
-/** Where the sunlight comes from: upper left, in front. */
-const SUN = normalize(-0.55, 0.35, 0.76);
+/** Where the sunlight comes from: the left, a little above and in front (x right, y up, z toward us). */
+const SUN = normalize(-0.88, 0.25, 0.42);
 
-type LatLon = [lat: number, lon: number];
+/** The globe's canvas reaches a little past the Earth, for the atmosphere (in Earth radii). */
+const GLOBE_EXTENT = 1.1;
 
-const CONTINENTS: LatLon[][] = [
-    // North America
-    [
-        [70, -165],
-        [72, -140],
-        [69, -110],
-        [72, -95],
-        [75, -85],
-        [68, -80],
-        [62, -75],
-        [60, -65],
-        [52, -56],
-        [47, -53],
-        [45, -65],
-        [41, -70],
-        [35, -76],
-        [30, -81],
-        [25, -80],
-        [30, -84],
-        [30, -90],
-        [28, -97],
-        [22, -97],
-        [19, -95],
-        [21, -87],
-        [16, -88],
-        [15, -84],
-        [9, -79],
-        [8, -77],
-        [8, -82],
-        [13, -88],
-        [16, -95],
-        [20, -105],
-        [23, -110],
-        [31, -113],
-        [30, -116],
-        [35, -121],
-        [40, -124],
-        [48, -125],
-        [55, -131],
-        [59, -139],
-        [60, -147],
-        [57, -155],
-        [54, -165],
-        [60, -164],
-        [65, -168],
-    ],
-    // South America
-    [
-        [12, -72],
-        [11, -64],
-        [7, -58],
-        [4, -51],
-        [-2, -44],
-        [-5, -35],
-        [-10, -36],
-        [-15, -39],
-        [-23, -42],
-        [-27, -48],
-        [-34, -53],
-        [-38, -57],
-        [-41, -63],
-        [-47, -66],
-        [-52, -69],
-        [-55, -68],
-        [-54, -73],
-        [-46, -75],
-        [-37, -73],
-        [-30, -71],
-        [-18, -70],
-        [-14, -76],
-        [-5, -81],
-        [1, -80],
-        [7, -78],
-    ],
-    // Europe and Asia
-    [
-        [36, -9],
-        [43, -9],
-        [44, -1],
-        [48, -4],
-        [51, 2],
-        [54, 8],
-        [57, 8],
-        [59, 5],
-        [63, 5],
-        [68, 14],
-        [71, 25],
-        [70, 32],
-        [67, 41],
-        [69, 55],
-        [73, 70],
-        [76, 90],
-        [77, 105],
-        [73, 125],
-        [72, 140],
-        [70, 160],
-        [66, 179],
-        [62, 175],
-        [59, 163],
-        [53, 158],
-        [57, 155],
-        [59, 142],
-        [54, 136],
-        [48, 140],
-        [43, 132],
-        [39, 128],
-        [35, 129],
-        [35, 126],
-        [38, 125],
-        [40, 121],
-        [37, 122],
-        [31, 122],
-        [25, 119],
-        [22, 114],
-        [21, 108],
-        [16, 108],
-        [10, 106],
-        [8, 104],
-        [13, 100],
-        [7, 100],
-        [1, 104],
-        [4, 101],
-        [10, 98],
-        [16, 97],
-        [20, 93],
-        [22, 89],
-        [19, 85],
-        [15, 80],
-        [8, 77],
-        [13, 74],
-        [20, 73],
-        [23, 68],
-        [25, 62],
-        [25, 57],
-        [22, 60],
-        [17, 56],
-        [13, 44],
-        [16, 42],
-        [22, 39],
-        [28, 34],
-        [31, 32],
-        [34, 35],
-        [36, 36],
-        [37, 30],
-        [40, 27],
-        [40, 23],
-        [38, 22],
-        [40, 19],
-        [42, 19],
-        [45, 13],
-        [41, 16],
-        [38, 16],
-        [40, 14],
-        [44, 9],
-        [43, 4],
-        [40, 0],
-        [37, -2],
-    ],
-    // Africa
-    [
-        [37, 10],
-        [33, 11],
-        [32, 20],
-        [31, 30],
-        [27, 34],
-        [22, 37],
-        [15, 39],
-        [12, 43],
-        [11, 51],
-        [4, 48],
-        [-2, 41],
-        [-10, 40],
-        [-17, 38],
-        [-25, 35],
-        [-30, 31],
-        [-34, 26],
-        [-35, 20],
-        [-29, 16],
-        [-22, 14],
-        [-12, 13],
-        [-6, 12],
-        [-1, 9],
-        [4, 9],
-        [5, 3],
-        [5, -4],
-        [5, -8],
-        [8, -13],
-        [12, -17],
-        [16, -17],
-        [21, -17],
-        [26, -15],
-        [30, -10],
-        [35, -6],
-    ],
-    // Madagascar
-    [
-        [-12, 49],
-        [-16, 50],
-        [-25, 47],
-        [-24, 44],
-        [-17, 44],
-    ],
-    // Great Britain
-    [
-        [58, -5],
-        [58, -2],
-        [53, 1],
-        [51, 1],
-        [50, -5],
-        [54, -3],
-    ],
-    // Japan
-    [
-        [45, 142],
-        [41, 141],
-        [36, 141],
-        [34, 136],
-        [33, 130],
-        [35, 133],
-        [38, 139],
-        [41, 140],
-    ],
-    // Indonesia and New Guinea
-    [
-        [5, 95],
-        [-6, 106],
-        [-8, 114],
-        [-8, 125],
-        [-3, 135],
-        [-9, 147],
-        [-6, 150],
-        [-1, 134],
-        [1, 125],
-        [-4, 119],
-        [1, 110],
-        [2, 101],
-    ],
-    // Australia
-    [
-        [-11, 131],
-        [-12, 136],
-        [-15, 136],
-        [-11, 142],
-        [-18, 146],
-        [-24, 152],
-        [-28, 153],
-        [-37, 150],
-        [-39, 146],
-        [-38, 140],
-        [-35, 136],
-        [-32, 134],
-        [-32, 127],
-        [-35, 117],
-        [-31, 115],
-        [-22, 114],
-        [-19, 121],
-        [-14, 127],
-    ],
-    // New Zealand
-    [
-        [-35, 173],
-        [-41, 176],
-        [-46, 170],
-        [-44, 168],
-        [-40, 173],
-    ],
-];
+const VERTEX_SHADER = `#version 300 es
+in vec2 position;
+out vec2 screen;
+uniform float extent;
 
-const GREENLAND: LatLon[] = [
-    [83, -35],
-    [81, -15],
-    [75, -18],
-    [70, -22],
-    [65, -38],
-    [60, -43],
-    [64, -51],
-    [70, -54],
-    [76, -68],
-    [79, -72],
-    [82, -60],
-];
+void main() {
+    screen = position * extent;
+    gl_Position = vec4(position, 0.0, 1.0);
+}`;
 
-/** Patches painted over the land: forests, deserts, and tundra (center, radius in degrees, color). */
-const LAND_PATCHES: [
-    lat: number,
-    lon: number,
-    latRadius: number,
-    lonRadius: number,
-    color: string,
-][] = [
-    [-5, -62, 10, 13, '#2A6B2C'],
-    [0, 22, 7, 10, '#2A6B2C'],
-    [60, 95, 7, 45, '#3B6A38'],
-    [55, -100, 6, 25, '#3B6A38'],
-    [0, 110, 6, 16, '#2E6E30'],
-    [22, 12, 9, 26, '#D8BA7C'],
-    [24, 46, 8, 9, '#D5B476'],
-    [42, 100, 5, 16, '#C8AC78'],
-    [-25, 131, 7, 14, '#CF9E62'],
-    [-23, 21, 5, 6, '#C9AB70'],
-    [34, -111, 5, 7, '#C7A26A'],
-    [-24, -69, 6, 2, '#C4A06A'],
-    [69, 60, 5, 60, '#8E9B7A'],
-    [68, -115, 5, 35, '#8E9B7A'],
-];
+const FRAGMENT_SHADER = `#version 300 es
+precision highp float;
 
-type Maps = {
-    land: Uint8ClampedArray;
-    clouds: Uint8ClampedArray;
-    lights: Uint8ClampedArray;
+in vec2 screen;
+out vec4 color;
+
+uniform sampler2D dayMap;
+uniform sampler2D nightMap;
+uniform sampler2D surfaceMap;
+uniform sampler2D stormMap;
+uniform float landTurn;
+uniform float cloudTurn;
+uniform vec3 sun;
+uniform mat3 toEarth;
+uniform float pixel;
+uniform float time;
+
+const float PI = 3.14159265;
+const float ATMOSPHERE = 1.05;
+const vec3 ATMOSPHERE_DAY = vec3(0.302, 0.698, 1.0);
+const vec3 ATMOSPHERE_TWILIGHT = vec3(0.737, 0.286, 0.043);
+
+/* A spot on the Earth from its latitude and longitude (radians), in the Earth's frame. */
+vec3 spot(float lat, float lon) {
+    return vec3(cos(lat) * sin(lon), sin(lat), cos(lat) * cos(lon));
+}
+
+float hash(float value) {
+    return fract(sin(value) * 43758.5453);
+}
+
+/*
+ * A massive hurricane in the Atlantic: a real satellite photo of one, turning
+ * slowly counterclockwise as it heads west. Returns how cloudy it is here, and
+ * how far inside its footprint this spot is (to clear other clouds away).
+ */
+vec2 hurricane(float lat, float lon) {
+    const float LAT = 0.31;
+    const float LON = -0.66;
+    const float SIZE = 0.3;
+
+    vec2 offset = vec2(mod(lon - LON + time * 0.012 + PI, 2.0 * PI) - PI, lat - LAT);
+    offset.x *= cos(lat);
+    offset /= SIZE;
+
+    float turn = -time * 0.05;
+    vec2 turned = vec2(
+        cos(turn) * offset.x - sin(turn) * offset.y,
+        sin(turn) * offset.x + cos(turn) * offset.y
+    );
+    float inside = step(length(offset), 1.0);
+    float storm = texture(stormMap, clamp(vec2(0.5 + turned.x * 0.5, 0.5 - turned.y * 0.5), 0.0, 1.0)).r;
+
+    return vec2(storm * inside, smoothstep(1.0, 0.55, length(offset)));
+}
+
+/* Lightning flickering inside a few storms; strongest at night. */
+float lightning(vec3 earth) {
+    const vec3 STORMS[5] = vec3[5](
+        vec3(-0.03, 0.4, 1.0),
+        vec3(0.2, 1.57, 2.0),
+        vec3(0.02, 1.98, 3.0),
+        vec3(-0.26, 0.55, 4.0),
+        vec3(0.3, -0.74, 5.0)
+    );
+    float flash = 0.0;
+
+    for (int index = 0; index < 5; index++) {
+        vec3 storm = STORMS[index];
+        float slot = floor(time * 7.0 + storm.z * 13.0);
+
+        if (hash(slot + storm.z * 37.0) < 0.78) {
+            continue;
+        }
+
+        vec3 center = spot(
+            storm.x + (hash(slot * 1.3 + storm.z) - 0.5) * 0.08,
+            storm.y + (hash(slot * 1.7 + storm.z) - 0.5) * 0.08
+        );
+        float angle = acos(clamp(dot(earth, center), -1.0, 1.0));
+        float flicker = 0.55 + 0.45 * sin(time * 97.0 + storm.z);
+
+        flash += flicker * (exp(-pow(angle / 0.02, 2.0)) + 0.35 * exp(-pow(angle / 0.06, 2.0)));
+    }
+
+    return flash;
+}
+
+/* The northern lights: shimmering curtains around the pole, green below and violet above. */
+vec3 aurora(float lat, float lon, float height) {
+    const float BAND = 1.16;
+    float wave = sin(lon * 3.0 + time * 0.4) * 0.03 + sin(lon * 7.0 - time * 0.7) * 0.015;
+    float along = lat - BAND - wave - height * 0.12;
+
+    if (abs(along) > 0.12) {
+        return vec3(0.0);
+    }
+
+    float curtain = exp(-pow(along / 0.045, 2.0));
+    float rays = 0.75 + 0.25 * sin(lon * 38.0 + sin(lon * 9.0 + time * 1.3) * 3.0 + time * 1.5);
+    float pulse = 0.75 + 0.25 * sin(time * 1.7 + lon * 4.0);
+    vec3 glow = mix(vec3(0.15, 1.0, 0.45), vec3(0.6, 0.3, 1.0), clamp(along / 0.08 + 0.5, 0.0, 1.0));
+
+    return glow * curtain * rays * pulse;
+}
+
+vec3 toLinear(vec3 value) {
+    return pow(value, vec3(2.2));
+}
+
+vec3 toScreen(vec3 value) {
+    return pow(clamp(value, 0.0, 1.0), vec3(1.0 / 2.2));
+}
+
+/* Samples a map turned by 'turn', without a seam where the longitude wraps. */
+vec4 sampleMap(sampler2D map, vec2 place, float turn) {
+    vec2 at = vec2(place.x + turn, place.y);
+    vec2 across = vec2(fract(at.x + 0.5), at.y);
+    vec2 stepX = dFdx(at);
+    vec2 stepY = dFdy(at);
+    vec2 wrappedX = dFdx(across);
+    vec2 wrappedY = dFdy(across);
+
+    if (abs(wrappedX.x) < abs(stepX.x)) {
+        stepX = wrappedX;
+    }
+
+    if (abs(wrappedY.x) < abs(stepY.x)) {
+        stepY = wrappedY;
+    }
+
+    return textureGrad(map, vec2(fract(at.x), at.y), stepX, stepY);
+}
+
+void main() {
+    float distance = length(screen);
+    vec4 globe = vec4(0.0);
+
+    if (distance < 1.0 + pixel) {
+        vec3 normal = distance < 1.0
+            ? vec3(screen, sqrt(1.0 - distance * distance))
+            : vec3(screen / distance, 0.0);
+        vec3 earth = toEarth * normal;
+        vec2 place = vec2(
+            atan(earth.x, earth.z) / (2.0 * PI) + 0.5,
+            0.5 - asin(clamp(earth.y, -1.0, 1.0)) / PI
+        );
+
+        vec3 day = toLinear(sampleMap(dayMap, place, landTurn).rgb);
+        vec3 night = toLinear(sampleMap(nightMap, place, landTurn).rgb);
+        vec3 surface = sampleMap(surfaceMap, place, landTurn).rgb;
+        float weather = smoothstep(0.2, 1.0, sampleMap(surfaceMap, place, cloudTurn).b);
+        float lat = (0.5 - place.y) * PI;
+        float cloudLon = (fract(place.x + cloudTurn) - 0.5) * 2.0 * PI;
+        float landLon = (fract(place.x + landTurn) - 0.5) * 2.0 * PI;
+        vec2 storm = hurricane(lat, landLon);
+        weather *= 1.0 - 0.8 * storm.y;
+        float clouds = max(weather, storm.x);
+        float whiteness = clamp(max(weather * 2.0, storm.x * 0.9), 0.0, 1.0);
+
+        // Mountains catch the light.
+        vec3 bumped = normalize(normal - 0.004 * vec3(dFdx(surface.r), dFdy(surface.r), 0.0) / pixel);
+
+        float facing = dot(normal, sun);
+        float lit = max(dot(bumped, sun), 0.0);
+        vec3 albedo = mix(day, vec3(1.0), whiteness);
+
+        // Oceans are glossy; land and clouds aren't.
+        float roughness = max(surface.g, smoothstep(0.0, 0.35, clouds));
+        vec3 halfway = normalize(sun + vec3(0.0, 0.0, 1.0));
+        float shine = pow(max(dot(bumped, halfway), 0.0), mix(90.0, 6.0, roughness))
+            * mix(0.7, 0.03, roughness) * (1.0 - clouds) * step(0.0, facing);
+
+        vec3 daylight = albedo * lit * 1.15 + vec3(1.0, 0.96, 0.9) * shine;
+        vec3 lights = night * (1.0 - clouds * 0.75) * 1.4;
+        float dayStrength = smoothstep(-0.25, 0.5, facing);
+        vec3 surfaceColor = mix(lights, daylight, dayStrength);
+
+        float darkness = 1.0 - dayStrength * 0.8;
+        surfaceColor += vec3(0.75, 0.85, 1.0) * lightning(spot(lat, landLon)) * (0.4 + clouds) * darkness * 1.6;
+        surfaceColor += aurora(lat, landLon, 0.0) * darkness * 0.9;
+
+        // Blue sky at the edge, going orange along the sunset line.
+        float fresnel = 1.0 - normal.z;
+        vec3 sky = mix(ATMOSPHERE_TWILIGHT, ATMOSPHERE_DAY, smoothstep(-0.25, 0.75, facing));
+        float skyMix = clamp(smoothstep(-0.5, 1.0, facing) * fresnel * fresnel, 0.0, 1.0);
+        surfaceColor = mix(surfaceColor, sky, skyMix);
+
+        float coverage = clamp((1.0 - distance) / pixel + 0.5, 0.0, 1.0);
+        globe = vec4(toScreen(surfaceColor), 1.0) * coverage;
+    }
+
+    // The thin shell of atmosphere glowing just past the edge.
+    vec4 halo = vec4(0.0);
+
+    if (distance > 1.0 - pixel && distance < ATMOSPHERE) {
+        float depth = sqrt(max(0.0, 1.0 - pow(distance / ATMOSPHERE, 2.0)));
+        vec3 shell = vec3(screen / ATMOSPHERE, -depth);
+        float facing = dot(shell, sun);
+        vec3 sky = mix(ATMOSPHERE_TWILIGHT, ATMOSPHERE_DAY, smoothstep(-0.25, 0.75, facing));
+        float alpha = pow(clamp(1.0 - (1.0 - depth - 0.73) / 0.27, 0.0, 1.0), 3.0)
+            * smoothstep(-0.5, 1.0, facing);
+
+        halo = vec4(toScreen(sky), 1.0) * alpha;
+    }
+
+    // The aurora's curtains rise above the edge of the Earth.
+    if (distance > 1.0 && distance < 1.1) {
+        vec3 edge = toEarth * vec3(screen / distance, 0.0);
+        float lat = asin(clamp(edge.y, -1.0, 1.0));
+        float lon = atan(edge.x, edge.z) + landTurn * 2.0 * PI;
+        float height = (distance - 1.0) / 0.1;
+        vec3 curtains = aurora(lat, lon, height) * (1.0 - height) * (1.0 - smoothstep(-0.2, 0.6, dot(vec3(screen / distance, 0.0), sun)));
+
+        halo += vec4(toScreen(curtains), 0.0) * (1.0 - globe.a);
+        halo.a = max(halo.a, max(curtains.g, curtains.b) * 0.8);
+    }
+
+    color = globe + halo * (1.0 - globe.a);
+}`;
+
+const MOON_SHADER = `#version 300 es
+precision highp float;
+
+in vec2 screen;
+out vec4 color;
+
+uniform sampler2D colorMap;
+uniform sampler2D elevationMap;
+uniform vec3 sun;
+uniform float pixel;
+uniform float libration;
+uniform float relief;
+
+const float PI = 3.14159265;
+
+void main() {
+    float distance = length(screen);
+
+    if (distance > 1.0 + pixel) {
+        color = vec4(0.0);
+
+        return;
+    }
+
+    vec3 normal = distance < 1.0
+        ? vec3(screen, sqrt(1.0 - distance * distance))
+        : vec3(screen / distance, 0.0);
+    float lat = asin(clamp(normal.y, -1.0, 1.0));
+    float facingLon = atan(normal.x, normal.z);
+    vec2 place = vec2((facingLon + libration) / (2.0 * PI) + 0.5, 0.5 - lat / PI);
+
+    // Tilt the surface by the slope of the ground, so craters and mountains cast shadows.
+    vec2 spacing = 1.5 / vec2(textureSize(elevationMap, 0));
+    float east = texture(elevationMap, place + vec2(spacing.x, 0.0)).r
+        - texture(elevationMap, place - vec2(spacing.x, 0.0)).r;
+    float north = texture(elevationMap, place - vec2(0.0, spacing.y)).r
+        - texture(elevationMap, place + vec2(0.0, spacing.y)).r;
+    vec3 eastward = vec3(cos(facingLon), 0.0, -sin(facingLon));
+    vec3 northward = vec3(-sin(lat) * sin(facingLon), cos(lat), -sin(lat) * cos(facingLon));
+    vec3 bumped = normalize(normal - relief * (
+        east / (2.0 * spacing.x * 2.0 * PI * max(cos(lat), 0.05)) * eastward
+        + north / (2.0 * spacing.y * PI) * northward
+    ));
+
+    // Moon dust scatters light back toward the Sun, so the Moon stays bright
+    // right out to its edge instead of dimming like a matte ball.
+    float toSun = dot(bumped, sun);
+    float toUs = max(normal.z, 0.05);
+    float lit = toSun > 0.0 ? 0.3 * toSun + 0.7 * toSun / (toSun + toUs) : 0.0;
+
+    vec3 albedo = pow(texture(colorMap, place).rgb, vec3(2.2));
+    vec3 earthshine = albedo * 0.012;
+    vec3 surface = pow(clamp(albedo * lit * 1.9 + earthshine, 0.0, 1.0), vec3(1.0 / 2.2));
+    float coverage = clamp((1.0 - distance) / pixel + 0.5, 0.0, 1.0);
+
+    color = vec4(surface, 1.0) * coverage;
+}`;
+
+type Sphere = {
+    canvas: HTMLCanvasElement;
+    gl: WebGL2RenderingContext;
+    uniform: (name: string) => WebGLUniformLocation | null;
 };
 
 type Globe = {
     canvas: HTMLCanvasElement;
-    context: CanvasRenderingContext2D;
-    image: ImageData;
-    /** For each pixel inside the disk: where it is in `image`, and what it sees. */
-    pixel: Int32Array;
-    longitude: Float32Array;
-    row: Int32Array;
-    sunlight: Float32Array;
-    glint: Float32Array;
-    rim: Float32Array;
-    edge: Float32Array;
+    gl: WebGL2RenderingContext;
+    uniforms: Record<
+        | 'landTurn'
+        | 'cloudTurn'
+        | 'sun'
+        | 'toEarth'
+        | 'pixel'
+        | 'extent'
+        | 'time',
+        WebGLUniformLocation | null
+    >;
 };
 
 type Orbiter = {
@@ -370,13 +378,17 @@ type Orbiter = {
     period: number;
     phase: number;
     size: number;
-    /** Tumbles on its own instead of pointing where it's going (radians per second). */
+    /** Tumbles on its own instead of pointing where it's going (radians per second), or stays upright. */
     tumble?: number;
+    isUpright?: boolean;
     showsOrbit?: boolean;
 };
 
-let maps: Maps | null = null;
 let globe: Globe | null = null;
+let moon: Sphere | null = null;
+/** How the Moon is being drawn this frame: `drawMoon` is called as an orbiter, so it reads these. */
+let moonFrame = { pixelScale: 1, seconds: 0 };
+let isLoading = false;
 let backdropStars: { x: number; y: number; size: number; alpha: number }[] = [];
 
 function normalize(x: number, y: number, z: number) {
@@ -395,420 +407,226 @@ function smoothstep(from: number, to: number, value: number): number {
     return t * t * (3 - 2 * t);
 }
 
-function mapPoint([lat, lon]: LatLon): [number, number] {
-    return [((lon + 180) / 360) * MAP_WIDTH, ((90 - lat) / 180) * MAP_HEIGHT];
-}
-
-/** An outline on the flat map, with its corners rounded off. */
-function outlinePath(path: Path2D, outline: LatLon[]) {
-    const points = outline.map(mapPoint);
-    const middle = (a: [number, number], b: [number, number]) => [
-        (a[0] + b[0]) / 2,
-        (a[1] + b[1]) / 2,
-    ];
-    const start = middle(points[points.length - 1], points[0]);
-
-    path.moveTo(start[0], start[1]);
-
-    points.forEach((point, index) => {
-        const next = middle(point, points[(index + 1) % points.length]);
-        path.quadraticCurveTo(point[0], point[1], next[0], next[1]);
-    });
-
-    path.closePath();
-}
-
-function mapCanvas() {
-    const canvas = document.createElement('canvas');
-    canvas.width = MAP_WIDTH;
-    canvas.height = MAP_HEIGHT;
-
-    return canvas.getContext('2d', { willReadFrequently: true })!;
-}
-
 function random(min: number, max: number): number {
     return min + Math.random() * (max - min);
 }
 
-function paintLand(land: Path2D): Uint8ClampedArray {
-    const context = mapCanvas();
-    const ocean = context.createLinearGradient(0, 0, 0, MAP_HEIGHT);
-    ocean.addColorStop(0, '#0A2448');
-    ocean.addColorStop(0.5, '#1156A3');
-    ocean.addColorStop(1, '#0A2448');
-    context.fillStyle = ocean;
-    context.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
+async function loadImage(source: string): Promise<HTMLImageElement> {
+    const image = new Image();
+    image.src = source;
+    await image.decode();
 
-    // Shallow water along the coasts.
-    context.strokeStyle = 'rgba(60, 150, 205, 0.55)';
-    context.lineWidth = 7;
-    context.stroke(land);
-
-    context.fillStyle = '#4E8A3E';
-    context.fill(land);
-
-    context.save();
-    context.clip(land);
-
-    for (const [lat, lon, latRadius, lonRadius, color] of LAND_PATCHES) {
-        const [x, y] = mapPoint([lat, lon]);
-        const gradient = context.createRadialGradient(0, 0, 0, 0, 0, 1);
-        gradient.addColorStop(0, color);
-        gradient.addColorStop(0.6, color);
-        gradient.addColorStop(1, `${color}00`);
-
-        context.save();
-        context.translate(x, y);
-        context.scale(
-            (lonRadius / 360) * MAP_WIDTH,
-            (latRadius / 180) * MAP_HEIGHT,
-        );
-        context.fillStyle = gradient;
-        context.beginPath();
-        context.arc(0, 0, 1, 0, Math.PI * 2);
-        context.fill();
-        context.restore();
-    }
-
-    // Speckle the land so it doesn't look flat.
-    for (let index = 0; index < 9000; index++) {
-        context.fillStyle =
-            Math.random() < 0.5
-                ? 'rgba(20, 40, 10, 0.14)'
-                : 'rgba(255, 240, 200, 0.08)';
-        context.fillRect(
-            random(0, MAP_WIDTH),
-            random(0, MAP_HEIGHT),
-            random(2, 7),
-            random(1, 3),
-        );
-    }
-
-    context.restore();
-
-    // Ice: Greenland, the Arctic, and Antarctica.
-    context.fillStyle = '#EEF4F8';
-    const greenland = new Path2D();
-    outlinePath(greenland, GREENLAND);
-    context.fill(greenland);
-
-    for (const [edge, pole] of [
-        [-68, MAP_HEIGHT],
-        [81, 0],
-    ]) {
-        context.beginPath();
-        context.moveTo(0, pole);
-
-        for (let x = 0; x <= MAP_WIDTH; x += 16) {
-            const wobble =
-                Math.sin(x * 0.021) * 2.5 + Math.sin(x * 0.057 + 1) * 1.5;
-            context.lineTo(x, mapPoint([edge + wobble, 0])[1]);
-        }
-
-        context.lineTo(MAP_WIDTH, pole);
-        context.fill();
-    }
-
-    return context.getImageData(0, 0, MAP_WIDTH, MAP_HEIGHT).data;
+    return image;
 }
 
-/** Cities glowing on the night side, clustered where most people live. */
-function paintLights(
-    land: Path2D,
-    landContext: CanvasRenderingContext2D,
-): Uint8ClampedArray {
-    const context = mapCanvas();
-    context.fillStyle = '#000000';
-    context.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
+function compile(
+    gl: WebGL2RenderingContext,
+    type: number,
+    source: string,
+): WebGLShader {
+    const shader = gl.createShader(type)!;
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
 
-    const busy: [
-        latFrom: number,
-        latTo: number,
-        lonFrom: number,
-        lonTo: number,
-    ][] = [
-        [42, 58, -5, 35],
-        [28, 46, -98, -70],
-        [9, 30, 70, 90],
-        [22, 40, 104, 122],
-        [32, 42, 130, 141],
-        [-35, -15, -58, -38],
-        [26, 32, 29, 33],
-    ];
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        throw new Error(gl.getShaderInfoLog(shader) ?? 'Shader failed');
+    }
 
-    for (let index = 0; index < 1100; index++) {
-        const area = index % 3 === 0 ? null : busy[index % busy.length];
-        const lat = area ? random(area[0], area[1]) : random(-45, 62);
-        const lon = area ? random(area[2], area[3]) : random(-180, 180);
-        const [x, y] = mapPoint([lat, lon]);
+    return shader;
+}
 
-        if (!landContext.isPointInPath(land, x, y)) {
-            continue;
-        }
+/**
+ * A WebGL canvas that draws one sphere with `fragmentShader`, over maps given
+ * to its samplers in order.
+ */
+function createSphere(
+    fragmentShader: string,
+    samplers: string[],
+    images: HTMLImageElement[],
+): Sphere {
+    const canvas = document.createElement('canvas');
+    const gl = canvas.getContext('webgl2', { antialias: false });
 
-        for (let dot = 0; dot < 1 + Math.random() * 6; dot++) {
-            context.globalAlpha = random(0.35, 1);
-            context.fillStyle = '#FFFFFF';
-            context.beginPath();
-            context.arc(
-                x + random(-4, 4),
-                y + random(-2.5, 2.5),
-                random(0.5, 1.5),
-                0,
-                Math.PI * 2,
+    if (!gl) {
+        throw new Error('WebGL2 is not available');
+    }
+
+    const program = gl.createProgram();
+    gl.attachShader(program, compile(gl, gl.VERTEX_SHADER, VERTEX_SHADER));
+    gl.attachShader(program, compile(gl, gl.FRAGMENT_SHADER, fragmentShader));
+    gl.linkProgram(program);
+
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        throw new Error(gl.getProgramInfoLog(program) ?? 'Program failed');
+    }
+
+    gl.useProgram(program);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(
+        gl.ARRAY_BUFFER,
+        new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]),
+        gl.STATIC_DRAW,
+    );
+    const position = gl.getAttribLocation(program, 'position');
+    gl.enableVertexAttribArray(position);
+    gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+
+    const anisotropy = gl.getExtension('EXT_texture_filter_anisotropic');
+
+    samplers.forEach((name, index) => {
+        gl.activeTexture(gl.TEXTURE0 + index);
+        gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
+        gl.texImage2D(
+            gl.TEXTURE_2D,
+            0,
+            gl.RGB,
+            gl.RGB,
+            gl.UNSIGNED_BYTE,
+            images[index],
+        );
+        gl.generateMipmap(gl.TEXTURE_2D);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(
+            gl.TEXTURE_2D,
+            gl.TEXTURE_MIN_FILTER,
+            gl.LINEAR_MIPMAP_LINEAR,
+        );
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+        if (anisotropy) {
+            gl.texParameterf(
+                gl.TEXTURE_2D,
+                anisotropy.TEXTURE_MAX_ANISOTROPY_EXT,
+                8,
             );
-            context.fill();
         }
-    }
 
-    return context.getImageData(0, 0, MAP_WIDTH, MAP_HEIGHT).data;
-}
+        gl.uniform1i(gl.getUniformLocation(program, name), index);
+    });
 
-/** Cloud bands where the weather actually is, plus a few spiraling storms. */
-function paintClouds(): Uint8ClampedArray {
-    const context = mapCanvas();
-    const puff = (
-        x: number,
-        y: number,
-        width: number,
-        height: number,
-        alpha: number,
-    ) => {
-        for (const wrap of [-MAP_WIDTH, 0, MAP_WIDTH]) {
-            const gradient = context.createRadialGradient(0, 0, 0, 0, 0, 1);
-            gradient.addColorStop(0, `rgba(255, 255, 255, ${alpha})`);
-            gradient.addColorStop(0.5, `rgba(255, 255, 255, ${alpha * 0.6})`);
-            gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-
-            context.save();
-            context.translate(x + wrap, y);
-            context.scale(width, height);
-            context.fillStyle = gradient;
-            context.beginPath();
-            context.arc(0, 0, 1, 0, Math.PI * 2);
-            context.fill();
-            context.restore();
-        }
-    };
-
-    const bands = [
-        { lat: 6, spread: 7, weight: 3 },
-        { lat: 50, spread: 11, weight: 4 },
-        { lat: -50, spread: 11, weight: 4 },
-        { lat: 25, spread: 14, weight: 1 },
-        { lat: -25, spread: 14, weight: 1 },
-        { lat: 68, spread: 8, weight: 1.5 },
-        { lat: -65, spread: 6, weight: 1.5 },
-    ];
-    const totalWeight = bands.reduce((sum, band) => sum + band.weight, 0);
-
-    for (let index = 0; index < 900; index++) {
-        let roll = Math.random() * totalWeight;
-        const band =
-            bands.find((candidate) => (roll -= candidate.weight) <= 0) ??
-            bands[0];
-        const lat = band.lat + (Math.random() * 2 - 1) * band.spread;
-        const [x, y] = mapPoint([lat, random(-180, 180)]);
-
-        puff(x, y, random(8, 34), random(3, 11), random(0.2, 0.6));
-    }
-
-    for (let storm = 0; storm < 6; storm++) {
-        const north = storm % 2 === 0;
-        const [x, y] = mapPoint([
-            (north ? 1 : -1) * random(30, 55),
-            random(-180, 180),
-        ]);
-        const spin = north ? -1 : 1;
-
-        for (let arm = 0; arm < 2; arm++) {
-            for (let step = 0; step < 26; step++) {
-                const angle = arm * Math.PI + spin * step * 0.28;
-                const distance = 1.5 + step * 1.1;
-
-                puff(
-                    x + Math.cos(angle) * distance * 1.6,
-                    y + Math.sin(angle) * distance,
-                    5 - step * 0.12,
-                    3 - step * 0.07,
-                    0.55,
-                );
-            }
-        }
-    }
-
-    return context.getImageData(0, 0, MAP_WIDTH, MAP_HEIGHT).data;
-}
-
-function paintMaps(): Maps {
-    const land = new Path2D();
-
-    for (const outline of CONTINENTS) {
-        outlinePath(land, outline);
-    }
+    gl.uniform3f(gl.getUniformLocation(program, 'sun'), SUN.x, SUN.y, SUN.z);
 
     return {
-        land: paintLand(land),
-        clouds: paintClouds(),
-        lights: paintLights(land, mapCanvas()),
+        canvas,
+        gl,
+        uniform: (name: string) => gl.getUniformLocation(program, name),
+    };
+}
+
+function createGlobe(images: HTMLImageElement[]): Globe {
+    const { canvas, gl, uniform } = createSphere(
+        FRAGMENT_SHADER,
+        ['dayMap', 'nightMap', 'surfaceMap', 'stormMap'],
+        images,
+    );
+
+    // From the screen (x right, y up, z toward us) to the Earth's own frame
+    // (x east, y north, z facing us at longitude 0): undo the lean, then the tip.
+    const leanCos = Math.cos(AXIAL_TILT);
+    const leanSin = Math.sin(AXIAL_TILT);
+    const tipCos = Math.cos(VIEW_LATITUDE);
+    const tipSin = Math.sin(VIEW_LATITUDE);
+    gl.uniformMatrix3fv(uniform('toEarth'), true, [
+        leanCos,
+        -leanSin,
+        0,
+        leanSin * tipCos,
+        leanCos * tipCos,
+        tipSin,
+        -leanSin * tipSin,
+        -leanCos * tipSin,
+        tipCos,
+    ]);
+    return {
+        canvas,
+        gl,
+        uniforms: {
+            landTurn: uniform('landTurn'),
+            cloudTurn: uniform('cloudTurn'),
+            sun: uniform('sun'),
+            toEarth: uniform('toEarth'),
+            pixel: uniform('pixel'),
+            extent: uniform('extent'),
+            time: uniform('time'),
+        },
     };
 }
 
 /**
- * Works out, once, which spot on the Earth each pixel of the globe shows and
- * how much sunlight falls on it. Each frame then only has to look it up.
+ * Starts loading the Earth's and Moon's maps (about 1.4 MB) in the background. The
+ * close-up can only play once they're in: see `isEarthCloseupReady`.
  */
-function buildGlobe(radius: number): Globe {
-    const size = Math.ceil(radius * 2) + 2;
-    const canvas = document.createElement('canvas');
-    canvas.width = size;
-    canvas.height = size;
-    const context = canvas.getContext('2d')!;
-    const image = context.createImageData(size, size);
-    const pixel: number[] = [];
-    const longitude: number[] = [];
-    const row: number[] = [];
-    const sunlight: number[] = [];
-    const glint: number[] = [];
-    const rim: number[] = [];
-    const edge: number[] = [];
-    const halfway = normalize(SUN.x, SUN.y, SUN.z + 1);
-    const tiltCos = Math.cos(AXIAL_TILT);
-    const tiltSin = Math.sin(AXIAL_TILT);
-    const viewCos = Math.cos(VIEW_LATITUDE);
-    const viewSin = Math.sin(VIEW_LATITUDE);
-
-    for (let y = 0; y < size; y++) {
-        for (let x = 0; x < size; x++) {
-            const offsetX = x + 0.5 - size / 2;
-            const offsetY = y + 0.5 - size / 2;
-            const distance = Math.hypot(offsetX, offsetY);
-
-            if (distance > radius + 0.5) {
-                continue;
-            }
-
-            // A point on the sphere facing us, with y pointing up.
-            let normalX = offsetX / radius;
-            let normalY = -offsetY / radius;
-            const flat = normalX * normalX + normalY * normalY;
-
-            if (flat > 1) {
-                normalX /= Math.sqrt(flat);
-                normalY /= Math.sqrt(flat);
-            }
-
-            const normalZ = Math.sqrt(
-                Math.max(0, 1 - normalX * normalX - normalY * normalY),
-            );
-
-            // Turn it into the Earth's own frame: undo the lean, then the tip toward us.
-            const east = normalX * tiltCos - normalY * tiltSin;
-            const up = normalX * tiltSin + normalY * tiltCos;
-            const north = up * viewCos + normalZ * viewSin;
-            const toward = -up * viewSin + normalZ * viewCos;
-
-            const lat = Math.asin(clamp(north, -1, 1));
-            const lon = Math.atan2(east, toward);
-
-            pixel.push((y * size + x) * 4);
-            longitude.push((lon / (Math.PI * 2)) * MAP_WIDTH);
-            row.push(
-                Math.min(
-                    MAP_HEIGHT - 1,
-                    Math.floor((0.5 - lat / Math.PI) * MAP_HEIGHT),
-                ) * MAP_WIDTH,
-            );
-            sunlight.push(normalX * SUN.x + normalY * SUN.y + normalZ * SUN.z);
-            glint.push(
-                Math.max(
-                    0,
-                    normalX * halfway.x +
-                        normalY * halfway.y +
-                        normalZ * halfway.z,
-                ) ** 60,
-            );
-            rim.push((1 - normalZ) ** 3);
-            edge.push(clamp(radius + 0.5 - distance));
-        }
+export function loadEarthCloseup() {
+    if (isLoading) {
+        return;
     }
 
-    return {
-        canvas,
-        context,
-        image,
-        pixel: Int32Array.from(pixel),
-        longitude: Float32Array.from(longitude),
-        row: Int32Array.from(row),
-        sunlight: Float32Array.from(sunlight),
-        glint: Float32Array.from(glint),
-        rim: Float32Array.from(rim),
-        edge: Float32Array.from(edge),
-    };
+    isLoading = true;
+
+    Promise.all([...MAPS, ...MOON_MAPS].map(loadImage))
+        .then((images) => {
+            const moonSphere = createSphere(
+                MOON_SHADER,
+                ['colorMap', 'elevationMap'],
+                images.slice(MAPS.length),
+            );
+            moonSphere.gl.uniform1f(moonSphere.uniform('relief'), MOON_RELIEF);
+            moon = moonSphere;
+            globe = createGlobe(images.slice(0, MAPS.length));
+        })
+        .catch((error: unknown) => {
+            // No WebGL2 or the maps didn't load: the Earth just stays a dot.
+            globe = null;
+            console.warn('The Earth close-up is unavailable.', error);
+        });
 }
 
-/** Paints the globe as it looks `seconds` into the show. */
-function paintGlobe(
-    globe: Globe,
-    { land, clouds, lights }: Maps,
-    seconds: number,
-) {
-    const data = globe.image.data;
-    const facing = START_LONGITUDE - TURN_SPEED * seconds;
-    const landShift = (facing / 360 + 0.5) * MAP_WIDTH;
-    const cloudShift =
-        ((facing - CLOUD_DRIFT * seconds) / 360 + 0.5) * MAP_WIDTH;
+export function isEarthCloseupReady(): boolean {
+    return globe !== null;
+}
 
-    for (let index = 0; index < globe.pixel.length; index++) {
-        let landColumn =
-            Math.floor(globe.longitude[index] + landShift) % MAP_WIDTH;
-        let cloudColumn =
-            Math.floor(globe.longitude[index] + cloudShift) % MAP_WIDTH;
+/** Renders the globe as it looks `seconds` into the show, `size` device pixels across. */
+function renderGlobe(globe: Globe, size: number, seconds: number) {
+    const { canvas, gl, uniforms } = globe;
 
-        if (landColumn < 0) {
-            landColumn += MAP_WIDTH;
-        }
-
-        if (cloudColumn < 0) {
-            cloudColumn += MAP_WIDTH;
-        }
-
-        const at = (globe.row[index] + landColumn) * 4;
-        const cloud = clouds[(globe.row[index] + cloudColumn) * 4 + 3] / 255;
-        const sun = globe.sunlight[index];
-        const lit = sun > 0 ? sun : 0;
-        const day = smoothstep(-0.12, 0.22, sun);
-        const shade = 0.05 + 1.05 * lit;
-        const red = land[at];
-        const green = land[at + 1];
-        const blue = land[at + 2];
-        const isWater = blue > red + 30 && blue > green;
-        const glint = isWater ? globe.glint[index] * 220 * (1 - cloud) : 0;
-        const cloudShade = 255 * (0.04 + lit);
-        const city = (1 - day) * (1 - cloud * 0.8) * (lights[at] / 255);
-        const air =
-            globe.rim[index] * (0.2 + 0.8 * smoothstep(-0.25, 0.35, sun));
-        const out = globe.pixel[index];
-
-        data[out] =
-            (red * shade + glint) * (1 - cloud) +
-            cloudShade * cloud +
-            city * 255 +
-            air * 90;
-        data[out + 1] =
-            (green * shade + glint) * (1 - cloud) +
-            cloudShade * cloud +
-            city * 190 +
-            air * 170;
-        data[out + 2] =
-            (blue * shade + glint) * (1 - cloud) +
-            cloudShade * cloud +
-            city * 110 +
-            air * 255;
-        data[out + 3] = globe.edge[index] * 255;
+    if (canvas.width !== size) {
+        canvas.width = size;
+        canvas.height = size;
+        gl.viewport(0, 0, size, size);
     }
 
-    globe.context.putImageData(globe.image, 0, 0);
+    const facing = START_LONGITUDE - TURN_SPEED * seconds;
+
+    gl.uniform1f(uniforms.time, seconds);
+    gl.uniform1f(uniforms.extent, GLOBE_EXTENT);
+    gl.uniform1f(uniforms.pixel, (2 * GLOBE_EXTENT) / size);
+    gl.uniform1f(uniforms.landTurn, facing / 360);
+    gl.uniform1f(uniforms.cloudTurn, (facing - CLOUD_DRIFT * seconds) / 360);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+/**
+ * How much sunlight reaches a point near the Earth (0 in its shadow, 1 in
+ * full sun), with the point in Earth radii (x right, y up, z toward us).
+ */
+function sunlightAt(x: number, y: number, z: number): number {
+    const along = x * SUN.x + y * SUN.y + z * SUN.z;
+
+    if (along > 0) {
+        return 1;
+    }
+
+    const across = Math.hypot(
+        x - along * SUN.x,
+        y - along * SUN.y,
+        z - along * SUN.z,
+    );
+
+    return smoothstep(0.92, 1.08, across);
 }
 
 function drawSatellite(context: CanvasRenderingContext2D, size: number) {
@@ -1034,6 +852,99 @@ function drawRoadster(context: CanvasRenderingContext2D, size: number) {
     context.fill();
 }
 
+/**
+ * The Moon, rendered from real maps and lit from the Sun's side, with an
+ * astronaut and an American flag standing on its sunlit edge.
+ */
+function drawMoon(context: CanvasRenderingContext2D, size: number) {
+    const radius = MOON_RADIUS * size;
+
+    if (moon) {
+        const { canvas, gl, uniform } = moon;
+        const pixels = Math.ceil(radius * 2 * moonFrame.pixelScale) + 2;
+
+        if (canvas.width !== pixels) {
+            canvas.width = pixels;
+            canvas.height = pixels;
+            gl.viewport(0, 0, pixels, pixels);
+        }
+
+        const extent = pixels / (radius * 2 * moonFrame.pixelScale);
+        gl.uniform1f(uniform('extent'), extent);
+        gl.uniform1f(uniform('pixel'), (2 * extent) / pixels);
+        // It rocks a little from side to side as it goes round (libration).
+        gl.uniform1f(
+            uniform('libration'),
+            Math.sin(moonFrame.seconds * 0.3) * 0.12,
+        );
+        gl.clearColor(0, 0, 0, 0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        context.drawImage(
+            canvas,
+            -radius * extent,
+            -radius * extent,
+            radius * extent * 2,
+            radius * extent * 2,
+        );
+    }
+
+    // Standing on top, a little toward the Sun, with "up" pointing away from the Moon.
+    context.save();
+    context.rotate(-0.45);
+    context.translate(0, -radius + 0.4 * size);
+
+    // The flag, on a pole with a rod across the top to hold it out.
+    context.fillStyle = '#D9D9D9';
+    context.fillRect(3.2 * size, -12 * size, 0.6 * size, 12 * size);
+    context.fillStyle = '#FFFFFF';
+    context.fillRect(3.8 * size, -12 * size, 7 * size, 4.6 * size);
+    context.fillStyle = '#B22234';
+
+    for (let stripe = 0; stripe < 4; stripe++) {
+        context.fillRect(
+            3.8 * size,
+            (-12 + stripe * 1.3) * size,
+            7 * size,
+            0.65 * size,
+        );
+    }
+
+    context.fillStyle = '#3C3B6E';
+    context.fillRect(3.8 * size, -12 * size, 3 * size, 2.5 * size);
+
+    // The astronaut, waving.
+    context.fillStyle = '#D8D8D4';
+    context.fillRect(-3.4 * size, -7.4 * size, 1.4 * size, 4 * size);
+    context.fillStyle = '#F4F4F2';
+    context.fillRect(-2.6 * size, -3.4 * size, 1.3 * size, 3.4 * size);
+    context.fillRect(-0.9 * size, -3.4 * size, 1.3 * size, 3.4 * size);
+    context.beginPath();
+    context.roundRect(-2.8 * size, -7.8 * size, 3.4 * size, 4.8 * size, size);
+    context.fill();
+    context.save();
+    context.translate(0.3 * size, -7 * size);
+    context.rotate(-0.9);
+    context.fillRect(0, -0.5 * size, 3.2 * size, 1 * size);
+    context.restore();
+    context.beginPath();
+    context.arc(-1.1 * size, -9.4 * size, 1.9 * size, 0, Math.PI * 2);
+    context.fill();
+    context.fillStyle = '#C99A2E';
+    context.beginPath();
+    context.ellipse(
+        -0.5 * size,
+        -9.4 * size,
+        1.1 * size,
+        1.2 * size,
+        0,
+        0,
+        Math.PI * 2,
+    );
+    context.fill();
+    context.restore();
+}
+
 function drawStarlinkSatellite(
     context: CanvasRenderingContext2D,
     size: number,
@@ -1105,9 +1016,20 @@ const ORBITERS: Orbiter[] = [
         size: 0.7,
     },
     {
+        name: 'Moon',
+        draw: drawMoon,
+        radius: 2.3,
+        open: 0.4,
+        tilt: 0.3,
+        period: 36,
+        phase: 0.9,
+        size: 1,
+        isUpright: true,
+    },
+    {
         name: 'Starman',
         draw: drawRoadster,
-        radius: 2.05,
+        radius: 1.95,
         open: 0.34,
         tilt: -0.12,
         period: 24,
@@ -1150,15 +1072,11 @@ export function drawEarthCloseup(
     seconds: number,
     reveal: number,
 ) {
-    maps ??= paintMaps();
-
-    if (
-        !globe ||
-        globe.canvas.width !==
-            Math.ceil(EARTH_CLOSEUP_RADIUS * pixelScale * 2) + 2
-    ) {
-        globe = buildGlobe(EARTH_CLOSEUP_RADIUS * pixelScale);
+    if (!globe) {
+        return;
     }
+
+    moonFrame = { pixelScale, seconds };
 
     if (backdropStars.length === 0) {
         backdropStars = Array.from({ length: 140 }, () => {
@@ -1189,8 +1107,8 @@ export function drawEarthCloseup(
         center,
         center,
     );
-    backdrop.addColorStop(0, 'rgba(3, 4, 10, 0.97)');
-    backdrop.addColorStop(0.6, 'rgba(3, 4, 10, 0.9)');
+    backdrop.addColorStop(0, 'rgba(3, 4, 10, 0.98)');
+    backdrop.addColorStop(0.72, 'rgba(3, 4, 10, 0.95)');
     backdrop.addColorStop(1, 'rgba(3, 4, 10, 0)');
     context.globalAlpha = backdropAlpha;
     context.fillStyle = backdrop;
@@ -1216,15 +1134,20 @@ export function drawEarthCloseup(
         const point = orbitPoint(orbiter, angle);
         const ahead = orbitPoint(orbiter, angle + 0.01);
         const depth = Math.sin(angle);
+        const nearness =
+            depth * orbiter.radius * Math.sqrt(1 - orbiter.open ** 2);
 
         return {
             orbiter,
             x: center + point.x,
             y: center + point.y,
             depth,
-            heading: orbiter.tumble
-                ? seconds * orbiter.tumble
-                : Math.atan2(ahead.y - point.y, ahead.x - point.x),
+            sunlight: sunlightAt(point.x / radius, -point.y / radius, nearness),
+            heading: orbiter.isUpright
+                ? 0
+                : orbiter.tumble
+                  ? seconds * orbiter.tumble
+                  : Math.atan2(ahead.y - point.y, ahead.x - point.x),
         };
     });
 
@@ -1254,13 +1177,14 @@ export function drawEarthCloseup(
     };
 
     const drawOrbiters = (inFront: boolean) => {
-        for (const { orbiter, x, y, depth, heading } of placed) {
+        for (const { orbiter, x, y, depth, sunlight, heading } of placed) {
             if (depth > 0 !== inFront) {
                 continue;
             }
 
+            // Passing through the Earth's shadow, it goes dark.
             context.save();
-            context.globalAlpha = orbitAlpha;
+            context.globalAlpha = orbitAlpha * (0.12 + 0.88 * sunlight);
             context.translate(x, y);
             context.rotate(heading);
             orbiter.draw(context, orbiter.size * (1 + 0.12 * depth));
@@ -1283,32 +1207,33 @@ export function drawEarthCloseup(
     drawOrbiters(false);
 
     context.globalAlpha = 1;
-    paintGlobe(globe, maps, seconds);
+    const extent = radius * GLOBE_EXTENT;
+    renderGlobe(globe, Math.ceil(extent * 2 * pixelScale), seconds);
     context.drawImage(
         globe.canvas,
-        center - globe.canvas.width / pixelScale / 2,
-        center - globe.canvas.height / pixelScale / 2,
-        globe.canvas.width / pixelScale,
-        globe.canvas.height / pixelScale,
+        center - extent,
+        center - extent,
+        extent * 2,
+        extent * 2,
     );
 
-    // The glow of the atmosphere around the edge.
+    // A soft glow of the atmosphere around the edge, beyond the globe's own.
     const halo = context.createRadialGradient(
         center,
         center,
         radius,
         center,
         center,
-        radius * 1.3,
+        radius * 1.25,
     );
-    halo.addColorStop(0, 'rgba(110, 180, 255, 0.5)');
-    halo.addColorStop(0.3, 'rgba(70, 140, 255, 0.16)');
+    halo.addColorStop(0, 'rgba(90, 170, 255, 0.22)');
+    halo.addColorStop(0.35, 'rgba(70, 140, 255, 0.07)');
     halo.addColorStop(1, 'rgba(60, 120, 255, 0)');
     context.save();
     context.globalCompositeOperation = 'lighter';
     context.fillStyle = halo;
     context.beginPath();
-    context.arc(center, center, radius * 1.3, 0, Math.PI * 2);
+    context.arc(center, center, radius * 1.25, 0, Math.PI * 2);
     context.arc(center, center, radius, 0, Math.PI * 2, true);
     context.fill();
     context.restore();

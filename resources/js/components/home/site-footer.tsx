@@ -23,6 +23,37 @@ export function SiteFooter() {
                     Source on GitHub
                 </a>
             </div>
+            <p className="mx-auto max-w-6xl px-6 pb-6 text-xs text-[#7D7068]">
+                Earth maps by{' '}
+                <a
+                    href="https://www.solarsystemscope.com/textures/"
+                    className="underline-offset-2 hover:text-[#B3A69C] hover:underline"
+                >
+                    Solar System Scope
+                </a>
+                , resized, under{' '}
+                <a
+                    href="https://creativecommons.org/licenses/by/4.0/"
+                    className="underline-offset-2 hover:text-[#B3A69C] hover:underline"
+                >
+                    CC BY 4.0
+                </a>
+                . Moon maps by{' '}
+                <a
+                    href="https://svs.gsfc.nasa.gov/4720"
+                    className="underline-offset-2 hover:text-[#B3A69C] hover:underline"
+                >
+                    NASA's Scientific Visualization Studio
+                </a>
+                . Hurricane Isabel photo by{' '}
+                <a
+                    href="https://science.nasa.gov/earth/earth-observatory/hurricane-isabel-12116/"
+                    className="underline-offset-2 hover:text-[#B3A69C] hover:underline"
+                >
+                    Jeff Schmaltz, MODIS Land Rapid Response Team, NASA GSFC
+                </a>
+                .
+            </p>
         </footer>
     );
 }

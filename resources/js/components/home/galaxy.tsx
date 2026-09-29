@@ -5,6 +5,8 @@ import {
     EARTH_CLOSEUP_RADIUS,
     EARTH_CLOSEUP_SIZE,
     earthShowProgress,
+    isEarthCloseupReady,
+    loadEarthCloseup,
 } from '@/components/home/earth-closeup';
 import { universe } from '@/components/home/particle-universe';
 import {
@@ -53,7 +55,7 @@ const ENTERPRISE_ORBIT = {
 };
 
 /** Where the Earth's close-up settles, relative to the black hole (pixels), and how much the galaxy dims behind it. */
-const EARTH_CLOSEUP_AT = { x: -30, y: 30 };
+const EARTH_CLOSEUP_AT = { x: -80, y: 30 };
 const EARTH_CLOSEUP_DIM = 0.7;
 
 /** After the Earth shrinks back, how long before hovering it again replays the close-up (milliseconds). */
@@ -442,6 +444,7 @@ export function Galaxy({ children }: { children: ReactNode }) {
             }
 
             appearedAt ??= now;
+            loadEarthCloseup();
             const fade = smoothstep(
                 0,
                 FADE_IN_SECONDS * 1000,
@@ -696,7 +699,8 @@ export function Galaxy({ children }: { children: ReactNode }) {
                 isHoveringEarth &&
                 earthShowStartedAt === null &&
                 fade === 1 &&
-                now > earthCooldownUntil
+                now > earthCooldownUntil &&
+                isEarthCloseupReady()
             ) {
                 earthShowStartedAt = now;
                 closeup = 0;
@@ -716,7 +720,7 @@ export function Galaxy({ children }: { children: ReactNode }) {
                 earth.clearRect(0, 0, EARTH_CLOSEUP_SIZE, EARTH_CLOSEUP_SIZE);
                 drawEarthCloseup(
                     earth,
-                    Math.min(solScale, 1.5),
+                    solScale,
                     (now - earthShowStartedAt) / 1000,
                     closeup,
                 );
@@ -879,7 +883,7 @@ export function Galaxy({ children }: { children: ReactNode }) {
             <canvas ref={enterpriseRef} className={shipClassName} />
             <canvas
                 ref={earthRef}
-                className="pointer-events-none absolute top-1/2 left-1/2 size-[720px] opacity-0 motion-reduce:hidden"
+                className="pointer-events-none absolute top-1/2 left-1/2 size-[780px] opacity-0 motion-reduce:hidden"
             />
             <div
                 ref={earthSpotRef}
