@@ -129,7 +129,9 @@ class ShareCards
 
         $bytes = File::get($path);
 
-        return @getimagesizefromstring($bytes)[2] === IMAGETYPE_PNG ? $bytes : null;
+        $size = @getimagesizefromstring($bytes);
+
+        return $size !== false && $size[2] === IMAGETYPE_PNG ? $bytes : null;
     }
 
     protected function store(ProjectShare $share, string $screenshot, string $card): void

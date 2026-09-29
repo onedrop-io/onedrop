@@ -135,12 +135,12 @@ trait RendersWorkspace
     protected static function withShellArgument(string $url, string $argument): string
     {
         $fragment = parse_url($url, PHP_URL_FRAGMENT);
-        $url = $fragment !== null ? substr($url, 0, -strlen($fragment) - 1) : $url;
+        $url = is_string($fragment) ? substr($url, 0, -strlen($fragment) - 1) : $url;
         $query = parse_url($url, PHP_URL_QUERY);
-        $base = $query !== null ? substr($url, 0, -strlen($query) - 1) : $url;
+        $base = is_string($query) ? substr($url, 0, -strlen($query) - 1) : $url;
         $path = parse_url($base, PHP_URL_PATH);
 
-        return ($path === null ? $base.'/' : $base).'?'.ltrim(($query !== null ? $query.'&' : '').http_build_query(['arg' => $argument]), '&');
+        return ($path === null ? $base.'/' : $base).'?'.ltrim((is_string($query) ? $query.'&' : '').http_build_query(['arg' => $argument]), '&');
     }
 
     /**

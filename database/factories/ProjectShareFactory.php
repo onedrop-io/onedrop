@@ -21,7 +21,7 @@ class ProjectShareFactory extends Factory
     {
         return [
             'project_id' => Project::factory(),
-            'slug' => Str::slug(fake()->words(2, true)).'-'.Str::lower(Str::random(8)),
+            'slug' => Str::slug(fake()->company()).'-'.Str::lower(Str::random(8)),
             'prompt' => fake()->sentence(),
             'page_path' => '/',
         ];

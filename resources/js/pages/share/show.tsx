@@ -63,7 +63,9 @@ export default function ShowShare({
                                 {share.prompts === 1
                                     ? '1 prompt'
                                     : `${share.prompts} prompts`}
-                                {share.agent ? ` · built by ${share.agent}` : ''}
+                                {share.agent
+                                    ? ` · built by ${share.agent}`
+                                    : ''}
                             </p>
 
                             <figure className="mt-10 rounded-2xl bg-[#110E0C] p-6 ring-1 ring-[#2A2320] md:p-8">

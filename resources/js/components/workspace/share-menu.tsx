@@ -124,8 +124,8 @@ export default function ShareMenu({
                                 </div>
                             ) : (
                                 <div className="flex size-full items-center justify-center p-4 text-center text-sm text-muted-foreground">
-                                    No card yet. Link previews use OneDrop's
-                                    own card until there is one.
+                                    No card yet. Link previews use OneDrop's own
+                                    card until there is one.
                                 </div>
                             )}
                         </div>
