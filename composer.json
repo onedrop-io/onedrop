@@ -18,6 +18,7 @@
         "laravel/socialite": "^5.31",
         "laravel/tinker": "^3.0",
         "laravel/wayfinder": "^0.1.14",
+        "league/flysystem-aws-s3-v3": "^3.0",
         "socialiteproviders/microsoft": "^4.10",
         "socialiteproviders/openidconnect": "^1.0"
     },
