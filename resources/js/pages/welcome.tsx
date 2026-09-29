@@ -631,7 +631,7 @@ const IMPACT_TRACKS = buildImpactTracks();
  */
 function ImpactTracks() {
     return (
-        <div className="motion-reduce:hidden">
+        <div className="pointer-events-none motion-reduce:hidden">
             <div
                 className="absolute top-1/2 left-1/2 size-[420px] -translate-x-1/2 -translate-y-1/2 animate-impact-flash rounded-full bg-[radial-gradient(circle,rgba(255,225,209,0.9),rgba(255,77,28,0.45)_35%,transparent_70%)] opacity-0"
                 style={{ animationDelay: `${IMPACT_DELAY_MS}ms` }}

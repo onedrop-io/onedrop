@@ -145,6 +145,19 @@ function planetAngle(planet: Planet, seconds: number): number {
 
 const EARTH = SOL_PLANETS.find((planet) => planet.name === 'Earth')!;
 
+/** The Earth's radius at full size (pixels). */
+export const EARTH_SIZE = EARTH.size;
+
+/** Where the Earth is right now, relative to the Sun, on screen. */
+export function earthOffset(project: Project, seconds: number) {
+    const angle = planetAngle(EARTH, seconds);
+
+    return project(
+        Math.cos(angle) * EARTH.orbit,
+        Math.sin(angle) * EARTH.orbit,
+    );
+}
+
 /**
  * Lights a sphere from the Sun's side: bright where it faces the Sun, fading
  * to its night side.

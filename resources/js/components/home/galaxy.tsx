@@ -1,8 +1,16 @@
 import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
+import {
+    drawEarthCloseup,
+    EARTH_CLOSEUP_RADIUS,
+    EARTH_CLOSEUP_SIZE,
+    earthShowProgress,
+} from '@/components/home/earth-closeup';
 import { universe } from '@/components/home/particle-universe';
 import {
     drawSolSystem,
+    EARTH_SIZE,
+    earthOffset,
     SOL_FIELD_SIZE,
     SOL_SCREEN_OFFSET,
     voyagerTrails,
@@ -43,6 +51,13 @@ const ENTERPRISE_ORBIT = {
     leaveSeconds: 0.45,
     arriveSeconds: 0.6,
 };
+
+/** Where the Earth's close-up settles, relative to the black hole (pixels), and how much the galaxy dims behind it. */
+const EARTH_CLOSEUP_AT = { x: -30, y: 30 };
+const EARTH_CLOSEUP_DIM = 0.7;
+
+/** After the Earth shrinks back, how long before hovering it again replays the close-up (milliseconds). */
+const EARTH_CLOSEUP_COOLDOWN_MS = 2000;
 
 /** Seconds for the galaxy to fade in once the black hole is full size. */
 const FADE_IN_SECONDS = 2.5;
@@ -297,7 +312,8 @@ function makeStars(): Star[] {
  * stars of every color and size, and a few stars with planets circling them.
  * It's drawn on two canvases, one behind the black hole and one in front, so
  * the near side of the galaxy passes in front of it. Only runs alongside the
- * WebGL black hole, and follows its camera.
+ * WebGL black hole, and follows its camera. Hovering over the Earth zooms
+ * in on it for a little while (see `earth-closeup`).
  */
 export function Galaxy({ children }: { children: ReactNode }) {
     const backRef = useRef<HTMLCanvasElement>(null);
@@ -305,6 +321,8 @@ export function Galaxy({ children }: { children: ReactNode }) {
     const solRef = useRef<HTMLCanvasElement>(null);
     const enduranceRef = useRef<HTMLCanvasElement>(null);
     const enterpriseRef = useRef<HTMLCanvasElement>(null);
+    const earthRef = useRef<HTMLCanvasElement>(null);
+    const earthSpotRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         const back = backRef.current?.getContext('2d');
@@ -312,6 +330,8 @@ export function Galaxy({ children }: { children: ReactNode }) {
         const sol = solRef.current?.getContext('2d');
         const endurance = enduranceRef.current?.getContext('2d');
         const enterprise = enterpriseRef.current?.getContext('2d');
+        const earth = earthRef.current?.getContext('2d');
+        const earthSpot = earthSpotRef.current;
 
         if (
             !back ||
@@ -319,6 +339,8 @@ export function Galaxy({ children }: { children: ReactNode }) {
             !sol ||
             !endurance ||
             !enterprise ||
+            !earth ||
+            !earthSpot ||
             window.matchMedia('(prefers-reduced-motion: reduce)').matches
         ) {
             return;
@@ -340,6 +362,9 @@ export function Galaxy({ children }: { children: ReactNode }) {
             ship.canvas.width = SHIP_FIELD_SIZE * solScale;
             ship.canvas.height = SHIP_FIELD_SIZE * solScale;
         }
+
+        earth.canvas.width = EARTH_CLOSEUP_SIZE * solScale;
+        earth.canvas.height = EARTH_CLOSEUP_SIZE * solScale;
 
         const layers = [back, front, sol, endurance, enterprise];
 
@@ -363,6 +388,33 @@ export function Galaxy({ children }: { children: ReactNode }) {
         let enterpriseOrbit: { radius: number; angle: number } | null = null;
         let isVisible = true;
         let frame = 0;
+        let earthShowStartedAt: number | null = null;
+        let earthCooldownUntil = 0;
+        let isHoveringEarth = false;
+
+        // The headline's layer sits on top of the galaxy, so check where the
+        // pointer is rather than waiting for the Earth's spot to be hovered.
+        const trackPointer = (event: PointerEvent) => {
+            const spot = earthSpot.getBoundingClientRect();
+
+            isHoveringEarth =
+                Math.hypot(
+                    event.clientX - (spot.left + spot.width / 2),
+                    event.clientY - (spot.top + spot.height / 2),
+                ) <
+                spot.width / 2;
+        };
+        window.addEventListener('pointermove', trackPointer, {
+            passive: true,
+        });
+
+        const endEarthShow = (now: number) => {
+            earthShowStartedAt = null;
+            earthCooldownUntil = now + EARTH_CLOSEUP_COOLDOWN_MS;
+            isHoveringEarth = false;
+            earth.canvas.style.opacity = '0';
+            earthSpot.dataset.state = 'idle';
+        };
 
         const visibilityObserver = new IntersectionObserver(([entry]) => {
             isVisible = entry.isIntersecting;
@@ -382,6 +434,9 @@ export function Galaxy({ children }: { children: ReactNode }) {
                 }
 
                 appearedAt = null;
+                if (earthShowStartedAt !== null) {
+                    endEarthShow(now);
+                }
 
                 return;
             }
@@ -392,8 +447,19 @@ export function Galaxy({ children }: { children: ReactNode }) {
                 FADE_IN_SECONDS * 1000,
                 now - appearedAt,
             );
+            let closeup =
+                earthShowStartedAt === null
+                    ? null
+                    : earthShowProgress((now - earthShowStartedAt) / 1000);
+
+            if (earthShowStartedAt !== null && closeup === null) {
+                endEarthShow(now);
+            }
+
             for (const layer of layers) {
-                layer.canvas.style.opacity = String(fade);
+                layer.canvas.style.opacity = String(
+                    fade * (1 - EARTH_CLOSEUP_DIM * (closeup ?? 0)),
+                );
             }
 
             const seconds = (now - startedAt) / 1000;
@@ -620,6 +686,42 @@ export function Galaxy({ children }: { children: ReactNode }) {
             sol.canvas.style.zIndex = solOffset.depth > 0 ? '' : '-1';
             drawSolSystem(sol, projectOffset, zoom, roll, seconds);
 
+            // Hovering over the Earth zooms in on it for a little while.
+            const earthAt = earthOffset(projectOffset, seconds);
+            const earthX = solOffset.x + earthAt.x;
+            const earthY = solOffset.y + earthAt.y;
+            earthSpot.style.transform = `translate(${earthX}px, ${earthY}px) translate(-50%, -50%)`;
+
+            if (
+                isHoveringEarth &&
+                earthShowStartedAt === null &&
+                fade === 1 &&
+                now > earthCooldownUntil
+            ) {
+                earthShowStartedAt = now;
+                closeup = 0;
+                earthSpot.dataset.state = 'playing';
+            }
+
+            if (earthShowStartedAt !== null && closeup !== null) {
+                const smallest = (EARTH_SIZE * zoom) / EARTH_CLOSEUP_RADIUS;
+                const closeupX =
+                    earthX + (EARTH_CLOSEUP_AT.x - earthX) * closeup;
+                const closeupY =
+                    earthY + (EARTH_CLOSEUP_AT.y - earthY) * closeup;
+
+                earth.canvas.style.opacity = '1';
+                earth.canvas.style.transform = `translate(${closeupX - EARTH_CLOSEUP_SIZE / 2}px, ${closeupY - EARTH_CLOSEUP_SIZE / 2}px) scale(${smallest * (1 / smallest) ** closeup})`;
+                earth.setTransform(solScale, 0, 0, solScale, 0, 0);
+                earth.clearRect(0, 0, EARTH_CLOSEUP_SIZE, EARTH_CLOSEUP_SIZE);
+                drawEarthCloseup(
+                    earth,
+                    Math.min(solScale, 1.5),
+                    (now - earthShowStartedAt) / 1000,
+                    closeup,
+                );
+            }
+
             // The Voyagers leave Earth and head out across the galaxy.
             for (const voyager of voyagerTrails(seconds)) {
                 if (voyager.visibility <= 0) {
@@ -754,6 +856,7 @@ export function Galaxy({ children }: { children: ReactNode }) {
         return () => {
             cancelAnimationFrame(frame);
             visibilityObserver.disconnect();
+            window.removeEventListener('pointermove', trackPointer);
         };
     }, []);
 
@@ -774,6 +877,17 @@ export function Galaxy({ children }: { children: ReactNode }) {
             />
             <canvas ref={enduranceRef} className={shipClassName} />
             <canvas ref={enterpriseRef} className={shipClassName} />
+            <canvas
+                ref={earthRef}
+                className="pointer-events-none absolute top-1/2 left-1/2 size-[720px] opacity-0 motion-reduce:hidden"
+            />
+            <div
+                ref={earthSpotRef}
+                data-test="earth"
+                data-state="idle"
+                aria-hidden="true"
+                className="pointer-events-none absolute top-1/2 left-1/2 size-8 rounded-full motion-reduce:hidden"
+            />
         </>
     );
 }
