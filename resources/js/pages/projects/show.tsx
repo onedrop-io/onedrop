@@ -425,7 +425,8 @@ function ChatPanel({
                 {claudeSignIn && (
                     <ClaudeLoginStatus
                         projectId={project.id}
-                        taskId={task?.own_copy ? task.id : null}
+                        taskId={task?.id ?? null}
+                        working={working}
                         onSignIn={claudeSignIn}
                     />
                 )}

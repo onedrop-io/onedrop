@@ -29,6 +29,7 @@ use Illuminate\Support\Str;
  * @property string $prompt
  * @property ProjectStatus $status
  * @property string|null $agent_session_id
+ * @property int|null $sign_in_retry_message_id
  * @property AgentHarness|null $agent_harness
  * @property AgentProvider|null $agent_provider
  * @property string|null $agent_model
@@ -66,7 +67,7 @@ use Illuminate\Support\Str;
  * @property-read string|null $last_reply_at When the agent last replied (loaded with withMax, for the sidebar).
  * @property-read bool|null $task_working Whether any of its tasks' agents is running (loaded with withExists, for the sidebar).
  */
-#[Fillable(['name', 'prompt', 'status', 'agent_session_id', 'agent_harness', 'agent_provider', 'agent_model', 'agent_variant', 'publish_status', 'publish_visibility', 'publish_target', 'published_url', 'published_at', 'published_by', 'publish_error', 'publish_login_url', 'onedrop_enabled', 'onedrop_client_id', 'onedrop_client_secret', 'onedrop_callback_path', 'onedrop_group_ids', 'pinned_at', 'read_at', 'archived_at', 'backup_commit', 'backed_up_at', 'icon_path', 'icon_mime', 'icon_hash', 'git_remote_url', 'git_remote_username', 'git_remote_token', 'git_sync_status', 'git_sync_error', 'git_synced_at', 'github_installation_id', 'autofix'])]
+#[Fillable(['name', 'prompt', 'status', 'agent_session_id', 'sign_in_retry_message_id', 'agent_harness', 'agent_provider', 'agent_model', 'agent_variant', 'publish_status', 'publish_visibility', 'publish_target', 'published_url', 'published_at', 'published_by', 'publish_error', 'publish_login_url', 'onedrop_enabled', 'onedrop_client_id', 'onedrop_client_secret', 'onedrop_callback_path', 'onedrop_group_ids', 'pinned_at', 'read_at', 'archived_at', 'backup_commit', 'backed_up_at', 'icon_path', 'icon_mime', 'icon_hash', 'git_remote_url', 'git_remote_username', 'git_remote_token', 'git_sync_status', 'git_sync_error', 'git_synced_at', 'github_installation_id', 'autofix'])]
 #[Hidden(['onedrop_client_secret', 'git_remote_token'])]
 class Project extends Model implements Conversation
 {

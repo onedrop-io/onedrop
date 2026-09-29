@@ -2,6 +2,7 @@
 
 use App\Enums\AgentHarness;
 use App\Enums\AgentProvider;
+use App\Enums\MessageRole;
 use App\Enums\SandboxStatus;
 use App\Models\AgentConnection;
 use App\Models\Project;
@@ -41,7 +42,7 @@ test('users switch a project to Claude Code and pick from Claude models', functi
         ->and($project->agent_session_id)->toBeNull();
 })->group('AGT-007');
 
-test('users sign in to Claude from the chat in Claude Code\'s own sign-in in the Shell tab', function () {
+test('users sign in to Claude from the chat in Claude Code\'s own sign-in in the Shell tab, and the chat carries on', function () {
     $provider = new FakeSandboxProvider;
     $provider->execUsing = fn (array $command) => new ExecResult(1, json_encode(['loggedIn' => false, 'authMethod' => 'none']));
     app()->instance(SandboxProvider::class, $provider);
@@ -49,6 +50,9 @@ test('users sign in to Claude from the chat in Claude Code\'s own sign-in in the
     AgentConnection::factory()->for($user)->claudeLogin()->create();
     $project = Project::factory()->for($user)->create(['agent_harness' => AgentHarness::ClaudeCode]);
     Sandbox::factory()->for($project)->create(['status' => SandboxStatus::Running, 'preview_url' => null, 'shell_url' => 'http://127.0.0.1:7681']);
+    // The last message failed because Claude Code wasn't signed in.
+    $failed = $project->messages()->create(['role' => MessageRole::User, 'content' => 'Build a timer']);
+    $project->update(['sign_in_retry_message_id' => $failed->id]);
     $this->actingAs($user);
 
     $page = visit("/projects/{$project->id}")
@@ -61,5 +65,36 @@ test('users sign in to Claude from the chat in Claude Code\'s own sign-in in the
     // Once Claude Code reports a sign-in, the chat shows who it's signed in as.
     $provider->execUsing = fn (array $command) => new ExecResult(0, json_encode(['loggedIn' => true, 'authMethod' => 'claude.ai', 'email' => 'dev@example.com']));
 
-    $page->wait(6)->assertSeeIn('@claude-login-status', 'Claude Code is signed in as dev@example.com');
+    // ...and the chat picks the failed message back up.
+    $page->wait(6)->assertSeeIn('@claude-login-status', 'Claude Code is signed in as dev@example.com')
+        ->assertSee('Signed in to Claude, picking up where it left off')
+        ->assertNoJavaScriptErrors();
+
+    expect($project->fresh()->sign_in_retry_message_id)->toBeNull();
 })->group('AI-005');
+
+test('connecting a Claude subscription in settings unlocks Claude Code in the chat without a reload', function () {
+    $user = User::factory()->create();
+    AgentConnection::factory()->for($user)->provider(AgentProvider::OpenRouter)->create(['is_default' => true]);
+    $this->actingAs($user);
+
+    $page = visit('/dashboard')
+        ->click('@harness-picker')
+        ->assertSeeIn('@harness-claude_code', 'Connect Claude in Settings → AI to use it')
+        ->keys('@harness-menu', 'Escape')
+        ->assertMissing('@harness-menu')
+        ->click('@sidebar-menu-button')
+        ->click('@settings-link')
+        ->click('[data-test="settings-modal"] a:has-text("AI")')
+        ->assertPathIs('/settings/ai')
+        ->click('@switch-method-claude')
+        ->press('@use-claude-subscription')
+        ->assertSee('Claude subscription added.')
+        ->keys('@settings-modal', 'Escape')
+        ->assertMissing('@settings-modal');
+
+    $page->click('@harness-picker')
+        ->click('@harness-claude_code')
+        ->assertSeeIn('@harness-picker', 'Claude Code')
+        ->assertNoJavaScriptErrors();
+})->group('AGT-007');

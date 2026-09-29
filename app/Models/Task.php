@@ -32,6 +32,7 @@ use Illuminate\Support\Str;
  * @property int $position
  * @property ProjectStatus $status
  * @property string|null $agent_session_id
+ * @property int|null $sign_in_retry_message_id
  * @property string|null $events_token_hash
  * @property string|null $base_commit
  * @property TaskSyncStatus|null $sync_status
@@ -40,7 +41,7 @@ use Illuminate\Support\Str;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['title', 'description', 'stage', 'position', 'status', 'agent_session_id', 'events_token_hash', 'base_commit', 'sync_status', 'sync_error', 'applied_at'])]
+#[Fillable(['title', 'description', 'stage', 'position', 'status', 'agent_session_id', 'sign_in_retry_message_id', 'events_token_hash', 'base_commit', 'sync_status', 'sync_error', 'applied_at'])]
 #[Hidden(['events_token_hash'])]
 class Task extends Model implements Conversation
 {

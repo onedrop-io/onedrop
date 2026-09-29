@@ -99,16 +99,23 @@ class ClaudeCodeEvents extends AgentEvents
         }
 
         if ($event['is_error'] ?? false) {
-            $this->say($conversation, MessageRole::Assistant, $this->explainResult($conversation, $event));
+            [$explanation, $signedOut] = $this->explainResult($conversation, $event);
+            $this->say($conversation, MessageRole::Assistant, $explanation);
+
+            // Run the message again once the user signs in (AI-005).
+            if ($signedOut) {
+                $conversation->update(['sign_in_retry_message_id' => $conversation->messages()->reorder()->where('role', MessageRole::User)->latest('id')->value('id')]);
+            }
         }
     }
 
     /**
-     * Plain-language version of a failed run's result.
+     * Plain-language version of a failed run's result, and whether it failed because Claude Code isn't signed in.
      *
      * @param  array<string, mixed>  $event
+     * @return array{string, bool}
      */
-    protected function explainResult(Conversation $conversation, array $event): string
+    protected function explainResult(Conversation $conversation, array $event): array
     {
         $subscription = $conversation->ownerProject()->user->agentConnections()
             ->where('provider', AgentProvider::Claude)
@@ -120,15 +127,17 @@ class ClaudeCodeEvents extends AgentEvents
         ]))) ?: (string) ($event['subtype'] ?? 'unknown error');
         $status = (int) ($event['api_error_status'] ?? 0);
 
+        $retry = " I'll pick up your message as soon as you're signed in.";
+        $authFailed = in_array($status, [401, 403], true) || Str::contains($message, ['authentication_failed', 'Failed to authenticate', 'invalid api key', 'OAuth token'], ignoreCase: true);
+
         return match (true) {
-            Str::contains($message, 'credit balance is too low', ignoreCase: true) => 'Your Anthropic account is out of credits. Add credits at console.anthropic.com, then try again.',
-            Str::contains($message, ['usage limit', 'hit your limit', 'limit reached', 'out of extra usage'], ignoreCase: true) => "Your Claude plan's usage limit is used up for now. Try again when it resets, or connect an Anthropic API key in Settings → AI.",
-            Str::contains($message, ['Not logged in', 'Please run /login'], ignoreCase: true) => 'Sign in to Claude to build on your subscription: click **Sign in to Claude** under the chat box, then send your message again.',
-            in_array($status, [401, 403], true) || Str::contains($message, ['authentication_failed', 'Failed to authenticate', 'invalid api key', 'OAuth token'], ignoreCase: true) => $subscription
-                ? 'Your Claude sign-in has expired or was signed out. Click **Sign in to Claude** under the chat box to sign in again, then send your message again.'
-                : 'Claude rejected your API key. Reconnect Claude in Settings → AI.',
-            $status === 429 || $status === 529 || Str::contains($message, 'overloaded', ignoreCase: true) => 'Claude is overloaded right now. Try again in a minute.',
-            default => 'Something went wrong: '.Str::limit($message, 300),
+            Str::contains($message, 'credit balance is too low', ignoreCase: true) => ['Your Anthropic account is out of credits. Add credits at console.anthropic.com, then try again.', false],
+            Str::contains($message, ['usage limit', 'hit your limit', 'limit reached', 'out of extra usage'], ignoreCase: true) => ["Your Claude plan's usage limit is used up for now. Try again when it resets, or connect an Anthropic API key in Settings → AI.", false],
+            Str::contains($message, ['Not logged in', 'Please run /login'], ignoreCase: true) => ['Sign in to Claude to build on your subscription: click **Sign in to Claude** under the chat box.'.$retry, true],
+            $authFailed && $subscription => ['Your Claude sign-in has expired or was signed out. Click **Sign in to Claude** under the chat box to sign in again.'.$retry, true],
+            $authFailed => ['Claude rejected your API key. Reconnect Claude in Settings → AI.', false],
+            $status === 429 || $status === 529 || Str::contains($message, 'overloaded', ignoreCase: true) => ['Claude is overloaded right now. Try again in a minute.', false],
+            default => ['Something went wrong: '.Str::limit($message, 300), false],
         };
     }
 }

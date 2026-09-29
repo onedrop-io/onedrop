@@ -197,6 +197,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('ssh-keys/{sshKey}', [SshKeyController::class, 'destroy'])->name('ssh-keys.destroy');
         Route::patch('projects/{project}/agent', [ProjectAgentController::class, 'update'])->name('projects.agent.update');
         Route::get('projects/{project}/claude-login', [ClaudeLoginController::class, 'show'])->middleware('throttle:30,1')->name('projects.claude-login.show');
+        Route::post('projects/{project}/claude-login/resume', [ClaudeLoginController::class, 'resume'])->middleware('throttle:30,1')->name('projects.claude-login.resume');
         Route::patch('projects/{project}/agent/autofix', [ProjectAgentController::class, 'autofix'])->name('projects.agent.autofix');
         Route::post('projects/{project}/agent/stop', [ProjectAgentController::class, 'stop'])->name('projects.agent.stop');
         Route::delete('projects/{project}/messages/{message}', [ProjectMessageController::class, 'destroy'])->name('projects.messages.destroy');

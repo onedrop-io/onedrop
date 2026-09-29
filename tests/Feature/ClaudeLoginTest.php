@@ -5,6 +5,7 @@ use App\Enums\MessageRole;
 use App\Enums\ProjectStatus;
 use App\Enums\SandboxStatus;
 use App\Jobs\CreateSandbox;
+use App\Jobs\RunAgentTask;
 use App\Jobs\SignOutOfClaude;
 use App\Models\AgentConnection;
 use App\Models\Project;
@@ -15,6 +16,7 @@ use App\Sandbox\Providers\FakeSandboxProvider;
 use App\Sandbox\SandboxProvider;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 
 beforeEach(function () {
     $this->provider = new FakeSandboxProvider;
@@ -54,6 +56,58 @@ test('the sign-in status is unknown while the sandbox is not running', function 
 test('only the owner can see the sign-in status', function () {
     $this->actingAs(User::factory()->has(AgentConnection::factory())->create())
         ->getJson(route('projects.claude-login.show', $this->project))
+        ->assertForbidden();
+})->group('AI-005');
+
+test('signing in runs the message that failed because Claude Code wasn\'t signed in', function () {
+    Queue::fake();
+    $this->provider->execUsing = fn (array $command) => new ExecResult(0, json_encode(['loggedIn' => true, 'authMethod' => 'claude.ai']));
+    $message = $this->project->messages()->create(['role' => MessageRole::User, 'content' => 'Build a timer']);
+    $this->project->messages()->create(['role' => MessageRole::Assistant, 'content' => 'Sign in to Claude…']);
+    $this->project->update(['sign_in_retry_message_id' => $message->id]);
+
+    $this->actingAs($this->user)
+        ->postJson(route('projects.claude-login.resume', $this->project))
+        ->assertExactJson(['resumed' => true]);
+
+    $this->project->refresh();
+    expect($this->project->status)->toBe(ProjectStatus::Working)
+        ->and($this->project->sign_in_retry_message_id)->toBeNull()
+        ->and($this->project->messages()->where('role', MessageRole::User)->count())->toBe(1)
+        ->and($this->project->messages()->reorder()->latest('id')->value('content'))->toBe('Signed in to Claude, picking up where it left off');
+    Queue::assertPushed(RunAgentTask::class, fn (RunAgentTask $job) => $job->message->is($message));
+})->group('AI-005');
+
+test('nothing runs again while Claude Code is still signed out, or when nothing failed', function (bool $pending, array $status) {
+    Queue::fake();
+    $this->provider->execUsing = fn (array $command) => new ExecResult(1, json_encode($status));
+    $message = $this->project->messages()->create(['role' => MessageRole::User, 'content' => 'Build a timer']);
+    $this->project->update(['sign_in_retry_message_id' => $pending ? $message->id : null]);
+
+    $this->actingAs($this->user)
+        ->postJson(route('projects.claude-login.resume', $this->project))
+        ->assertExactJson(['resumed' => false]);
+
+    expect($this->project->fresh()->sign_in_retry_message_id)->toBe($pending ? $message->id : null);
+    Queue::assertNothingPushed();
+})->with([
+    'still signed out' => [true, ['loggedIn' => false, 'authMethod' => 'none']],
+    'nothing failed' => [false, ['loggedIn' => true, 'authMethod' => 'claude.ai']],
+])->group('AI-005');
+
+test('sending another message drops the one waiting for sign-in', function () {
+    Queue::fake();
+    $message = $this->project->messages()->create(['role' => MessageRole::User, 'content' => 'Build a timer']);
+    $this->project->update(['sign_in_retry_message_id' => $message->id]);
+
+    $this->actingAs($this->user)->post(route('projects.messages.store', $this->project), ['content' => 'Build a clock instead']);
+
+    expect($this->project->fresh()->sign_in_retry_message_id)->toBeNull();
+})->group('AI-005');
+
+test('only the owner can pick the chat back up', function () {
+    $this->actingAs(User::factory()->has(AgentConnection::factory())->create())
+        ->postJson(route('projects.claude-login.resume', $this->project))
         ->assertForbidden();
 })->group('AI-005');
 

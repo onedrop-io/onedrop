@@ -97,6 +97,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see who they're signed in to Claude as under the chat box, once signed in.
 - One sign-in should work in all of the user's sandboxes where the sandbox provider supports a shared login folder (Docker); elsewhere each sandbox signs in once. The folder is only mounted into sandboxes of projects the user owns.
 - User should be told to sign in to Claude, or sign in again, when a Claude Code run finds they aren't signed in or their sign-in expired.
+- Once the user signs in (e.g. in the Shell tab), the chat should carry on by itself: the message that failed because they weren't signed in runs again, unless they've sent another since.
 - Pasting a Claude subscription token (`sk-ant-oat…`) should be refused with a pointer to "Use my Claude subscription"; tokens saved before this change are deleted.
 - Disconnecting the Claude subscription should sign Claude Code out in the user's running sandboxes and delete the shared login folder.
 
@@ -473,6 +474,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should only be offered Claude Code once they've connected Claude (an Anthropic API key or their Claude subscription), and only Claude models while it's chosen.
 - User should be able to build on their Claude Pro/Max subscription with Claude Code (AI-005); OpenCode can't use a Claude subscription.
 - New projects should start on the agent and model the user last chose (when starting a project or in a project's chat), while they can still run it.
+- User should be able to pick Claude Code right after connecting Claude in Settings → AI, without reloading the page.
 - Until the user chooses one, new projects should start on their AI subscription: Claude Code for a Claude subscription, OpenCode with Codex for a ChatGPT sign-in (their default connection first if they have both).
 - Without a subscription, new projects should start on OpenCode, or on Claude Code when Claude Code is the only agent the user's connections can run.
 - Starting a project without touching the picker should not pin the default as the user's choice.

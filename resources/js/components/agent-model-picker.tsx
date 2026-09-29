@@ -6,6 +6,7 @@ import {
     Search,
     Star,
 } from 'lucide-react';
+import { router } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import AgentModelController from '@/actions/App/Http/Controllers/AgentModelController';
 import {
@@ -109,6 +110,14 @@ function loadCatalog(): Promise<Catalog> {
     return cachedCatalog;
 }
 
+// Connecting or removing a provider (Settings → AI) changes which agents and models
+// can run; every Inertia response drops the cached catalog so the next menu open refetches it.
+if (typeof window !== 'undefined') {
+    router.on('success', () => {
+        cachedCatalog = null;
+    });
+}
+
 function csrfToken(): string {
     const match = document.cookie.match(/(?:^|; )XSRF-TOKEN=([^;]+)/);
 
@@ -192,15 +201,28 @@ function ModelMenu({
         [selection.harness, selection.provider],
     );
 
+    // Load on every open (cached until the next Inertia response) so a connection made
+    // since the page loaded shows up; the last catalog stays on screen meanwhile.
     useEffect(() => {
-        if (!open || catalog) {
+        if (!open) {
             return;
         }
 
+        let cancelled = false;
+
         loadCatalog()
-            .then(setCatalog)
-            .catch((e: Error) => setError(e.message));
-    }, [open, catalog]);
+            .then((next) => {
+                if (!cancelled) {
+                    setCatalog(next);
+                    setError(null);
+                }
+            })
+            .catch((e: Error) => !cancelled && setError(e.message));
+
+        return () => {
+            cancelled = true;
+        };
+    }, [open]);
 
     const favorites = useMemo(
         () => new Set(catalog?.favorites ?? []),
@@ -543,15 +565,28 @@ function HarnessMenu({
         (harness) => harness.id === selection.harness,
     );
 
+    // Load on every open (cached until the next Inertia response) so a connection made
+    // since the page loaded shows up; the last catalog stays on screen meanwhile.
     useEffect(() => {
-        if (!open || catalog) {
+        if (!open) {
             return;
         }
 
+        let cancelled = false;
+
         loadCatalog()
-            .then(setCatalog)
-            .catch((e: Error) => setError(e.message));
-    }, [open, catalog]);
+            .then((next) => {
+                if (!cancelled) {
+                    setCatalog(next);
+                    setError(null);
+                }
+            })
+            .catch((e: Error) => !cancelled && setError(e.message));
+
+        return () => {
+            cancelled = true;
+        };
+    }, [open]);
 
     const choose = (harness: AgentHarness) => {
         if (!catalog || harness === selection.harness) {

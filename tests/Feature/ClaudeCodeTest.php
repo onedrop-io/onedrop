@@ -297,13 +297,29 @@ test('failed Claude Code runs are explained once', function (array $result, stri
     expect($project->messages()->pluck('content')->all())->toBe([$expected])
         ->and($project->fresh()->status)->toBe(ProjectStatus::Idle);
 })->with([
-    'not signed in' => [['result' => 'Not logged in · Please run /login'], 'Sign in to Claude to build on your subscription: click **Sign in to Claude** under the chat box, then send your message again.'],
-    'expired sign-in' => [['api_error_status' => 401, 'result' => 'authentication_failed'], 'Your Claude sign-in has expired or was signed out. Click **Sign in to Claude** under the chat box to sign in again, then send your message again.'],
+    'not signed in' => [['result' => 'Not logged in · Please run /login'], "Sign in to Claude to build on your subscription: click **Sign in to Claude** under the chat box. I'll pick up your message as soon as you're signed in."],
+    'expired sign-in' => [['api_error_status' => 401, 'result' => 'authentication_failed'], "Your Claude sign-in has expired or was signed out. Click **Sign in to Claude** under the chat box to sign in again. I'll pick up your message as soon as you're signed in."],
     'plan limit' => [['result' => "You've hit your limit · resets 5pm"], "Your Claude plan's usage limit is used up for now. Try again when it resets, or connect an Anthropic API key in Settings → AI."],
     'no API credits' => [['result' => 'Credit balance is too low'], 'Your Anthropic account is out of credits. Add credits at console.anthropic.com, then try again.'],
     'overloaded' => [['api_error_status' => 529, 'result' => 'Overloaded'], 'Claude is overloaded right now. Try again in a minute.'],
     'anything else' => [['subtype' => 'error_during_execution', 'errors' => ['boom']], 'Something went wrong: boom'],
 ])->group('AGT-007');
+
+test('a run that fails because Claude isn\'t signed in waits to run again after sign-in', function (array $result, bool $waits) {
+    $project = Project::factory()->for($this->user)->create(['status' => ProjectStatus::Working]);
+    $message = $project->messages()->create(['role' => MessageRole::User, 'content' => 'Build a timer']);
+
+    sendClaudeEvents($project, [
+        ['type' => 'result', 'is_error' => true, ...$result],
+        ['type' => 'zap.exit', 'code' => 1, 'stderr' => '', 'reported' => true],
+    ]);
+
+    expect($project->fresh()->sign_in_retry_message_id)->toBe($waits ? $message->id : null);
+})->with([
+    'not signed in' => [['result' => 'Not logged in · Please run /login'], true],
+    'expired sign-in' => [['api_error_status' => 401, 'result' => 'authentication_failed'], true],
+    'plan limit' => [['result' => "You've hit your limit · resets 5pm"], false],
+])->group('AI-005');
 
 test('a Claude Code crash without a result is still explained', function () {
     $project = Project::factory()->for($this->user)->create(['status' => ProjectStatus::Working]);

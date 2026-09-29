@@ -104,6 +104,32 @@ class AgentQueue
     }
 
     /**
+     * Run the message whose Claude Code run failed because Claude wasn't signed in, now that the user has
+     * signed in (AI-005). False when there's none, or the agent is busy.
+     */
+    public function resumeAfterSignIn(Conversation $conversation): bool
+    {
+        $messageId = $conversation->getAttribute('sign_in_retry_message_id');
+
+        if ($messageId === null || $conversation->getAttribute('status') === ProjectStatus::Working) {
+            return false;
+        }
+
+        $conversation->update(['sign_in_retry_message_id' => null]);
+        $message = $conversation->messages()->where('role', MessageRole::User)->whereKey($messageId)->first();
+
+        if (! $message) {
+            return false;
+        }
+
+        $conversation->update(['status' => ProjectStatus::Working]);
+        $conversation->messages()->create(['role' => MessageRole::Activity, 'content' => 'Signed in to Claude, picking up where it left off']);
+        $this->start($conversation, $message);
+
+        return true;
+    }
+
+    /**
      * End the current run without touching the queue.
      */
     protected function interrupt(Conversation $conversation): void
@@ -127,17 +153,28 @@ class AgentQueue
      */
     protected function run(Conversation $conversation, string $content, ?Closure $attach = null): Message
     {
-        $conversation->update(['status' => ProjectStatus::Working]);
-
-        // A card starting (or going again) moves to In progress on the board (TASK-002).
-        if ($conversation instanceof Task && $conversation->stage !== TaskStage::InProgress) {
-            $conversation->update(['stage' => TaskStage::InProgress, 'position' => $conversation->project->nextTaskPosition(TaskStage::InProgress)]);
-        }
+        // A new message replaces one waiting to run again after a Claude sign-in (AI-005).
+        $conversation->update(['status' => ProjectStatus::Working, 'sign_in_retry_message_id' => null]);
 
         $message = $conversation->messages()->create(['role' => MessageRole::User, 'content' => $content]);
 
         if ($attach) {
             $attach($message);
+        }
+
+        $this->start($conversation, $message);
+
+        return $message;
+    }
+
+    /**
+     * Start the agent on a message already in the chat (the conversation is marked working).
+     */
+    protected function start(Conversation $conversation, Message $message): void
+    {
+        // A card starting (or going again) moves to In progress on the board (TASK-002).
+        if ($conversation instanceof Task && $conversation->stage !== TaskStage::InProgress) {
+            $conversation->update(['stage' => TaskStage::InProgress, 'position' => $conversation->project->nextTaskPosition(TaskStage::InProgress)]);
         }
 
         // A task's first run (or its first since it was applied) makes its own copy of the app first (TASK-003).
@@ -149,11 +186,9 @@ class AgentQueue
                 new RunAgentTask($conversation->ownerProject(), $message),
             ])->dispatch();
 
-            return $message;
+            return;
         }
 
         RunAgentTask::dispatch($conversation->ownerProject(), $message);
-
-        return $message;
     }
 }

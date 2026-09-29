@@ -1,6 +1,8 @@
+import { router } from '@inertiajs/react';
 import { Check, LogIn } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import ClaudeLoginController from '@/actions/App/Http/Controllers/ClaudeLoginController';
+import { jsonRequest } from '@/lib/json-request';
 
 type Status = { signed_in: boolean | null; email: string | null };
 
@@ -8,24 +10,33 @@ type Status = { signed_in: boolean | null; email: string | null };
 const RECHECK_MS = 5000;
 
 /**
- * Whether Claude Code in this sandbox is signed in to the user's Claude subscription (AI-005),
- * with a button that opens Claude Code's own sign-in in the Shell tab.
+ * Whether Claude Code in this chat's sandbox is signed in to the user's Claude subscription (AI-005),
+ * with a button that opens Claude Code's own sign-in in the Shell tab. Signing in picks the chat back
+ * up: a message that failed because Claude Code wasn't signed in runs again.
  */
 export default function ClaudeLoginStatus({
     projectId,
     taskId,
+    working,
     onSignIn,
 }: {
     projectId: number;
-    /** A task's own copy of the app, which may have its own sign-in. */
+    /** The task whose chat this is (it may have its own copy of the app, with its own sign-in). */
     taskId: number | null;
+    /** Checked again after each run, which may have found the sign-in expired. */
+    working: boolean;
     onSignIn: () => void;
 }) {
     const [status, setStatus] = useState<Status | null>(null);
 
     useEffect(() => {
+        if (working) {
+            return;
+        }
+
         let timer: ReturnType<typeof setTimeout>;
         let cancelled = false;
+        let signedOut = false;
 
         const check = async () => {
             try {
@@ -46,13 +57,34 @@ export default function ClaudeLoginStatus({
 
                 setStatus(next);
 
+                if (next.signed_in === false) {
+                    signedOut = true;
+                }
+
                 if (next.signed_in !== true) {
                     timer = setTimeout(check, RECHECK_MS);
+                } else if (signedOut) {
+                    void resume();
                 }
             } catch {
                 if (!cancelled) {
                     timer = setTimeout(check, RECHECK_MS);
                 }
+            }
+        };
+
+        const resume = async () => {
+            try {
+                const { resumed } = await jsonRequest<{ resumed: boolean }>(
+                    ClaudeLoginController.resume.url(projectId),
+                    taskId ? { task: taskId } : {},
+                );
+
+                if (resumed && !cancelled) {
+                    router.reload();
+                }
+            } catch {
+                // The user can still send the message again themselves.
             }
         };
 
@@ -62,7 +94,7 @@ export default function ClaudeLoginStatus({
             cancelled = true;
             clearTimeout(timer);
         };
-    }, [projectId, taskId]);
+    }, [projectId, taskId, working]);
 
     if (status?.signed_in === true) {
         return (
