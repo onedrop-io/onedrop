@@ -27,7 +27,7 @@ class AttachmentFactory extends Factory
             'size' => 4,
             'path' => function (): string {
                 $path = 'attachments/'.Str::random(40);
-                Storage::disk(Attachment::DISK)->put($path, "\x89PNG");
+                Storage::disk(Attachment::disk())->put($path, "\x89PNG");
 
                 return $path;
             },
@@ -45,7 +45,7 @@ class AttachmentFactory extends Factory
             'size' => strlen($contents),
             'path' => function () use ($contents): string {
                 $path = 'attachments/'.Str::random(40);
-                Storage::disk(Attachment::DISK)->put($path, $contents);
+                Storage::disk(Attachment::disk())->put($path, $contents);
 
                 return $path;
             },

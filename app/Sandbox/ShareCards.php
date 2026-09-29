@@ -17,7 +17,13 @@ use Illuminate\Support\Str;
  */
 class ShareCards
 {
-    public const DISK = 'local';
+    /**
+     * The app's default disk, shared by web and queue instances (e.g. object storage on Laravel Cloud).
+     */
+    public static function disk(): string
+    {
+        return (string) config('filesystems.default');
+    }
 
     public const SANDBOX_DIRECTORY = '/tmp/onedrop-share';
 
@@ -76,7 +82,7 @@ class ShareCards
      */
     public function delete(int $projectId): void
     {
-        Storage::disk(self::DISK)->deleteDirectory("project-shares/{$projectId}");
+        Storage::disk(self::disk())->deleteDirectory("project-shares/{$projectId}");
     }
 
     /**
@@ -136,7 +142,7 @@ class ShareCards
 
     protected function store(ProjectShare $share, string $screenshot, string $card): void
     {
-        $disk = Storage::disk(self::DISK);
+        $disk = Storage::disk(self::disk());
         $prefix = "project-shares/{$share->project_id}/".Str::random(12);
         $old = array_filter([$share->screenshot_file, $share->card_file]);
 

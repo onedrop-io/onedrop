@@ -32,7 +32,7 @@ beforeEach(function () {
 test('the user pastes and picks files, sees and removes them, and sees sent images in the chat', function () {
     $message = $this->project->messages()->create(['role' => 'user', 'content' => 'here is the logo']);
     $sent = Attachment::factory()->for($message)->create(['name' => 'sent-logo.png', 'path' => 'attachments/sent-logo']);
-    Storage::disk(Attachment::DISK)->put($sent->path, file_get_contents($this->image));
+    Storage::disk(Attachment::disk())->put($sent->path, file_get_contents($this->image));
 
     $page = visit("/projects/{$this->project->id}")
         ->attach('[data-test="composer-file-input"]', $this->notes);

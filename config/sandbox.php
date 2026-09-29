@@ -180,11 +180,12 @@ return [
     | After every agent turn the project's git history is copied out of its
     | sandbox, as a git bundle, to this filesystem disk (e.g. "s3"), so the
     | code outlives any sandbox or provider. New sandboxes without the old
-    | one's files get the code back from here.
+    | one's files get the code back from here. Unset, it's the app's default
+    | disk (FILESYSTEM_DISK, or the bucket Laravel Cloud attaches as default).
     |
     */
 
-    'backup_disk' => env('SANDBOX_BACKUP_DISK', 'local'),
+    'backup_disk' => env('SANDBOX_BACKUP_DISK'),
 
     /*
     |--------------------------------------------------------------------------

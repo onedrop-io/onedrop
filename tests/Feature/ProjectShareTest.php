@@ -51,7 +51,7 @@ function shareCardCall(FakeSandboxProvider $provider): ?array
 }
 
 beforeEach(function () {
-    Storage::fake(ShareCards::DISK);
+    Storage::fake(ShareCards::disk());
     app()->instance(Publisher::class, new FakePublisher);
     $this->user = User::factory()->has(AgentConnection::factory())->create(['name' => 'Jeff Loiselle']);
     $this->project = Project::factory()->for($this->user)->create(['name' => 'Team CRM', 'prompt' => 'A CRM for our sales team']);
@@ -140,18 +140,30 @@ test('making the card screenshots the chosen page in the sandbox and keeps both 
         ->and($share->card_status)->toBe(ShareCardStatus::Ready)
         ->and($share->captured_at)->not->toBeNull();
 
-    Storage::disk(ShareCards::DISK)->assertExists([$share->card_file, $share->screenshot_file]);
+    Storage::disk(ShareCards::disk())->assertExists([$share->card_file, $share->screenshot_file]);
+})->group('SHARE-001');
+
+test('cards are kept on the app\'s default disk, which every instance can read', function () {
+    shareSandbox();
+    Storage::fake('shared');
+    config(['filesystems.default' => 'shared']);
+    $share = ProjectShare::factory()->for($this->project)->create();
+
+    CaptureShareCard::dispatchSync($share);
+
+    Storage::disk('shared')->assertExists($share->fresh()->card_file);
+    $this->get($share->fresh()->cardUrl())->assertOk()->assertHeader('Content-Type', 'image/png');
 })->group('SHARE-001');
 
 test('a new card replaces the old images', function () {
     shareSandbox();
-    Storage::disk(ShareCards::DISK)->put("project-shares/{$this->project->id}/old-card.png", 'old');
+    Storage::disk(ShareCards::disk())->put("project-shares/{$this->project->id}/old-card.png", 'old');
     $share = ProjectShare::factory()->for($this->project)->create(['card_file' => "project-shares/{$this->project->id}/old-card.png"]);
 
     CaptureShareCard::dispatchSync($share);
 
-    Storage::disk(ShareCards::DISK)->assertMissing("project-shares/{$this->project->id}/old-card.png");
-    Storage::disk(ShareCards::DISK)->assertExists($share->fresh()->card_file);
+    Storage::disk(ShareCards::disk())->assertMissing("project-shares/{$this->project->id}/old-card.png");
+    Storage::disk(ShareCards::disk())->assertExists($share->fresh()->card_file);
 })->group('SHARE-001');
 
 test('a card that cannot be made says why', function () {
@@ -249,7 +261,7 @@ test('link previews show the card, or OneDrop\'s own card until it is ready', fu
 })->group('SHARE-001');
 
 test('the card and screenshot are served publicly', function () {
-    Storage::disk(ShareCards::DISK)->put('project-shares/1/card.png', base64_decode(SHARE_PNG));
+    Storage::disk(ShareCards::disk())->put('project-shares/1/card.png', base64_decode(SHARE_PNG));
     $share = ProjectShare::factory()->for($this->project)->create(['card_file' => 'project-shares/1/card.png', 'captured_at' => now()]);
 
     $this->get(route('shares.card', $share))
@@ -272,27 +284,27 @@ test('views count once per visitor, not for the owner or link previews', functio
 
 test('stopping sharing takes the page and its images down, and sharing again gives a new link', function () {
     Queue::fake();
-    Storage::disk(ShareCards::DISK)->put("project-shares/{$this->project->id}/card.png", 'png');
+    Storage::disk(ShareCards::disk())->put("project-shares/{$this->project->id}/card.png", 'png');
     $share = ProjectShare::factory()->for($this->project)->create(['card_file' => "project-shares/{$this->project->id}/card.png"]);
 
     $this->actingAs($this->user)->delete(route('projects.share.destroy', $this->project))->assertRedirect();
 
     $this->get(route('shares.show', $share->slug))->assertNotFound();
     $this->get(route('shares.card', $share->slug))->assertNotFound();
-    Storage::disk(ShareCards::DISK)->assertMissing("project-shares/{$this->project->id}/card.png");
+    Storage::disk(ShareCards::disk())->assertMissing("project-shares/{$this->project->id}/card.png");
 
     $this->actingAs($this->user)->post(route('projects.share.store', $this->project), ['prompt' => 'Again'])->assertSessionHasNoErrors()->assertRedirect();
     expect($this->project->share()->first()->slug)->not->toBe($share->slug);
 })->group('SHARE-001');
 
 test('deleting a project deletes its share page and images', function () {
-    Storage::disk(ShareCards::DISK)->put("project-shares/{$this->project->id}/card.png", 'png');
+    Storage::disk(ShareCards::disk())->put("project-shares/{$this->project->id}/card.png", 'png');
     ProjectShare::factory()->for($this->project)->create();
 
     app(DeleteProject::class)->handle($this->project);
 
     expect(ProjectShare::count())->toBe(0);
-    Storage::disk(ShareCards::DISK)->assertMissing("project-shares/{$this->project->id}/card.png");
+    Storage::disk(ShareCards::disk())->assertMissing("project-shares/{$this->project->id}/card.png");
 })->group('SHARE-001');
 
 test('a visitor who remixes signs up, then gets the prompt on the new-project page', function () {

@@ -20,7 +20,7 @@ class ProjectAttachmentController extends Controller
 
         abort_unless($attachment->message?->project_id === $project->id, 404);
 
-        return Storage::disk(Attachment::DISK)->response(
+        return Storage::disk(Attachment::disk())->response(
             $attachment->path,
             $attachment->name,
             [

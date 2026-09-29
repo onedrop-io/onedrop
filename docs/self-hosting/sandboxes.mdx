@@ -157,14 +157,14 @@ php artisan sandbox:recreate 12 --keep-files
 
 ## Code backups
 
-After every agent turn, `/opt/zap/checkpoint` commits the workspace to git (the forwarder runs it, whichever agent ran the turn), and a `BackupProject` job copies the whole history out of the sandbox as a verified git bundle. Bundles are stored at `project-backups/<project id>/repo.bundle` on the filesystem disk named by `SANDBOX_BACKUP_DISK` (`local`, which is `storage/app/private`, by default). The sandbox never gets credentials for that disk: the platform copies the bundle out through the provider.
+After every agent turn, `/opt/zap/checkpoint` commits the workspace to git (the forwarder runs it, whichever agent ran the turn), and a `BackupProject` job copies the whole history out of the sandbox as a verified git bundle. Bundles are stored at `project-backups/<project id>/repo.bundle` on the filesystem disk named by `SANDBOX_BACKUP_DISK`, or the app's default disk (`FILESYSTEM_DISK`) when that isn't set. The sandbox never gets credentials for that disk: the platform copies the bundle out through the provider.
 
 Checkpoints never include `node_modules`, `vendor`, `.cache` or `.env` files (except `.env.example`), and a repository in the middle of a merge or rebase is left alone. Backups hold code and its history only; App Storage buckets and databases outside git aren't in them.
 
 When a sandbox is replaced without its files, the backup is cloned into the new one, with every branch, and the app starts. That covers a sandbox that's broken or gone, including one on a provider you've stopped using: if a [provider switch](#switch-providers) can't copy files out of the old sandbox, run `php artisan sandbox:recreate <project>` to start the project on the new provider from its backup. Deleting a project deletes its backup.
 
 <Tip>
-    In production, point `SANDBOX_BACKUP_DISK` at object storage (an `s3` disk in `config/filesystems.php`, which needs the `league/flysystem-aws-s3-v3` package) so backups outlive the server.
+    In production, keep backups on object storage so they outlive the server: an `s3` disk in `config/filesystems.php`, set as `FILESYSTEM_DISK` or `SANDBOX_BACKUP_DISK`. On Laravel Cloud, attach a bucket to the environment as its default disk.
 </Tip>
 
 ## Clean up

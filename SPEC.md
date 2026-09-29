@@ -338,6 +338,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - The share page should show the project's name, the owner's first name, the prompt, a screenshot of the app, how many prompts it took, and which agent built it. It should never show the rest of the chat, the code, or anything else.
 - The share page should link to the running app only when the project is published as Public and live.
 - OneDrop should take the screenshot in the project's sandbox and render a 1200×630 preview card from it (the prompt, the app, and the OneDrop mark), in the background.
+- The screenshot and card should be kept on the app's default disk, so every OneDrop instance can serve them (e.g. object storage on Laravel Cloud).
 - Pasting a share link into Slack, X, LinkedIn, iMessage, etc. should show that card, with the project's name and prompt as the title and description. Before the card is ready, the page should use OneDrop's own card.
 - User should see the card, its status (rendering, ready, failed with a reason), the link with a copy button, quick links to post on X and LinkedIn, and how many views and remixes the page has had.
 - User should be able to refresh the card (e.g. after the app changes); saving a new prompt or page refreshes it too.

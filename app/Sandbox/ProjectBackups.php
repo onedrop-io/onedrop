@@ -168,7 +168,7 @@ class ProjectBackups
 
     protected function disk(): Filesystem
     {
-        return Storage::disk(config('sandbox.backup_disk'));
+        return Storage::disk(config('sandbox.backup_disk') ?: config('filesystems.default'));
     }
 
     protected function path(Project $project): string

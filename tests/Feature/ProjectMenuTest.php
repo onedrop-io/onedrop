@@ -140,7 +140,7 @@ test('the sidebar has the live app link for sharing', function () {
 
 test('deleting a project takes its app offline and removes its chat, attachments, and sandbox', function () {
     Queue::fake();
-    Storage::fake(Attachment::DISK);
+    Storage::fake(Attachment::disk());
     $publisher = new FakePublisher;
     $publisher->published[$this->project->id] = PublishVisibility::Private;
     app()->instance(Publisher::class, $publisher);
@@ -159,7 +159,7 @@ test('deleting a project takes its app offline and removes its chat, attachments
         ->and(Sandbox::find($sandbox->id))->toBeNull()
         ->and(Message::find($message->id))->toBeNull()
         ->and($publisher->published)->toBe([]);
-    Storage::disk(Attachment::DISK)->assertMissing($attachment->path);
+    Storage::disk(Attachment::disk())->assertMissing($attachment->path);
     Queue::assertPushed(DestroySandbox::class, fn (DestroySandbox $job) => $job->externalId === 'sbx-1' && $job->provider === 'fake');
 })->group('PRJ-003');
 

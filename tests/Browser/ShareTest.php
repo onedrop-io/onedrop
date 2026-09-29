@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
-    Storage::fake(ShareCards::DISK);
+    Storage::fake(ShareCards::disk());
 
     // The sandbox's share-card script "leaves" a screenshot and a card to copy out.
     app()->instance(SandboxProvider::class, new class extends FakeSandboxProvider

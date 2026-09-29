@@ -31,8 +31,13 @@ class Attachment extends Model
     /** @use HasFactory<AttachmentFactory> */
     use HasFactory;
 
-    /** The disk attachments are kept on (private). */
-    public const DISK = 'local';
+    /**
+     * The disk attachments are kept on (private): the app's default, shared by web and queue instances (e.g. object storage on Laravel Cloud).
+     */
+    public static function disk(): string
+    {
+        return (string) config('filesystems.default');
+    }
 
     public const MAX_FILES = 10;
 
@@ -60,7 +65,7 @@ class Attachment extends Model
      */
     public static function store(Message $message, UploadedFile $file): self
     {
-        $path = $file->storeAs("attachments/{$message->project_id}", Str::random(40), self::DISK);
+        $path = $file->storeAs("attachments/{$message->project_id}", Str::random(40), self::disk());
 
         return $message->attachments()->create([
             'name' => Str::limit(basename($file->getClientOriginalName()), 200, '') ?: 'file',
@@ -72,7 +77,7 @@ class Attachment extends Model
 
     protected static function booted(): void
     {
-        static::deleted(fn (self $attachment) => Storage::disk(self::DISK)->delete($attachment->path));
+        static::deleted(fn (self $attachment) => Storage::disk(self::disk())->delete($attachment->path));
     }
 
     /**
@@ -88,7 +93,7 @@ class Attachment extends Model
      */
     public function contents(): string
     {
-        return (string) Storage::disk(self::DISK)->get($this->path);
+        return (string) Storage::disk(self::disk())->get($this->path);
     }
 
     /**

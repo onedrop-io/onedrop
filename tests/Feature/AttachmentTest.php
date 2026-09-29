@@ -22,7 +22,7 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
-    Storage::fake(Attachment::DISK);
+    Storage::fake(Attachment::disk());
     Queue::fake();
 
     $this->user = User::factory()->has(AgentConnection::factory())->create();
@@ -44,7 +44,7 @@ test('a message can carry images and files, with or without text', function () {
         ->and($logo->isVisibleImage())->toBeTrue()
         ->and($notes->isVisibleImage())->toBeFalse()
         ->and($notes->contents())->toBe('hello');
-    Storage::disk(Attachment::DISK)->assertExists([$logo->path, $notes->path]);
+    Storage::disk(Attachment::disk())->assertExists([$logo->path, $notes->path]);
     Queue::assertPushed(RunAgentTask::class, fn ($job) => $job->message->is($message));
 })->group('AGT-006');
 
@@ -113,7 +113,7 @@ test('a queued message keeps its attachments when it runs', function () {
     expect(Message::find($queued->id))->toBeNull()
         ->and($message->content)->toBe('add this logo')
         ->and($message->attachments()->sole()->path)->toBe($path);
-    Storage::disk(Attachment::DISK)->assertExists($path);
+    Storage::disk(Attachment::disk())->assertExists($path);
 })->group('AGT-006');
 
 test('stopping drops attachments on queued messages and says so', function () {
@@ -127,7 +127,7 @@ test('stopping drops attachments on queued messages and says so', function () {
         ->assertInertiaFlash('toast.message', 'The queued attachment was removed; attach it again to send it.');
 
     expect(Attachment::count())->toBe(0);
-    Storage::disk(Attachment::DISK)->assertMissing($path);
+    Storage::disk(Attachment::disk())->assertMissing($path);
 })->group('AGT-006');
 
 describe('the agent', function () {

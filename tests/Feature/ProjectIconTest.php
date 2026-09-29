@@ -73,7 +73,7 @@ function logoCall(FakeSandboxProvider $provider): ?array
 }
 
 beforeEach(function () {
-    Storage::fake(ProjectIcons::DISK);
+    Storage::fake(ProjectIcons::disk());
     app()->instance(Publisher::class, new FakePublisher);
     $this->user = User::factory()->has(AgentConnection::factory())->create();
     $this->project = Project::factory()->for($this->user)->create(['name' => 'Team CRM', 'prompt' => 'A CRM for our sales team']);
@@ -100,7 +100,7 @@ test('the app\'s own favicon becomes the project\'s icon', function () {
 
     $this->project->refresh();
     expect($this->project->icon_mime)->toBe('image/png')
-        ->and(Storage::disk(ProjectIcons::DISK)->get($this->project->icon_path))->toBe($png)
+        ->and(Storage::disk(ProjectIcons::disk())->get($this->project->icon_path))->toBe($png)
         ->and($provider->written)->toBe([])
         ->and(collect($provider->executed)->pluck('command')->flatten()->contains(fn ($part) => str_contains((string) $part, 'opencode run')))->toBeFalse()
         ->and(logoCall($provider)['env']['APP_CONTENT'])->toContain('src="/favicon.png?v='.substr($this->project->icon_hash, 0, 12).'"');
@@ -125,6 +125,16 @@ test('an unchanged favicon is not stored again', function () {
     expect($this->project->refresh()->icon_path)->toBe($path);
 })->group('PRJ-007');
 
+test('an unchanged favicon whose stored copy went missing is stored again', function () {
+    iconSandbox(['public/favicon.svg' => '<svg xmlns="http://www.w3.org/2000/svg"/>']);
+    UpdateProjectIcon::dispatchSync($this->project);
+    Storage::disk(ProjectIcons::disk())->delete($this->project->refresh()->icon_path);
+
+    UpdateProjectIcon::dispatchSync($this->project);
+
+    Storage::disk(ProjectIcons::disk())->assertExists($this->project->refresh()->icon_path);
+})->group('PRJ-007');
+
 test('an app with only the starter kit\'s logo gets an icon drawn by its AI, cleaned and installed', function () {
     $starterLogo = file_get_contents(base_path('tests/Fixtures/starter-kit-favicon.svg'));
     $provider = iconSandbox(['public/favicon.svg' => $starterLogo, 'public/favicon.ico' => '']);
@@ -138,7 +148,7 @@ test('an app with only the starter kit\'s logo gets an icon drawn by its AI, cle
 
     expect($installed)->toContain('<rect')->toContain('rx="14"')
         ->not->toContain('script')->not->toContain('onclick')
-        ->and(Storage::disk(ProjectIcons::DISK)->get($this->project->icon_path))->toBe($installed)
+        ->and(Storage::disk(ProjectIcons::disk())->get($this->project->icon_path))->toBe($installed)
         ->and($this->project->icon_mime)->toBe('image/svg+xml')
         ->and($prompt)->toContain('Team CRM')->toContain('A CRM for our sales team')
         ->and(ProjectIcons::drawing([$this->project->id]))->toBe([])
@@ -197,7 +207,7 @@ test('a project on a Claude subscription gets its icon drawn through Claude Code
 test('a drawn icon is put back when the app loses its favicon, without asking the AI again', function () {
     iconSandbox();
     UpdateProjectIcon::dispatchSync($this->project);
-    $icon = Storage::disk(ProjectIcons::DISK)->get($this->project->refresh()->icon_path);
+    $icon = Storage::disk(ProjectIcons::disk())->get($this->project->refresh()->icon_path);
 
     $provider = iconSandbox();
     UpdateProjectIcon::dispatchSync($this->project->refresh());
@@ -230,7 +240,7 @@ test('uploading an image installs it in the app and shows it in the sidebar', fu
 
     $installed = $provider->written['public/favicon.svg'];
     expect($installed)->toContain('<image href="data:image/png;base64,')->toContain('viewBox="0 0 32 32"')
-        ->and(Storage::disk(ProjectIcons::DISK)->get($this->project->refresh()->icon_path))->toBe($installed);
+        ->and(Storage::disk(ProjectIcons::disk())->get($this->project->refresh()->icon_path))->toBe($installed);
 })->group('PRJ-007');
 
 test('uploaded SVGs are cleaned before they\'re installed', function () {
@@ -291,5 +301,5 @@ test('deleting a project deletes its icon', function () {
 
     app(DeleteProject::class)->handle($this->project);
 
-    Storage::disk(ProjectIcons::DISK)->assertMissing($path);
+    Storage::disk(ProjectIcons::disk())->assertMissing($path);
 })->group('PRJ-007');

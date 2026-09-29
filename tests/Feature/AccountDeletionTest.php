@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Storage;
 
 test('deleting an account deletes its projects, taking apps offline and removing attachments and sandboxes', function () {
     Queue::fake();
-    Storage::fake(Attachment::DISK);
+    Storage::fake(Attachment::disk());
     $publisher = new FakePublisher;
     app()->instance(Publisher::class, $publisher);
 
@@ -35,7 +35,7 @@ test('deleting an account deletes its projects, taking apps offline and removing
     expect(Project::where('user_id', $user->id)->exists())->toBeFalse()
         ->and($publisher->published)->toBe([])
         ->and($someoneElses->fresh())->not->toBeNull();
-    Storage::disk(Attachment::DISK)->assertMissing($attachment->path);
+    Storage::disk(Attachment::disk())->assertMissing($attachment->path);
     Queue::assertPushed(DestroySandbox::class, 2);
     Queue::assertPushed(DestroySandbox::class, fn (DestroySandbox $job) => $job->externalId === 'sbx-1' && $job->provider === 'fake');
     Queue::assertPushed(DestroySandbox::class, fn (DestroySandbox $job) => $job->externalId === 'sbx-2');

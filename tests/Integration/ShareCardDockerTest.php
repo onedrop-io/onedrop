@@ -26,7 +26,7 @@ beforeEach(function () {
 
 test('headless Chromium in the sandbox screenshots the app and renders its share card', function () {
     $this->artisan('migrate:fresh');
-    Storage::fake(ShareCards::DISK);
+    Storage::fake(ShareCards::disk());
     $storage = sys_get_temp_dir().'/zap-share-card-'.bin2hex(random_bytes(3));
     config(['sandbox.provider' => 'docker', 'sandbox.providers.docker.storage_path' => $storage]);
     $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
@@ -51,8 +51,8 @@ test('headless Chromium in the sandbox screenshots the app and renders its share
 
         expect($share->card_status)->toBe(ShareCardStatus::Ready, (string) $share->card_error);
 
-        $card = getimagesizefromstring(Storage::disk(ShareCards::DISK)->get($share->card_file));
-        $screenshot = getimagesizefromstring(Storage::disk(ShareCards::DISK)->get($share->screenshot_file));
+        $card = getimagesizefromstring(Storage::disk(ShareCards::disk())->get($share->card_file));
+        $screenshot = getimagesizefromstring(Storage::disk(ShareCards::disk())->get($share->screenshot_file));
 
         expect([$card[0], $card[1]])->toBe([1200, 630])
             ->and([$screenshot[0], $screenshot[1]])->toBe([1280, 800]);

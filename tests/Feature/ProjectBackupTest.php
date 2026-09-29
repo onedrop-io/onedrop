@@ -133,3 +133,12 @@ test('deleting a project deletes its backup', function () {
 
     expect(Storage::disk('backups')->allFiles())->toBe([]);
 })->group('SBX-006');
+
+test('without a backup disk set, backups go to the app\'s default disk', function () {
+    Storage::fake('shared');
+    config(['sandbox.backup_disk' => null, 'filesystems.default' => 'shared']);
+
+    BackupProject::dispatchSync($this->project);
+
+    expect(Storage::disk('shared')->get("project-backups/{$this->project->id}/repo.bundle"))->toBe('bundle-bytes');
+})->group('SBX-006');

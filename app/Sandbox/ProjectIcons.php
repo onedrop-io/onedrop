@@ -19,7 +19,13 @@ use Illuminate\Support\Str;
  */
 class ProjectIcons
 {
-    public const DISK = 'local';
+    /**
+     * The app's default disk, shared by web and queue instances (e.g. object storage on Laravel Cloud).
+     */
+    public static function disk(): string
+    {
+        return (string) config('filesystems.default');
+    }
 
     public const MAX_BYTES = 512 * 1024;
 
@@ -112,7 +118,8 @@ class ProjectIcons
         if ($found !== null) {
             $hash = hash('sha256', $found['bytes']);
 
-            if ($hash !== $project->icon_hash) {
+            // A copy missing from the disk (e.g. kept on another instance's local disk) is stored again.
+            if ($hash !== $project->icon_hash || ! $project->icon_path || ! Storage::disk(self::disk())->exists($project->icon_path)) {
                 $this->store($project, $found['bytes'], $found['mime']);
             }
 
@@ -123,8 +130,8 @@ class ProjectIcons
             return;
         }
 
-        if ($project->icon_path && Storage::disk(self::DISK)->exists($project->icon_path) && $project->icon_mime === 'image/svg+xml') {
-            $this->install($sandbox, (string) Storage::disk(self::DISK)->get($project->icon_path));
+        if ($project->icon_path && Storage::disk(self::disk())->exists($project->icon_path) && $project->icon_mime === 'image/svg+xml') {
+            $this->install($sandbox, (string) Storage::disk(self::disk())->get($project->icon_path));
 
             return;
         }
@@ -181,7 +188,7 @@ class ProjectIcons
      */
     public function delete(Project $project): void
     {
-        Storage::disk(self::DISK)->deleteDirectory("project-icons/{$project->id}");
+        Storage::disk(self::disk())->deleteDirectory("project-icons/{$project->id}");
     }
 
     protected function runningSandbox(Project $project): Sandbox
@@ -276,7 +283,7 @@ class ProjectIcons
 
     protected function store(Project $project, string $bytes, string $mime): void
     {
-        $disk = Storage::disk(self::DISK);
+        $disk = Storage::disk(self::disk());
         $extension = array_search($mime, self::MIME_TYPES, true) ?: 'bin';
         $path = "project-icons/{$project->id}/".Str::random(12).".{$extension}";
 

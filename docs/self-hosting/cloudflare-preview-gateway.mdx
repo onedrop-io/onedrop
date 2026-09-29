@@ -53,4 +53,8 @@ You need your domain's DNS on Cloudflare, with a proxied wildcard record (`*.<do
   </Step>
 </Steps>
 
+<Note>
+    Laravel Cloud runs web requests and queue jobs on separate instances, each with its own local disk. Attach an object storage bucket to the environment as its **default disk**, so share cards, project icons, chat attachments and code backups are saved where every instance can read them.
+</Note>
+
 The Worker's own tests run with `node --test infra/cloudflare/preview-gateway/worker.test.mjs`.

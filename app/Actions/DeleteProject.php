@@ -33,7 +33,7 @@ class DeleteProject
         $sandboxes = $project->sandboxes()->get();
 
         $project->delete();
-        Storage::disk(Attachment::DISK)->deleteDirectory("attachments/{$project->id}");
+        Storage::disk(Attachment::disk())->deleteDirectory("attachments/{$project->id}");
         $this->backups->delete($project);
         $this->icons->delete($project);
         $this->shareCards->delete($project->id);

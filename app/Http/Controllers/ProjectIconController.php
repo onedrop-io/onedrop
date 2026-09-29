@@ -22,9 +22,9 @@ class ProjectIconController extends Controller
     {
         Gate::authorize('view', $project);
 
-        abort_unless($project->icon_path && Storage::disk(ProjectIcons::DISK)->exists($project->icon_path), 404);
+        abort_unless($project->icon_path && Storage::disk(ProjectIcons::disk())->exists($project->icon_path), 404);
 
-        return Storage::disk(ProjectIcons::DISK)->response($project->icon_path, null, [
+        return Storage::disk(ProjectIcons::disk())->response($project->icon_path, null, [
             'Content-Type' => $project->icon_mime,
             'Content-Security-Policy' => "default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox",
             'X-Content-Type-Options' => 'nosniff',

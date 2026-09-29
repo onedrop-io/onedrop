@@ -93,9 +93,9 @@ class ShareController extends Controller
 
     protected function image(?string $file): HttpResponse
     {
-        abort_unless($file && Storage::disk(ShareCards::DISK)->exists($file), 404);
+        abort_unless($file && Storage::disk(ShareCards::disk())->exists($file), 404);
 
-        return Storage::disk(ShareCards::DISK)->response($file, null, [
+        return Storage::disk(ShareCards::disk())->response($file, null, [
             'Content-Type' => 'image/png',
             'X-Content-Type-Options' => 'nosniff',
             'Cache-Control' => 'public, max-age=86400',
