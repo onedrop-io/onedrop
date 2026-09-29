@@ -12,6 +12,7 @@ use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Sleep;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -30,6 +31,12 @@ class RuntimeSandboxProvider implements SandboxProvider
     /** Settings file start.sh and the shell source: Runtime can't set a sandbox's env at create. */
     public const ENV_FILE = self::HOME.'/.zap-env';
 
+    /** How long pause() may leave the app frozen if start() is never called: the longest an update may run. */
+    public const THAW_AFTER_SECONDS = 900;
+
+    /** How long create() waits for a free slot while the trial's running limit is reached. */
+    public const CAPACITY_WAIT_SECONDS = 120;
+
     /** Longest a preview token lasts (7 days); ProjectController renews the links daily. */
     public const PREVIEW_TTL_SECONDS = 604800;
 
@@ -42,7 +49,7 @@ class RuntimeSandboxProvider implements SandboxProvider
     {
         $image = $this->imageId();
 
-        $sandbox = $this->send('post', 'sandboxes', array_filter([
+        $sandbox = $this->createWhenThereIsRoom(array_filter([
             'name' => $spec->name,
             'labels' => [self::IMAGE_LABEL => $image],
             'image' => $image,
@@ -52,7 +59,7 @@ class RuntimeSandboxProvider implements SandboxProvider
             'diskMiB' => $this->config['disk_mib'],
             'timeoutSeconds' => $this->config['timeout_seconds'],
             'persistent' => $this->config['persistent'] ?: null,
-        ], fn (mixed $value) => $value !== null), wait: 120);
+        ], fn (mixed $value) => $value !== null));
 
         $id = $sandbox['id'];
 
@@ -76,21 +83,69 @@ class RuntimeSandboxProvider implements SandboxProvider
         return $id;
     }
 
+    /**
+     * Create the sandbox, waiting (with backoff, up to CAPACITY_WAIT_SECONDS) while the trial's running limit is
+     * reached or Runtime has no room, as Runtime's own SDKs do: both clear by themselves.
+     *
+     * @param  array<string, mixed>  $body
+     * @return array<string, mixed>
+     *
+     * @throws SandboxException
+     */
+    protected function createWhenThereIsRoom(array $body): array
+    {
+        $deadline = now()->addSeconds(self::CAPACITY_WAIT_SECONDS);
+
+        for ($delay = 2; ; $delay = min($delay * 2, 20)) {
+            $response = $this->request('post', 'sandboxes', $body, wait: 120);
+
+            if (! in_array($response->json('error.code'), ['trial_busy', 'no_capacity'], true) || now()->addSeconds($delay)->gt($deadline)) {
+                return $this->throwUnlessOk($response)->json();
+            }
+
+            Sleep::for($delay)->seconds();
+        }
+    }
+
+    /**
+     * Let processes frozen by pause() carry on, and call off its watchdog (a running command keeps the sandbox awake).
+     * Runtime wakes a suspended sandbox by itself on the next request.
+     */
     public function start(string $id): void
     {
-        $response = $this->request('post', "sandboxes/{$id}:wake", [], wait: 60);
+        $this->exec($id, ['bash', '-c', 'pkill -CONT -u "$(id -u)"; pkill -f "[z]ap-thaw-watchdog"; exit 0']);
+    }
 
-        // Already running: nothing to wake.
-        if ($response->status() === 409 && $response->json('error.code') === 'not_paused') {
+    /**
+     * Freeze the app's processes so files are at rest while an update copies them (a database is copied as after a
+     * power cut, which it recovers from). Pausing the sandbox itself wouldn't do: copying files out wakes it.
+     */
+    public function pause(string $id): void
+    {
+        $frozen = $this->exec($id, ['bash', '-c', 'for pid in $(pgrep -u "$(id -u)"); do [ "$pid" = $$ ] || [ "$pid" = "$PPID" ] || kill -STOP "$pid" 2>/dev/null; done; exit 0']);
+
+        if (! $frozen->successful()) {
+            throw new SandboxException("Couldn't pause the sandbox's processes: ".(strtok(trim($frozen->errorOutput), "\n") ?: 'unknown error'));
+        }
+
+        // If whoever paused it dies before calling start() (e.g. a deploy replaced the worker), the app still
+        // carries on by itself once an update could no longer be running.
+        $this->exec($id, ['bash', '-c', 'sleep '.self::THAW_AFTER_SECONDS.'; pkill -CONT -u "$(id -u)"', 'zap-thaw-watchdog'], detach: true);
+    }
+
+    /**
+     * Runtime's own pause: compute stops, memory and processes are kept, and the next request wakes it.
+     */
+    public function suspend(string $id): void
+    {
+        $response = $this->request('post', "sandboxes/{$id}:pause", [], wait: 60);
+
+        // Already paused or stopped: nothing to do.
+        if ($response->status() === 409) {
             return;
         }
 
         $this->throwUnlessOk($response);
-    }
-
-    public function pause(string $id): void
-    {
-        $this->send('post', "sandboxes/{$id}:pause", [], wait: 60);
     }
 
     public function exec(string $id, array $command, array $env = [], bool $detach = false): ExecResult

@@ -30,6 +30,14 @@ interface SandboxProvider
     public function pause(string $id): void;
 
     /**
+     * Let an idle sandbox stop using compute until its next request (memory kept where the provider can).
+     * Unlike pause(), the app's processes aren't frozen: they carry on when it wakes.
+     *
+     * @throws SandboxException
+     */
+    public function suspend(string $id): void;
+
+    /**
      * Run a short command. Use $detach for anything long-running (agents, servers).
      *
      * @param  list<string>  $command

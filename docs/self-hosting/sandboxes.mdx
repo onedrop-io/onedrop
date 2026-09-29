@@ -93,6 +93,7 @@ How it differs from Docker:
 - **Previews and the Shell tab** use private Runtime preview links under `runtimehost.com`. Each link carries a token, and OneDrop hands it only to people allowed to see the project. Tokens last 7 days, and OneDrop fetches new links at most once a day when someone opens the project. Browsers won't show private Runtime links inside another site's page, so with private links the Preview and Shell tabs only open in their own browser tab. With paid credit, set `RUNTIME_PREVIEW_VISIBILITY=public` to show them in the workspace: public links carry no token, so anyone who has one can open it.
 - **Idle sandboxes pause.** After 60 seconds with nothing happening, a sandbox pauses with its memory and processes kept. The next preview visit, command or agent run wakes it in about a second.
 - **Leases.** A trial sandbox pauses when its hour-long lease ends, even during an agent run. With paid credit, set `RUNTIME_PERSISTENT=true` so leases renew.
+- **Trial limit.** At most 8 trial sandboxes run at once. When the limit is reached, creating one waits up to two minutes for a slot, as Runtime's own SDKs do; idle sandboxes pause after a minute and free theirs.
 - **Not available yet:** SSH (Tools → Developer → SSH) and Tailscale publishing, which need Docker.
 
 To find or stop sandboxes by hand, use the Runtime CLI with the same key:
@@ -142,7 +143,7 @@ php artisan sandbox:update
 php artisan sandbox:update 12
 ```
 
-Projects the agent is working on are skipped; they update before their next run.
+Projects the agent is working on are skipped; they update before their next run. Each sandbox the command updates is suspended once it's done (memory kept), and wakes on the project's next visit, so a batch of updates doesn't keep every new sandbox running at once.
 
 ## Recreate a sandbox
 

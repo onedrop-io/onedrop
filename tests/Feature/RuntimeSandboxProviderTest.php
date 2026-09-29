@@ -6,6 +6,7 @@ use App\Sandbox\SandboxSpec;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Sleep;
 
 const RT_API = 'https://api.withruntime.com/v1';
 const RT_ID = 'ad9e8852-6672-421f-b015-214d76c96a51';
@@ -171,20 +172,70 @@ test('the ssh port gets no https preview', function () {
     Http::assertNothingSent();
 })->group('SBX-003');
 
-test('start wakes a paused sandbox and leaves a running one alone', function () {
-    Http::fake([RT_API.'/sandboxes/'.RT_ID.':wake' => Http::response(runtimeError('not_paused', 409), 409)]);
-
-    $this->runtime->start(RT_ID);
-
-    Http::assertSent(fn (Request $request) => $request->hasHeader('Prefer', 'wait=60'));
-})->group('SBX-003');
-
-test('pause pauses the sandbox', function () {
-    Http::fake([RT_API.'/sandboxes/'.RT_ID.':pause' => Http::response(['state' => 'paused'])]);
+test('pausing freezes the app\'s processes, with a watchdog that thaws them if nobody does', function () {
+    Http::fake([
+        RT_API.'/sandboxes/'.RT_ID.':exec' => Http::response(['exitCode' => 0, 'stdout' => '', 'stderr' => '', 'timedOut' => false]),
+        RT_API.'/sandboxes/'.RT_ID.'/processes' => Http::response(['id' => 'p1', 'state' => 'running']),
+    ]);
 
     $this->runtime->pause(RT_ID);
 
-    Http::assertSentCount(1);
+    // Not Runtime's own pause: copying the files out would wake the sandbox, and its processes with it.
+    Http::assertNotSent(fn (Request $request) => str_ends_with($request->url(), ':pause'));
+    Http::assertSent(fn (Request $request) => str_ends_with($request->url(), ':exec') && str_contains($request['argv'][2], 'kill -STOP'));
+    Http::assertSent(fn (Request $request) => str_ends_with($request->url(), '/processes')
+        && str_contains($request['argv'][2], 'sleep '.RuntimeSandboxProvider::THAW_AFTER_SECONDS)
+        && end($request->data()['argv']) === 'zap-thaw-watchdog');
+})->group('SBX-003');
+
+test('a sandbox whose processes cannot be frozen is not copied', function () {
+    Http::fake([RT_API.'/sandboxes/'.RT_ID.':exec' => Http::response(['exitCode' => 1, 'stdout' => '', 'stderr' => 'pgrep: not found', 'timedOut' => false])]);
+
+    expect(fn () => $this->runtime->pause(RT_ID))->toThrow(SandboxException::class, 'pgrep: not found');
+})->group('SBX-003');
+
+test('starting lets frozen processes carry on and calls off the watchdog', function () {
+    Http::fake([RT_API.'/sandboxes/'.RT_ID.':exec' => Http::response(['exitCode' => 0, 'stdout' => '', 'stderr' => '', 'timedOut' => false])]);
+
+    $this->runtime->start(RT_ID);
+
+    Http::assertSent(fn (Request $request) => str_contains($request['argv'][2], 'pkill -CONT') && str_contains($request['argv'][2], '[z]ap-thaw-watchdog'));
+})->group('SBX-003');
+
+test('suspending uses runtime\'s own pause, and one already paused is fine', function (int $status) {
+    Http::fake([RT_API.'/sandboxes/'.RT_ID.':pause' => Http::response($status === 200 ? ['state' => 'paused'] : runtimeError('sandbox_paused', 409), $status)]);
+
+    $this->runtime->suspend(RT_ID);
+
+    Http::assertSent(fn (Request $request) => str_ends_with($request->url(), ':pause') && $request->hasHeader('Prefer', 'wait=60'));
+})->with(['running' => [200], 'already paused' => [409]])->group('SBX-003');
+
+test('creating waits for a free slot while the trial is at its limit', function () {
+    Sleep::fake();
+    Http::fake([
+        RT_API.'/images/resolve*' => Http::response(['id' => 'img-7']),
+        RT_API.'/sandboxes' => Http::sequence()
+            ->push(runtimeError('trial_busy', 409, 'trial already running: at most 8 trial sandboxes run at once'), 409)
+            ->push(runtimeError('trial_busy', 409), 409)
+            ->push(['id' => RT_ID]),
+        RT_API.'/sandboxes/'.RT_ID.'/files/content*' => Http::response([]),
+        RT_API.'/sandboxes/'.RT_ID.':exec' => Http::response(['exitCode' => 0, 'stdout' => '', 'stderr' => '', 'timedOut' => false]),
+    ]);
+
+    expect($this->runtime->create(new SandboxSpec('zap-project-1-x')))->toBe(RT_ID);
+
+    Sleep::assertSleptTimes(2);
+})->group('SBX-003');
+
+test('creating gives up once the trial stays full', function () {
+    Sleep::fake(syncWithCarbon: true);
+    Http::fake([
+        RT_API.'/images/resolve*' => Http::response(['id' => 'img-7']),
+        RT_API.'/sandboxes' => Http::response(runtimeError('trial_busy', 409, 'trial already running: at most 8 trial sandboxes run at once'), 409),
+    ]);
+
+    expect(fn () => $this->runtime->create(new SandboxSpec('zap-project-1-x')))
+        ->toThrow(SandboxException::class, 'at most 8 trial sandboxes');
 })->group('SBX-003');
 
 test('destroying a sandbox that is already gone is not an error', function () {
@@ -198,7 +249,7 @@ test('destroying a sandbox that is already gone is not an error', function () {
 test('runtime errors reach the user with their hint and request id', function () {
     Http::fake([RT_API.'/sandboxes/'.RT_ID.':pause' => Http::response(runtimeError('trial_exhausted', 402, 'The trial is used up.', 'Add credit.'), 402)]);
 
-    expect(fn () => $this->runtime->pause(RT_ID))
+    expect(fn () => $this->runtime->suspend(RT_ID))
         ->toThrow(SandboxException::class, 'Runtime: The trial is used up. Add credit. (req_123)');
 })->group('SBX-003');
 
@@ -207,14 +258,14 @@ test('temporary refusals are retried with the same idempotency key', function ()
         ->push(runtimeError('busy', 503), 503)
         ->push(['state' => 'paused'])]);
 
-    $this->runtime->pause(RT_ID);
+    $this->runtime->suspend(RT_ID);
 
     $keys = Http::recorded()->map(fn (array $pair) => $pair[0]->header('Idempotency-Key')[0]);
     expect($keys)->toHaveCount(2)->and($keys->unique())->toHaveCount(1);
 })->group('SBX-003');
 
 test('a missing api key is explained', function () {
-    expect(fn () => (new RuntimeSandboxProvider([...$this->runtimeConfig, 'api_key' => null]))->pause(RT_ID))
+    expect(fn () => (new RuntimeSandboxProvider([...$this->runtimeConfig, 'api_key' => null]))->suspend(RT_ID))
         ->toThrow(SandboxException::class, 'RUNTIME_API_KEY is not set');
 })->group('SBX-003');
 

@@ -114,6 +114,11 @@ class DockerSandboxProvider implements SandboxProvider
         $this->docker(['stop', $id]);
     }
 
+    /**
+     * Local containers cost nothing while idle: nothing to do.
+     */
+    public function suspend(string $id): void {}
+
     public function exec(string $id, array $command, array $env = [], bool $detach = false): ExecResult
     {
         $args = ['docker', 'exec'];

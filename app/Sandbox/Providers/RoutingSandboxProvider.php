@@ -59,6 +59,11 @@ class RoutingSandboxProvider implements SandboxProvider
         $this->for($id)->pause($id);
     }
 
+    public function suspend(string $id): void
+    {
+        $this->for($id)->suspend($id);
+    }
+
     public function exec(string $id, array $command, array $env = [], bool $detach = false): ExecResult
     {
         return $this->for($id)->exec($id, $command, $env, $detach);

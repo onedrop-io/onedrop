@@ -55,6 +55,14 @@ class FakeSandboxProvider implements SandboxProvider
         $this->paused[] = $id;
     }
 
+    /** @var list<string> ids suspended, in order */
+    public array $suspended = [];
+
+    public function suspend(string $id): void
+    {
+        $this->suspended[] = $id;
+    }
+
     public function exec(string $id, array $command, array $env = [], bool $detach = false): ExecResult
     {
         $this->executed[] = ['id' => $id, 'command' => $command, 'env' => $env, 'detach' => $detach];

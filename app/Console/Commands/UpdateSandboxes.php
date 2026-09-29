@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Enums\SandboxStatus;
 use App\Models\Project;
 use App\Sandbox\SandboxException;
+use App\Sandbox\SandboxProvider;
 use App\Sandbox\SandboxUpdater;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
@@ -17,7 +18,7 @@ class UpdateSandboxes extends Command
     /**
      * Execute the console command.
      */
-    public function handle(SandboxUpdater $updater): int
+    public function handle(SandboxUpdater $updater, SandboxProvider $provider): int
     {
         $projects = Project::query()
             ->when($this->argument('project'), fn ($query, $id) => $query->whereKey($id))
@@ -37,6 +38,10 @@ class UpdateSandboxes extends Command
                 if ($updater->updateIfOutdated($project)) {
                     $updated++;
                     $this->components->info("Updated project {$project->id}.");
+
+                    // Nobody is watching a batch update: let the new sandbox stop using compute (memory kept, woken by
+                    // the next visit), so a run of updates doesn't keep every new sandbox running at once.
+                    $this->suspend($provider, $project);
                 }
             } catch (SandboxException $e) {
                 $failed++;
@@ -47,5 +52,19 @@ class UpdateSandboxes extends Command
         $this->components->info($updated === 0 && $failed === 0 ? 'Every sandbox is up to date.' : "Updated {$updated} sandbox(es).");
 
         return $failed === 0 ? self::SUCCESS : self::FAILURE;
+    }
+
+    protected function suspend(SandboxProvider $provider, Project $project): void
+    {
+        $id = $project->sandbox()->value('external_id');
+
+        try {
+            if ($id) {
+                $provider->suspend($id);
+            }
+        } catch (SandboxException $e) {
+            // It pauses by itself once idle; this only makes it sooner.
+            $this->components->warn("Project {$project->id}: couldn't suspend the new sandbox: {$e->getMessage()}");
+        }
     }
 }

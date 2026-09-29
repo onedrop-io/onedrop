@@ -139,6 +139,11 @@ class BlaxelSandboxProvider implements SandboxProvider
         ]);
     }
 
+    /**
+     * Blaxel puts idle sandboxes on standby by itself within seconds: nothing to do.
+     */
+    public function suspend(string $id): void {}
+
     public function exec(string $id, array $command, array $env = [], bool $detach = false): ExecResult
     {
         // The sandbox API takes one shell command; env goes in the body, never the command line.

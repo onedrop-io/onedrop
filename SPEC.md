@@ -207,6 +207,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - An update that fails or is cut off partway (a deploy, a queue timeout) should leave the project on its old sandbox with every file; the old sandbox is only removed once the new one has them all.
 - Two updates of the same sandbox should never run at once.
 - An admin should be able to update outdated sandboxes with `php artisan sandbox:update` (all, or one project).
+- A sandbox updated by `php artisan sandbox:update` should be suspended once it's done (memory kept, woken by the next visit), so a batch of updates doesn't keep every new sandbox running at once.
 
 ## SBX-003: Sandboxes on Runtime Cloud
 
@@ -217,6 +218,8 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Pausing, resuming, updating (files kept) and deleting a sandbox should work as they do with Docker.
 - A sandbox made from an older image should be reported as outdated, so SBX-002 updates it.
 - Sandboxes should use the free trial unless `RUNTIME_FUNDING=paid` is set; Runtime errors should reach the user with Runtime's hint.
+- While an update copies a Runtime sandbox's files, the app's processes should be frozen (not the sandbox paused, which a copy would wake), so a database is copied in a consistent state; if the update fails or is cut off, they should carry on where they were.
+- When the trial's limit on running sandboxes is reached, creating one should wait for a free slot (up to two minutes) instead of failing at once.
 
 ## SBX-004: Sandboxes on Blaxel
 

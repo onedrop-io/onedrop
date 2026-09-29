@@ -173,6 +173,17 @@ test('a new sandbox that fails to start leaves the project on the old one', func
         ->and($provider->started)->toBe(['old-ctr']);
 })->group('SBX-002');
 
+test('a batch update suspends each sandbox it updated, so they don\'t all keep running', function () {
+    $this->provider->outdated = ['old-ctr'];
+
+    $this->artisan('sandbox:update')->assertSuccessful();
+
+    $new = $this->sandbox->fresh()->external_id;
+
+    expect($new)->not->toBe('old-ctr')
+        ->and($this->provider->suspended)->toBe([$new]);
+})->group('SBX-002');
+
 test('an up-to-date or stopped sandbox is left alone', function () {
     expect(app(SandboxUpdater::class)->updateIfOutdated($this->project))->toBeFalse();
 
