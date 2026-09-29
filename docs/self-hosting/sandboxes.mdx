@@ -79,6 +79,8 @@ Runtime Cloud runs each sandbox in its own Firecracker microVM. OneDrop talks to
     php artisan sandbox:build-image
     ```
     With `SANDBOX_PROVIDER=runtime`, this builds `docker/sandbox` on Runtime as `zap-sandbox:latest`. It needs Node.js 22.12 or later. Run it again after changing `docker/sandbox/`; existing sandboxes then update themselves.
+
+    To do this automatically, add a `RUNTIME_API_KEY` secret to the GitHub repository (and a `RUNTIME_IMAGE` variable if you don't use `zap-sandbox:latest`). The **runtime image** workflow then rebuilds the image whenever a push to `main` changes `docker/sandbox/`, and never otherwise, because each build makes every sandbox update itself.
   </Step>
   <Step title="Choose paid credit when ready">
     Sandboxes use the free trial until you set `RUNTIME_FUNDING=paid`. Add credit at [billing](https://withruntime.com/account/billing) before production traffic runs.

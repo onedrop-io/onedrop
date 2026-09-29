@@ -1,0 +1,45 @@
+name: runtime image
+
+# Rebuilds the project sandbox image on Runtime Cloud (what `php artisan sandbox:build-image` does with
+# SANDBOX_PROVIDER=runtime) when docker/sandbox changes on main. Only then: each build is a new image,
+# and every sandbox moves to it (files kept) the next time its project is opened.
+# Needs the RUNTIME_API_KEY secret; RUNTIME_IMAGE (a repository variable) defaults to zap-sandbox:latest.
+
+on:
+  push:
+    branches: [main]
+    paths: ['docker/sandbox/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: runtime-image
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      RUNTIME_API_KEY: ${{ secrets.RUNTIME_API_KEY }}
+      RUNTIME_IMAGE: ${{ vars.RUNTIME_IMAGE || 'zap-sandbox:latest' }}
+    steps:
+      - name: Skip without a Runtime key
+        if: env.RUNTIME_API_KEY == ''
+        run: echo "::notice::RUNTIME_API_KEY isn't set; not building the Runtime image."
+
+      - name: Checkout code
+        if: env.RUNTIME_API_KEY != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node
+        if: env.RUNTIME_API_KEY != ''
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+
+      - name: Build the sandbox image on Runtime
+        if: env.RUNTIME_API_KEY != ''
+        working-directory: docker/sandbox
+        run: npx --yes withruntime@0.8 image build . --tag "$RUNTIME_IMAGE"
