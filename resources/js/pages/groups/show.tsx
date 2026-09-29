@@ -38,7 +38,7 @@ export default function GroupShow({
         <>
             <Head title={group.name} />
 
-            <div className="flex max-w-3xl flex-1 flex-col gap-10 p-4">
+            <div className="flex max-w-3xl flex-1 flex-col gap-10">
                 <Heading
                     title={group.name}
                     description={group.description ?? undefined}

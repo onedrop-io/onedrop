@@ -5,6 +5,7 @@ import { initializeTheme } from '@/hooks/use-appearance';
 import AppLayout from '@/layouts/app-layout';
 import AuthLayout from '@/layouts/auth-layout';
 import SettingsLayout from '@/layouts/settings/layout';
+import { isSettingsPage } from '@/lib/settings';
 
 const appName = import.meta.env.VITE_APP_NAME || 'OneDrop';
 
@@ -18,7 +19,7 @@ void createInertiaApp({
                 return null;
             case name.startsWith('auth/'):
                 return AuthLayout;
-            case name.startsWith('settings/'):
+            case isSettingsPage(name):
                 return [AppLayout, SettingsLayout];
             default:
                 return AppLayout;

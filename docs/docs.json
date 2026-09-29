@@ -68,6 +68,7 @@
                         "group": "Your team",
                         "icon": "users",
                         "pages": [
+                            "guides/settings",
                             "guides/invite-people",
                             "guides/groups-and-users",
                             "guides/remote-access"

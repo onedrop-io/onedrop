@@ -14,7 +14,7 @@ export default function GroupsIndex({ groups }: { groups: GroupSummary[] }) {
         <>
             <Head title="Groups" />
 
-            <div className="flex flex-1 flex-col gap-8 p-4">
+            <div className="flex flex-1 flex-col gap-8">
                 <Heading
                     title="Groups"
                     description="Organize people into groups"

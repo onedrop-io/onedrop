@@ -1,84 +1,136 @@
-import { Link } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
+import {
+    Palette,
+    Settings,
+    Shield,
+    Sparkles,
+    User,
+    UserCog,
+    UserPlus,
+    Users,
+} from 'lucide-react';
 import type { PropsWithChildren } from 'react';
-import Heading from '@/components/heading';
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { useCurrentUrl } from '@/hooks/use-current-url';
+import { settingsReturnUrl } from '@/lib/settings';
 import { cn, toUrl } from '@/lib/utils';
+import { dashboard } from '@/routes';
 import { index as aiSettings } from '@/routes/agent-connections';
 import { edit as editAppearance } from '@/routes/appearance';
+import { index as groupsIndex } from '@/routes/groups';
+import { index as invitationsIndex } from '@/routes/invitations';
 import { edit } from '@/routes/profile';
 import { edit as editSecurity } from '@/routes/security';
+import { index as usersIndex } from '@/routes/users';
 import type { NavItem } from '@/types';
 
-const sidebarNavItems: NavItem[] = [
-    {
-        title: 'Profile',
-        href: edit(),
-        icon: null,
-    },
-    {
-        title: 'Security',
-        href: editSecurity(),
-        icon: null,
-    },
-    {
-        title: 'AI',
-        href: aiSettings(),
-        icon: null,
-    },
-    {
-        title: 'Appearance',
-        href: editAppearance(),
-        icon: null,
-    },
-];
+type NavSection = { title: string; items: NavItem[] };
 
+const accountSection: NavSection = {
+    title: 'Account',
+    items: [
+        { title: 'Profile', href: edit(), icon: User },
+        { title: 'Security', href: editSecurity(), icon: Shield },
+        { title: 'AI', href: aiSettings(), icon: Sparkles },
+        { title: 'Appearance', href: editAppearance(), icon: Palette },
+    ],
+};
+
+const peopleSection: NavSection = {
+    title: 'People',
+    items: [
+        { title: 'Groups', href: groupsIndex(), icon: Users },
+        { title: 'Invite people', href: invitationsIndex(), icon: UserPlus },
+    ],
+};
+
+const adminSection: NavSection = {
+    title: 'Admin',
+    items: [{ title: 'Users', href: usersIndex(), icon: UserCog }],
+};
+
+/** Settings pages render in a modal over the app; closing it returns to the page you came from. */
 export default function SettingsLayout({ children }: PropsWithChildren) {
+    const { auth } = usePage().props;
     const { isCurrentOrParentUrl } = useCurrentUrl();
 
-    return (
-        <div className="px-4 py-6">
-            <Heading
-                title="Settings"
-                description="Manage your profile and account settings"
-            />
+    const sections = auth.user.is_admin
+        ? [accountSection, peopleSection, adminSection]
+        : [accountSection, peopleSection];
 
-            <div className="flex flex-col lg:flex-row lg:space-x-12">
-                <aside className="w-full max-w-xl lg:w-48">
+    const close = () => {
+        router.visit(settingsReturnUrl() ?? dashboard().url);
+    };
+
+    return (
+        <Dialog
+            open
+            onOpenChange={(open) => {
+                if (!open) {
+                    close();
+                }
+            }}
+        >
+            <DialogContent
+                className="flex h-[calc(100dvh-2rem)] max-h-[900px] flex-col gap-0 overflow-hidden p-0 sm:max-w-6xl"
+                data-test="settings-modal"
+            >
+                <div className="flex shrink-0 items-center gap-2 border-b px-5 py-3.5">
+                    <Settings className="size-5 text-muted-foreground" />
+                    <DialogTitle className="text-lg font-medium">
+                        Settings
+                    </DialogTitle>
+                    <DialogDescription className="sr-only">
+                        Manage your account, people, and preferences
+                    </DialogDescription>
+                </div>
+
+                <div className="flex min-h-0 flex-1 flex-col md:flex-row">
                     <nav
-                        className="flex flex-col space-y-1 space-x-0"
+                        className="flex shrink-0 gap-4 overflow-x-auto border-b p-3 md:w-60 md:flex-col md:gap-5 md:overflow-y-auto md:border-r md:border-b-0"
                         aria-label="Settings"
                     >
-                        {sidebarNavItems.map((item, index) => (
-                            <Button
-                                key={`${toUrl(item.href)}-${index}`}
-                                size="sm"
-                                variant="ghost"
-                                asChild
-                                className={cn('w-full justify-start', {
-                                    'bg-muted': isCurrentOrParentUrl(item.href),
-                                })}
+                        {sections.map((section) => (
+                            <div
+                                key={section.title}
+                                className="flex shrink-0 items-center gap-1 md:flex-col md:items-stretch"
                             >
-                                <Link href={item.href}>
-                                    {item.icon && (
-                                        <item.icon className="h-4 w-4" />
-                                    )}
-                                    {item.title}
-                                </Link>
-                            </Button>
+                                <p className="hidden px-2 pb-1 text-xs font-medium text-muted-foreground md:block">
+                                    {section.title}
+                                </p>
+                                {section.items.map((item) => (
+                                    <Link
+                                        key={toUrl(item.href)}
+                                        href={item.href}
+                                        prefetch
+                                        className={cn(
+                                            'flex shrink-0 items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-foreground/80 transition-colors hover:bg-muted hover:text-foreground',
+                                            isCurrentOrParentUrl(item.href) &&
+                                                'bg-muted font-medium text-foreground',
+                                        )}
+                                    >
+                                        {item.icon && (
+                                            <item.icon className="size-4 text-muted-foreground" />
+                                        )}
+                                        {item.title}
+                                    </Link>
+                                ))}
+                            </div>
                         ))}
                     </nav>
-                </aside>
 
-                <Separator className="my-6 lg:hidden" />
-
-                <div className="flex-1 md:max-w-2xl">
-                    <section className="max-w-xl space-y-12">
-                        {children}
-                    </section>
+                    <div className="min-h-0 flex-1 overflow-y-auto p-6 md:p-8">
+                        <section className="max-w-3xl space-y-12">
+                            {children}
+                        </section>
+                    </div>
                 </div>
-            </div>
-        </div>
+            </DialogContent>
+        </Dialog>
     );
 }

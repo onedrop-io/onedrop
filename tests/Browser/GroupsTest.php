@@ -18,7 +18,9 @@ test('an owner can create a group, add a member, and delete it', function () {
         ->fill('password', 'password')
         ->press('@login-button')
         ->assertPathIs('/dashboard')
-        ->click('Groups')
+        ->click('@sidebar-menu-button')
+        ->click('@settings-link')
+        ->click('[data-test="settings-modal"] a:has-text("Groups")')
         ->assertSee('Engineering')
         ->fill('name', 'Design')
         ->fill('description', 'Pixels and type')
@@ -37,7 +39,7 @@ test('an owner can create a group, add a member, and delete it', function () {
     expect($group->members()->whereKey($newcomer->id)->exists())->toBeTrue();
 
     $page->press('Delete group')
-        ->click('[role="dialog"] button:has-text("Delete group")')
+        ->click('[role="dialog"]:not([data-test="settings-modal"]) button:has-text("Delete group")')
         ->assertPathIs('/groups')
         ->assertSee('Group deleted.')
         ->assertNoJavaScriptErrors();

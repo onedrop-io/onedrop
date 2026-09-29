@@ -20,7 +20,7 @@ export default function UsersIndex({ users }: { users: UserRow[] }) {
         <>
             <Head title="Users" />
 
-            <div className="flex flex-1 flex-col gap-8 p-4">
+            <div className="flex flex-1 flex-col gap-8">
                 <Heading title="Users" description="Everyone with an account" />
 
                 <div className="overflow-x-auto rounded-xl border border-sidebar-border/70 dark:border-sidebar-border">

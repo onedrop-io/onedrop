@@ -48,7 +48,7 @@ export default function Invitations({
         <>
             <Head title="Invite people" />
 
-            <div className="flex max-w-3xl flex-1 flex-col gap-8 p-4">
+            <div className="flex max-w-3xl flex-1 flex-col gap-8">
                 <Heading
                     title="Invite people"
                     description="Create a link, copy it, and send it to someone. It works once and expires in 7 days."

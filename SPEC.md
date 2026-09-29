@@ -254,7 +254,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## INV-001: Invite people
 
-- User should be able to create an invite link from "Invite people" in the sidebar, optionally for a specific email address.
+- User should be able to create an invite link from "Invite people" in the account menu or settings, optionally for a specific email address.
 - User should be able to copy an invite link to the clipboard with one click.
 - User should see their invites and whether each is waiting, accepted (and by whom), expired, or revoked.
 - User should be able to revoke an invite that hasn't been used.
@@ -306,7 +306,17 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 - User should see the OneDrop name and droplet logo in the app's sidebar and header, not the starter kit's.
 - User should see OneDrop in the browser tab title.
-- User should find Repository and Documentation links that go to OneDrop's GitHub repository (github.com/onedrop-io/onedrop) and its docs site (docs.onedrop.io).
+- User should find Repository and Documentation links (under Help in the account menu) that go to OneDrop's GitHub repository (github.com/onedrop-io/onedrop) and its docs site (docs.onedrop.io).
+
+## SET-001: Account menu and settings modal
+
+- User should be able to click their name at the bottom of the sidebar to open an account menu with Settings, Invite people, Theme, Help, and Log out.
+- User should be able to switch between light, dark, and system theme from the Theme submenu, and see the current theme next to it.
+- User should find Documentation and Repository links under Help.
+- User should see settings open in a modal with a left-hand list of sections: Account (Profile, Security, AI, Appearance), People (Groups, Invite people), and, for admins only, Admin (Users).
+- User should be able to move between sections without the modal closing, and link straight to any section.
+- User should be able to close the modal with the close button or Escape and land back on the page they opened it from (the dashboard if they arrived by a direct link).
+- Groups, Invite people, and Users should no longer be in the sidebar.
 
 ## HOME-002: Link previews when sharing
 
