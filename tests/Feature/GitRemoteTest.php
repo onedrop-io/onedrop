@@ -30,7 +30,7 @@ beforeEach(function () {
     // The sandbox's repository, and the remote it pushes to.
     File::ensureDirectoryExists($this->workspace);
     ($this->sh)("git init -q -b main && echo one > a.txt && git add a.txt && git {$commit} -m One");
-    ($this->sh)("git init -q --bare {$this->remote}", $this->root);
+    ($this->sh)("git init -q --bare -b main {$this->remote}", $this->root);
 
     $this->gitRequests = [];
     $this->copiedIn = null;

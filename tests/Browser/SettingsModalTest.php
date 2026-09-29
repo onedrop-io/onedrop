@@ -53,7 +53,9 @@ test('the dev user switches the theme from the user menu', function () {
 
     expect($page->script('document.documentElement.classList.contains("dark")'))->toBeTrue();
 
-    $page->click('@sidebar-menu-button')
+    // Choosing a theme closes the menu; wait until it's gone, or the click below lands mid-close and shuts it again.
+    $page->assertMissing('@theme-menu')
+        ->click('@sidebar-menu-button')
         ->assertSeeIn('@theme-menu', 'Dark')
         ->assertNoJavaScriptErrors();
 })->group('SET-001');
