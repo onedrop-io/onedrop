@@ -2,6 +2,7 @@ import { useForm } from '@inertiajs/react';
 import type { RouteDefinition } from '@/wayfinder';
 import { ArrowUp, Paperclip, Square, Zap } from 'lucide-react';
 import { useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import type { ClipboardEvent, DragEvent, KeyboardEvent } from 'react';
 import InputError from '@/components/input-error';
 import MessageAttachments from '@/components/message-attachments';
@@ -204,10 +205,10 @@ export default function PromptComposer({
         }
 
         recallIndex.current = next;
-        setText(history[next]);
-        requestAnimationFrame(() =>
-            box.setSelectionRange(box.value.length, box.value.length),
-        );
+        // Put the recalled text in the box now, then the caret at its end: done a frame later, the caret
+        // jump would undo a quick next Up press (moving within a multi-line prompt) and lose it.
+        flushSync(() => setText(history[next]));
+        box.setSelectionRange(box.value.length, box.value.length);
     };
 
     const submit = (mode: 'queue' | 'now' = 'queue') => {
