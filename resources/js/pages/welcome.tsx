@@ -15,6 +15,7 @@ import type { RefObject } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { BlackHole } from '@/components/home/black-hole';
 import { Galaxy } from '@/components/home/galaxy';
+import { CosmicZoomControl } from '@/components/home/cosmic-zoom-control';
 import {
     DROP_START_MS,
     GravityField,
@@ -908,6 +909,7 @@ export default function Welcome() {
                                 </ul>
                             </div>
                         </div>
+                        <CosmicZoomControl className="absolute top-[430px] left-[78%] z-10 hidden -translate-x-1/2 xl:flex" />
                     </section>
 
                     <section className="bg-[#151110]">

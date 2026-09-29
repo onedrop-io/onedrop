@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
+import { drawSpaceBackdrop } from '@/components/home/closeup-gl';
+import { createCosmicZoom } from '@/components/home/cosmic-zoom';
 import {
     drawEarthCloseup,
     EARTH_CLOSEUP_RADIUS,
@@ -23,6 +25,11 @@ import {
     PROBE_CLOSEUPS,
     probeShowProgress,
 } from '@/components/home/probe-closeup';
+import {
+    drawLaniakea,
+    isLaniakeaReady,
+    loadLaniakea,
+} from '@/components/home/laniakea';
 import { universe } from '@/components/home/particle-universe';
 import {
     drawSolSystem,
@@ -137,6 +144,20 @@ const LOAD_NEARBY_DISTANCE = 140;
 
 /** A probe's dot, at full size (pixels). */
 const PROBE_DOT_SIZE = 1.3;
+
+/** How far from the black hole the wheel zooms instead of scrolling the page (CSS pixels). */
+const ZOOM_AREA_RADIUS = 380;
+
+/** How big the Solar System is drawn when zoomed in to it (pixels per unit of the galaxy's own drawing), and Neptune's orbit there. */
+const SOLAR_ZOOM = 4.8;
+const NEPTUNE_ORBIT = 67;
+
+/** Laniakea's canvas (CSS pixels), centered on the black hole, and how far it's magnified as it first appears. */
+const LANIAKEA_SIZE = 1000;
+const LANIAKEA_ARRIVAL_ZOOM = 5;
+
+/** Once it's arrived, Laniakea settles a little left of the black hole, so it's all on screen (CSS pixels). */
+const LANIAKEA_SETTLES_AT = { x: -230, y: 10 };
 
 /** Seconds for the galaxy to fade in once the black hole is full size. */
 const FADE_IN_SECONDS = 2.5;
@@ -402,6 +423,8 @@ export function Galaxy({ children }: { children: ReactNode }) {
     const enduranceRef = useRef<HTMLCanvasElement>(null);
     const enterpriseRef = useRef<HTMLCanvasElement>(null);
     const closeupRef = useRef<HTMLCanvasElement>(null);
+    const galaxyRef = useRef<HTMLDivElement>(null);
+    const laniakeaRef = useRef<HTMLCanvasElement>(null);
     const spotRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
     useEffect(() => {
@@ -411,6 +434,8 @@ export function Galaxy({ children }: { children: ReactNode }) {
         const endurance = enduranceRef.current?.getContext('2d');
         const enterprise = enterpriseRef.current?.getContext('2d');
         const closeupCanvas = closeupRef.current?.getContext('2d');
+        const laniakea = laniakeaRef.current?.getContext('2d');
+        const galaxyLayer = galaxyRef.current;
         const spots = CLOSEUPS.map((closeup) => spotRefs.current[closeup.name]);
 
         if (
@@ -420,6 +445,8 @@ export function Galaxy({ children }: { children: ReactNode }) {
             !endurance ||
             !enterprise ||
             !closeupCanvas ||
+            !laniakea ||
+            !galaxyLayer ||
             spots.some((spot) => !spot) ||
             window.matchMedia('(prefers-reduced-motion: reduce)').matches
         ) {
@@ -446,6 +473,34 @@ export function Galaxy({ children }: { children: ReactNode }) {
         closeupCanvas.canvas.width = CLOSEUP_SIZE * solScale;
         closeupCanvas.canvas.height = CLOSEUP_SIZE * solScale;
         const spotFor = (closeup: Closeup) => spotRefs.current[closeup.name]!;
+
+        const laniakeaScale = Math.min(window.devicePixelRatio || 1, 1.5);
+        laniakea.canvas.width = LANIAKEA_SIZE * laniakeaScale;
+        laniakea.canvas.height = LANIAKEA_SIZE * laniakeaScale;
+        let home = { x: LANIAKEA_SIZE / 2, y: LANIAKEA_SIZE / 2 };
+
+        // Levels drawn half-faded (Earth, the Solar System) go through this
+        // canvas first, since their drawing sets its own transparency.
+        const level = document.createElement('canvas').getContext('2d')!;
+        level.canvas.width = CLOSEUP_SIZE * solScale;
+        level.canvas.height = CLOSEUP_SIZE * solScale;
+        const drawFaded = (
+            draw: (context: CanvasRenderingContext2D) => void,
+            alpha: number,
+        ) => {
+            level.setTransform(solScale, 0, 0, solScale, 0, 0);
+            level.clearRect(0, 0, CLOSEUP_SIZE, CLOSEUP_SIZE);
+            draw(level);
+            closeupCanvas.globalAlpha = alpha;
+            closeupCanvas.drawImage(
+                level.canvas,
+                0,
+                0,
+                CLOSEUP_SIZE,
+                CLOSEUP_SIZE,
+            );
+            closeupCanvas.globalAlpha = 1;
+        };
 
         const layers = [back, front, sol, endurance, enterprise];
 
@@ -523,6 +578,31 @@ export function Galaxy({ children }: { children: ReactNode }) {
             closeupCanvas.canvas.style.opacity = '0';
         };
 
+        const zoomLevels = createCosmicZoom({
+            isInZoomArea: (x, y) => {
+                const field = back.canvas.getBoundingClientRect();
+
+                return (
+                    Math.hypot(
+                        x - (field.left + field.width / 2),
+                        y - (field.top + field.height / 2),
+                    ) < ZOOM_AREA_RADIUS
+                );
+            },
+            canChange: () => !show,
+            prepare: (next) => {
+                if (next === 'laniakea') {
+                    loadLaniakea();
+                }
+            },
+            isReady: (next) =>
+                next === 'laniakea'
+                    ? isLaniakeaReady()
+                    : next === 'earth'
+                      ? isEarthCloseupReady()
+                      : true,
+        });
+
         const visibilityObserver = new IntersectionObserver(([entry]) => {
             isVisible = entry.isIntersecting;
         });
@@ -541,6 +621,8 @@ export function Galaxy({ children }: { children: ReactNode }) {
                 }
 
                 appearedAt = null;
+                zoomLevels.tick(now, false);
+
                 if (show) {
                     endShow(now);
                 }
@@ -569,11 +651,20 @@ export function Galaxy({ children }: { children: ReactNode }) {
                 endShow(now);
             }
 
+            // Zooming in to the Solar System or Earth dims the galaxy like a
+            // close-up; zooming out to Laniakea shrinks it away to a point.
+            zoomLevels.tick(now, fade === 1);
+            const weights = zoomLevels.weights(now);
+            const inward = weights.solar + weights.earth;
+
             for (const layer of layers) {
                 layer.canvas.style.opacity = String(
-                    fade * (1 - CLOSEUP_DIM * (zoomedIn ?? 0)),
+                    fade * (1 - CLOSEUP_DIM * Math.max(zoomedIn ?? 0, inward)),
                 );
             }
+
+            galaxyLayer.style.transform = `scale(${1 - 0.97 * weights.laniakea})`;
+            galaxyLayer.style.opacity = String(1 - weights.laniakea);
 
             const seconds = (now - startedAt) / 1000;
             const { yaw, pitch, roll } = universe.view;
@@ -622,8 +713,9 @@ export function Galaxy({ children }: { children: ReactNode }) {
                 };
             };
 
-            // While a close-up covers everything, there's no galaxy to see.
-            const isCovered = zoomedIn === 1;
+            // While a close-up (or another level) covers everything, there's no galaxy to see.
+            const isCovered =
+                zoomedIn === 1 || inward === 1 || weights.laniakea === 1;
             universe.isHoleCovered = isCovered;
 
             const drawGalaxy = () => {
@@ -881,6 +973,7 @@ export function Galaxy({ children }: { children: ReactNode }) {
                 hovered &&
                 hoveredAt &&
                 !show &&
+                zoomLevels.isAtGalaxy(now) &&
                 fade === 1 &&
                 now > cooldownUntil &&
                 hovered.isReady()
@@ -912,6 +1005,143 @@ export function Galaxy({ children }: { children: ReactNode }) {
                     (now - startedAt) / 1000,
                     zoomedIn,
                 );
+            }
+
+            // The Solar System and Earth levels, growing out of Sol (or Earth).
+            if (!show && inward > 0) {
+                const isFromEarth =
+                    weights.solar === 0 &&
+                    (zoomLevels.level === 'earth' ||
+                        zoomLevels.from === 'earth');
+                const earthAt = planetOffset('Earth', projectOffset, seconds);
+                const anchor = isFromEarth
+                    ? { x: solOffset.x + earthAt.x, y: solOffset.y + earthAt.y }
+                    : solOffset;
+                const smallest = isFromEarth
+                    ? (planetSize('Earth') * zoom) / EARTH_CLOSEUP_RADIUS
+                    : zoom / SOLAR_ZOOM;
+                const closeupX = anchor.x + (CLOSEUP_AT.x - anchor.x) * inward;
+                const closeupY = anchor.y + (CLOSEUP_AT.y - anchor.y) * inward;
+
+                closeupCanvas.canvas.style.opacity = '1';
+                closeupCanvas.canvas.style.transform = `translate(${closeupX - CLOSEUP_SIZE / 2}px, ${closeupY - CLOSEUP_SIZE / 2}px) scale(${smallest * (1 / smallest) ** inward})`;
+                closeupCanvas.setTransform(solScale, 0, 0, solScale, 0, 0);
+                closeupCanvas.clearRect(0, 0, CLOSEUP_SIZE, CLOSEUP_SIZE);
+                drawSpaceBackdrop(
+                    closeupCanvas,
+                    CLOSEUP_SIZE,
+                    smoothstep(0, 0.6, inward),
+                );
+
+                if (weights.solar > 0) {
+                    // The Solar System, turning slowly, rushing in toward Earth on the way down.
+                    const turn = seconds * 0.015;
+                    const projectSolar = (x: number, z: number) => {
+                        const turnedX = x * Math.cos(turn) - z * Math.sin(turn);
+                        const turnedZ = x * Math.sin(turn) + z * Math.cos(turn);
+
+                        return {
+                            x: turnedX * SOLAR_ZOOM,
+                            y: turnedZ * Math.sin(0.95) * SOLAR_ZOOM,
+                            depth: turnedZ,
+                        };
+                    };
+                    const earthOnScreen = planetOffset(
+                        'Earth',
+                        projectSolar,
+                        seconds,
+                    );
+                    const focusX = CLOSEUP_SIZE / 2 + earthOnScreen.x;
+                    const focusY = CLOSEUP_SIZE / 2 + earthOnScreen.y;
+                    const rush = 1 + 5 * weights.earth;
+
+                    drawFaded(
+                        (context) => {
+                            context.translate(focusX, focusY);
+                            context.scale(rush, rush);
+                            context.translate(-focusX, -focusY);
+                            drawSolSystem(
+                                context,
+                                projectSolar,
+                                SOLAR_ZOOM,
+                                0,
+                                seconds,
+                                { size: CLOSEUP_SIZE, hasNames: true },
+                            );
+                        },
+                        weights.solar / Math.max(inward, 0.001),
+                    );
+                }
+
+                if (weights.earth > 0) {
+                    drawFaded(
+                        (context) =>
+                            drawEarthCloseup(context, solScale, seconds, 1),
+                        weights.earth / Math.max(inward, 0.001),
+                    );
+                }
+            } else if (!show) {
+                closeupCanvas.canvas.style.opacity = '0';
+            }
+
+            // Laniakea, zooming out from the Milky Way's own spot in it.
+            if (weights.laniakea > 0) {
+                laniakea.setTransform(laniakeaScale, 0, 0, laniakeaScale, 0, 0);
+                laniakea.clearRect(0, 0, LANIAKEA_SIZE, LANIAKEA_SIZE);
+
+                // Deep space behind it, hiding the hero's ripples.
+                const depths = laniakea.createRadialGradient(
+                    LANIAKEA_SIZE / 2,
+                    LANIAKEA_SIZE / 2,
+                    0,
+                    LANIAKEA_SIZE / 2,
+                    LANIAKEA_SIZE / 2,
+                    LANIAKEA_SIZE / 2,
+                );
+                depths.addColorStop(0, 'rgba(3, 4, 10, 0.96)');
+                depths.addColorStop(0.75, 'rgba(3, 4, 10, 0.9)');
+                depths.addColorStop(1, 'rgba(3, 4, 10, 0)');
+                laniakea.globalAlpha = weights.laniakea;
+                laniakea.fillStyle = depths;
+                laniakea.fillRect(0, 0, LANIAKEA_SIZE, LANIAKEA_SIZE);
+                laniakea.globalAlpha = 1;
+
+                home =
+                    drawLaniakea(
+                        laniakea,
+                        LANIAKEA_SIZE,
+                        laniakeaScale,
+                        seconds,
+                        smoothstep(0.1, 0.8, weights.laniakea),
+                    ) ?? home;
+
+                // Fade it out toward the headline, like the galaxy.
+                laniakea.globalCompositeOperation = 'destination-out';
+                const toHeadline = laniakea.createLinearGradient(
+                    0,
+                    0,
+                    LANIAKEA_SIZE * 0.5,
+                    0,
+                );
+                toHeadline.addColorStop(0, 'rgba(0, 0, 0, 1)');
+                toHeadline.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                laniakea.fillStyle = toHeadline;
+                laniakea.fillRect(0, 0, LANIAKEA_SIZE * 0.5, LANIAKEA_SIZE);
+                laniakea.globalCompositeOperation = 'source-over';
+
+                const arriving = 1 - weights.laniakea;
+                laniakea.canvas.style.opacity = '1';
+                laniakea.canvas.style.transformOrigin = `${home.x}px ${home.y}px`;
+                // (Its centering comes from its class, as a separate `translate`.)
+                const shiftX =
+                    (LANIAKEA_SIZE / 2 - home.x) * arriving +
+                    LANIAKEA_SETTLES_AT.x * (1 - arriving);
+                const shiftY =
+                    (LANIAKEA_SIZE / 2 - home.y) * arriving +
+                    LANIAKEA_SETTLES_AT.y * (1 - arriving);
+                laniakea.canvas.style.transform = `translate(${shiftX}px, ${shiftY}px) scale(${1 + (LANIAKEA_ARRIVAL_ZOOM - 1) * arriving})`;
+            } else {
+                laniakea.canvas.style.opacity = '0';
             }
 
             // The Voyagers and Pioneers leave Earth and head out across the galaxy.
@@ -1047,6 +1277,7 @@ export function Galaxy({ children }: { children: ReactNode }) {
             cancelAnimationFrame(frame);
             visibilityObserver.disconnect();
             window.removeEventListener('pointermove', trackPointer);
+            zoomLevels.destroy();
         };
     }, []);
 
@@ -1058,15 +1289,22 @@ export function Galaxy({ children }: { children: ReactNode }) {
 
     return (
         <>
-            <canvas ref={backRef} className={canvasClassName} />
-            {children}
-            <canvas ref={frontRef} className={canvasClassName} />
+            {/* Everything in the galaxy, so zooming out to Laniakea can shrink it away. */}
+            <div ref={galaxyRef} className="absolute inset-0">
+                <canvas ref={backRef} className={canvasClassName} />
+                {children}
+                <canvas ref={frontRef} className={canvasClassName} />
+                <canvas
+                    ref={solRef}
+                    className="absolute top-1/2 left-1/2 size-[220px] opacity-0 motion-reduce:hidden"
+                />
+                <canvas ref={enduranceRef} className={shipClassName} />
+                <canvas ref={enterpriseRef} className={shipClassName} />
+            </div>
             <canvas
-                ref={solRef}
-                className="absolute top-1/2 left-1/2 size-[220px] opacity-0 motion-reduce:hidden"
+                ref={laniakeaRef}
+                className="pointer-events-none absolute top-1/2 left-1/2 size-[1000px] -translate-1/2 opacity-0 motion-reduce:hidden"
             />
-            <canvas ref={enduranceRef} className={shipClassName} />
-            <canvas ref={enterpriseRef} className={shipClassName} />
             <canvas
                 ref={closeupRef}
                 className="pointer-events-none absolute top-1/2 left-1/2 size-[780px] opacity-0 motion-reduce:hidden"

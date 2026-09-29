@@ -66,7 +66,14 @@ export function SiteFooter() {
                 >
                     Oona Räisänen
                 </a>
-                , from NASA's photo.
+                , from NASA's photo. Laniakea's galaxies from the{' '}
+                <a
+                    href="https://doi.org/10.26093/cds/vizier.21990026"
+                    className="underline-offset-2 hover:text-[#B3A69C] hover:underline"
+                >
+                    2MASS Redshift Survey
+                </a>{' '}
+                (Huchra et al. 2012), via VizieR, CDS, Strasbourg.
             </p>
         </footer>
     );

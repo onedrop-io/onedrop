@@ -382,8 +382,10 @@ export function drawSolSystem(
     zoom: number,
     roll: number,
     seconds: number,
+    /** The canvas's size (CSS pixels), and whether to name each planet (for a close look). */
+    { size = SOL_FIELD_SIZE, hasNames = false } = {},
 ) {
-    const center = SOL_FIELD_SIZE / 2;
+    const center = size / 2;
 
     context.strokeStyle = 'rgba(255, 215, 189, 0.16)';
     context.lineWidth = 0.7;
@@ -475,13 +477,27 @@ export function drawSolSystem(
             roll,
             seconds,
         );
+
+        if (hasNames) {
+            context.font = '500 11px "Instrument Sans", sans-serif';
+            context.textAlign = 'center';
+            context.fillStyle = 'rgba(255, 236, 222, 0.75)';
+            context.fillText(
+                planet.name,
+                center + point.x,
+                center +
+                    point.y +
+                    planet.size * zoom * (planet.rings ? 2.2 : 1) +
+                    14,
+            );
+        }
     }
 
     if (!isSunDrawn) {
         drawSun();
     }
 
-    context.font = `600 ${Math.round(10 * Math.max(zoom, 0.8))}px "Schibsted Grotesk", sans-serif`;
+    context.font = `600 ${Math.round(10 * Math.min(Math.max(zoom, 0.8), 1.6))}px "Schibsted Grotesk", sans-serif`;
     context.textAlign = 'center';
     context.fillStyle = 'rgba(255, 215, 189, 0.7)';
     context.fillText('Sol', center, center + 12 * zoom);
