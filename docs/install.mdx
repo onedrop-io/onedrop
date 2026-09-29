@@ -65,9 +65,9 @@ curl -fsSL https://raw.githubusercontent.com/onedrop-io/onedrop/main/install.sh 
 
 | Part               | Details                                                                   |
 | ------------------ | ------------------------------------------------------------------------- |
-| `drop` container   | The web app and its queue worker, from `ghcr.io/onedrop-io/drop`          |
+| `drop` container   | The web app and its queue worker, from `ghcr.io/onedrop-io/onedrop`       |
 | `drop-data` volume | The database, settings, and code backups. Kept across updates.            |
-| Project sandboxes  | One container per project, from `ghcr.io/onedrop-io/drop-sandbox`         |
+| Project sandboxes  | One container per project, from `ghcr.io/onedrop-io/onedrop-sandbox`      |
 | `drop` network     | Connects the sandboxes to the app so the agent can report what it's doing |
 | Docker socket      | Mounted into the `drop` container so OneDrop can start and stop sandboxes |
 

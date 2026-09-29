@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # OneDrop in one container: the web app, its queue worker and a SQLite database in the /data volume.
 # Projects run in sibling sandbox containers started through the host's Docker socket.
-# Published as ghcr.io/onedrop-io/drop by .github/workflows/images.yml; installed by install.sh.
+# Published as ghcr.io/onedrop-io/onedrop by .github/workflows/images.yml; installed by install.sh.
 
 FROM dunglas/frankenphp:1-php8.4 AS base
 RUN install-php-extensions bcmath intl pcntl pdo_pgsql zip
@@ -40,7 +40,7 @@ ENV APP_ENV=production \
     MAIL_MAILER=log \
     AUTH_VERIFY_EMAIL=false \
     SANDBOX_PROVIDER=docker \
-    SANDBOX_DOCKER_IMAGE=ghcr.io/onedrop-io/drop-sandbox:latest \
+    SANDBOX_DOCKER_IMAGE=ghcr.io/onedrop-io/onedrop-sandbox:latest \
     SANDBOX_DOCKER_NETWORK=drop \
     SANDBOX_DOCKER_STORAGE_PATH=(empty) \
     SANDBOX_CALLBACK_URL=http://drop:8000

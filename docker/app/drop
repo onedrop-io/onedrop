@@ -8,8 +8,8 @@
 # DROP_PULL=0 (use local images), DROP_NO_OPEN=1 (don't open the browser).
 set -eu
 
-IMAGE="${DROP_IMAGE:-ghcr.io/onedrop-io/drop:latest}"
-SANDBOX_IMAGE="${DROP_SANDBOX_IMAGE:-ghcr.io/onedrop-io/drop-sandbox:latest}"
+IMAGE="${DROP_IMAGE:-ghcr.io/onedrop-io/onedrop:latest}"
+SANDBOX_IMAGE="${DROP_SANDBOX_IMAGE:-ghcr.io/onedrop-io/onedrop-sandbox:latest}"
 NAME=drop
 VOLUME=drop-data
 NETWORK=drop

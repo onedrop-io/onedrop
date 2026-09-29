@@ -1,8 +1,8 @@
 name: images
 
 # Publishes the one-container install (INSTALL-001) to GitHub Container Registry:
-#   ghcr.io/onedrop-io/drop          the app (Dockerfile)
-#   ghcr.io/onedrop-io/drop-sandbox  project sandboxes (docker/sandbox)
+#   ghcr.io/onedrop-io/onedrop          the app (Dockerfile)
+#   ghcr.io/onedrop-io/onedrop-sandbox  project sandboxes (docker/sandbox)
 # `latest` follows main once its tests pass; v* tags also publish their version.
 # Each architecture builds on its own native runner, then the two are merged into one multi-arch tag.
 
@@ -29,8 +29,8 @@ jobs:
       fail-fast: false
       matrix:
         image:
-          - { name: drop, context: ., description: 'OneDrop: build apps with AI, in one container' }
-          - { name: drop-sandbox, context: docker/sandbox, description: 'OneDrop project sandbox' }
+          - { name: onedrop, context: ., description: 'OneDrop: build apps with AI, in one container' }
+          - { name: onedrop-sandbox, context: docker/sandbox, description: 'OneDrop project sandbox' }
         platform:
           - { name: linux/amd64, arch: amd64, runner: ubuntu-24.04 }
           - { name: linux/arm64, arch: arm64, runner: ubuntu-24.04-arm }
@@ -83,12 +83,12 @@ jobs:
     needs: build
     strategy:
       matrix:
-        image: [drop, drop-sandbox]
+        image: [onedrop, onedrop-sandbox]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          # Not digests-drop-*: that would also match drop-sandbox's.
+          # Not digests-onedrop-*: that would also match onedrop-sandbox's.
           pattern: ${{ matrix.image }}-digests-*
           merge-multiple: true
           path: /tmp/digests

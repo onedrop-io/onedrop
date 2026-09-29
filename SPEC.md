@@ -715,6 +715,6 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be able to install OneDrop with one command (`curl -fsSL https://raw.githubusercontent.com/onedrop-io/onedrop/main/install.sh | sh`) on macOS or Linux, with Docker as the only requirement.
 - User should be told how to get Docker when it's missing, and the installer should start Docker Desktop on macOS when it's installed but not running.
 - User should get a `drop` command to start, stop, update, see logs of, open, and uninstall OneDrop. Running the installer again updates it and keeps all data.
-- OneDrop should run as a single container (`ghcr.io/onedrop-io/drop`) with SQLite, keeping its data in the `drop-data` Docker volume; projects run in sibling sandbox containers (`ghcr.io/onedrop-io/drop-sandbox`) on the `drop` Docker network.
+- OneDrop should run as a single container (`ghcr.io/onedrop-io/onedrop`) with SQLite, keeping its data in the `drop-data` Docker volume; projects run in sibling sandbox containers (`ghcr.io/onedrop-io/onedrop-sandbox`) on the `drop` Docker network.
 - User should land on the sign-up page when the install finishes; the first person to sign up on a new install becomes its admin.
 - Both images should be built for amd64 and arm64 and published by GitHub Actions whenever `main` passes its tests.
