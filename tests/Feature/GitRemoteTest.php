@@ -148,3 +148,14 @@ test('the token goes to the remote as a header, never in the URL, with this mach
             && $env[str_replace('KEY', 'VALUE', $headerKey)] === 'Authorization: Basic '.base64_encode('dev:token');
     });
 })->group('GIT-004');
+
+test('with remotes limited to HTTPS, the local steps that read the backup bundle still run', function () {
+    // The real setting: HTTPS only. Nothing listens on this address, so a push gets as far as connecting to it.
+    config(['sandbox.git.protocols' => ['https'], 'sandbox.git.allow_private_remotes' => true]);
+    $this->project->update(['git_remote_url' => 'https://127.0.0.1:9/dev/timer.git']);
+
+    expect(fn () => app(GitRemote::class)->push($this->project))
+        ->toThrow(GitException::class, "Git couldn't reach the remote")
+        ->and(fn () => app(GitRemote::class)->push($this->project))
+        ->not->toThrow(GitException::class, "transport 'file' not allowed");
+})->group('GIT-004');

@@ -212,7 +212,8 @@ class GitRemote
 
         $env = [
             'GIT_TERMINAL_PROMPT' => '0',
-            'GIT_ALLOW_PROTOCOL' => implode(':', config('sandbox.git.protocols')),
+            // Only the remote is limited to HTTPS: the local steps read the backup bundle, which git counts as "file".
+            ...($remote ? ['GIT_ALLOW_PROTOCOL' => implode(':', config('sandbox.git.protocols'))] : []),
             'GIT_CONFIG_NOSYSTEM' => '1',
             'GIT_CONFIG_GLOBAL' => '/dev/null',
             'GIT_CONFIG_COUNT' => (string) count($config),
