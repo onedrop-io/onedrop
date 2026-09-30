@@ -59,7 +59,7 @@ class AgentConnection extends Model
 
     /**
      * Environment variables that give an agent CLI in a sandbox this credential
-     * (the names OpenCode, Claude Code and Codex read; a ChatGPT sign-in is OpenCode-only).
+     * (the names OpenCode, Claude Code and Codex read; the Codex agent gets a ChatGPT sign-in from codexAuth()).
      * A Claude subscription has none: Claude Code uses its own sign-in in the sandbox.
      *
      * @return array<string, string>
@@ -87,11 +87,38 @@ class AgentConnection extends Model
     /**
      * The stored ChatGPT sign-in tokens.
      *
-     * @return array{access: string, refresh: string, expires: int, account_id: string|null, email: string|null}
+     * @return array{access: string, refresh: string, expires: int, account_id: string|null, email: string|null, id_token?: string|null}
      */
     public function chatGptTokens(): array
     {
         return json_decode($this->credential, true);
+    }
+
+    /**
+     * The Codex CLI's auth.json for this OpenAI connection: the API key, or the ChatGPT sign-in without its
+     * refresh token (as for OpenCode, the platform refreshes it). Marked as just refreshed so Codex doesn't
+     * try to refresh it itself. Codex reads the account from the ID token (see ChatGptAuth::ensureFresh()).
+     *
+     * @return array{OPENAI_API_KEY: string|null, tokens?: array{id_token: string, access_token: string, refresh_token: string, account_id: string|null}, last_refresh?: string}
+     */
+    public function codexAuth(): array
+    {
+        if ($this->credential_type !== CredentialType::ChatGpt) {
+            return ['OPENAI_API_KEY' => $this->credential];
+        }
+
+        $tokens = $this->chatGptTokens();
+
+        return [
+            'OPENAI_API_KEY' => null,
+            'tokens' => [
+                'id_token' => (string) ($tokens['id_token'] ?? ''),
+                'access_token' => $tokens['access'],
+                'refresh_token' => '',
+                'account_id' => $tokens['account_id'],
+            ],
+            'last_refresh' => now()->toIso8601ZuluString(),
+        ];
     }
 
     /**

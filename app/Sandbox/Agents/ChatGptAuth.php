@@ -20,6 +20,9 @@ class ChatGptAuth
     /** OpenAI's public client id for Codex, shared by the Codex CLI and OpenCode. */
     public const CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann';
 
+    /** The Codex CLI version the sandbox image pins; ChatGPT lists the models that version can run. */
+    public const CODEX_VERSION = '0.159.2';
+
     /** Refresh when the access token has less than this left, so it outlives a long agent run. */
     public const REFRESH_MARGIN_SECONDS = 6 * 3600;
 
@@ -53,7 +56,7 @@ class ChatGptAuth
     /**
      * Check whether the user has approved the code. Null while they haven't yet.
      *
-     * @return array{access: string, refresh: string, expires: int, account_id: string|null, email: string|null}|null
+     * @return array{access: string, refresh: string, expires: int, account_id: string|null, email: string|null, id_token: string|null}|null
      *
      * @throws ChatGptSignInFailed when OpenAI denies or fails the sign-in
      */
@@ -89,21 +92,22 @@ class ChatGptAuth
     }
 
     /**
-     * Make sure the connection's access token will last the next agent run, refreshing it if not.
+     * Make sure the connection's access token will last the next agent run, refreshing it if not. The Codex
+     * agent also needs the sign-in's ID token, which connections made before it was kept don't have yet.
      *
      * @throws ChatGptSignInFailed when the sign-in can't be refreshed
      */
-    public function ensureFresh(AgentConnection $connection): AgentConnection
+    public function ensureFresh(AgentConnection $connection, bool $needsIdToken = false): AgentConnection
     {
-        if (! $this->expiresSoon($connection)) {
+        if (! $this->needsRefresh($connection, $needsIdToken)) {
             return $connection;
         }
 
         // Refresh tokens are single-use: two runs refreshing at once would sign the user out.
-        return Cache::lock("chatgpt-refresh:{$connection->id}", 30)->block(20, function () use ($connection) {
+        return Cache::lock("chatgpt-refresh:{$connection->id}", 30)->block(20, function () use ($connection, $needsIdToken) {
             $connection->refresh();
 
-            if (! $this->expiresSoon($connection)) {
+            if (! $this->needsRefresh($connection, $needsIdToken)) {
                 return $connection;
             }
 
@@ -112,6 +116,7 @@ class ChatGptAuth
                 'grant_type' => 'refresh_token',
                 'refresh_token' => $current['refresh'],
                 'client_id' => self::CLIENT_ID,
+                'scope' => 'openid profile email',
             ]), __("Couldn't reach OpenAI to refresh your ChatGPT sign-in. Try again in a moment."));
 
             if ($response->clientError()) {
@@ -134,6 +139,7 @@ class ChatGptAuth
                     ...$tokens,
                     'account_id' => $tokens['account_id'] ?? $current['account_id'],
                     'email' => $tokens['email'] ?? $current['email'],
+                    'id_token' => $tokens['id_token'] ?? $current['id_token'] ?? null,
                 ]),
                 'verified_at' => now(),
             ]);
@@ -143,10 +149,38 @@ class ChatGptAuth
     }
 
     /**
+     * The models the signed-in ChatGPT account can use with Codex (they differ by plan), as ChatGPT lists
+     * them to the Codex CLI. Null when ChatGPT can't be asked, e.g. the access token has expired.
+     *
+     * @return list<string>|null
+     */
+    public function accountModels(AgentConnection $connection): ?array
+    {
+        $tokens = $connection->chatGptTokens();
+
+        try {
+            $response = Http::timeout(10)
+                ->withToken($tokens['access'])
+                ->withHeaders(array_filter(['ChatGPT-Account-ID' => $tokens['account_id'], 'originator' => 'codex_cli_rs']))
+                ->get(config('sandbox.chatgpt_models_url'), ['client_version' => self::CODEX_VERSION]);
+        } catch (ConnectionException) {
+            return null;
+        }
+
+        $models = collect($response->successful() ? $response->json('models') : null)
+            ->filter(fn ($model) => is_array($model) && is_string($model['slug'] ?? null) && ($model['visibility'] ?? 'list') === 'list')
+            ->pluck('slug')
+            ->values()
+            ->all();
+
+        return $models !== [] ? $models : null;
+    }
+
+    /**
      * The stored form of a token response.
      *
      * @param  array<string, mixed>  $tokens
-     * @return array{access: string, refresh: string, expires: int, account_id: string|null, email: string|null}
+     * @return array{access: string, refresh: string, expires: int, account_id: string|null, email: string|null, id_token: string|null}
      */
     protected function bundle(array $tokens): array
     {
@@ -161,6 +195,7 @@ class ChatGptAuth
                 ?? $claims['organizations'][0]['id']
                 ?? null,
             'email' => $claims['email'] ?? $claims['https://api.openai.com/profile']['email'] ?? null,
+            'id_token' => isset($tokens['id_token']) && $tokens['id_token'] !== '' ? (string) $tokens['id_token'] : null,
         ];
     }
 
@@ -180,6 +215,11 @@ class ChatGptAuth
         $claims = json_decode((string) base64_decode(strtr($parts[1], '-_', '+/')), true);
 
         return is_array($claims) ? $claims : [];
+    }
+
+    protected function needsRefresh(AgentConnection $connection, bool $needsIdToken): bool
+    {
+        return $this->expiresSoon($connection) || ($needsIdToken && empty($connection->chatGptTokens()['id_token']));
     }
 
     protected function expiresSoon(AgentConnection $connection): bool

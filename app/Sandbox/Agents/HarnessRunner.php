@@ -7,7 +7,7 @@ use App\Models\Message;
 use App\Models\Project;
 
 /**
- * Hands each run to the agent the project uses: OpenCode or Claude Code.
+ * Hands each run to the agent the project uses: OpenCode, Claude Code or Codex.
  */
 class HarnessRunner implements AgentRunner
 {
@@ -20,7 +20,7 @@ class HarnessRunner implements AgentRunner
 
     public function stop(Conversation $conversation): void
     {
-        // Both agents run under the same forwarder, so either one stops whichever is running.
+        // Every agent runs under the same forwarder, so any of them stops whichever is running.
         $this->runnerFor($conversation->ownerProject())->stop($conversation);
     }
 
@@ -29,6 +29,7 @@ class HarnessRunner implements AgentRunner
         return app(match ($this->catalog->harnessFor($project)) {
             AgentHarness::OpenCode => OpenCodeRunner::class,
             AgentHarness::ClaudeCode => ClaudeCodeRunner::class,
+            AgentHarness::Codex => CodexRunner::class,
         });
     }
 }

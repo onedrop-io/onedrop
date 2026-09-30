@@ -12,9 +12,11 @@ abstract class TestCase extends BaseTestCase
     {
         parent::setUp();
 
-        // The model catalog (models.dev) is served from a fixture, never the network.
+        // The model catalog (models.dev) is served from a fixture, never the network. ChatGPT doesn't
+        // list a ChatGPT sign-in's models, so they're the ones OpenAI includes with Codex.
         Http::fake([
             'models.test/*' => Http::response(file_get_contents(__DIR__.'/Fixtures/models-dev.json'), 200, ['Content-Type' => 'application/json']),
+            'chatgpt.test/*' => Http::response('', 503),
         ]);
     }
 

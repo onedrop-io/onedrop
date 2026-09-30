@@ -35,7 +35,7 @@ class ModelCatalog
             return $models;
         }
 
-        return array_values(array_filter($models, fn (array $model) => $this->includedWithChatGpt($model['id'])));
+        return array_values(array_filter($models, fn (array $model) => $this->includedWithChatGpt($model['id'], $user)));
     }
 
     /**
@@ -79,11 +79,18 @@ class ModelCatalog
     }
 
     /**
-     * Whether OpenCode lets a ChatGPT sign-in use this model: only the ones OpenAI includes with
-     * Codex. Mirrors the filter in OpenCode's codex plugin (src/plugin/openai/codex.ts).
+     * Whether a ChatGPT sign-in can use this model: only the ones OpenAI includes with Codex. That depends
+     * on the plan, so the user's account is asked (cached for an hour); when it can't be, this falls back
+     * to the filter in OpenCode's codex plugin (src/plugin/openai/codex.ts).
      */
-    public function includedWithChatGpt(string $id): bool
+    public function includedWithChatGpt(string $id, ?User $user = null): bool
     {
+        $account = $user ? $this->chatGptAccountModels($user) : null;
+
+        if ($account !== null) {
+            return in_array($id, $account, true);
+        }
+
         if (in_array($id, ['gpt-5.5', 'gpt-5.3-codex-spark', 'gpt-5.4', 'gpt-5.4-mini'], true)) {
             return true;
         }
@@ -100,15 +107,18 @@ class ModelCatalog
     }
 
     /**
-     * Providers the user can run with an agent: OpenCode can't use a Claude subscription, and
-     * Claude Code only runs Claude (with an API key or the user's Claude subscription).
+     * Providers the user can run with an agent: OpenCode can't use a Claude subscription, Claude Code
+     * only runs Claude (with an API key or the user's Claude subscription), and Codex only runs OpenAI
+     * (with an API key or the user's ChatGPT sign-in).
      *
      * @return list<AgentProvider>
      */
     public function usableProviders(User $user, AgentHarness $harness = AgentHarness::OpenCode): array
     {
-        if ($harness === AgentHarness::ClaudeCode) {
-            return $user->agentConnections()->where('provider', AgentProvider::Claude)->exists() ? [AgentProvider::Claude] : [];
+        if ($harness !== AgentHarness::OpenCode) {
+            $provider = $harness === AgentHarness::ClaudeCode ? AgentProvider::Claude : AgentProvider::Codex;
+
+            return $user->agentConnections()->where('provider', $provider)->exists() ? [$provider] : [];
         }
 
         return array_values($user->agentConnections()
@@ -121,7 +131,7 @@ class ModelCatalog
     }
 
     /**
-     * The agents the user's connections can run, OpenCode first.
+     * The agents the user's connections can run, OpenCode first (then Claude Code, then Codex).
      *
      * @return list<AgentHarness>
      */
@@ -152,7 +162,7 @@ class ModelCatalog
         $model = $preference['model'] ?? null;
 
         if ($harness && $provider && $model && in_array($provider, $this->usableProviders($user, $harness), true)
-            && (! $this->signedInWithChatGpt($provider, $user) || $this->includedWithChatGpt($model))) {
+            && (! $this->signedInWithChatGpt($provider, $user) || $this->includedWithChatGpt($model, $user))) {
             return ['agent_harness' => $harness, 'agent_provider' => $provider, 'agent_model' => $model, 'agent_variant' => $preference['variant'] ?? null];
         }
 
@@ -198,7 +208,7 @@ class ModelCatalog
         $usable = $this->usableProviders($project->user, $harness);
 
         if ($project->agent_provider && in_array($project->agent_provider, $usable, true) && $project->agent_model
-            && (! $this->signedInWithChatGpt($project->agent_provider, $project->user) || $this->includedWithChatGpt($project->agent_model))) {
+            && (! $this->signedInWithChatGpt($project->agent_provider, $project->user) || $this->includedWithChatGpt($project->agent_model, $project->user))) {
             return ['provider' => $project->agent_provider, 'model' => $project->agent_model, 'variant' => $project->agent_variant];
         }
 
@@ -225,11 +235,38 @@ class ModelCatalog
     {
         $configured = Str::after((string) config("sandbox.models.{$provider->value}"), $provider->catalogId().'/');
 
-        if (! $this->signedInWithChatGpt($provider, $user) || $this->includedWithChatGpt($configured)) {
+        if (! $this->signedInWithChatGpt($provider, $user) || $this->includedWithChatGpt($configured, $user)) {
             return $configured;
         }
 
         return $this->models($provider, $user)[0]['id'] ?? $configured;
+    }
+
+    /**
+     * The models the user's ChatGPT account can use, or null when they didn't sign in with ChatGPT or
+     * ChatGPT can't say right now (asked again after five minutes).
+     *
+     * @return list<string>|null
+     */
+    protected function chatGptAccountModels(User $user): ?array
+    {
+        $connection = $user->agentConnections()->where('provider', AgentProvider::Codex)->where('credential_type', CredentialType::ChatGpt)->first();
+
+        if ($connection === null) {
+            return null;
+        }
+
+        $key = "chatgpt-models:{$connection->id}";
+        $cached = Cache::get($key);
+
+        if (is_array($cached)) {
+            return $cached !== [] ? $cached : null;
+        }
+
+        $models = app(ChatGptAuth::class)->accountModels($connection);
+        Cache::put($key, $models ?? [], $models === null ? now()->addMinutes(5) : now()->addHour());
+
+        return $models;
     }
 
     /**

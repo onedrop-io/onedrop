@@ -136,7 +136,19 @@ const HARNESSES: { id: AgentHarness; label: string; hint: string }[] = [
         label: 'Claude Code',
         hint: "Anthropic's agent: Claude models, including your Claude subscription",
     },
+    {
+        id: 'codex',
+        label: 'Codex',
+        hint: "OpenAI's agent: OpenAI models, on your ChatGPT sign-in or API key",
+    },
 ];
+
+/** How to unlock an agent the user can't run yet. */
+const UNLOCK_HINTS: Record<AgentHarness, string> = {
+    opencode: 'Connect a provider other than a Claude subscription to use it',
+    claude_code: 'Connect Claude in Settings → AI to use it',
+    codex: 'Connect Codex in Settings → AI to use it',
+};
 
 /**
  * The agent, model and reasoning pickers shown in the chat composer.
@@ -665,9 +677,7 @@ function HarnessMenu({
                                 </span>
                                 <span className="block text-xs text-muted-foreground">
                                     {catalog && !usable
-                                        ? harness.id === 'claude_code'
-                                            ? 'Connect Claude in Settings → AI to use it'
-                                            : 'Connect a provider other than a Claude subscription to use it'
+                                        ? UNLOCK_HINTS[harness.id]
                                         : harness.hint}
                                 </span>
                             </span>

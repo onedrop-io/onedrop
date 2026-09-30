@@ -52,6 +52,8 @@ The agent that builds your apps uses your own AI account: your ChatGPT Plus or P
 
     If OpenAI says to enable device code sign-in, turn it on in ChatGPT under **Settings → Security**, then click **Get a new code** in OneDrop. A code issued before you changed the setting keeps failing. On a ChatGPT Business or Enterprise workspace, an admin may need to allow device code sign-in first.
 
+    Your Codex connection works with two agents: OpenCode (pick an OpenAI model) or OpenAI's own [Codex agent](#choose-the-agent).
+
     OneDrop keeps your ChatGPT sign-in and refreshes it for you. Sandboxes only get a short-lived access token, never the refresh token. If OpenAI ends the sign-in (for example, after you sign out of all devices), the chat asks you to sign in with ChatGPT again.
 
     <Note>
@@ -87,15 +89,17 @@ Keys are encrypted in the database, never sent back to your browser, and only pa
 
 ## Choose the agent
 
-Each project runs one of two agents in its sandbox. The agent picker sits under the chat box, left of the model picker, in both the new-project prompt and the project chat.
+Each project runs one of three agents in its sandbox. The agent picker sits under the chat box, left of the model picker, in both the new-project prompt and the project chat.
 
 | Agent           | Runs                                                                      | Best for                                          |
 | --------------- | ------------------------------------------------------------------------- | ------------------------------------------------- |
 | **OpenCode**    | Any connected provider except a Claude subscription                       | Choosing between providers and hundreds of models |
 | **Claude Code** | Claude models only, with an Anthropic API key or your Claude subscription | Building on your Claude Pro or Max plan           |
+| **Codex**       | OpenAI models only, with your ChatGPT sign-in or an OpenAI API key        | OpenAI's own agent, on your ChatGPT plan          |
 
 - New projects start on whatever agent and model you picked last. Until you pick one, they start on your AI subscription: Claude Code for a Claude subscription, or OpenCode with Codex for a ChatGPT sign-in. Without a subscription, they start on OpenCode (or Claude Code, if that's the only agent your connections can run).
 - Claude Code only shows up once you've connected Claude. While it's chosen, the model picker only lists Claude models.
+- Codex only shows up once you've connected Codex. While it's chosen, the model picker only lists OpenAI models (on a ChatGPT plan, the ones OpenAI includes with Codex).
 - Switching agents starts a fresh conversation: the new agent can't read the old one's history, but your app's files stay as they are. The chat notes the switch.
 - You can't switch while the agent is working. Stop it or wait for it to finish first.
 

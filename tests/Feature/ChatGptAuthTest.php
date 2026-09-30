@@ -60,12 +60,13 @@ test('polling waits while the code is not approved yet', function () {
 })->group('AI-003');
 
 test('an approved code connects Codex with the ChatGPT tokens', function () {
+    $idToken = fakeJwt(['email' => 'dev@example.com', 'https://api.openai.com/auth' => ['chatgpt_account_id' => 'acct-9876']]);
     Http::fake([
         'auth.openai.com/api/accounts/deviceauth/token' => Http::response(['authorization_code' => 'auth-code', 'code_challenge' => 'c', 'code_verifier' => 'the-verifier']),
         'auth.openai.com/oauth/token' => Http::response([
             'access_token' => 'access-1',
             'refresh_token' => 'refresh-1',
-            'id_token' => fakeJwt(['email' => 'dev@example.com', 'https://api.openai.com/auth' => ['chatgpt_account_id' => 'acct-9876']]),
+            'id_token' => $idToken,
             'expires_in' => 864000,
         ]),
     ]);
@@ -83,7 +84,7 @@ test('an approved code connects Codex with the ChatGPT tokens', function () {
         ->and($connection->hint)->toBe('9876')
         ->and($connection->is_default)->toBeTrue()
         ->and($connection->verified_at)->not->toBeNull()
-        ->and($connection->chatGptTokens())->toMatchArray(['access' => 'access-1', 'refresh' => 'refresh-1', 'account_id' => 'acct-9876', 'email' => 'dev@example.com'])
+        ->and($connection->chatGptTokens())->toMatchArray(['access' => 'access-1', 'refresh' => 'refresh-1', 'account_id' => 'acct-9876', 'email' => 'dev@example.com', 'id_token' => $idToken])
         ->and($connection->chatGptTokens()['expires'])->toBe(now()->addSeconds(864000)->getTimestamp());
 
     Http::assertSent(fn (Request $request) => $request->url() === 'https://auth.openai.com/oauth/token'

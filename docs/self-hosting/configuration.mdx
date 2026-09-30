@@ -47,7 +47,7 @@ OneDrop is a Laravel application, so the usual Laravel settings (`APP_URL`, `DB_
 
 | Variable                   | Default                                | Description                                                                                                                            |
 | -------------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `SANDBOX_AGENT`            | `HarnessRunner`                        | Class that starts agent runs; `HarnessRunner` runs each project's chosen agent (OpenCode or Claude Code). Tests use `FakeAgentRunner`. |
+| `SANDBOX_AGENT`            | `HarnessRunner`                        | Class that starts agent runs; `HarnessRunner` runs each project's chosen agent (OpenCode, Claude Code or Codex). Tests use `FakeAgentRunner`. |
 | `SANDBOX_MODEL_CLAUDE`     | `anthropic/claude-sonnet-5`            | Model used for Anthropic connections.                                                                                                  |
 | `SANDBOX_MODEL_CODEX`      | `openai/gpt-5.6`                       | Model used for OpenAI connections.                                                                                                     |
 | `SANDBOX_MODEL_OPENROUTER` | `openrouter/anthropic/claude-sonnet-5` | Model used for OpenRouter connections.                                                                                                 |
@@ -58,6 +58,7 @@ These are the defaults for new projects; users can pick any other model in the c
 | Setting                     | Description                                                                                                              |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | `SANDBOX_MODEL_CATALOG_URL` | Where the model list comes from. Defaults to `https://models.dev/api.json`, the catalog OpenCode uses. Cached for a day. |
+| `SANDBOX_CHATGPT_MODELS_URL` | Where ChatGPT lists the models a ChatGPT sign-in's plan includes with Codex. Defaults to `https://chatgpt.com/backend-api/codex/models`. Cached for an hour per connection. |
 | `sandbox.featured_models`   | Models shown first in the picker, per provider, in `config/sandbox.php`.                                                 |
 
 ## Publishing

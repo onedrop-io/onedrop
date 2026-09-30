@@ -143,6 +143,9 @@ return [
     // Model catalog used by OpenCode (names, prices, context sizes, reasoning levels). Cached for a day.
     'catalog_url' => env('SANDBOX_MODEL_CATALOG_URL', 'https://models.dev/api.json'),
 
+    // Where ChatGPT lists the models a signed-in account can use with Codex (its plan decides). Cached for an hour.
+    'chatgpt_models_url' => env('SANDBOX_CHATGPT_MODELS_URL', 'https://chatgpt.com/backend-api/codex/models'),
+
     /*
     |--------------------------------------------------------------------------
     | Task Copies

@@ -51,11 +51,13 @@ const RANGES: { value: Range; label: string }[] = [
 const HARNESS_COLORS: Record<AgentHarness, string> = {
     claude_code: 'var(--viz-2)',
     opencode: 'var(--viz-1)',
+    codex: 'var(--viz-3)',
 };
 
 const HARNESS_LABELS: Record<AgentHarness, string> = {
     claude_code: 'Claude Code',
     opencode: 'OpenCode',
+    codex: 'Codex',
 };
 
 function formatCost(value: number): string {
@@ -171,7 +173,7 @@ export default function Usage({
     const harnesses = (
         agents.length > 0
             ? agents.map((agent) => agent.harness)
-            : (['claude_code', 'opencode'] as AgentHarness[])
+            : (['claude_code', 'opencode', 'codex'] as AgentHarness[])
     ).map((harness) => ({
         key: harness,
         label: HARNESS_LABELS[harness],

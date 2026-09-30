@@ -10,7 +10,7 @@ Each project runs in its own sandbox. Locally that's a Docker container made fro
 The image is defined in `docker/sandbox/`:
 
 - PHP 8.4 (with SQLite, PostgreSQL and MySQL drivers), Composer, Node.js 22, SQLite
-- OpenCode and Claude Code (the two agents a project can use, both pinned), plus the Codex CLI
+- OpenCode, Claude Code and the Codex CLI (the three agents a project can use, all pinned)
 - `ttyd`, the web terminal behind the Shell tab
 - `start.sh`, which keeps three processes running: the app's dev server (or a placeholder page), the host-rewriting proxy, and the terminal
 - `forwarder.mjs`, which runs an agent task and streams its events back to OneDrop

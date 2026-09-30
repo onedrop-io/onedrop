@@ -70,7 +70,7 @@ test('the picker lists only providers the agent can use, plus favorites', functi
     $this->actingAs($this->user)
         ->getJson(route('agent-models.index'))
         ->assertOk()
-        ->assertJsonCount(1, 'providers')
+        ->assertJsonPath('harnesses.0.providers', ['claude'])
         ->assertJsonPath('providers.0.id', 'claude')
         ->assertJsonPath('providers.0.label', 'Anthropic')
         ->assertJsonPath('providers.0.default_model', 'claude-sonnet-5')

@@ -6,6 +6,7 @@ use App\Enums\AgentHarness;
 use App\Models\Sandbox;
 use App\Models\Task;
 use App\Sandbox\Agents\ClaudeCodeEvents;
+use App\Sandbox\Agents\CodexEvents;
 use App\Sandbox\Agents\OpenCodeEvents;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -34,6 +35,7 @@ class SandboxEventController extends Controller
         $events = match (AgentHarness::tryFrom($validated['agent'] ?? '') ?? AgentHarness::OpenCode) {
             AgentHarness::OpenCode => app(OpenCodeEvents::class),
             AgentHarness::ClaudeCode => app(ClaudeCodeEvents::class),
+            AgentHarness::Codex => app(CodexEvents::class),
         };
 
         $conversation = $task ?? $sandbox->project;

@@ -40,9 +40,9 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends chromium fonts-liberation2 fonts-noto-color-emoji \
     && rm -rf /var/lib/apt/lists/*
 
-# Agent CLIs. OpenCode is the default agent and Claude Code the alternative (both pinned: their
+# Agent CLIs. OpenCode is the default agent, Claude Code and Codex the alternatives (all pinned: their
 # JSON events are parsed by the platform). Credentials arrive as env vars at run time, never at build time.
-RUN npm install -g opencode-ai@1.18.32 @anthropic-ai/claude-code@2.1.284 @openai/codex
+RUN npm install -g opencode-ai@1.18.32 @anthropic-ai/claude-code@2.1.284 @openai/codex@0.159.2
 
 # /data/storage holds App Storage buckets: on the sandbox's disk but outside the app's code and git.
 RUN useradd --create-home --shell /bin/bash sandbox \

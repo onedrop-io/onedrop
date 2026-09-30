@@ -2,10 +2,12 @@
 
 namespace App\Sandbox\Agents;
 
+use App\Enums\AgentProvider;
 use App\Enums\MessageRole;
 use App\Enums\SandboxStatus;
 use App\Models\Attachment;
 use App\Models\Message;
+use App\Models\Project;
 use App\Models\Sandbox;
 use App\Models\Task;
 use App\Sandbox\SandboxException;
@@ -105,6 +107,34 @@ abstract class SandboxAgentRunner implements AgentRunner
         $text = $message->content !== '' ? $message->content : '(No message, just the attached files.)';
 
         return "{$text}\n\n---\nAttached files (see \"Attachments\" in your instructions):\n{$list}";
+    }
+
+    /**
+     * The selection to use when the message has images: the chosen model if it can see them, otherwise
+     * a vision model from the same provider for this message; null when none can. The chat says which.
+     *
+     * @param  array{provider: AgentProvider, model: string, variant: string|null}  $selection
+     * @return array{provider: AgentProvider, model: string, variant: string|null}|null
+     */
+    protected function selectionForImages(Project $project, Conversation $conversation, array $selection): ?array
+    {
+        $vision = $this->catalog->visionSelection($selection, $project->user);
+
+        if ($vision === $selection) {
+            return $selection;
+        }
+
+        $current = $this->catalog->describe($selection)['name'];
+
+        if ($vision === null) {
+            $conversation->messages()->create(['role' => MessageRole::Activity, 'content' => "{$current} can't see images, so I'm working from your text"]);
+
+            return null;
+        }
+
+        $conversation->messages()->create(['role' => MessageRole::Activity, 'content' => 'Looking at your images with '.$this->catalog->describe($vision)['name']]);
+
+        return $vision;
     }
 
     /**

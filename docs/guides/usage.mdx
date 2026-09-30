@@ -8,7 +8,7 @@ Open **Usage** from the account menu (click your name at the bottom of the sideb
 ## What you see
 
 - **Total**: the estimated cost of every agent run in the period, and how many agent sessions it came from.
-- **Each agent**: OpenCode's and Claude Code's share of the cost, with their token counts.
+- **Each agent**: OpenCode's, Claude Code's and Codex's share of the cost, with their token counts.
 - **Chart**: cost per day (per hour for the past 24 hours), one line per agent. Hover to see each day's numbers, or open **Show data table**.
 - **Totals**: processed tokens, cached input, uncached input, output, and how much of the input came from the cache.
 - **Breakdown**: cost, share, and tokens by **Model**, **Project**, or **Day**.
@@ -17,7 +17,7 @@ Switch between **Cost** and **Tokens** at the top to change the headline number,
 
 ## Where the numbers come from
 
-After each run, the agent reports the tokens each model used and their cost: Claude Code once per run, OpenCode after each step. Tasks count toward their project.
+After each run, the agent reports the tokens each model used and their cost: Claude Code once per run, OpenCode after each step, Codex after each turn. Codex doesn't report a cost, so OneDrop estimates it from OpenAI's API prices. Tasks count toward their project.
 
 <Note>
     Costs are API-price estimates. On a Claude or ChatGPT subscription you

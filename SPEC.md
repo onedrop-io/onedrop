@@ -88,7 +88,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be taken straight to the new-project prompt after signing in during onboarding.
 - The agent should run on the user's ChatGPT subscription; the platform keeps the refresh token and refreshes it, and only a short-lived access token enters the sandbox.
 - User should be told to sign in again when their ChatGPT sign-in can no longer be refreshed.
-- User should only be offered models OpenAI includes with Codex when signed in with ChatGPT, and projects should start on one of those.
+- User should only be offered the models their ChatGPT plan includes with Codex (as ChatGPT lists them for their account, or the models OpenAI includes with Codex when it can't be asked), and projects should start on one of those.
 
 ## AI-005: Use a Claude subscription through Claude Code's own sign-in
 
@@ -491,6 +491,16 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Claude Code should remember the conversation across messages; switching agents starts a fresh conversation (the project's files are kept) and the chat says so.
 - User should see a plain explanation when Claude rejects the key, they aren't signed in to Claude, or their plan's usage limit is used up.
 
+## AGT-009: Codex agent
+
+- User should be able to choose Codex (OpenAI's own agent) as the agent, next to OpenCode and Claude Code, once they've connected Codex (ChatGPT sign-in or OpenAI API key), and only OpenAI models while it's chosen.
+- User should still be able to use their Codex connection through OpenCode, by picking OpenCode and an OpenAI model.
+- Codex should run on the user's ChatGPT sign-in without the refresh token entering the sandbox (the platform refreshes it, AI-003), or on their OpenAI API key.
+- User should see Codex's thinking, commands, file changes and replies in the chat the same way as the other agents', be able to stop it and queue messages, and attach images for it to look at.
+- Codex should remember the conversation across messages, and start a fresh one when its session is gone (e.g. a new sandbox).
+- User should see a plain explanation when OpenAI turns down the sign-in or key, the ChatGPT plan's usage limit is used up, or the model isn't included with ChatGPT.
+- Codex runs should count towards Usage (USAGE-001), with costs estimated at OpenAI's API prices.
+
 ## AGT-003: Stop, queue, and send now
 
 - User should be able to stop the agent while it's working; the run ends in the sandbox and the chat says it was stopped.
@@ -791,8 +801,8 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## USAGE-001: AI usage
 
-- The platform should record the tokens and estimated cost of every agent run, per model, from Claude Code's result and OpenCode's steps, charged to the project's owner (whose AI connection ran it).
-- User should be able to open Usage from their account menu and see, for the past 24 hours, 7, 30 or 90 days (30 by default): the total estimated cost, how many agent sessions it came from, and each agent's (OpenCode, Claude Code) share of cost and tokens.
+- The platform should record the tokens and estimated cost of every agent run, per model, from Claude Code's result, OpenCode's steps and Codex's turns, charged to the project's owner (whose AI connection ran it).
+- User should be able to open Usage from their account menu and see, for the past 24 hours, 7, 30 or 90 days (30 by default): the total estimated cost, how many agent sessions it came from, and each agent's (OpenCode, Claude Code, Codex) share of cost and tokens.
 - User should see a chart of cost (or tokens) over the period, one line per agent, and be able to switch the page between Cost and Tokens.
 - User should see totals: processed tokens, cached input, uncached input, output, and the share of input served from the cache.
 - User should see a breakdown by model, by project, or by day, with each row's cost, share and tokens.

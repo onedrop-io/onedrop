@@ -42,6 +42,35 @@ test('users switch a project to Claude Code and pick from Claude models', functi
         ->and($project->agent_session_id)->toBeNull();
 })->group('AGT-007');
 
+test('users switch a project to Codex and pick from OpenAI models', function () {
+    app()->instance(SandboxProvider::class, new FakeSandboxProvider);
+    $user = User::factory()->create();
+    AgentConnection::factory()->for($user)->provider(AgentProvider::OpenRouter)->create(['is_default' => true]);
+    AgentConnection::factory()->for($user)->chatGpt()->create(['is_default' => false]);
+    $project = Project::factory()->for($user)->create(['agent_session_id' => 'ses_opencode']);
+    Sandbox::factory()->for($project)->create(['preview_url' => null]);
+    $this->actingAs($user);
+
+    visit("/projects/{$project->id}")
+        ->assertSeeIn('@harness-picker', 'OpenCode')
+        ->click('@harness-picker')
+        ->assertSeeIn('@harness-codex', "OpenAI's agent")
+        ->click('@harness-codex')
+        ->assertSeeIn('@harness-picker', 'Codex')
+        ->assertSeeIn('@model-picker', 'GPT-5.5')
+        ->assertSee('Switched to Codex')
+        ->click('@model-picker')
+        ->assertVisible('[aria-label="OpenAI"]')
+        ->assertMissing('[aria-label="OpenRouter"]')
+        ->assertNoJavaScriptErrors();
+
+    $project->refresh();
+    expect($project->agent_harness)->toBe(AgentHarness::Codex)
+        ->and($project->agent_provider)->toBe(AgentProvider::Codex)
+        ->and($project->agent_model)->toBe('gpt-5.5')
+        ->and($project->agent_session_id)->toBeNull();
+})->group('AGT-009');
+
 test('users sign in to Claude from the chat in Claude Code\'s own sign-in in the Shell tab, and the chat carries on', function () {
     $provider = new FakeSandboxProvider;
     $provider->execUsing = fn (array $command) => new ExecResult(1, json_encode(['loggedIn' => false, 'authMethod' => 'none']));

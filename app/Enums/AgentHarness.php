@@ -9,6 +9,7 @@ enum AgentHarness: string
 {
     case OpenCode = 'opencode';
     case ClaudeCode = 'claude_code';
+    case Codex = 'codex';
 
     /**
      * Human-readable name.
@@ -18,6 +19,7 @@ enum AgentHarness: string
         return match ($this) {
             self::OpenCode => 'OpenCode',
             self::ClaudeCode => 'Claude Code',
+            self::Codex => 'Codex',
         };
     }
 }

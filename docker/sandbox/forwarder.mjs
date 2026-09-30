@@ -1,15 +1,16 @@
 #!/usr/bin/env node
-// Runs one agent task (OpenCode or Claude Code) and forwards its JSON events to the platform.
+// Runs one agent task (OpenCode, Claude Code or Codex) and forwards its JSON events to the platform.
 // The platform never holds a connection open: we POST batches of events to a signed webhook.
 //
-// Env: APP_AGENT ("opencode", the default, or "claude_code"), APP_PROMPT, APP_MODEL, APP_EVENTS_URL,
+// Env: APP_AGENT ("opencode", the default, "claude_code" or "codex"), APP_PROMPT, APP_MODEL, APP_EVENTS_URL,
 // APP_EVENTS_TOKEN, optional APP_RUN (which chat: "main" or "task-<id>"; several may run at once),
-// APP_SESSION_ID, APP_VARIANT (reasoning level) and, for OpenCode,
+// APP_SESSION_ID, APP_VARIANT (reasoning level) and, for OpenCode and Codex,
 // APP_FILES (JSON list of image paths the model should see with the prompt). For Claude Code,
 // APP_CLAUDE_AUTH is "subscription" when it runs on the user's own `claude auth login` (AI-005).
+// For Codex, CODEX_AUTH_CONTENT is its auth.json (the ChatGPT sign-in or OpenAI key), written before it starts.
 // Provider keys (ANTHROPIC_API_KEY, OPENAI_API_KEY, ...) are read by the agent; a Claude subscription is Claude Code's own sign-in.
 import { spawn, spawnSync } from 'node:child_process';
-import { readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 
 const INSTRUCTIONS = '/opt/zap/instructions.md';
@@ -26,6 +27,7 @@ const {
     APP_FILES,
     APP_RUN = 'main',
     APP_CLAUDE_AUTH,
+    CODEX_AUTH_CONTENT,
 } = process.env;
 
 // /opt/zap/stop-agent signals this process to end the run. The project's main chat and each of its
@@ -36,6 +38,7 @@ const PID_FILE =
         : `/tmp/zap-agent-${APP_RUN.replace(/[^a-z0-9-]/g, '')}.pid`;
 
 const claude = APP_AGENT === 'claude_code';
+const codex = APP_AGENT === 'codex';
 
 function opencodeCommand() {
     const args = [
@@ -108,6 +111,52 @@ function claudeCommand(resume) {
                       'CLAUDE_CODE_OAUTH_TOKEN',
                   ]
                 : [],
+        input: APP_PROMPT,
+    };
+}
+
+// The prompt goes in on stdin ("-"). Resuming a session takes the same options, except the directory.
+function codexCommand(resume) {
+    const home = process.env.CODEX_HOME || `${process.env.HOME}/.codex`;
+
+    if (CODEX_AUTH_CONTENT) {
+        mkdirSync(home, { recursive: true });
+        writeFileSync(`${home}/auth.json`, CODEX_AUTH_CONTENT, { mode: 0o600 });
+    }
+
+    const args = [
+        'exec',
+        ...(resume && APP_SESSION_ID ? ['resume'] : ['--cd', '/workspace']),
+        '--json',
+        '--dangerously-bypass-approvals-and-sandbox',
+        '--skip-git-repo-check',
+        '--model',
+        APP_MODEL,
+        // TOML string: JSON's escaping is valid TOML.
+        '--config',
+        `developer_instructions=${JSON.stringify(readFileSync(INSTRUCTIONS, 'utf8'))}`,
+    ];
+
+    if (APP_VARIANT) {
+        args.push('--config', `model_reasoning_effort=${JSON.stringify(APP_VARIANT)}`);
+    }
+
+    // "=" so a list-taking option can't swallow the arguments after it.
+    for (const file of JSON.parse(APP_FILES || '[]')) {
+        args.push(`--image=${file}`);
+    }
+
+    if (resume && APP_SESSION_ID) {
+        args.push(APP_SESSION_ID);
+    }
+
+    args.push('-');
+
+    return {
+        command: 'codex',
+        args,
+        env: {},
+        unset: ['CODEX_AUTH_CONTENT'],
         input: APP_PROMPT,
     };
 }
@@ -194,6 +243,45 @@ function compactClaudeEvent(event) {
             return ['init', 'api_retry'].includes(event.subtype)
                 ? pick(event, ['type', 'subtype', 'session_id', 'error'])
                 : null;
+        default:
+            return null;
+    }
+}
+
+// Codex's events carry whole command output; the platform only needs what each step was.
+function compactCodexEvent(event) {
+    switch (event.type) {
+        case 'item.started':
+        case 'item.completed': {
+            const item = event.item ?? {};
+
+            return {
+                type: event.type,
+                item: {
+                    ...pick(item, ['id', 'type', 'status', 'tool', 'server']),
+                    ...(typeof item.text === 'string' && item.type === 'agent_message'
+                        ? { text: item.text }
+                        : {}),
+                    ...(typeof item.command === 'string'
+                        ? { command: item.command.slice(0, 500) }
+                        : {}),
+                    ...(Array.isArray(item.changes)
+                        ? {
+                              changes: item.changes.map((change) =>
+                                  pick(change, ['path', 'kind']),
+                              ),
+                          }
+                        : {}),
+                },
+            };
+        }
+        case 'turn.completed':
+            // Codex doesn't say which model ran the turn.
+            return { type: event.type, usage: event.usage, model: APP_MODEL };
+        case 'thread.started':
+        case 'turn.failed':
+        case 'error':
+            return event;
         default:
             return null;
     }
@@ -296,8 +384,12 @@ function run(resume) {
         env,
         unset = [],
         input,
-    } = claude ? claudeCommand(resume) : opencodeCommand();
-    // Claude Code can't resume a session it no longer has (e.g. a new sandbox); then start a fresh one.
+    } = claude
+        ? claudeCommand(resume)
+        : codex
+          ? codexCommand(resume)
+          : opencodeCommand();
+    // Claude Code and Codex can't resume a session they no longer have (e.g. a new sandbox); then start a fresh one.
     let retryFresh = false;
     let stderr = '';
 
@@ -328,6 +420,17 @@ function run(resume) {
             event = JSON.parse(line);
         } catch {
             // Not JSON (e.g. a warning); ignore.
+            return;
+        }
+
+        if (codex) {
+            const compact = compactCodexEvent(event);
+
+            if (compact) {
+                reported ||= compact.type === 'turn.failed';
+                pending.push(compact);
+            }
+
             return;
         }
 
@@ -381,6 +484,13 @@ function run(resume) {
     });
 
     agent.on('close', async (code) => {
+        // Codex fails before its first event when it can't find the session.
+        retryFresh ||=
+            codex &&
+            resume &&
+            code !== 0 &&
+            stderr.includes('no rollout found');
+
         if (retryFresh && !stopped) {
             run(false);
 
