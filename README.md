@@ -1,6 +1,36 @@
-# OneDrop
+<p align="center">
+  <a href="https://onedrop.io">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/logo/dark.svg">
+      <img src="docs/logo/light.svg" alt="OneDrop" height="56">
+    </picture>
+  </a>
+</p>
 
-**Vibe-code apps for production.** Bring your own subscription. Deploy anywhere. Free to self-host, source available.
+<h3 align="center">Vibe-code apps for production.</h3>
+
+<p align="center">
+  Describe what you need. An AI agent builds it as real, tested code, live next to the chat,<br>
+  on your own AI subscription and your own servers.
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Elastic%202.0-FF4D1C" alt="License: Elastic 2.0"></a>
+  <a href="https://docs.onedrop.io/introduction"><img src="https://img.shields.io/badge/docs-docs.onedrop.io-111" alt="Docs"></a>
+  <img src="https://img.shields.io/badge/self--host-macOS%20%7C%20Linux%20%7C%20AWS-111" alt="Self-host on macOS, Linux, or AWS">
+</p>
+
+<p align="center">
+  <a href="#install"><b>Install</b></a> ·
+  <a href="https://docs.onedrop.io/introduction"><b>Docs</b></a> ·
+  <a href="#features"><b>Features</b></a> ·
+  <a href="#how-it-works"><b>How it works</b></a> ·
+  <a href="#develop"><b>Develop</b></a>
+</p>
+
+<p align="center">
+  <img src=".github/readme/hero.webp" alt="The OneDrop home page: Vibe-code apps for production." width="100%">
+</p>
 
 ## Install
 
@@ -10,301 +40,172 @@ On macOS or Linux, with [Docker](https://www.docker.com/products/docker-desktop/
 curl -fsSL https://raw.githubusercontent.com/onedrop-io/onedrop/main/install.sh | sh
 ```
 
-This adds the `drop` command and starts OneDrop at `http://localhost:8000`. The first account you create is the admin. Run `drop help` to update, stop, or uninstall it.
+That's it. OneDrop opens at **http://localhost:8000**, and the first account you create is the admin.
 
-- [Install guide](https://docs.onedrop.io/install)
-- On a server, add a domain for HTTPS (`auto` uses a free `<ip>.sslip.io` address): `curl -fsSL https://raw.githubusercontent.com/onedrop-io/onedrop/main/install.sh | sh -s -- --domain auto`
-- [Install on a server](https://docs.onedrop.io/self-hosting/install-anywhere) (any Ubuntu 24.04 machine) or [on AWS](https://docs.onedrop.io/self-hosting/deploy-aws)
-- [Run from source](https://docs.onedrop.io/quickstart) to work on OneDrop itself
-- [Documentation](https://docs.onedrop.io/introduction)
+| Command          | What it does                                                    |
+| ---------------- | --------------------------------------------------------------- |
+| `drop update`    | Get the latest version and restart. Your projects are kept.     |
+| `drop stop`      | Stop OneDrop.                                                   |
+| `drop uninstall` | Remove OneDrop. It asks before deleting your projects and data. |
+| `drop help`      | Everything else: start, logs, open.                             |
 
-The rest of this file is the original build plan.
+> [!TIP]
+> **Putting it on a server for your team?** Add a domain and you get HTTPS. `auto` uses a free `<ip>.sslip.io` address:
+>
+> ```bash
+> curl -fsSL https://raw.githubusercontent.com/onedrop-io/onedrop/main/install.sh | sh -s -- --domain auto
+> ```
+>
+> Works on [any Ubuntu 24.04 machine](https://docs.onedrop.io/self-hosting/install-anywhere), or [on AWS](https://docs.onedrop.io/self-hosting/deploy-aws) with Pulumi.
 
-A source-available, self-hostable, Replit-style app builder. A person describes an app in chat, an AI coding agent builds it inside an isolated cloud sandbox, and the running app is live at a URL while they work. Every feature becomes a requirement with tests you can watch run.
+## Why OneDrop
 
-The control plane is a Laravel application (Inertia + React). Sandboxes come from managed providers (E2B, Daytona) behind a small provider interface, so backends can be swapped without changing the platform. The reference deployment is Laravel Cloud; self-hosters run the same app with Docker Compose.
+Hosted app builders are great until you need to own the result. OneDrop gives you the same "type it and watch it appear" loop, on your terms.
 
-> **Status:** planning. This document is the build plan and is written to be handed to a coding agent. Work through the milestones in order; each has acceptance criteria. Milestone 0 verifies the assumptions the rest depends on. Do not skip it.
+|                                  | OneDrop                                                           | Typical hosted builder     |
+| -------------------------------- | ----------------------------------------------------------------- | -------------------------- |
+| **Your AI**                      | Your ChatGPT, Claude, or API key. No credits, no markup.          | Their credits, their price |
+| **Where it runs**                | Your laptop, any Ubuntu server, or AWS                            | Their cloud                |
+| **What you get**                 | Standard React or Laravel code, with tests, in git                | Code tied to their stack   |
+| **Built-in production plumbing** | Sign-in, database, secrets, storage, feature flags, monitoring    | Varies, often add-ons      |
+| **Price to self-host**           | Free, [source available](#license)                                | n/a                        |
 
----
+## Features
 
-## Why this exists
+### Chat on the left, your running app on the right
 
-Hosted builders (Replit, Lovable, bolt.new) give a great experience but lock you into their infrastructure, pricing, and usually one stack. Cloud coding agents (Claude Code on the web, Cursor cloud agents, Codex) run in sandboxes you cannot reach: they return screenshots or a pull request, never a live URL. Open-source attempts are locked to one stack (usually Next.js) or have stalled.
+Every project gets its own sandbox. The agent reads, writes, and runs code there, and you watch each step in the chat while the app updates live in the preview. The files, a shell, and a console are one click away when you want them.
 
-This project aims to be:
+<img src=".github/readme/workspace.webp" alt="A OneDrop project: the chat with the agent on the left, the live preview of the app in the middle, and the project's files on the right." width="100%">
 
-- **Any stack.** Sandbox packages come from Nix via Devbox, so PHP/Laravel is as easy as Node.
-- **Live preview.** Every app is reachable at its own URL while the agent works on it.
-- **Bring your own AI.** Each user signs in to their own coding-agent tool (Claude Code, Codex, OpenCode, ...).
-- **Managed sandboxes first.** No container hosts to operate; sandboxes are API calls.
-- **Spec-driven.** A living requirement library with tests tied to each requirement, viewable and replayable in the UI. No existing tool does this.
+### Real apps, not mockups
 
-### Non-goals (for now)
+The agent builds standard, reviewable code: React, or Laravel with a database when the app needs one. It writes tests and keeps them green. This project tracker, with a board, calendar, team, and live notifications, was built entirely from chat:
 
-- Multi-tenant hosting for untrusted strangers. Target users are trusted staff.
-- Real-time multi-user editing of the same app.
-- Replacing a production hosting platform. Published apps go to an existing cloud.
+<img src=".github/readme/built-app.webp" alt="Taskflow, a project tracker built by the OneDrop agent, showing a personal dashboard with task cards and recent activity." width="100%">
 
----
+### Production tools, built in
 
-## Core concepts
+Everything an app needs to go live sits next to the chat: **Database** browsing and SQL, **Users & Auth**, **Secrets**, **App Storage**, **Feature Flags**, **Monitoring**, **Growth** analytics, **Domains**, **Git**, and one-click **Publishing**.
 
-| Concept             | What it is                                                                  |
-| ------------------- | --------------------------------------------------------------------------- |
-| **App**             | A project: a git repo plus a manifest, owned by a user.                     |
-| **Manifest**        | Declares the stack: packages, services, start commands, ports.              |
-| **Sandbox**         | An isolated environment at a provider, running one app in dev mode.         |
-| **Provider**        | A sandbox backend (E2B, Daytona; later local Docker, AerolVM).              |
-| **Agent session**   | A vendor coding-agent CLI running inside the sandbox on a task.             |
-| **Event forwarder** | A small process in the sandbox that streams agent events to the platform.   |
-| **Wake proxy**      | The route that resumes a paused sandbox when its URL is visited.            |
-| **Publish**         | Builds a production image from the manifest and deploys it to a cloud.      |
-| **Requirement**     | A user-facing capability with an ID, acceptance criteria, and linked tests. |
+<img src=".github/readme/database.webp" alt="The Tools panel open on Database, showing the app's tasks table with rows the agent's app created." width="100%">
 
----
+### Start from a sentence, or a template
 
-## Architecture
+Type what you want, or pick a starter: CRM, project tracker, content calendar, inventory, hiring pipeline, help desk, and more. Choose your agent and model right in the prompt box.
+
+<img src=".github/readme/start.webp" alt="The new project screen: a prompt box asking 'what are we working on today?' above a grid of app templates." width="100%">
+
+### And a lot more
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <b>🧠 Bring your own AI</b><br>
+      Build on your ChatGPT Plus or Pro plan, your Claude Pro or Max plan, or an API key for Anthropic, OpenAI, Google, or OpenRouter. <a href="https://docs.onedrop.io/guides/set-up-ai">Set up AI →</a>
+    </td>
+    <td width="50%" valign="top">
+      <b>🤖 Pick your agent</b><br>
+      Run <a href="https://opencode.ai">OpenCode</a> or <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a>, per project, with any model your provider offers.
+    </td>
+  </tr>
+  <tr>
+    <td valign="top">
+      <b>🔀 Parallel tasks</b><br>
+      Hand several agents their own tasks on one project. Each gets its own copy of the app, and you merge the results from a kanban board. <a href="https://docs.onedrop.io/guides/tasks">Tasks →</a>
+    </td>
+    <td valign="top">
+      <b>🚀 Publish in one click</b><br>
+      Give any project its own URL, private to your team or public, whatever framework it uses. <a href="https://docs.onedrop.io/guides/publish">Publish →</a>
+    </td>
+  </tr>
+  <tr>
+    <td valign="top">
+      <b>🌱 Git all the way down</b><br>
+      Every change is a commit. See history, restore an earlier version, branch, and push to GitHub. <a href="https://docs.onedrop.io/guides/git">Git →</a>
+    </td>
+    <td valign="top">
+      <b>✨ Share and remix</b><br>
+      Show off an app with a public page: your prompt, a screenshot, and a social card. Others can remix it. <a href="https://docs.onedrop.io/guides/share">Share →</a>
+    </td>
+  </tr>
+  <tr>
+    <td valign="top">
+      <b>👥 Built for teams</b><br>
+      Invite people, organize them into groups, and sign in with Google, GitHub, or Microsoft. <a href="https://docs.onedrop.io/guides/invite-people">Invite people →</a>
+    </td>
+    <td valign="top">
+      <b>📊 See what it costs</b><br>
+      Track tokens and spend by model, project, and day, so you're never surprised by your AI bill. <a href="https://docs.onedrop.io/guides/usage">Usage →</a>
+    </td>
+  </tr>
+</table>
+
+<img src=".github/readme/usage.webp" alt="The Usage page: total cost, a daily cost chart, token totals, and a breakdown by model." width="100%">
+
+## How it works
 
 ```mermaid
 flowchart LR
-    U[Browser: chat + preview + requirements] <-->|Inertia/HTTP| L[Laravel control plane]
-    U <-->|WebSockets| RV[Laravel Reverb]
-    L --> PG[(Postgres)]
-    L --> Q[Queue workers]
-    Q -->|provider API| SP{Sandbox provider}
-    SP --> E2B[E2B]
-    SP --> DT[Daytona]
-    SP -.-> LD[Local Docker - later]
-    E2B & DT --> S[Sandbox: Devbox + app + Postgres/Redis + agent + forwarder]
-    S -->|events| L
-    L -->|broadcast| RV
-    U -->|preview URL| S
-    Q --> PUB[Publisher]
-    PUB --> CR[Cloud Run / Fly / VM]
+    You([You]) -->|chat| OD[OneDrop<br/>Laravel + React]
+    OD -->|starts| SB[Sandbox<br/>your app + agent]
+    SB -->|events| OD
+    SB -->|live preview| You
+    OD -->|publish| URL[Your app's URL]
+    SB -. your AI key or plan .-> AI[(Claude · ChatGPT ·<br/>Gemini · OpenRouter)]
 ```
 
-**The one rule that keeps PHP happy:** Laravel never holds a long-lived connection and never supervises a process. Everything long-running happens in the sandbox (the agent, the forwarder) or in a managed service (Reverb, queue workers, the provider). Laravel coordinates, stores, and broadcasts.
+1. **Connect your AI.** Sign in with ChatGPT or Claude, or paste an API key. [Guide](https://docs.onedrop.io/guides/set-up-ai)
+2. **Describe your app.** OneDrop creates a project and a sandbox for it. [Guide](https://docs.onedrop.io/guides/build-a-project)
+3. **Watch it get built.** The agent works in the sandbox; you see each step in the chat and the app in the preview.
+4. **Share it.** Publish to give it its own URL. [Guide](https://docs.onedrop.io/guides/publish)
 
-Dev sandboxes and published apps are deliberately separate, the same split Replit uses: sandboxes are stateful and pausable; published apps are stateless containers.
+Sandboxes run in **Docker** on your machine, or on [Blaxel](https://blaxel.ai) or [Runtime Cloud](https://docs.onedrop.io/self-hosting/sandboxes) when you'd rather not run the containers yourself. Your AI credentials go to your provider, never to us. [Architecture →](https://docs.onedrop.io/development/architecture)
 
----
+> [!NOTE]
+> OneDrop is built for trusted teams: people in a company building internal tools without setting up a development environment. It isn't designed to host apps for anonymous strangers.
 
-## Components
+## Develop
 
-### 1. App manifest
+Want to work on OneDrop itself? It's Laravel 13, Inertia + React, Tailwind, and Pest.
 
-Each app repo contains `devbox.json` (packages and services, standard Devbox format) and `app.yaml` (platform metadata). Devbox runs Postgres and Redis as services inside the sandbox, so one app is one sandbox.
-
-```yaml
-# app.yaml
-name: timesheets
-stack: laravel # informs agent instructions and publish build
-dev:
-    setup: composer install && npm install && php artisan migrate
-    start: composer run dev # must bind 0.0.0.0
-    port: 8000
-publish:
-    target: cloud-run
-    build: dockerfile # or: nix
+```bash
+git clone https://github.com/onedrop-io/onedrop.git && cd onedrop
+composer install && npm install
+cp .env.example .env && php artisan key:generate
+php artisan migrate:fresh --seed     # dev login: dev@example.com / password
+php artisan sandbox:build-image      # the Docker image every project runs in
+composer run dev                     # http://localhost:8000
 ```
 
-The agent may edit both files ("add Redis"); the platform rebuilds the sandbox environment when they change.
+Run the tests with `php artisan test`. Read [Contributing](https://docs.onedrop.io/development/contributing) for the house rules (every feature starts in [`SPEC.md`](SPEC.md) and ships with tests) and the [quickstart](https://docs.onedrop.io/quickstart) for the full setup.
 
-### 2. Sandbox provider interface
+<details>
+<summary><b>Where things live</b></summary>
 
-```php
-interface SandboxProvider
-{
-    public function create(SandboxSpec $spec): Sandbox;
-    public function start(string $id): void;
-    public function pause(string $id): void;      // keep disk (and memory if supported)
-    public function snapshot(string $id): string; // returns snapshot id
-    public function restore(string $id, string $snapshotId): void;
-    public function exec(string $id, Command $cmd): ExecResult;   // short commands only
-    public function previewUrl(string $id, int $port): PreviewUrl; // url + auth details
-    public function destroy(string $id): void;
-}
-```
+| Path                    | What's there                                                     |
+| ----------------------- | ---------------------------------------------------------------- |
+| `app/Sandbox/`          | Sandbox providers (Docker, Blaxel, Runtime), agent runners       |
+| `app/Jobs/`             | Creating sandboxes, running agents, publishing                   |
+| `resources/js/pages/`   | The React UI                                                     |
+| `docker/sandbox/`       | The sandbox image, event forwarder, and host proxy               |
+| `infra/`                | Server bootstrap and AWS (Pulumi)                                |
+| `docs/`                 | [docs.onedrop.io](https://docs.onedrop.io), in Mintlify          |
+| `docs/plans/`           | Plans, including the original [build plan](docs/plans/build-plan.md) |
 
-Implementations, in order:
-
-1. **`e2b`** and **`daytona`**: managed, per-second billing. Chosen by M0 results.
-2. **`docker`** (later): local Docker for development and demos on a laptop, and the cheap self-host option.
-3. **`aerolvm`** (experimental, later): self-hosted microVMs; young project, do not depend on it.
-
-Selection criteria for any backend: pause/resume that preserves disk, resume time with a real Laravel stack running, idle cost, authentication on preview URLs, isolation level.
-
-### 3. Agent runner and event forwarder
-
-- Queue jobs start an agent session by running the vendor CLI inside the sandbox (via `exec` in detached mode). Adapters: `claude-code` (v1), `codex`, `opencode`.
-- Each user authenticates with their own account inside their sandbox. The platform never pools subscriptions or holds vendor credentials.
-- A **forwarder** process in the sandbox reads the agent's structured output (Claude Code `--output-format stream-json`) and POSTs events to a signed platform webhook. Laravel stores them and broadcasts over Reverb. No PHP process waits on a stream.
-- After every agent task: git commit in the sandbox and a provider snapshot, so any change can be undone.
-
-### 4. Agent instructions
-
-Two layers:
-
-- **Platform instructions**, written into the sandbox by the runner and not editable by the user: plain-language communication for non-developers; write the requirement and tests before code; keep all tests green; never rewrite a test linked to an approved requirement without approval; after each change check logs and the preview and fix errors before reporting; how to restart the dev server.
-- **App instructions** in the repo's `AGENTS.md`. A one-line `CLAUDE.md` imports it (`@AGENTS.md`) so Claude Code and AGENTS.md-reading tools share one file.
-
-### 5. Preview URLs and wake-on-request
-
-- Every app has a stable platform URL: `https://<platform>/a/<app>` (later `<app>.<domain>`).
-- The route checks sandbox status. Running: redirect or iframe to the provider preview URL. Paused: dispatch a resume job, render a "waking up" page, broadcast a `ready` event over Reverb, then load the preview.
-- Provider preview URLs must be authenticated (token or provider auth). M0 confirms how.
-- Idle handling relies on provider auto-pause timeouts, with a scheduled job as backup.
-
-### 6. Control plane (Laravel)
-
-- Laravel 12, Inertia, React, Tailwind. Postgres for all platform data.
-- Front end is Inertia + React throughout. Livewire is not used in the platform or the default app template (Filament may be added later for an admin panel only).
-- Auth: Laravel's built-in auth plus Socialite for SSO (Google Workspace, Microsoft, Okta via OIDC).
-- Queues: Laravel Cloud managed queues (or Horizon + Redis when self-hosted). Jobs are short API calls; long waits are modeled as events, not sleeping jobs.
-- Real-time: Laravel Reverb (managed on Laravel Cloud; a Reverb process when self-hosted).
-- Scheduler: idle cleanup, snapshot pruning, cost accounting.
-- Laravel Boost installed so coding agents working on the platform have framework docs and tools.
-
-### 7. Web UI
-
-- Default view for non-developers: chat on the left, live preview (iframe) on the right.
-- "Advanced" toggle reveals files, terminal, logs, and diffs.
-- Starter templates (tracker, form, dashboard) instead of an empty chat.
-- Undo for every agent task; a Publish button that runs tests first.
-- Later: click an element in the preview to reference it in chat.
-
-### 8. Requirement library
-
-Requirements live in the app repo:
-
-```yaml
-# requirements/timesheets.yaml
-- id: TS-001
-  title: Manager can approve a timesheet
-  status: approved # draft | approved
-  acceptance:
-      - Approve button is visible to managers only
-      - Approved timesheets are locked from editing
-```
-
-Tests reference IDs (Pest groups, e.g. `->group('TS-001')`). Browser tests use Pest's Playwright-backed browser testing with traces and video recorded. Test runs execute in the sandbox; results and trace files are uploaded to platform object storage.
-
-The UI shows every requirement as passing, failing, or uncovered. Clicking one shows its tests, the last run's trace or video, and a button to run them now with live output. Approved acceptance criteria and their tests change only with human approval.
-
-### 9. Publish
-
-- Builds a production image from the manifest (generated Dockerfile first; Nix-built image later).
-- Targets: Google Cloud Run first (scale to zero suits mostly idle internal apps); a single VM with Litestream for SQLite-based apps; Fly.io; AWS later.
-- Apps must be stateless to publish to serverless targets: sessions/cache in the database or Redis, uploads in object storage, queue workers deployed separately.
-- Publish runs the full test suite first and refuses on failure.
-
----
-
-## Default stack for generated apps
-
-Users can pick anything Nix provides, but the default is what most people will use:
-
-- **Default:** Laravel + Inertia + React + Postgres + Pest. One app, one router, one deploy; auth, queues, and real-time built in; rich client-side pages via React.
-- **Option:** SQLite instead of Postgres for small single-team tools (lighter sandbox, single-VM publish target).
-- **Also first-class:** Next.js + Postgres.
-
----
-
-## Hosting
-
-**Reference deployment: Laravel Cloud.** App compute, managed Postgres, managed queue workers, managed Reverb, scheduler, and push-to-deploy. Keep one small web instance always on for production; hibernation is fine for dev instances. Choose the region closest to the sandbox provider's region.
-
-**Self-hosted:** a `docker-compose.yml` with the app (PHP-FPM + Nginx or Octane), a queue worker, a Reverb process, the scheduler, Postgres, and Redis. Object storage via S3-compatible bucket or MinIO.
-
----
-
-## Security baseline
-
-- Trusted-staff model. Provider isolation (Firecracker at E2B, containers/VMs at Daytona) is acceptable for v1.
-- No platform or production credentials in sandboxes. Per-app secrets are encrypted at rest and injected at sandbox start.
-- Forwarder webhooks are signed per sandbox and expire with the session.
-- All preview URLs authenticated; platform URLs behind login.
-- This platform runs on infrastructure and networks separate from any system in scope for payments compliance.
-
----
-
-## Milestones
-
-Complete in order. Each milestone must meet its acceptance criteria before starting the next.
-
-### M0: Verify assumptions (spikes, no platform code)
-
-- Confirm for Claude Code, Codex, and OpenCode: whether headless/SDK use inside a sandbox is permitted and how it is billed under a personal subscription vs an API key. Record findings in `/docs/agent-billing.md`.
-- On E2B and Daytona: start a sandbox from a Devbox template with Laravel + Postgres, pause it, resume it, and measure resume-to-first-response time. Confirm preview URL authentication options. Record in `/docs/provider-eval.md`.
-- **Accept when:** both documents exist with measured numbers and a provider is chosen for v1.
-
-### M1: Sandbox with a live URL
-
-- `SandboxProvider` interface and the chosen provider implementation.
-- Create sandbox from an app repo, install packages from `devbox.json`, start Postgres via Devbox services, run `dev.setup` and `dev.start`.
-- Platform route serves the preview (running) or wake page (paused).
-- **Accept when:** a fresh Laravel app with Postgres loads through the platform URL; pausing and resuming preserves code and database data; wake-on-request works with a measured, logged wake time.
-
-### M2: Agent runner and chat UI
-
-- Claude Code adapter runs inside the sandbox using the user's own login; forwarder streams events; Reverb broadcasts them.
-- UI shows chat and the live preview side by side.
-- Git commit plus snapshot after every agent task; undo button reverts.
-- **Accept when:** a user types "build a to-do list with login" and sees the working app appear in the preview without touching a terminal, then undoes the last change successfully.
-
-### M3: Requirement library (v1)
-
-- Requirement files, test tagging convention, results and trace upload, UI view with replay.
-- Platform instructions updated so the agent writes requirements and tests first.
-- **Accept when:** asking for a new feature produces a draft requirement, the user approves it, linked tests are written and pass, and clicking the requirement replays its browser test.
-
-### M4: Publish
-
-- Generated Dockerfile build and deploy to Cloud Run.
-- **Accept when:** the M2 to-do app publishes to an authenticated URL, and publish refuses when a test fails.
-
-### M5: Second provider
-
-- Implement the other managed provider, or local Docker, behind the same interface.
-- **Accept when:** the same app runs unchanged on the new provider, selected by config only.
-
-### M6: Self-host packaging
-
-- `docker-compose.yml`, install docs, and a smoke test.
-- **Accept when:** a fresh Linux VM runs the platform from the compose file and completes M2's acceptance test.
-
----
-
-## Open questions
-
-- Agent billing and terms for headless use per vendor (resolved by M0).
-- Preview URL authentication per provider (resolved by M0).
-- Whether preview URLs are shareable with coworkers, and how that is authorized.
-- Promotion path from "staff prototype" to "reviewed production app": who approves, what gets checked.
-- Cost accounting per user/app for sandbox time.
-
----
-
-## Suggested repo layout
-
-```
-app/Sandbox/Providers/     e2b, daytona, docker (later)
-app/Sandbox/Agents/        claude-code, codex, opencode adapters
-app/Http/Controllers/      wake proxy, webhooks, Inertia pages
-app/Jobs/                  create/resume/snapshot/run-agent/run-tests/publish
-app/Requirements/          requirement parsing, test result ingestion
-resources/js/              React UI (chat, preview, requirements)
-sandbox/                   files placed in every sandbox: forwarder, platform instructions
-templates/                 starter apps (laravel-inertia-react, nextjs)
-docker/                    self-host compose and images
-docs/                      architecture, decision records, M0 findings
-```
+</details>
 
 ## License
 
-[Elastic License 2.0](LICENSE) (ELv2).
+[Elastic License 2.0](LICENSE) (ELv2). Use, change, and self-host OneDrop for your own team or company. You may not offer it to others as a hosted or managed service, circumvent any license key features, or remove the licensing notices. See [elastic.co/licensing/elastic-license](https://www.elastic.co/licensing/elastic-license).
 
-Use, change, and self-host OneDrop for your own team or company. You may not offer it to others as a hosted or managed service, circumvent any license key features, or remove the licensing notices. See [elastic.co/licensing/elastic-license](https://www.elastic.co/licensing/elastic-license).
+<details>
+<summary>Image credits</summary>
 
 The planet maps in `public/images/earth`, `public/images/mars`, and `public/images/planets` are by [Solar System Scope](https://www.solarsystemscope.com/textures/), resized, under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), not ELv2. The Moon maps in `public/images/moon` are by [NASA's Scientific Visualization Studio](https://svs.gsfc.nasa.gov/4720) (CGI Moon Kit), and the hurricane in `public/images/hurricane` is from a [NASA Earth Observatory](https://science.nasa.gov/earth/earth-observatory/hurricane-isabel-12116/) photo of Hurricane Isabel (Jeff Schmaltz, MODIS Land Rapid Response Team, NASA GSFC). The Voyager and Pioneer models (`public/images/voyager`, `public/images/pioneer`) are NASA's, the Golden Record photo is NASA/JPL's, and the Pioneer plaque drawing is a public-domain tracing by Oona Räisänen. Laniakea's galaxies (`public/images/laniakea`) are from the 2MASS Redshift Survey (Huchra et al. 2012), via VizieR. See the `CREDITS.md` in each folder.
+
+</details>
+
+<p align="center">
+  <sub>Made with 🧡 and a lot of agents.</sub>
+</p>

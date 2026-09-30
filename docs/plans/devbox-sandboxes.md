@@ -1,7 +1,7 @@
 # Plan: Devbox sandboxes (any stack) and the E2B template
 
 Status: proposed, not started. Replaces the hard-coded `php:8.4-cli` sandbox image with a Nix + Devbox image,
-so a project can use any language Nix provides (README "Any stack"), and shapes that image so the same build
+so a project can use any language Nix provides (build plan, "Any stack"), and shapes that image so the same build
 becomes the E2B template.
 
 ## Decisions
@@ -66,7 +66,7 @@ Do this first; it's independent of Nix and de-risks the rest.
   then run `.zap/dev` inside `devbox run` so the dev server sees the project's stack. `/opt/zap/restart` unchanged.
 - `bashrc`: activate the project env (`eval "$(devbox shellenv)"` in `/workspace`), platform tools after it on `PATH`.
 - Agent: `instructions.md` "Stack" section says to add packages with `devbox add <pkg>@<version>` (never apt), and
-  lists the defaults. Keep `.zap/dev` as the start contract; skip README's `app.yaml` until publish needs it.
+  lists the defaults. Keep `.zap/dev` as the start contract; skip the build plan's `app.yaml` until publish needs it.
 - Updates (`SandboxUpdater`) already recreate and copy `KEPT_PATHS`. Packages outside the pre-warmed set are
   re-downloaded from the lock on the new sandbox: acceptable; a shared host-level cache can come later if it hurts.
 - Spec: new `SBX-003: Any stack` (below). Tests: seeding, start order, restart inside the env. Integration test
@@ -75,7 +75,7 @@ Do this first; it's independent of Nix and de-risks the rest.
 
 ### Phase 4: E2B provider (after the M0 spike)
 
-M0 (README) first: start this template on E2B with Laravel + Postgres, pause, resume, and measure resume-to-first-response.
+M0 (build plan) first: start this template on E2B with Laravel + Postgres, pause, resume, and measure resume-to-first-response.
 
 - **Template:** CI builds the image and pushes it to GHCR/ECR; the template is `fromImage()` (the Dockerfile-parsing
   path doesn't support multi-stage builds), `setUser('sandbox')`, `setStartCmd('/opt/zap/start.sh', waitForPort(7681))`.
