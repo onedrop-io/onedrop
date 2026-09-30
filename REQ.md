@@ -56,7 +56,7 @@ Users connect an AI before building; each project picks its agent (OpenCode, Cla
 
 ## Projects and the workspace
 
-PRJ-001..008, NOTIF-001, TAB-001, FILE-001..006, LIVE-001, TASK-001..004, ERR-001, DEVTOOLS-001.
+PRJ-001..008, NOTIF-001, TAB-001, FILE-001..006, LIVE-001..002, TASK-001..004, ERR-001, DEVTOOLS-001.
 Chat on the left, live preview on the right; resizable panels; files, shell and tools tabs; a sidebar with project menus, search and status; templates; icons; desktop notifications; parallel tasks with their own copy of the app and a kanban board; the agent sees and fixes the app's errors.
 
 ### Decisions
@@ -65,6 +65,7 @@ Chat on the left, live preview on the right; resizable panels; files, shell and 
 - **Inputs revealed by a click get focus automatically** (dialogs, inline forms).
 - **2026-09-29: Each task gets its own copy of Main's sandbox,** forked at one instant for any stack (live rsync, then a second pass with processes frozen ~1s). Apply to Main / Update from Main merge through git bundles and hand stack-specific follow-up (deps, migrations, conflicts) to the agent.
 - **2026-09-30: Live updates over Reverb, with polling as the fallback.** One "project changed" signal per request on a private per-project channel; a broadcasting failure never breaks the request or job.
+- **2026-09-30: The preview reloads itself while the agent works, from the sandbox's proxy.** Users only saw changes when the chat finished, because the default Laravel stack builds with `vite build --watch` (only `$PORT` is reachable, so no Vite dev server and no hot reload) and the app builder reloaded the preview only on finish. The proxy's preview script listens on `/__onedrop/live` (server-sent events, which Caddy and the Cloudflare Worker stream) and reloads after `public/build/` is written or a `.php` file changes, once writes are quiet for 300ms. Not every file change: reloading before a rebuild finishes shows the old build, and apps with their own hot reload would reload twice. Not Vite's dev server through `routes.json`: its HMR socket address and asset origin differ per preview/published host, and published pages would serve dev assets. The watcher (inotify) only runs while a preview page is open.
 - **2026-09-30: Every file and folder has its own "⋮" menu (also on right-click), next to the panel's header menu.** Actions that open a dialog, input or the Shell wait for the menu to close so they keep focus.
 - **2026-09-30: A "Search files" box is always at the top of the files panel (in place of the "Files" title), filtering the tree by name in the browser;** a folder's "Search this folder" scopes the same box to that folder. No content search, because the tree already holds every path and a grep would be a new call into the sandbox.
 - **2026-09-30: "Go to file" is Cmd/Ctrl+P, not Cmd+T,** because browsers never let a page take Cmd+T (new tab); Cmd+P (print) can be overridden and is what VS Code uses. It listens in the capture phase so it works inside the editor; it can't work while the Shell iframe has focus.

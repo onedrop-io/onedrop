@@ -453,6 +453,37 @@ test('the host proxy records server errors, preview browser errors and the app b
     }
 })->group('ERR-001');
 
+test('preview pages reload after a build or a PHP change, and published pages never listen', function () {
+    $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
+    $id = $docker->create(new SandboxSpec('onedrop-test-'.bin2hex(random_bytes(3))));
+    $curl = fn (string ...$args) => $docker->exec($id, ['curl', '-s', ...$args])->output;
+    // Listens to the live stream for a few seconds while $change runs, and returns what it said.
+    $listen = fn (string $change) => $docker->exec($id, ['bash', '-c',
+        '(curl -sN --max-time 3 http://127.0.0.1:8081/__onedrop/live > /tmp/live.txt &) ; sleep 1 ; '.$change.' ; sleep 2.5 ; cat /tmp/live.txt',
+    ])->output;
+
+    try {
+        $script = 'mkdir -p /workspace/.onedrop /workspace/public/build /workspace/resources'
+            .' && echo "<?php echo \'<!doctype html><html><head><title>App</title></head><body>ok</body></html>\';" > /workspace/public/index.php'
+            .' && printf "#!/usr/bin/env bash\nexec php -S 0.0.0.0:\$PORT -t /workspace/public /workspace/public/index.php\n" > /workspace/.onedrop/dev'
+            .' && chmod +x /workspace/.onedrop/dev && /opt/onedrop/restart';
+        expect($docker->exec($id, ['bash', '-c', $script])->successful())->toBeTrue();
+
+        retry(40, fn () => throw_unless(
+            str_contains($curl('http://127.0.0.1:8081/'), '<body>ok'),
+            new RuntimeException('app not up'),
+        ), 250);
+
+        expect($curl('http://127.0.0.1:8081/__onedrop/errors.js'))->toContain("new EventSource('/__onedrop/live')")
+            ->and(trim($curl('-o', '/dev/null', '-w', '%{http_code}', '-H', 'Host: my-app.tail1.ts.net', 'http://127.0.0.1:8081/__onedrop/live')))->toBe('404')
+            ->and($listen('echo "<?php // changed" >> /workspace/public/index.php'))->toContain('data: reload')
+            ->and($listen('echo "{}" > /workspace/public/build/manifest.json'))->toContain('data: reload')
+            ->and($listen('echo "x" > /workspace/resources/app.tsx; mkdir -p /workspace/vendor/x && echo "<?php" > /workspace/vendor/x/a.php'))->not->toContain('data: reload');
+    } finally {
+        $docker->destroy($id);
+    }
+})->group('LIVE-002');
+
 test('files can be created, uploaded and downloaded as a zip in a real container', function () {
     $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
     $id = $docker->create(new SandboxSpec('onedrop-test-'.bin2hex(random_bytes(3))));

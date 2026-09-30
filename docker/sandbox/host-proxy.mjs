@@ -5,6 +5,7 @@
 // The original host is passed on as X-Forwarded-Host. WebSockets (hot reload) pass through.
 // Apps that ignore X-Forwarded-Host write their own address as localhost into pages (asset URLs,
 // redirects); text responses get those links pointed back at the address the visitor used.
+import { spawn } from 'node:child_process';
 import {
     appendFile,
     closeSync,
@@ -18,6 +19,7 @@ import {
 } from 'node:fs';
 import http from 'node:http';
 import net from 'node:net';
+import { createInterface } from 'node:readline';
 
 const appPort = Number(process.env.PORT || 8000);
 const listenPort = Number(process.env.PROXY_PORT || 8081);
@@ -419,6 +421,107 @@ function recordEvent(req, res) {
     req.on('error', () => res.destroy());
 }
 
+// Live reload (LIVE-002): apps without hot reload (Laravel's `vite build --watch`, plain PHP pages) would only
+// change in the preview when the agent finishes. Preview pages listen here and reload once a build has been
+// written or a PHP file changed. Dev servers with their own hot reload write neither, so they're left alone.
+const LIVE_PATH = '/__onedrop/live';
+const LIVE_CHANGE = /(\/public\/build\/|\.php$)/;
+const LIVE_EXCLUDE = '/(node_modules|\\.git|vendor|storage|bootstrap/cache|\\.onedrop)(/|$)';
+// Reload once writes have been quiet this long, so a build's files are all there.
+const LIVE_QUIET_MS = 300;
+const LIVE_PING_MS = 25_000;
+// Keep watching this long after the last page went away: a reloading page reconnects a moment later.
+const LIVE_LINGER_MS = 30_000;
+const liveClients = new Set();
+let liveWatcher = null;
+let liveReloadTimer = null;
+let liveStopTimer = null;
+
+function tellPagesToReload() {
+    for (const res of liveClients) {
+        res.write('data: reload\n\n');
+    }
+}
+
+function watchForReloads() {
+    clearTimeout(liveStopTimer);
+
+    if (liveWatcher) {
+        return;
+    }
+
+    liveWatcher = spawn(
+        'inotifywait',
+        [
+            '--monitor',
+            '--recursive',
+            '--quiet',
+            '--event',
+            'close_write,moved_to,delete',
+            '--exclude',
+            LIVE_EXCLUDE,
+            '--format',
+            '%w%f',
+            '/workspace',
+        ],
+        { stdio: ['ignore', 'pipe', 'ignore'] },
+    );
+
+    const watcher = liveWatcher;
+    watcher.on('error', () => {});
+    watcher.on('close', () => {
+        if (liveWatcher === watcher) {
+            liveWatcher = null;
+        }
+    });
+
+    createInterface({ input: watcher.stdout }).on('line', (path) => {
+        if (LIVE_CHANGE.test(path)) {
+            clearTimeout(liveReloadTimer);
+            liveReloadTimer = setTimeout(tellPagesToReload, LIVE_QUIET_MS);
+        }
+    });
+}
+
+function stopWatchingSoon() {
+    clearTimeout(liveStopTimer);
+    liveStopTimer = setTimeout(() => {
+        if (liveClients.size === 0 && liveWatcher) {
+            liveWatcher.kill();
+            liveWatcher = null;
+        }
+    }, LIVE_LINGER_MS);
+}
+
+/** An event stream that says "reload" when the preview's page is out of date; preview pages only. */
+function serveLive(req, res) {
+    if (!isPreview(String(req.headers.host ?? ''))) {
+        res.writeHead(404).end();
+
+        return;
+    }
+
+    res.writeHead(200, {
+        'content-type': 'text/event-stream',
+        'cache-control': 'no-cache',
+        'x-accel-buffering': 'no',
+    });
+    res.write(': live\n\n');
+
+    const ping = setInterval(() => res.write(': ping\n\n'), LIVE_PING_MS);
+    liveClients.add(res);
+    watchForReloads();
+
+    req.on('close', () => {
+        clearInterval(ping);
+        liveClients.delete(res);
+
+        if (liveClients.size === 0) {
+            stopWatchingSoon();
+        }
+    });
+}
+
 // Errors, whatever the app's stack (instructions.md, "When something breaks"): 5xx answers (with the page's
 // text and the end of the dev server's log), errors in the preview's browser (reported by a small script added
 // to preview pages), and the app not answering. The agent reads them in errors.log; the app builder shows the
@@ -512,6 +615,11 @@ const ERROR_REPORTER = `(() => {
         this.addEventListener('loadend', () => failed(this.status, method, String(url)));
         return open.apply(this, arguments);
     };
+    if (window.EventSource) {
+        new EventSource('${LIVE_PATH}').onmessage = (event) => {
+            if (event.data === 'reload') location.reload();
+        };
+    }
 })();
 `;
 
@@ -760,6 +868,12 @@ const server = http.createServer((req, res) => {
 
     if (req.method === 'POST' && path === ERROR_PATH) {
         recordBrowserError(req, res);
+
+        return;
+    }
+
+    if (req.method === 'GET' && path === LIVE_PATH) {
+        serveLive(req, res);
 
         return;
     }

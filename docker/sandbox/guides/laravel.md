@@ -43,8 +43,8 @@ Then create `/workspace/.onedrop/dev` (executable) and run `/opt/onedrop/restart
 ```bash
 #!/usr/bin/env bash
 # Assets are built on every change instead of served by Vite's dev server: the preview only
-# reaches $PORT, and the preview reloads itself when you finish. The old build stays while a new
-# one is written, so pages opened mid-build still load.
+# reaches $PORT, and it reloads itself after each build and PHP change. The old build stays while a
+# new one is written, so pages opened mid-build still load.
 rm -f public/hot
 npx vite build --watch --emptyOutDir=false &
 php artisan queue:listen --tries=1 &

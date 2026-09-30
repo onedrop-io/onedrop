@@ -35,7 +35,7 @@ The chat updates on its own while the agent works:
 - Short grey lines show each step, such as "Creating src/App.tsx" or "Running Install dependencies"
 - The agent's replies appear as it writes them, formatted with headings, lists, links, tables, and syntax-highlighted code blocks (links open in a new tab)
 
-When the agent sets up the app's dev server, the preview switches from the placeholder to your app and reloads when the agent finishes.
+When the agent sets up the app's dev server, the preview switches from the placeholder to your app. It updates while the agent works: apps with hot reload (Vite, Next.js) update in place, and Laravel apps reload each time their assets are rebuilt or a PHP file changes. It reloads once more when the agent finishes.
 
 ## Keep going
 

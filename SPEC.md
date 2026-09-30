@@ -603,6 +603,13 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - When the live connection isn't available (not configured, or dropped), the page should fall back to polling as before, and a broadcasting failure should never break the request or job that caused it.
 - Reverb should run locally with `composer dev`, on servers (behind Caddy on the app's own address) and on Laravel Cloud (its WebSockets cluster).
 
+## LIVE-002: The preview updates while the agent works
+
+- User should see the agent's changes in the preview as it makes them, not only when it finishes.
+- Apps whose dev server has hot reload (Vite, Next.js…) should keep using it.
+- Apps without it (the default Laravel stack builds assets with `vite build --watch`; plain PHP pages) should reload in the preview once a build under `public/build/` has been written or a PHP file changed (outside `vendor`, `storage`, `node_modules`, `.git`, `bootstrap/cache` and `.onedrop`), after writes have been quiet for a moment.
+- Only preview pages should listen; published addresses should never reload by themselves.
+
 ## RT-001: Realtime in apps
 
 - Visitors to an app should see live updates (WebSockets) in the preview and at its published address, whatever the framework.
