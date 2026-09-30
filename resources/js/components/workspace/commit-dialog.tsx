@@ -146,7 +146,7 @@ export default function CommitDialog({
 
             return next;
         });
-        setLineExclusions(({ [path]: _, ...rest }) => rest);
+        setLineExclusions((current) => omitKey(current, path));
     };
 
     /** Change which lines of a file are left out; a file that was unticked starts with all of them left out. */
@@ -182,8 +182,8 @@ export default function CommitDialog({
 
     /** A hunk was discarded: forget the file's old diff and choices, and take the new list of changes. */
     const discarded = (path: string, status: GitState['status']) => {
-        setDiffs(({ [path]: _, ...rest }) => rest);
-        setLineExclusions(({ [path]: _, ...rest }) => rest);
+        setDiffs((current) => omitKey(current, path));
+        setLineExclusions((current) => omitKey(current, path));
         onStatusChanged(status);
 
         if (!status.changes.some((change) => change.path === path)) {
@@ -996,4 +996,12 @@ function ChangeDiffPane({
             )}
         </section>
     );
+}
+
+/** A copy of the record without one key. */
+function omitKey<T>(record: Record<string, T>, key: string): Record<string, T> {
+    const copy = { ...record };
+    delete copy[key];
+
+    return copy;
 }
