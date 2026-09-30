@@ -365,6 +365,13 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see file listings (`ls`, `ll`, `la`, `tree`) with folders first, colours, a git column and relative times; `ls` with GNU-only flags (e.g. `-ltr`) should still work.
 - User should see a clear notice when the console or shell isn't available (e.g. sandbox not running, or an older sandbox without a shell).
 
+## LAYOUT-004: See the preview at phone and tablet sizes
+
+- User should be able to choose Desktop, Tablet (768px) or Mobile (390px) from a size menu in the Preview's header.
+- At Tablet or Mobile the app should show at that width, centered in the pane; Desktop fills the pane.
+- Changing the size shouldn't reload the preview.
+- User's choice should be remembered in their browser across reloads and projects.
+
 ## PUB-001: Publish a project
 
 - User should be able to publish a project from a Publish button in the workspace header.

@@ -22,7 +22,9 @@ import {
     RefreshCw,
     RotateCw,
     Search,
+    Smartphone,
     SquareTerminal,
+    Tablet,
     Terminal,
     Trash2,
     Wrench,
@@ -744,6 +746,21 @@ function WorkspacePanel({
         ? searchEntries(unhiddenEntries, fileSearch.folder, fileSearch.query)
         : unhiddenEntries;
 
+    const [previewSize, setPreviewSize] = useState<PreviewSize>("desktop");
+
+    useEffect(() => {
+        const saved = localStorage.getItem(PREVIEW_SIZE_KEY);
+
+        if (saved && saved in PREVIEW_SIZES) {
+            setPreviewSize(saved as PreviewSize);
+        }
+    }, []);
+
+    const choosePreviewSize = (size: PreviewSize) => {
+        localStorage.setItem(PREVIEW_SIZE_KEY, size);
+        setPreviewSize(size);
+    };
+
     const reloadPreview = () => {
         previewErrors.clear();
         setReloadKey((key) => key + 1);
@@ -1081,6 +1098,48 @@ function WorkspacePanel({
                     </span>
                     {tab === "preview" && url && (
                         <>
+                            <DropdownMenu modal={false}>
+                                <DropdownMenuTrigger asChild>
+                                    <button
+                                        type="button"
+                                        aria-label="Preview size"
+                                        title={`Preview size: ${PREVIEW_SIZES[previewSize].label}`}
+                                        data-test="preview-size"
+                                        className="rounded p-1 hover:bg-muted"
+                                    >
+                                        {PREVIEW_SIZES[previewSize].icon}
+                                    </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    {(
+                                        Object.keys(
+                                            PREVIEW_SIZES,
+                                        ) as PreviewSize[]
+                                    ).map((size) => (
+                                        <DropdownMenuItem
+                                            key={size}
+                                            onSelect={() =>
+                                                choosePreviewSize(size)
+                                            }
+                                            data-test={`preview-size-${size}`}
+                                        >
+                                            {PREVIEW_SIZES[size].icon}
+                                            <span className="flex-1">
+                                                {PREVIEW_SIZES[size].label}
+                                            </span>
+                                            {PREVIEW_SIZES[size].width && (
+                                                <span className="text-xs text-muted-foreground">
+                                                    {PREVIEW_SIZES[size].width}
+                                                    px
+                                                </span>
+                                            )}
+                                            {size === previewSize && (
+                                                <Check className="size-4" />
+                                            )}
+                                        </DropdownMenuItem>
+                                    ))}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                             <IconButton
                                 label="Reload preview"
                                 onClick={reloadPreview}
@@ -1120,6 +1179,8 @@ function WorkspacePanel({
                         className={cn(
                             "relative flex flex-1 flex-col",
                             tab !== "preview" && "hidden",
+                            PREVIEW_SIZES[previewSize].width &&
+                                "overflow-auto bg-muted p-4",
                         )}
                     >
                         <iframe
@@ -1127,7 +1188,17 @@ function WorkspacePanel({
                             key={reloadKey}
                             src={url}
                             title="App preview"
-                            className="flex-1 bg-white"
+                            data-test="preview-frame"
+                            style={{
+                                width:
+                                    PREVIEW_SIZES[previewSize].width ??
+                                    undefined,
+                            }}
+                            className={cn(
+                                "flex-1 bg-white",
+                                PREVIEW_SIZES[previewSize].width &&
+                                    "mx-auto shrink-0 rounded-md border shadow-sm",
+                            )}
                         />
                         {!working && previewErrors.errors.length > 0 && (
                             <PreviewErrorBar
@@ -1397,6 +1468,33 @@ const CHAT_WIDTH_KEY = "onedrop.chat-width";
 const CHAT_WIDTH = { initial: 448, min: 280, max: 960 };
 const FILES_WIDTH_KEY = "onedrop.files-width";
 const FILES_WIDTH = { initial: 224, min: 160, max: 480 };
+
+/** localStorage key for the size the preview was last shown at (LAYOUT-004). */
+const PREVIEW_SIZE_KEY = "onedrop.preview-size";
+
+type PreviewSize = "desktop" | "tablet" | "mobile";
+
+/** Widths the preview can be shown at; desktop fills the pane (LAYOUT-004). */
+const PREVIEW_SIZES: Record<
+    PreviewSize,
+    { label: string; width: number | null; icon: React.ReactNode }
+> = {
+    desktop: {
+        label: "Desktop",
+        width: null,
+        icon: <Monitor className="size-4" />,
+    },
+    tablet: {
+        label: "Tablet",
+        width: 768,
+        icon: <Tablet className="size-4" />,
+    },
+    mobile: {
+        label: "Mobile",
+        width: 390,
+        icon: <Smartphone className="size-4" />,
+    },
+};
 
 /** localStorage key for whether dotfiles are hidden in the files panel. */
 const HIDE_HIDDEN_KEY = "onedrop.files-hide-hidden";

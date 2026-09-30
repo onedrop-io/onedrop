@@ -56,7 +56,7 @@ Users connect an AI before building; each project picks its agent (OpenCode, Cla
 
 ## Projects and the workspace
 
-PRJ-001..008, NOTIF-001, TAB-001, FILE-001..006, LIVE-001..002, TASK-001..004, ERR-001, DEVTOOLS-001.
+PRJ-001..008, LAYOUT-004, NOTIF-001, TAB-001, FILE-001..006, LIVE-001..002, TASK-001..004, ERR-001, DEVTOOLS-001.
 Chat on the left, live preview on the right; resizable panels; files, shell and tools tabs; a sidebar with project menus, search and status; templates; icons; desktop notifications; parallel tasks with their own copy of the app and a kanban board; the agent sees and fixes the app's errors.
 
 ### Decisions
@@ -74,6 +74,7 @@ Chat on the left, live preview on the right; resizable panels; files, shell and 
 - **2026-09-30: Rename and delete refuse `.` and empty path parts,** so neither can ever act on the workspace itself; renames never overwrite (like creating). "Copy link" is for files only, since the URL can open a file but not a folder.
 - **2026-09-30: Each task has its own `read_at`; the project's dot rolls up its main chat and its not-done tasks.** Opening one chat only marks that chat read, so a task finishing while the user is on Main still shows. Done tasks don't count, since the sidebar doesn't list them.
 - **2026-09-30: Reloads from an unfocused tab don't mark anything read** (the client sends `X-Onedrop-Unseen` on partial reloads when the tab is hidden or unfocused). Polling used to mark the open chat read in background tabs, so a finished agent never showed as waiting. Visits the user starts always count as seen; focusing the tab reloads the sidebar to clear the open chat's dot.
+- **2026-09-30: The preview's size menu has three fixed widths (Desktop fills the pane, Tablet 768px, Mobile 390px), remembered in `localStorage` for every project.** It only narrows the iframe, so the app's own CSS media queries respond as on a real device; no device frames, rotation or custom sizes, to keep the header small. No user-agent or touch emulation, since a cross-origin iframe can't have either.
 - **Browser errors are only accepted from the preview,** never from the published address. Autofix sends errors to the agent once; a run started by autofix doesn't trigger another.
 
 ## Sandboxes
