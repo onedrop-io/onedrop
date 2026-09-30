@@ -78,6 +78,14 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     }
 
     /**
+     * Whether new accounts must verify their email: AUTH_VERIFY_EMAIL when set, otherwise everywhere but local installs.
+     */
+    public static function emailVerificationRequired(): bool
+    {
+        return (bool) (config('auth.verify_email') ?? ! app()->isLocal());
+    }
+
+    /**
      * Remember that this session opened the setup link, when $token is the install's setup token.
      */
     public static function openSetupLink(mixed $token): void

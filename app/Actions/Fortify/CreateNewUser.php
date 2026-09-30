@@ -37,7 +37,7 @@ class CreateNewUser implements CreatesNewUsers
             'password' => $input['password'],
         ]);
 
-        if (! config('auth.verify_email')) {
+        if (! User::emailVerificationRequired()) {
             $user->forceFill(['email_verified_at' => now()])->save();
         }
 

@@ -11,11 +11,12 @@ return [
     |
     | Whether new accounts must verify their email address. Turn off on
     | servers without outgoing email (e.g. a test launch); new accounts are
-    | then marked verified when they sign up.
+    | then marked verified when they sign up. Unset, it's off for local
+    | installs (APP_ENV=local) and on everywhere else.
     |
     */
 
-    'verify_email' => (bool) env('AUTH_VERIFY_EMAIL', true),
+    'verify_email' => env('AUTH_VERIFY_EMAIL'),
 
     // Set by a server install (INSTALL-002): the first account can only be created from /register?setup=<token>,
     // the link the installer prints, so nobody who finds a new server first can make themselves its admin.

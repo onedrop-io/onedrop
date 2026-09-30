@@ -37,6 +37,18 @@ test('sign-ups skip email verification when it is turned off', function (bool $v
     'verification off' => [false, true],
 ])->group('DEP-001');
 
+test('email verification defaults to off only for local installs', function (?bool $setting, string $environment, bool $required) {
+    config(['auth.verify_email' => $setting]);
+    app()['env'] = $environment;
+
+    expect(User::emailVerificationRequired())->toBe($required);
+})->with([
+    'unset, local' => [null, 'local', false],
+    'unset, production' => [null, 'production', true],
+    'on, local' => [true, 'local', true],
+    'off, production' => [false, 'production', false],
+])->group('DEP-001');
+
 test('zap:admin makes a user an admin', function () {
     $user = User::factory()->create(['email' => 'boss@example.com']);
 

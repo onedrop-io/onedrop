@@ -384,6 +384,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - An admin should be able to provision that server on AWS with Pulumi.
 - An admin should be able to make a user an admin from the command line (`php artisan zap:admin you@example.com`).
 - An admin should be able to turn off email verification for sign-ups (for servers without outgoing email).
+- Local dev installs (`APP_ENV=local`) should skip email verification for sign-ups unless `AUTH_VERIFY_EMAIL` says otherwise.
 - Sandboxes on Linux should be able to reach the app to report agent events.
 
 ## GW-001: Previews and shells on a server

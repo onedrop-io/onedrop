@@ -103,7 +103,7 @@ class ResolveSocialUser
             'password' => null,
         ]);
 
-        if ($verified || ! config('auth.verify_email')) {
+        if ($verified || ! User::emailVerificationRequired()) {
             $user->forceFill(['email_verified_at' => now()])->save();
         }
 
