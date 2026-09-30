@@ -1,5 +1,6 @@
 import { Head, Link, usePage } from '@inertiajs/react';
 import {
+    ArrowDown,
     ArrowUp,
     Check,
     Loader2,
@@ -24,8 +25,9 @@ import {
 } from '@/components/home/particle-universe';
 import { DemoVideo } from '@/components/home/demo-video';
 import { DropMark } from '@/components/home/drop-mark';
+import { Droppy } from '@/components/home/droppy';
 import { FEATURES } from '@/components/home/features';
-import { InstallCommand } from '@/components/home/install-command';
+import { InstallSection } from '@/components/home/install-section';
 import { SiteFooter } from '@/components/home/site-footer';
 import { SiteHeader } from '@/components/home/site-header';
 import { SparklesText } from '@/components/home/sparkles-text';
@@ -192,7 +194,7 @@ const INTEGRATIONS = [
 const STEPS = [
     {
         title: 'Connect your AI',
-        body: 'Sign in with your ChatGPT Plus or Pro plan, or paste a key from Anthropic, OpenAI, Google, or OpenRouter. It takes a minute, and you only do it once.',
+        body: 'Use your Claude Pro or Max plan or your ChatGPT Plus or Pro plan, or paste a key from Anthropic, OpenAI, Google, OpenRouter, or Ollama. It takes a minute, and you only do it once.',
     },
     {
         title: 'Say what you need',
@@ -243,7 +245,7 @@ const FAQS = [
     },
     {
         question: 'Which AI does it use?',
-        answer: 'Yours. Sign in with your ChatGPT Plus or Pro plan, paste an Anthropic, OpenAI, Gemini, or Ollama API key, or sign in with OpenRouter for hundreds of other models. You pay your provider directly, with no markup.',
+        answer: 'Yours. Use your Claude Pro or Max plan or your ChatGPT Plus or Pro plan, paste an Anthropic, OpenAI, Gemini, or Ollama API key, or sign in with OpenRouter for hundreds of other models. You pay your provider directly, with no markup.',
     },
     {
         question: 'Is it really ready for production?',
@@ -862,8 +864,14 @@ export default function Welcome() {
                                     </a>
                                 </div>
                                 <p className="mt-4 text-sm text-[#B3A69C]">
-                                    Free to self-host. Source available. Bring
-                                    your own subscription. Deploy anywhere.
+                                    <a
+                                        href="#install"
+                                        className="text-[#FF9A5C] underline-offset-4 hover:underline"
+                                    >
+                                        Free to self-host
+                                    </a>
+                                    . Source available. Bring your own
+                                    subscription. Deploy anywhere.
                                 </p>
                             </div>
 
@@ -963,8 +971,8 @@ export default function Welcome() {
                             From idea to link in four steps
                         </h2>
                         <p className="mt-4 max-w-xl text-lg text-[#B3A69C]">
-                            Nothing to install and nothing to learn. If you can
-                            write an email, you can do this.
+                            Nothing to learn. If you can write an email, you can
+                            do this.
                         </p>
                         <ol className="mt-14 grid gap-x-8 gap-y-12 sm:grid-cols-2 lg:grid-cols-4">
                             {STEPS.map((step, index) => (
@@ -1037,8 +1045,7 @@ export default function Welcome() {
                         className="scroll-mt-16 border-y border-[#2A2320] bg-[#100D0B] text-white"
                     >
                         <div className="mx-auto grid max-w-6xl gap-14 px-6 py-24 lg:grid-cols-2 lg:items-center">
-                            {/* min-w-0: the install command scrolls inside its box instead of widening the page. */}
-                            <div className="min-w-0">
+                            <div>
                                 <Server
                                     aria-hidden="true"
                                     className="size-8 text-[#FF9A5C]"
@@ -1052,10 +1059,18 @@ export default function Welcome() {
                                     {BRAND} runs on your laptop or your own
                                     server and builds on your own AI plan or
                                     key, so your apps, your data, and your bill
-                                    stay yours. One command installs it on your
-                                    laptop:
+                                    stay yours.
                                 </p>
-                                <InstallCommand />
+                                <a
+                                    href="#install"
+                                    className="mt-8 inline-flex items-center gap-2 rounded-xl px-5 py-3 font-semibold text-[#F5EFEA] ring-1 ring-[#3A302B] hover:bg-[#151110]"
+                                >
+                                    Install it in one command
+                                    <ArrowDown
+                                        aria-hidden="true"
+                                        className="size-4 text-[#FF9A5C]"
+                                    />
+                                </a>
                             </div>
                             <div className="overflow-hidden rounded-2xl ring-1 ring-white/10">
                                 <table className="w-full text-left text-sm">
@@ -1099,6 +1114,8 @@ export default function Welcome() {
                             </div>
                         </div>
                     </section>
+
+                    <InstallSection />
 
                     <section
                         id="faq"
@@ -1167,6 +1184,7 @@ export default function Welcome() {
                 </main>
 
                 <SiteFooter />
+                <Droppy />
             </div>
         </>
     );

@@ -10,9 +10,15 @@ OneDrop runs as a single Docker container with its own SQLite database. Each pro
 - macOS or Linux (a server: any Linux with Docker, or one the installer can install Docker on)
 - Docker: [Docker Desktop](https://www.docker.com/products/docker-desktop/) or [OrbStack](https://orbstack.dev) on a Mac, Docker Engine on Linux
 - About 5 GB of free disk space for the images
-- An API key for Anthropic, OpenAI, Google (Gemini), or OpenRouter, or a ChatGPT Plus or Pro plan
+- An API key for Anthropic, OpenAI, Google (Gemini), OpenRouter, or Ollama (or your own Ollama server), or a Claude Pro or Max or ChatGPT Plus or Pro plan
 
 ## Install
+
+```bash
+curl -fsSL https://onedrop.io/install | sh
+```
+
+`onedrop.io/install` redirects to [`install.sh`](https://github.com/onedrop-io/onedrop/blob/main/install.sh) on GitHub, so you can read the script before running it, or run it straight from GitHub:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/onedrop-io/onedrop/main/install.sh | sh
@@ -37,13 +43,13 @@ The first account you create is the admin. After signing up, [connect your AI](/
 Add `--domain` to serve OneDrop over HTTPS. With `auto`, it uses `<your server's IP>.sslip.io`, a free address that needs no DNS setup:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/onedrop-io/onedrop/main/install.sh | sh -s -- --domain auto
+curl -fsSL https://onedrop.io/install | sh -s -- --domain auto
 ```
 
 Or use your own domain:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/onedrop-io/onedrop/main/install.sh | sh -s -- --domain onedrop.example.com
+curl -fsSL https://onedrop.io/install | sh -s -- --domain onedrop.example.com
 ```
 
 Run over SSH without `--domain`, the installer offers the sslip.io address itself.
@@ -99,7 +105,7 @@ drop config GOOGLE_CLIENT_ID=your-client-id GOOGLE_CLIENT_SECRET=your-client-sec
 To install on a different port, set `DROP_PORT` when you run the installer:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/onedrop-io/onedrop/main/install.sh | DROP_PORT=9000 sh
+curl -fsSL https://onedrop.io/install | DROP_PORT=9000 sh
 ```
 
 ## How it's set up

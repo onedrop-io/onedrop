@@ -187,7 +187,7 @@ test('the user takes over a test after one of its steps and uses its page in the
         ->assertSeeIn('@test-steps', 'Fill "Ada"')
         ->click('[data-test="test-step"]:nth-child(2) [data-test="take-over"]')
         ->assertVisible('@browser-view')
-        ->assertSeeIn('@browser-where', '"User should see a greeting", stopped after "Fill "Ada" getByLabel(\'Name\')"')
+        ->assertSeeIn('@browser-where', '"User should see a greeting" · stopped after "Fill "Ada" getByLabel(\'Name\')"')
         ->assertAttributeContains('@browser-frame', 'src', 'http://127.0.0.1:9/__onedrop/browser/?token=')
         ->click('@browser-close')
         ->assertMissing('@browser-view')

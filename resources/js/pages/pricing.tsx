@@ -90,7 +90,7 @@ const PLANS: Plan[] = [
 const PROMISES = [
     {
         title: 'No markup on your AI',
-        body: 'Connect your ChatGPT plan or an API key and it costs you exactly what your provider charges. We never touch it.',
+        body: 'Connect your Claude or ChatGPT plan or an API key and it costs you exactly what your provider charges. We never touch it.',
     },
     {
         title: 'Hosting never eats your credits',
@@ -137,11 +137,11 @@ const COMPARISON = [
 const FAQS = [
     {
         question: 'How do the included AI credits work?',
-        answer: 'Anyone on your plan who hasn’t connected their own AI builds with the plan’s credits, which cover model usage at provider rates. People who connect a ChatGPT plan or an API key never use credits. Unused credits roll over for one month, and you can top up any time at provider rates.',
+        answer: 'Anyone on your plan who hasn’t connected their own AI builds with the plan’s credits, which cover model usage at provider rates. People who connect a Claude or ChatGPT plan or an API key never use credits. Unused credits roll over for one month, and you can top up any time at provider rates.',
     },
     {
         question: 'Can I bring my own AI on every plan?',
-        answer: 'Yes, including the free self-hosted plan. Sign in with your ChatGPT Plus or Pro plan, or paste a key from Anthropic, OpenAI, Google, or OpenRouter. You pay your provider directly, and we add nothing on top.',
+        answer: 'Yes, including the free self-hosted plan. Use your Claude Pro or Max plan or your ChatGPT Plus or Pro plan, or paste a key from Anthropic, OpenAI, Google, OpenRouter, or Ollama. You pay your provider directly, and we add nothing on top.',
     },
     {
         question: 'Who counts as a builder?',

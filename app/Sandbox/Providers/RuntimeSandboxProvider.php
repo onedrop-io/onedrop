@@ -311,6 +311,92 @@ class RuntimeSandboxProvider implements SandboxProvider
     }
 
     /**
+     * Delete versions of the sandbox image older than the current one that no sandbox could still need (Runtime
+     * charges for every stored image). Newer builds are kept: a failed one holds the checkpoints its fix starts from.
+     *
+     * @return list<array{id: string, version: int, state: string}> the versions deleted (or, with $dryRun, to delete)
+     *
+     * @throws SandboxException
+     */
+    public function pruneImages(bool $dryRun = false): array
+    {
+        $current = $this->request('get', 'images/resolve', ['ref' => $this->config['image']]);
+
+        if ($current->status() === 404) {
+            return [];
+        }
+
+        $current = $this->throwUnlessOk($current)->json();
+        $inUse = $this->imagesInUse();
+
+        $old = collect($this->listAll('images', ['name' => $current['name']]))
+            ->filter(fn (array $image) => $image['version'] < $current['version'] && ! in_array($image['id'], $inUse, true))
+            ->map(fn (array $image) => ['id' => (string) $image['id'], 'version' => (int) $image['version'], 'state' => (string) ($image['state'] ?? '')])
+            ->sortBy('version')
+            ->values()
+            ->all();
+
+        $old = array_values($old);
+
+        if (! $dryRun) {
+            foreach ($old as $image) {
+                $response = $this->request('post', "images/{$image['id']}:delete");
+
+                if ($response->status() !== 404) {
+                    $this->throwUnlessOk($response);
+                }
+            }
+        }
+
+        return $old;
+    }
+
+    /**
+     * Image versions a sandbox that can still run came from: every one that isn't stopped, and stopped persistent
+     * ones (they keep their disk to restart from). Older sandboxes carry the label under the app's former name.
+     *
+     * @return list<string>
+     *
+     * @throws SandboxException
+     */
+    protected function imagesInUse(): array
+    {
+        return array_values(collect($this->listAll('sandboxes', ['includeStopped' => 'true']))
+            ->reject(fn (array $sandbox) => ($sandbox['state'] ?? null) === 'stopped' && ! ($sandbox['persistent'] ?? false))
+            ->map(fn (array $sandbox) => $sandbox['labels'][self::IMAGE_LABEL] ?? $sandbox['labels']['zap.image'] ?? null)
+            ->filter(fn (mixed $image) => is_string($image) && $image !== '')
+            ->unique()
+            ->all());
+    }
+
+    /**
+     * Every item of a list, following its cursor.
+     *
+     * @param  array<string, string>  $query
+     * @return list<array<string, mixed>>
+     *
+     * @throws SandboxException
+     */
+    protected function listAll(string $path, array $query = []): array
+    {
+        $items = [];
+        $cursor = null;
+
+        do {
+            $page = $this->send('get', $path, array_filter([...$query, 'limit' => 100, 'cursor' => $cursor]));
+            foreach (is_array($page['data'] ?? null) ? $page['data'] : [] as $item) {
+                if (is_array($item)) {
+                    $items[] = $item;
+                }
+            }
+
+            $cursor = $page['nextCursor'] ?? null;
+        } while ($cursor !== null);
+
+        return $items;
+    }
+
+    /**
      * The id of the image version new sandboxes start from.
      *
      * @throws SandboxException

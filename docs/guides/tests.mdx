@@ -63,6 +63,15 @@ Sometimes you want to get the app to a certain point (signed in, three things in
     </Step>
 </Steps>
 
+### Carry on with the test
+
+The bar above the page says where the test is: paused after a step (and what it does next), playing, finished, or which step failed and why.
+
+- **Next step** runs the test's next step on the page as you left it, then pauses again.
+- **Play to the end** runs the rest of the test, a little slowed down so you can follow it. The page stays open afterwards.
+
+If you changed the page, a later step may no longer find what it expects. It then shows as failing, with the reason, which tells you whether the app or the test should change. The agent can carry on with the test too, when you ask it to.
+
 The page uses the app's own dev server and database, like the preview: whatever you do there really happens. Close the Browser tab to close it; it also closes after 30 minutes unwatched. Only people who can change the project can take over a test.
 
 ## Turn it on or off

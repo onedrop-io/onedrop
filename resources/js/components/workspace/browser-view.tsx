@@ -11,6 +11,15 @@ export type BrowserSession = {
     step: string | null;
 };
 
+/** A taken-over test: paused at a step, playing on, or at its end (TEST-006). */
+type Playback = {
+    paused: boolean;
+    playing: boolean;
+    step: number;
+    ended: boolean;
+    error: string | null;
+};
+
 type BrowserStatus = {
     open: boolean;
     starting: boolean;
@@ -36,6 +45,8 @@ export default function BrowserView({
     const [page, setPage] = useState<{ url: string; title: string } | null>(
         null,
     );
+    /** Where the test is since the user took over (TEST-006), from the viewer. */
+    const [playback, setPlayback] = useState<Playback | null>(null);
     const ready = status?.open ?? false;
     const frame = useRef<HTMLIFrameElement>(null);
 
@@ -71,6 +82,7 @@ export default function BrowserView({
         };
 
         setStatus(null);
+        setPlayback(null);
         void check();
 
         return () => {
@@ -82,11 +94,16 @@ export default function BrowserView({
     // The viewer says which page it's on.
     useEffect(() => {
         const listener = (event: MessageEvent) => {
-            if (
-                event.source === frame.current?.contentWindow &&
-                event.data?.type === 'onedrop-browser'
-            ) {
+            if (event.source !== frame.current?.contentWindow) {
+                return;
+            }
+
+            if (event.data?.type === 'onedrop-browser') {
                 setPage({ url: event.data.url, title: event.data.title });
+            }
+
+            if (event.data?.type === 'onedrop-browser-playback') {
+                setPlayback(event.data as Playback);
             }
         };
 
@@ -112,9 +129,19 @@ export default function BrowserView({
                     className="min-w-0 flex-1 truncate"
                     data-test="browser-where"
                 >
-                    {session.step
-                        ? `"${session.test}", stopped after "${session.step}"`
-                        : `"${session.test}"`}
+                    {`"${session.test}"`}
+                    {' · '}
+                    {playback === null
+                        ? session.step
+                            ? `stopped after "${session.step}"`
+                            : 'stopped before its first step'
+                        : playback.error
+                          ? 'failed'
+                          : playback.playing
+                            ? 'playing'
+                            : playback.ended
+                              ? 'finished'
+                              : `paused after step ${playback.step}`}
                     {page?.title ? ` · ${page.title}` : ''}
                 </p>
                 {ready && (

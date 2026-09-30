@@ -2,6 +2,8 @@ import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { drawSpaceBackdrop } from '@/components/home/closeup-gl';
 import { createCosmicZoom } from '@/components/home/cosmic-zoom';
+import { findEasterEgg } from '@/components/home/easter-eggs';
+import type { EasterEggId } from '@/components/home/easter-eggs';
 import {
     drawSolarSystem,
     hasSolarSystem,
@@ -101,6 +103,8 @@ type Closeup = {
     /** What to hover over: a planet in Sol, or one of the probes leaving it. */
     name: string;
     kind: 'planet' | 'probe';
+    /** Which easter egg its show counts as finding. */
+    easterEgg: EasterEggId;
     /** How big it is once it's zoomed in (CSS pixels). */
     radius: number;
     load: () => void;
@@ -122,6 +126,7 @@ const CLOSEUPS: Closeup[] = [
     {
         name: 'Earth',
         kind: 'planet',
+        easterEgg: 'earth',
         radius: EARTH_CLOSEUP_RADIUS,
         load: loadEarthCloseup,
         isReady: isEarthCloseupReady,
@@ -131,6 +136,7 @@ const CLOSEUPS: Closeup[] = [
     {
         name: 'Mars',
         kind: 'planet',
+        easterEgg: 'mars',
         radius: MARS_CLOSEUP_RADIUS,
         load: loadMarsCloseup,
         isReady: isMarsCloseupReady,
@@ -140,6 +146,7 @@ const CLOSEUPS: Closeup[] = [
     ...Object.keys(PROBE_CLOSEUPS).map((name): Closeup => ({
         name,
         kind: 'probe',
+        easterEgg: PROBE_CLOSEUPS[name].kind,
         radius: PROBE_CLOSEUP_RADIUS,
         load: () => loadProbeCloseup(name),
         loadsNearby: true,
@@ -606,6 +613,10 @@ export function Galaxy({ children }: { children: ReactNode }) {
 
             if (isOnMoon && isOffMoon) {
                 startMoonwalk();
+
+                if (isMoonwalkPlaying()) {
+                    findEasterEgg('moonwalk');
+                }
             }
 
             isOffMoon = !isOnMoon;
@@ -1155,6 +1166,7 @@ export function Galaxy({ children }: { children: ReactNode }) {
                 };
                 zoomedIn = 0;
                 spotFor(hovered).dataset.state = 'playing';
+                findEasterEgg(hovered.easterEgg);
             }
 
             if (show && zoomedIn !== null && show.isInSolarView) {
@@ -1496,9 +1508,10 @@ export function Galaxy({ children }: { children: ReactNode }) {
                         spotRefs.current[closeup.name] = spot;
                     }}
                     data-test={closeup.name.toLowerCase().replace(' ', '-')}
+                    data-closeup={closeup.name}
                     data-state="idle"
                     aria-hidden="true"
-                    className="pointer-events-none absolute top-1/2 left-1/2 size-8 rounded-full motion-reduce:hidden"
+                    className="pointer-events-none absolute top-1/2 left-1/2 size-8 rounded-full transition-shadow duration-500 motion-reduce:hidden data-[hinted=true]:shadow-[0_0_0_2px_#FFB27A,0_0_24px_6px_rgba(255,154,92,0.7)]"
                 />
             ))}
         </>

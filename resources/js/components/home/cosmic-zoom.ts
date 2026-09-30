@@ -12,6 +12,10 @@
  */
 
 import { clamp, smoothstep } from '@/components/home/closeup-gl';
+import {
+    EASTER_EGG_FOR_ZOOM,
+    findEasterEgg,
+} from '@/components/home/easter-eggs';
 
 export const ZOOM_LEVELS = ['earth', 'solar', 'galaxy', 'laniakea'] as const;
 
@@ -99,6 +103,12 @@ export function createCosmicZoom({
         level = next;
         changedAt = now;
         announce();
+
+        const easterEgg = EASTER_EGG_FOR_ZOOM[next];
+
+        if (easterEgg) {
+            findEasterEgg(easterEgg);
+        }
     };
 
     const request = (next: ZoomLevel, now: number) => {

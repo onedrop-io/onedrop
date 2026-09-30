@@ -59,6 +59,9 @@ use Illuminate\View\Middleware\ShareErrorsFromSession;
 Route::inertia('/', 'welcome')->name('home');
 Route::inertia('pricing', 'pricing')->name('pricing');
 
+// The short install URL (INSTALL-001): `curl -fsSL https://onedrop.io/install | sh` follows this to the script on main.
+Route::redirect('install', 'https://raw.githubusercontent.com/onedrop-io/onedrop/main/install.sh')->name('install');
+
 // Shared projects' public pages (SHARE-001) and "Remix this" (SHARE-002).
 Route::get('s/{share}', [ShareController::class, 'show'])->name('shares.show');
 Route::get('s/{share}/card.png', [ShareController::class, 'card'])->name('shares.card');

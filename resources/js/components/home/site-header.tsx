@@ -1,13 +1,14 @@
 import { Link } from '@inertiajs/react';
 import { FEATURES } from '@/components/home/features';
+import { GitHubMark } from '@/components/home/github-mark';
 import { PoppingDrop } from '@/components/home/popping-drop';
 import { ProductMenu } from '@/components/home/product-menu';
-import { DOCUMENTATION_URL } from '@/lib/links';
+import { DOCUMENTATION_URL, REPOSITORY_URL } from '@/lib/links';
 import { dashboard, login, pricing, register } from '@/routes';
 
 /**
- * The marketing pages' sticky top bar: logo, Product menu, page links, Docs, and
- * log in / sign up (or Dashboard when logged in).
+ * The marketing pages' sticky top bar: logo, Product menu, page links, Docs, GitHub,
+ * and log in / sign up (or Dashboard when logged in).
  */
 export function SiteHeader({ isLoggedIn }: { isLoggedIn: boolean }) {
     return (
@@ -28,6 +29,9 @@ export function SiteHeader({ isLoggedIn }: { isLoggedIn: boolean }) {
                     <Link href={pricing()} className="hover:text-white">
                         Pricing
                     </Link>
+                    <a href="/#install" className="hover:text-white">
+                        Install
+                    </a>
                     <a href="/#faq" className="hover:text-white">
                         FAQ
                     </a>
@@ -36,6 +40,14 @@ export function SiteHeader({ isLoggedIn }: { isLoggedIn: boolean }) {
                     </a>
                 </nav>
                 <div className="ml-auto flex items-center gap-2 text-sm">
+                    <a
+                        href={REPOSITORY_URL}
+                        aria-label="OneDrop on GitHub"
+                        data-test="header-github"
+                        className="hidden size-9 place-items-center rounded-lg text-[#B3A69C] hover:bg-white/5 hover:text-white sm:grid"
+                    >
+                        <GitHubMark className="size-5" />
+                    </a>
                     {isLoggedIn ? (
                         <Link
                             href={dashboard()}

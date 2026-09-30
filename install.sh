@@ -1,11 +1,11 @@
 #!/bin/sh
 # Installs OneDrop on this computer (macOS or Linux; Docker is the only requirement):
 #
-#   curl -fsSL https://raw.githubusercontent.com/onedrop-io/onedrop/main/install.sh | sh
+#   curl -fsSL https://onedrop.io/install | sh
 #
 # On a server, with HTTPS at a domain (or at <ip>.sslip.io with "auto"):
 #
-#   curl -fsSL https://raw.githubusercontent.com/onedrop-io/onedrop/main/install.sh | sh -s -- --domain auto
+#   curl -fsSL https://onedrop.io/install | sh -s -- --domain auto
 #
 # Puts the `drop` command in ~/.local/bin and runs `drop install` with any options given. Run it again to update.
 set -eu

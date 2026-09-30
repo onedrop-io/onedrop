@@ -1,5 +1,6 @@
 import { Link } from '@inertiajs/react';
 import { DropMark } from '@/components/home/drop-mark';
+import { GitHubMark } from '@/components/home/github-mark';
 import { DOCUMENTATION_URL, REPOSITORY_URL } from '@/lib/links';
 import { pricing } from '@/routes';
 
@@ -19,7 +20,11 @@ export function SiteFooter() {
                 <a href={DOCUMENTATION_URL} className="hover:text-white">
                     Docs
                 </a>
-                <a href={REPOSITORY_URL} className="hover:text-white">
+                <a
+                    href={REPOSITORY_URL}
+                    className="flex items-center gap-1.5 hover:text-white"
+                >
+                    <GitHubMark className="size-4" />
                     Source on GitHub
                 </a>
             </div>

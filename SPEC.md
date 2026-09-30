@@ -242,6 +242,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - A paused Runtime sandbox should wake on the next command even when Runtime briefly has no room for it (the trial's running limit, a full host): commands wait a few seconds and retry, then say to try again in a moment instead of failing outright.
 - While an update copies a Runtime sandbox's files, the app's processes should be frozen (not the sandbox paused, which a copy would wake), so a database is copied in a consistent state; if the update fails or is cut off, they should carry on where they were.
 - When the trial's limit on running sandboxes is reached, creating one should wait for a free slot (up to two minutes) instead of failing at once.
+- Old versions of the sandbox image should be deleted from Runtime once a day (`php artisan sandbox:prune-images`, `--dry-run` to only list them), since Runtime charges for stored images. The current version, any newer build, and every version a running, paused or persistent sandbox came from should be kept.
 
 ## SBX-004: Sandboxes on Blaxel
 
@@ -505,7 +506,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 ## HOME-001: Marketing home page
 
 - Visitor should see what OneDrop does in one sentence at the top of the home page, with a button to start building.
-- Visitor should see the positioning up top: vibe-code apps for production, bring your own subscription (a ChatGPT plan or an API key), deploy anywhere.
+- Visitor should see the positioning up top: vibe-code apps for production, bring your own subscription (a Claude or ChatGPT plan, or an API key), deploy anywhere.
 - Visitor should see a short animated demo of an app being described in chat, appearing in a live preview, and getting an instant Tailscale link with one click on Publish (shown still when reduced motion is on).
 - Visitor should be able to pause and play the demo.
 - Visitor should be able to click Watch the demo by the headline to play the product demo video in a dialog, with playback controls, and close it with the close button or Escape.
@@ -540,8 +541,20 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Visitor should see answers to common questions (coding knowledge, which AI, whether it's ready for production, where apps run, who can see them, cost).
 - Visitor should be able to open a Product menu in the top bar (on hover or click) that lists each feature with a one-line summary, plus links to the demo, how it works, the tools it works with, and the self-hosting comparison; picking an item should close the menu and jump to that part of the page.
 - Visitor should find a Docs link in the top bar and footer that opens the docs site (docs.onedrop.io).
-- Visitor should see the one-line install command in the self-hosting comparison, with a button to copy it and a link to the install guide.
+- Visitor should see an Install section with the one-line install command, and be able to switch it between their laptop, a server (an automatic sslip.io address), and their own domain, with a button to copy it and a note on what each does.
+- Visitor should see the three steps after installing (run the command, create the admin account, connect an AI), what it needs (macOS or Linux, Docker, 5 GB of disk, an AI plan or key), how to update, and links to the install guide and the source on GitHub.
+- Visitor should be able to jump to the Install section from the top bar, the hero's "Free to self-host", and the self-hosting comparison.
+- Visitor should see a GitHub logo in the top bar and footer that opens the repository (github.com/onedrop-io/onedrop).
 - Logged-out visitor should be able to go to sign up or log in; logged-in user should see a button to open their dashboard instead.
+
+## HOME-003: Droppy, the easter-egg helper
+
+- Visitor should see Droppy, a droplet with eyes that follow the pointer, pop up in the bottom-right corner about fifteen seconds after the galaxy appears, asking whether they'd like a hint for finding the home page's easter eggs.
+- Visitor should be able to ask for a hint, and for another one, and get hints for eggs they haven't found yet (the Earth, the moonwalk, Mars, a Voyager, a Pioneer, the Solar System, the Starship launch, Laniakea, the logo droplet), plus the Endurance and the Enterprise, which play on their own.
+- Visitor should be able to click Show me on a hint to be zoomed to the right level, or to see the planet or probe to hover over glow in the galaxy for a few seconds.
+- Visitor should see Droppy cheer when they find an egg, with how many of them they've found, remembered in their browser across visits.
+- Visitor should be able to close Droppy's bubble (Droppy stays in the corner; clicking it gives another hint), or choose Don't show Droppy again to send it away for good in that browser.
+- Visitor shouldn't see Droppy with reduced motion on, on screens too small for the galaxy's zoom scale, or when the galaxy doesn't appear.
 
 ## BRAND-001: OneDrop name and links in the app
 
@@ -890,7 +903,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 - Visitor should be able to open a Pricing page from the home page's top bar and footer.
 - Visitor should see four plans: Self-hosted (free, source available, no limits), Solo, Team, and Business, with Team highlighted.
-- Visitor should see that every plan works with their own AI (a ChatGPT plan or an API key) with no markup, and that paid plans include monthly AI credits for people who haven't connected their own.
+- Visitor should see that every plan works with their own AI (a Claude or ChatGPT plan, or an API key) with no markup, and that paid plans include monthly AI credits for people who haven't connected their own.
 - Visitor should be able to switch between monthly and yearly prices; yearly is the default and saves 20%.
 - Visitor should see the pricing promises (no markup on your AI, hosting never uses credits, published apps never pause, flat prices instead of per seat), a comparison with hosted builders, and pricing questions.
 - Logged-out visitor should be able to start signing up from a paid plan, and open the install guide from the Self-hosted plan; logged-in user should see a button to open their dashboard instead.
@@ -948,7 +961,8 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## INSTALL-001: One-line install on your own computer
 
-- User should be able to install OneDrop with one command (`curl -fsSL https://raw.githubusercontent.com/onedrop-io/onedrop/main/install.sh | sh`) on macOS or Linux, with Docker as the only requirement.
+- User should be able to install OneDrop with one command (`curl -fsSL https://onedrop.io/install | sh`) on macOS or Linux, with Docker as the only requirement.
+- User should be able to fetch the script from the short URL, which redirects to `install.sh` on GitHub's `main`, or straight from GitHub (`https://raw.githubusercontent.com/onedrop-io/onedrop/main/install.sh`).
 - User should be told how to get Docker when it's missing, and the installer should start Docker Desktop on macOS when it's installed but not running.
 - User should get a `drop` command to start, stop, update, see logs of, open, and uninstall OneDrop. Running the installer again updates it and keeps all data.
 - OneDrop should run as a single container (`ghcr.io/onedrop-io/onedrop`) with SQLite, keeping its data in the `drop-data` Docker volume; projects run in sibling sandbox containers (`ghcr.io/onedrop-io/onedrop-sandbox`) on the `drop` Docker network.
@@ -1105,3 +1119,13 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see "Running the test up to that step…" while it gets there, and why when it can't (the test failed or ended first, or took too long).
 - Closing the Browser tab should close the browser; it should also close itself after 30 minutes unwatched.
 - Only people who can change the project should be able to take over a test; the page should only open on the app's preview address with the token the app hands out, never on the published address.
+
+## TEST-006: Carry on with a taken-over test
+
+- User should see in the Browser tab where the test is: paused after step N (and what's next), playing, finished, or which step failed and why.
+- User should be able to click "Next step" to run the test's next step on the page as they left it, then pause again.
+- User should be able to click "Play to the end" to run the rest of the test, a little slowed down so they can follow each step; the page stays open afterwards.
+- A step that no longer matches the page (because the user changed it) should show as that step failing, with Playwright's reason, and the page should stay open.
+- A test paused for longer than its usual timeout should still carry on when resumed.
+- The agent should be able to carry on with the test too (`/opt/onedrop/browser resume step|end`) and see where it is.
+

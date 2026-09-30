@@ -37,7 +37,7 @@
 On macOS or Linux, with [Docker](https://www.docker.com/products/docker-desktop/) running:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/onedrop-io/onedrop/main/install.sh | sh
+curl -fsSL https://onedrop.io/install | sh
 ```
 
 That's it. OneDrop opens at **http://localhost:8000**, and the first account you create is the admin.
@@ -53,7 +53,7 @@ That's it. OneDrop opens at **http://localhost:8000**, and the first account you
 > **Putting it on a server for your team?** Add a domain and you get HTTPS. `auto` uses a free `<ip>.sslip.io` address:
 >
 > ```bash
-> curl -fsSL https://raw.githubusercontent.com/onedrop-io/onedrop/main/install.sh | sh -s -- --domain auto
+> curl -fsSL https://onedrop.io/install | sh -s -- --domain auto
 > ```
 >
 > Works on [any Ubuntu 24.04 machine](https://docs.onedrop.io/self-hosting/install-anywhere), or [on AWS](https://docs.onedrop.io/self-hosting/deploy-aws) with Pulumi.

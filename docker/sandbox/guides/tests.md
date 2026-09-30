@@ -40,7 +40,8 @@ test.describe('Sign-in', () => {
 
 The user can run a test up to one of its steps and then use that page themselves, in the workspace's Browser tab, while asking you for changes ("make this button bigger", "why is this total wrong?"). Their message then says which test and step, and "this" usually means something on that page.
 
-- `/opt/onedrop/browser status` gives the page's address; `/opt/onedrop/browser screenshot /tmp/browser.png` saves what they see, so look at it before you change anything and again after.
+- `/opt/onedrop/browser status` gives the page's address and where the test is (paused after a step, or finished, and why it failed); `/opt/onedrop/browser screenshot /tmp/browser.png` saves what they see, so look at it before you change anything and again after.
+- The user can carry on with the test from where it paused, one step at a time or to its end, on the page as they left it. When they ask you to, run `/opt/onedrop/browser resume step` or `/opt/onedrop/browser resume end`. A step that fails then usually means the page no longer matches what the test expects: say which, and whether the app or the test should change.
 - Your changes reach the page through hot reload, keeping what they've done on it. Don't restart the dev server or reload the page unless the change needs it (`/opt/onedrop/browser reload`), and say so: a reload loses what's only on the page (an open dialog, unsaved form input).
 - It's the app's own dev server and database: whatever the user does there really happens, like in the preview.
 - Keep steps short and meaningful (a click, a fill, a check each), so the user can stop at the moment they care about.

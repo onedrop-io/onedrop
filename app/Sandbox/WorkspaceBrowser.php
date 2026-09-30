@@ -54,7 +54,7 @@ class WorkspaceBrowser
     /**
      * Whether the browser is open, still running the test to its step, or couldn't get there (and why).
      *
-     * @return array{open: bool, starting: bool, error: string|null, url: string|null, title: string|null}
+     * @return array{open: bool, starting: bool, error: string|null, url: string|null, title: string|null, playback: array{paused: bool, playing: bool, step: int, next: string|null, ended: bool, error: string|null}|null}
      *
      * @throws SandboxException
      */
@@ -77,6 +77,7 @@ class WorkspaceBrowser
             'error' => isset($status['error']) ? mb_substr((string) $status['error'], 0, 4000) : null,
             'url' => $status['url'] ?? null,
             'title' => $status['title'] ?? null,
+            'playback' => is_array($status['playback'] ?? null) ? $status['playback'] : null,
         ];
     }
 
@@ -103,12 +104,13 @@ class WorkspaceBrowser
         }
 
         $where = isset($label['step']) && $label['step'] !== ''
-            ? "the test \"{$label['test']}\" stopped after its step \"{$label['step']}\""
+            ? "the test \"{$label['test']}\" up to its step \"{$label['step']}\""
             : "the test \"{$label['test']}\"";
 
         return "(The user has the app open in the workspace's Browser tab, a live page reached by running {$where}. "
-            .'They may be pointing at something on it. Your changes reach it through hot reload. To see what they see, run '
-            .'`/opt/onedrop/browser screenshot /tmp/browser.png` and look at the file; `/opt/onedrop/browser status` gives its address.)';
+            .'They may be pointing at something on it, and may have carried on with the test since. Your changes reach it through hot reload. '
+            .'To see what they see, run `/opt/onedrop/browser screenshot /tmp/browser.png` and look at the file; `/opt/onedrop/browser status` '
+            .'gives its address and where the test is.)';
     }
 
     protected static function noteKey(Sandbox $sandbox): string

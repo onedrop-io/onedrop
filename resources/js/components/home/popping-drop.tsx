@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { findEasterEgg } from '@/components/home/easter-eggs';
 import { universe } from '@/components/home/particle-universe';
 
 /** How long the drop stays gone before it bounces back, and the wait before it can pop again. */
@@ -35,6 +36,7 @@ export function PoppingDrop() {
             y: rect.top + rect.height / 2 + window.scrollY,
         });
         setIsGone(true);
+        findEasterEgg('logo');
         window.setTimeout(() => setIsGone(false), GONE_MS);
     };
 

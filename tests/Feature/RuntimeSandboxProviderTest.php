@@ -366,3 +366,62 @@ test('large archives are uploaded in the chunks runtime asks for, checked by the
     expect($chunks)->toBe([['offset=0', 10], ['offset=10', 10], ['offset=20', 5]]);
     Http::assertSent(fn (Request $request) => str_ends_with($request->url(), ':commit'));
 })->group('SBX-003');
+
+function fakeRuntimeImages(array $sandboxes): void
+{
+    Http::fake([
+        RT_API.'/images/resolve*' => Http::response(['id' => 'img-4', 'name' => 'onedrop-sandbox', 'version' => 4]),
+        RT_API.'/images/*:delete' => Http::response(['id' => 'x', 'status' => 'deleted']),
+        RT_API.'/images?*' => Http::sequence()
+            ->push(['data' => [
+                ['id' => 'img-5', 'version' => 5, 'state' => 'failed'],
+                ['id' => 'img-4', 'version' => 4, 'state' => 'ready'],
+                ['id' => 'img-3', 'version' => 3, 'state' => 'ready'],
+            ], 'nextCursor' => 'next'])
+            ->push(['data' => [
+                ['id' => 'img-2', 'version' => 2, 'state' => 'ready'],
+                ['id' => 'img-1', 'version' => 1, 'state' => 'failed'],
+            ], 'nextCursor' => null]),
+        RT_API.'/sandboxes?*' => Http::response(['data' => $sandboxes, 'nextCursor' => null]),
+    ]);
+}
+
+test('pruning deletes older image versions no sandbox can still use', function () {
+    fakeRuntimeImages([
+        ['id' => 'sbx-1', 'state' => 'paused', 'persistent' => false, 'labels' => [RuntimeSandboxProvider::IMAGE_LABEL => 'img-2']],
+        ['id' => 'sbx-2', 'state' => 'stopped', 'persistent' => false, 'labels' => [RuntimeSandboxProvider::IMAGE_LABEL => 'img-3']],
+    ]);
+
+    $deleted = $this->runtime->pruneImages();
+
+    expect(array_column($deleted, 'id'))->toBe(['img-1', 'img-3']);
+    Http::assertSent(fn (Request $request) => str_contains($request->url(), 'images?') && $request['name'] === 'onedrop-sandbox');
+    Http::assertSent(fn (Request $request) => str_contains($request->url(), 'cursor=next'));
+    Http::assertSent(fn (Request $request) => $request->url() === RT_API.'/images/img-1:delete');
+    Http::assertSent(fn (Request $request) => $request->url() === RT_API.'/images/img-3:delete');
+    // The current version, the newer failed build, and the one a paused sandbox came from stay.
+    Http::assertNotSent(fn (Request $request) => preg_match('/img-(2|4|5):delete/', $request->url()) === 1);
+})->group('SBX-003');
+
+test('pruning keeps the images of stopped persistent sandboxes and of sandboxes from before the rename', function () {
+    fakeRuntimeImages([
+        ['id' => 'sbx-1', 'state' => 'stopped', 'persistent' => true, 'labels' => [RuntimeSandboxProvider::IMAGE_LABEL => 'img-3']],
+        ['id' => 'sbx-2', 'state' => 'running', 'persistent' => false, 'labels' => ['zap.image' => 'img-1']],
+    ]);
+
+    expect(array_column($this->runtime->pruneImages(), 'id'))->toBe(['img-2']);
+})->group('SBX-003');
+
+test('a dry run of pruning deletes nothing', function () {
+    fakeRuntimeImages([]);
+
+    expect(array_column($this->runtime->pruneImages(dryRun: true), 'id'))->toBe(['img-1', 'img-2', 'img-3']);
+    Http::assertNotSent(fn (Request $request) => str_ends_with($request->url(), ':delete'));
+})->group('SBX-003');
+
+test('pruning does nothing before the image is built', function () {
+    Http::fake([RT_API.'/images/resolve*' => Http::response(runtimeError('image_not_found', 404), 404)]);
+
+    expect($this->runtime->pruneImages())->toBe([]);
+    Http::assertSentCount(1);
+})->group('SBX-003');

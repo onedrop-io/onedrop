@@ -77,6 +77,46 @@
             #notice[hidden] {
                 display: none;
             }
+            #playback {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                padding: 4px 8px;
+                border-bottom: 1px solid #262626;
+                color: #a3a3a3;
+            }
+            #playback[hidden] {
+                display: none;
+            }
+            #where {
+                flex: 1;
+                min-width: 0;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            #where.failed {
+                color: #f87171;
+            }
+            #playback button {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                background: #171717;
+                border: 1px solid #333;
+                color: #e5e5e5;
+                padding: 3px 8px;
+                border-radius: 6px;
+                cursor: pointer;
+                font: inherit;
+            }
+            #playback button:hover:not(:disabled) {
+                background: #262626;
+            }
+            #playback button:disabled {
+                opacity: 0.45;
+                cursor: default;
+            }
         </style>
     </head>
     <body>
@@ -134,6 +174,48 @@
             </button>
             <div id="url" data-test="browser-url"></div>
         </div>
+        <div id="playback" data-test="browser-playback" hidden>
+            <span id="where" data-test="browser-playback-where"></span>
+            <button
+                id="step"
+                data-test="browser-next-step"
+                title="Run the test's next step, then pause again"
+            >
+                <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <path d="m6 4 10 8-10 8z" />
+                    <path d="M19 5v14" />
+                </svg>
+                Next step
+            </button>
+            <button
+                id="end"
+                data-test="browser-play"
+                title="Run the rest of the test from here, on the page as it is now"
+            >
+                <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <path d="m6 3 14 9-14 9z" />
+                </svg>
+                Play to the end
+            </button>
+        </div>
         <div id="stage">
             <canvas
                 id="screen"
@@ -181,6 +263,21 @@
                 socket.onmessage = async (event) => {
                     if (typeof event.data === 'string') {
                         const message = JSON.parse(event.data);
+
+                        if (message.type === 'playback') {
+                            showPlayback(message);
+
+                            parent !== window &&
+                                parent.postMessage(
+                                    {
+                                        type: 'onedrop-browser-playback',
+                                        ...message,
+                                    },
+                                    '*',
+                                );
+
+                            return;
+                        }
 
                         if (message.type === 'page') {
                             address.textContent = message.url;
@@ -352,6 +449,49 @@
                         send({ type: 'text', text });
                         event.preventDefault();
                     }
+                });
+
+                // Where the test is, and carrying on with it (TEST-006).
+
+                const bar = document.getElementById('playback');
+
+                const where = document.getElementById('where');
+
+                const next = document.getElementById('step');
+
+                const end = document.getElementById('end');
+
+                function showPlayback(playback) {
+                    bar.hidden = false;
+
+                    where.classList.toggle('failed', !!playback.error);
+
+                    where.textContent = playback.error
+                        ? playback.error
+                        : playback.playing
+                          ? 'Playing the test…'
+                          : playback.ended
+                            ? 'The test has finished and passed. The page stays open.'
+                            : playback.next
+                              ? `Paused after step ${playback.step}. Next: ${playback.next}`
+                              : `Paused after step ${playback.step}.`;
+
+                    where.title = where.textContent;
+
+                    next.disabled = end.disabled =
+                        !playback.paused || playback.ended;
+                }
+
+                next.addEventListener('click', () => {
+                    send({ type: 'resume', mode: 'step' });
+
+                    canvas.focus();
+                });
+
+                end.addEventListener('click', () => {
+                    send({ type: 'resume', mode: 'end' });
+
+                    canvas.focus();
                 });
 
                 for (const action of ['back', 'forward', 'reload']) {

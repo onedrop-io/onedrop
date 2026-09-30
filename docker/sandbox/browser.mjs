@@ -10,6 +10,7 @@
 //   node browser.mjs status                     JSON: open, starting, error, its page's address and title, where it stopped
 //   node browser.mjs screenshot <file>          save what the user sees (for the agent)
 //   node browser.mjs reload                     reload the page (for the agent; in-page state is lost)
+//   node browser.mjs resume step|end            carry on with the test: one more step, or to its end (TEST-006)
 //
 // host-proxy.mjs serves the viewer under /__onedrop/browser/ on the preview's address to holders of the token.
 // test-steps.mjs does the stopping, inside the test's worker. The browser closes after 30 minutes unwatched.
@@ -34,6 +35,10 @@ const CONFIG = '/opt/onedrop/playwright.config.mjs';
 const PRELOAD = '/opt/onedrop/test-steps.mjs';
 const STATE = process.env.ONEDROP_BROWSER_STATE || '/tmp/onedrop-browser.json';
 const HELD = '/tmp/onedrop-browser-held.json';
+// How far a resumed test goes (test-steps.mjs reads it on waking), and how long it waits before each step so the
+// user can follow it (TEST-006).
+const CONTROL = '/tmp/onedrop-browser-control.json';
+const PACE_MS = 500;
 const LOG = '/tmp/onedrop-browser.log';
 const PORT = Number(process.env.ONEDROP_BROWSER_PORT || 9331);
 // The test's browser opens its debugging port on the first free one of these (host-proxy.mjs reserves them all), so
@@ -176,6 +181,7 @@ function status() {
         title: state.title ?? null,
         test: state.target,
         step: state.step,
+        playback: state.playback ?? null,
     };
 }
 
@@ -205,6 +211,7 @@ async function serve(target, step) {
     );
 
     rmSync(HELD, { force: true });
+    rmSync(CONTROL, { force: true });
 
     const cdpPort = await freePort();
 
@@ -227,6 +234,7 @@ async function serve(target, step) {
                 ONEDROP_BROWSER_CDP_PORT: String(cdpPort),
                 ONEDROP_BROWSER_AFTER: String(step),
                 ONEDROP_BROWSER_HELD: HELD,
+                ONEDROP_BROWSER_CONTROL: CONTROL,
                 ONEDROP_TESTS_OUTPUT: '/tmp/onedrop-browser-output',
                 NODE_OPTIONS:
                     `${process.env.NODE_OPTIONS ?? ''} --import ${PRELOAD}`.trim(),
@@ -235,9 +243,12 @@ async function serve(target, step) {
     );
     let browser = null;
     let testDone = false;
+    let resume = () => false;
+    let pauses = null;
 
     const shutdown = async () => {
         clearInterval(idleTimer);
+        clearInterval(pauses);
 
         // The browser runs in its own process group: close it through the protocol, then everything else.
         try {
@@ -432,6 +443,8 @@ async function serve(target, step) {
                 return page.goForward().catch(() => {});
             case 'reload':
                 return page.reload().catch(() => {});
+            case 'resume':
+                return resume(message.mode === 'step' ? 'step' : 'end');
         }
     };
 
@@ -457,6 +470,15 @@ async function serve(target, step) {
         } else if (local && path === '/control/reload') {
             await page.reload().catch(() => {});
             res.end('ok');
+        } else if (local && path === '/control/resume') {
+            const resumed = resume(
+                new URL(req.url, 'http://browser').searchParams.get('mode') ===
+                    'step'
+                    ? 'step'
+                    : 'end',
+            );
+            res.writeHead(resumed ? 200 : 409);
+            res.end(resumed ? 'ok' : "The test isn't paused.");
         } else {
             res.writeHead(404);
             res.end();
@@ -468,6 +490,7 @@ async function serve(target, step) {
         clients.add(client);
         lastSeen = Date.now();
         void announce();
+        client.send(JSON.stringify({ type: 'playback', ...playback }));
         // A fresh frame for the newcomer.
         void watch(page);
         client.on('message', (data) => {
@@ -485,6 +508,69 @@ async function serve(target, step) {
         });
     });
 
+    // Where the test is: paused at a step (or at its end), or playing on after the user resumed it.
+    let playback = {
+        paused: true,
+        playing: false,
+        step: held.step,
+        next: held.next,
+        ended: !!held.ended,
+        error: held.error ?? null,
+    };
+    let pausedAt = held.at;
+    const tellPlayback = () => {
+        updateState({ playback });
+        broadcast(JSON.stringify({ type: 'playback', ...playback }));
+    };
+
+    // The test pauses again (after a step, or at its end): test-steps.mjs rewrites HELD each time.
+    pauses = setInterval(() => {
+        try {
+            const next = JSON.parse(readFileSync(HELD, 'utf8'));
+
+            if (next.at !== pausedAt) {
+                pausedAt = next.at;
+                held = next;
+                playback = {
+                    paused: true,
+                    playing: false,
+                    step: next.step,
+                    next: next.next,
+                    ended: !!next.ended,
+                    error: next.error ?? null,
+                };
+                tellPlayback();
+            }
+        } catch {
+            // Mid-write: next time.
+        }
+    }, 250);
+
+    /** Carry on with the test: one more step, or to its end. */
+    resume = (mode) => {
+        if (!playback.paused || playback.ended) {
+            return false;
+        }
+
+        writeFileSync(
+            CONTROL,
+            JSON.stringify({
+                until: mode === 'step' ? playback.step + 1 : null,
+                pace: PACE_MS,
+            }),
+        );
+        playback = { ...playback, paused: false, playing: true, error: null };
+        tellPlayback();
+
+        try {
+            process.kill(held.pid, 'SIGCONT');
+        } catch {
+            return false;
+        }
+
+        return true;
+    };
+
     const idleTimer = setInterval(() => {
         if (clients.size === 0 && Date.now() - lastSeen > IDLE_MS) {
             void shutdown();
@@ -493,7 +579,7 @@ async function serve(target, step) {
 
     browser.on('disconnected', () => void shutdown());
     server.listen(PORT, '127.0.0.1', () =>
-        updateState({ ready: true, held, cdpPort }),
+        updateState({ ready: true, held, cdpPort, playback }),
     );
 }
 
@@ -553,9 +639,15 @@ if (command === 'start') {
     }
 } else if (command === 'reload') {
     process.exitCode = (await control('/control/reload')) ? 0 : 1;
+} else if (command === 'resume') {
+    process.exitCode = (await control(
+        `/control/resume?mode=${args[0] === 'step' ? 'step' : 'end'}`,
+    ))
+        ? 0
+        : 1;
 } else {
     console.error(
-        'Usage: browser.mjs start <file:line> <step> | stop | status | screenshot <file> | reload',
+        'Usage: browser.mjs start <file:line> <step> | stop | status | screenshot <file> | reload | resume step|end',
     );
     process.exitCode = 64;
 }

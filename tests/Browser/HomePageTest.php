@@ -18,10 +18,15 @@ test('a visitor reads the home page and goes to sign up', function () {
         ->assertSee('DigitalOcean')
         ->assertSee('macOS')
         ->assertSee('From idea to link in four steps')
-        ->assertSeeIn('@install-command', 'curl -fsSL https://raw.githubusercontent.com/onedrop-io/onedrop/main/install.sh | sh')
+        ->assertSeeIn('@install-command', 'curl -fsSL https://onedrop.io/install | sh')
         ->click('@copy-install-command')
         ->assertSeeIn('@copy-install-command', 'Copied')
-        ->assertPresent('#compare a[href="https://docs.onedrop.io/install"]')
+        ->assertPresent('#install a[href="https://docs.onedrop.io/install"]')
+        ->assertPresent('#install a[href="https://github.com/onedrop-io/onedrop"]')
+        ->assertPresent('#compare a[href="#install"]')
+        ->assertPresent('header a[href="/#install"]')
+        ->assertPresent('header a[href="https://github.com/onedrop-io/onedrop"]')
+        ->assertPresent('footer a[href="https://github.com/onedrop-io/onedrop"]')
         ->assertSee('Questions people ask first')
         ->assertPresent('header a[href="https://docs.onedrop.io/introduction"]')
         ->assertPresent('footer a[href="https://docs.onedrop.io/introduction"]')
@@ -42,6 +47,24 @@ test('a visitor reads the home page and goes to sign up', function () {
         ->click('@primary-cta')
         ->assertPathIs('/register');
 })->group('HOME-001');
+
+test('a visitor picks where to install and copies the command', function () {
+    visit('/')
+        ->assertSee('Install it in one command')
+        ->assertSee('Create your account')
+        ->assertSee('5 GB of free disk')
+        ->click('@install-tab-server')
+        ->assertSeeIn('@install-command', 'onedrop.io/install | sh -s -- --domain auto')
+        ->assertSee('sslip.io')
+        ->click('@install-tab-domain')
+        ->assertSeeIn('@install-command', 'onedrop.io/install | sh -s -- --domain onedrop.example.com')
+        ->click('@copy-install-command')
+        ->assertSeeIn('@copy-install-command', 'Copied')
+        ->click('@install-tab-laptop')
+        ->assertSeeIn('@install-command', 'onedrop.io/install | sh')
+        ->assertDontSeeIn('@install-command', '--domain')
+        ->assertNoJavaScriptErrors();
+})->group('HOME-001', 'INSTALL-001');
 
 test('the demo builds an app and publishes it to an instant Tailscale link', function () {
     visit('/')
@@ -103,3 +126,26 @@ test('the home page fits a phone screen without scrolling sideways', function ()
     $page->assertVisible('@copy-install-command')
         ->assertNoJavaScriptErrors();
 })->group('HOME-001', 'INSTALL-001');
+
+test('Droppy offers hints, points at an easter egg, and cheers when one is found', function () {
+    $page = visit('/')->resize(1440, 900)->wait(5);
+
+    // Headless Chrome draws the fallback black hole, so there's no galaxy: announce one the way the galaxy does.
+    $page->script("window.dispatchEvent(new CustomEvent('cosmic-zoom', { detail: { level: 'galaxy', isAvailable: true } }))");
+
+    $page->wait(16)
+        ->assertSeeIn('@droppy-bubble', 'Would you like a hint?')
+        ->click('Yes please')
+        ->assertSeeIn('@droppy-bubble', 'labeled Sol')
+        ->click('Show me')
+        ->assertAttribute('@earth', 'data-hinted', 'true')
+        ->hover('@logo-drop')
+        ->assertSeeIn('@droppy-bubble', 'You found my cousin in the logo!')
+        ->assertSeeIn('@droppy-found', '1 of 9 found')
+        ->click("Don't show Droppy again")
+        ->assertMissing('@droppy')
+        ->assertNoJavaScriptErrors();
+
+    expect($page->script("localStorage.getItem('onedrop.droppy-dismissed')"))->toBe('1')
+        ->and($page->script("localStorage.getItem('onedrop.easter-eggs')"))->toBe('["logo"]');
+})->group('HOME-003');

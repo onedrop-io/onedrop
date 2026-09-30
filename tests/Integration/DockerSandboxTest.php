@@ -784,6 +784,20 @@ test('a test taken over at a step keeps its page open for the Browser tab, only 
         expect(trim($seen->output))->toBe('Ada 1')
             ->and((int) trim($docker->exec($id, ['stat', '-c', '%s', '/tmp/seen.png'])->output))->toBeGreaterThan(500);
 
+        // Carry on (TEST-006): one more step pauses again after it; to the end, the test's check sees both clicks.
+        $playback = fn (callable $done) => retry(40, function () use ($browser, $sandbox, $done) {
+            $playback = $browser->status($sandbox)['playback'] ?? null;
+            throw_unless($playback && $done($playback), new RuntimeException('not yet'));
+
+            return $playback;
+        }, 250);
+        expect($docker->exec($id, ['/opt/onedrop/browser', 'resume', 'step'])->successful())->toBeTrue()
+            ->and($playback(fn (array $p) => $p['paused'] && $p['step'] === 4)['next'])->toContain('Expect');
+        expect($docker->exec($id, ['/opt/onedrop/browser', 'resume', 'end'])->successful())->toBeTrue()
+            ->and($playback(fn (array $p) => $p['ended']))->toMatchArray(['ended' => true, 'error' => null])
+            ->and($browser->status($sandbox)['open'])->toBeTrue()
+            ->and($docker->exec($id, ['/opt/onedrop/browser', 'resume', 'step'])->successful())->toBeFalse();
+
         $preview = $docker->previewUrl($id, config('sandbox.proxy_port'));
         expect(Http::get($preview.'/__onedrop/browser/')->status())->toBe(404)
             ->and(Http::get($preview.'/__onedrop/browser/?token='.str_repeat('0', 64))->status())->toBe(404)

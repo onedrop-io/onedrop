@@ -13,7 +13,9 @@ export default {
     // One at a time: the tests share the app's one database and dev server.
     workers: 1,
     retries: 0,
-    timeout: 30_000,
+    // A test taken over in the Browser tab may be paused for as long as the user likes, then resumed (TEST-006):
+    // its timeout's clock keeps running while it's paused, so it has none.
+    timeout: browserPort ? 0 : 30_000,
     reporter: process.env.ONEDROP_TESTS_REPORT
         ? [['list'], ['json', { outputFile: process.env.ONEDROP_TESTS_REPORT }]]
         : [['list']],

@@ -13,6 +13,9 @@ Artisan::command('inspire', function () {
 // Docker sandboxes don't pause by themselves when idle (SBX-007).
 Schedule::command('sandbox:suspend-idle')->everyFifteenSeconds()->withoutOverlapping();
 
+// Runtime charges for stored images; every sandbox image build leaves the previous version behind (SBX-003).
+Schedule::command('sandbox:prune-images')->daily()->withoutOverlapping();
+
 // Server monitoring (ADMIN-003): a sample of the server's resources every minute.
 Schedule::command('server:sample')->everyMinute()->withoutOverlapping();
 

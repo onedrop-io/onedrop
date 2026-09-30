@@ -85,7 +85,7 @@ test('while the browser is open the agent is told which page the user is on, and
     $prompt = collect($this->provider->executed)->firstWhere('command', ['node', '/opt/onedrop/forwarder.mjs'])['env']['APP_PROMPT'];
 
     expect($prompt)->toStartWith('make this button red')
-        ->toContain('the test "User should see a greeting" stopped after its step "Fill "Ada""')
+        ->toContain('the test "User should see a greeting" up to its step "Fill "Ada""')
         ->toContain('/opt/onedrop/browser screenshot');
 
     $this->actingAs($this->user)->deleteJson(route('projects.browser.destroy', $this->project))->assertOk();

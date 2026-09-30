@@ -8,7 +8,7 @@ OneDrop turns a description like "a time-off tracker for my team" into a working
 What sets it apart:
 
 - **Built for production.** The agent writes standard code (React, or Laravel with a database when the app needs one), runs the tests, and has sign-in, secrets, analytics, and feature flags built in. It's code a developer can review and extend.
-- **Bring your own subscription.** Build on your ChatGPT Plus or Pro plan, or your own key for Anthropic, OpenAI, Google, or OpenRouter. You pay your provider directly, with no credits and no markup.
+- **Bring your own subscription.** Build on your Claude Pro or Max plan or your ChatGPT Plus or Pro plan, or your own key for Anthropic, OpenAI, Google, OpenRouter, or Ollama. You pay your provider directly, with no credits and no markup.
 - **Deploy anywhere.** Run it on your laptop, any Ubuntu server, or AWS. Your apps and data stay on infrastructure you control, and nothing is locked to one host or one framework.
 - **Free to self-host.** OneDrop is source available under the [Elastic License 2.0](https://www.elastic.co/licensing/elastic-license): use it, change it, and run it for your own team or company. The one thing you can't do is offer it to others as a hosted service.
 
@@ -17,7 +17,7 @@ What sets it apart:
 On macOS or Linux, with Docker running:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/onedrop-io/onedrop/main/install.sh | sh
+curl -fsSL https://onedrop.io/install | sh
 ```
 
 See [Install on your computer](/install) for what it does, or [install on a server](/self-hosting/install-anywhere) for your team.
@@ -26,8 +26,8 @@ See [Install on your computer](/install) for what it does, or [install on a serv
 
 <Steps>
     <Step title="Connect your AI">
-        Add an API key or sign in with OpenRouter. See [Set up your
-        AI](/guides/set-up-ai).
+        Use your Claude or ChatGPT plan, add an API key (Ollama included), or
+        sign in with OpenRouter. See [Set up your AI](/guides/set-up-ai).
     </Step>
     <Step title="Describe your app">
         Type what you want to build. OneDrop creates a project and a sandbox for
