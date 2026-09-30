@@ -10,7 +10,7 @@ beforeEach(function () {
     Process::preventStrayProcesses();
 
     $this->dockerConfig = [
-        'image' => 'zap-sandbox:latest',
+        'image' => 'onedrop-sandbox:latest',
         'memory' => '2g',
         'cpus' => '2',
         'host' => '127.0.0.1',
@@ -18,10 +18,20 @@ beforeEach(function () {
     $this->docker = new DockerSandboxProvider($this->dockerConfig);
 });
 
+/**
+ * Whether a docker command publishes the container port on a fixed host port of 127.0.0.1.
+ *
+ * @param  list<string>  $command
+ */
+function publishes(array $command, int $port): bool
+{
+    return collect($command)->contains(fn (string $arg) => preg_match('/^127\.0\.0\.1:\d+:'.$port.'$/', $arg) === 1);
+}
+
 test('create runs a labelled, resource-limited container with a published port', function () {
     Process::fake(['*' => Process::result("abc123\n")]);
 
-    $id = $this->docker->create(new SandboxSpec('zap-project-1-x', ['ANTHROPIC_API_KEY' => 'sk-secret'], 8000));
+    $id = $this->docker->create(new SandboxSpec('onedrop-project-1-x', ['ANTHROPIC_API_KEY' => 'sk-secret'], 8000));
 
     expect($id)->toBe('abc123');
 
@@ -29,11 +39,11 @@ test('create runs a labelled, resource-limited container with a published port',
         $command = $process->command;
 
         return $command[0] === 'docker' && $command[1] === 'run'
-            && in_array('zap.sandbox=1', $command)
-            && in_array('127.0.0.1::8000', $command)
+            && in_array('onedrop.sandbox=1', $command)
+            && publishes($command, 8000)
             && in_array('2g', $command)
             && in_array('ANTHROPIC_API_KEY', $command)
-            && end($command) === 'zap-sandbox:latest'
+            && end($command) === 'onedrop-sandbox:latest'
             && $process->environment['ANTHROPIC_API_KEY'] === 'sk-secret';
     });
 })->group('SBX-001');
@@ -41,28 +51,28 @@ test('create runs a labelled, resource-limited container with a published port',
 test('a shell port is published alongside the app port', function () {
     Process::fake(['*' => Process::result('abc123')]);
 
-    $this->docker->create(new SandboxSpec('zap-project-1-x', port: 8000, shellPort: 7681));
+    $this->docker->create(new SandboxSpec('onedrop-project-1-x', port: 8000, shellPort: 7681));
 
-    Process::assertRan(fn (PendingProcess $process) => in_array('127.0.0.1::7681', $process->command)
+    Process::assertRan(fn (PendingProcess $process) => publishes($process->command, 7681)
         && in_array('SHELL_PORT=7681', $process->command)
-        && in_array('127.0.0.1::8000', $process->command));
+        && publishes($process->command, 8000));
 })->group('TAB-001');
 
 test('sandboxes join the configured network so a containerized app is reachable by name', function () {
     Process::fake(['*' => Process::result('abc123')]);
 
-    (new DockerSandboxProvider([...$this->dockerConfig, 'network' => 'drop']))->create(new SandboxSpec('zap-project-1-x'));
+    (new DockerSandboxProvider([...$this->dockerConfig, 'network' => 'drop']))->create(new SandboxSpec('onedrop-project-1-x'));
 
     Process::assertRan(fn (PendingProcess $process) => in_array('drop', $process->command)
         && $process->command[array_search('drop', $process->command) - 1] === '--network');
 })->group('INSTALL-001');
 
 test('behind the gateway, sandbox addresses are the container name and port on the network', function () {
-    Process::fake(['*inspect*' => Process::result("/zap-project-1-x\n")]);
+    Process::fake(['*inspect*' => Process::result("/onedrop-project-1-x\n")]);
 
     $docker = new DockerSandboxProvider([...$this->dockerConfig, 'network' => 'drop', 'reach' => 'network']);
 
-    expect($docker->previewUrl('abc123', 8081))->toBe('http://zap-project-1-x:8081');
+    expect($docker->previewUrl('abc123', 8081))->toBe('http://onedrop-project-1-x:8081');
     Process::assertNotRan(fn (PendingProcess $process) => $process->command[1] === 'port');
 })->group('INSTALL-002');
 
@@ -77,7 +87,7 @@ test('a sandbox that no longer exists has no network address', function () {
 test('sandboxes stay on the default network when none is configured', function () {
     Process::fake(['*' => Process::result('abc123')]);
 
-    $this->docker->create(new SandboxSpec('zap-project-1-x'));
+    $this->docker->create(new SandboxSpec('onedrop-project-1-x'));
 
     Process::assertRan(fn (PendingProcess $process) => $process->command[1] === 'run' && ! in_array('--network', $process->command));
 })->group('INSTALL-001');
@@ -85,16 +95,16 @@ test('sandboxes stay on the default network when none is configured', function (
 test('the host proxy port is published for the preview', function () {
     Process::fake(['*' => Process::result('abc123')]);
 
-    $this->docker->create(new SandboxSpec('zap-project-1-x', port: 8000, proxyPort: 8081));
+    $this->docker->create(new SandboxSpec('onedrop-project-1-x', port: 8000, proxyPort: 8081));
 
-    Process::assertRan(fn (PendingProcess $process) => in_array('127.0.0.1::8081', $process->command)
+    Process::assertRan(fn (PendingProcess $process) => publishes($process->command, 8081)
         && in_array('PROXY_PORT=8081', $process->command));
 })->group('PUB-001');
 
 test('secrets are passed through the environment, never the command line', function () {
     Process::fake(['*' => Process::result('abc123')]);
 
-    $this->docker->create(new SandboxSpec('zap-project-1-x', ['ANTHROPIC_API_KEY' => 'sk-secret']));
+    $this->docker->create(new SandboxSpec('onedrop-project-1-x', ['ANTHROPIC_API_KEY' => 'sk-secret']));
 
     Process::assertRan(fn (PendingProcess $process) => ! str_contains(implode(' ', $process->command), 'sk-secret'));
 })->group('SBX-001');
@@ -102,11 +112,11 @@ test('secrets are passed through the environment, never the command line', funct
 test('docker errors become messages a user can act on', function (string $stderr, string $message) {
     Process::fake(['*' => Process::result(errorOutput: $stderr, exitCode: 125)]);
 
-    expect(fn () => $this->docker->create(new SandboxSpec('zap-project-1-x')))
+    expect(fn () => $this->docker->create(new SandboxSpec('onedrop-project-1-x')))
         ->toThrow(SandboxException::class, $message);
 })->with([
     'daemon down' => ['Cannot connect to the Docker daemon at unix:///var/run/docker.sock.', 'Docker is not running.'],
-    'image missing' => ["Unable to find image 'zap-sandbox:latest' locally", 'php artisan sandbox:build-image'],
+    'image missing' => ["Unable to find image 'onedrop-sandbox:latest' locally", 'php artisan sandbox:build-image'],
     'other' => ["something odd\nmore detail", 'Docker error: something odd'],
 ])->group('SBX-001');
 
@@ -144,9 +154,9 @@ test('exec can run detached with env vars by name', function () {
 test('an ssh port is published for developer tools', function () {
     Process::fake(['*' => Process::result('abc123')]);
 
-    $this->docker->create(new SandboxSpec('zap-project-1-x', port: 8000, sshPort: 2222));
+    $this->docker->create(new SandboxSpec('onedrop-project-1-x', port: 8000, sshPort: 2222));
 
-    Process::assertRan(fn (PendingProcess $process) => in_array('127.0.0.1::2222', $process->command)
+    Process::assertRan(fn (PendingProcess $process) => publishes($process->command, 2222)
         && in_array('SSH_PORT=2222', $process->command));
 })->group('DEVTOOLS-001');
 
@@ -189,7 +199,7 @@ test('each project\'s App Storage is a host folder mounted into its sandbox', fu
     $docker = new DockerSandboxProvider([...$this->dockerConfig, 'storage_path' => $root]);
     Process::fake(['*' => Process::result("abc123\n")]);
 
-    $docker->create(new SandboxSpec('zap-project-7-x', storageKey: 'project-7'));
+    $docker->create(new SandboxSpec('onedrop-project-7-x', storageKey: 'project-7'));
 
     expect(is_dir("{$root}/project-7/storage"))->toBeTrue();
     Process::assertRan(fn (PendingProcess $process) => $process->command[1] === 'run'
@@ -200,7 +210,7 @@ test('each project\'s App Storage is a host folder mounted into its sandbox', fu
 test('without a storage path, App Storage stays in the container', function () {
     Process::fake(['*' => Process::result('abc123')]);
 
-    $this->docker->create(new SandboxSpec('zap-project-7-x', storageKey: 'project-7'));
+    $this->docker->create(new SandboxSpec('onedrop-project-7-x', storageKey: 'project-7'));
 
     Process::assertRan(fn (PendingProcess $process) => $process->command[1] === 'run' && ! in_array('--mount', $process->command));
     Process::assertRanTimes(fn (PendingProcess $process) => in_array('chown', $process->command), 0);
@@ -237,8 +247,8 @@ test('each user\'s Claude sign-in is one host folder mounted into all their sand
     $docker = new DockerSandboxProvider([...$this->dockerConfig, 'storage_path' => $root]);
     Process::fake(['*' => Process::result("abc123\n")]);
 
-    $docker->create(new SandboxSpec('zap-project-7-x', storageKey: 'project-7', claudeLoginKey: 'user-3'));
-    $docker->create(new SandboxSpec('zap-project-8-x', storageKey: 'project-8', claudeLoginKey: 'user-3'));
+    $docker->create(new SandboxSpec('onedrop-project-7-x', storageKey: 'project-7', claudeLoginKey: 'user-3'));
+    $docker->create(new SandboxSpec('onedrop-project-8-x', storageKey: 'project-8', claudeLoginKey: 'user-3'));
 
     expect(is_dir("{$root}/user-3/claude"))->toBeTrue();
     Process::assertRanTimes(fn (PendingProcess $process) => $process->command[1] === 'run'
@@ -246,3 +256,99 @@ test('each user\'s Claude sign-in is one host folder mounted into all their sand
         && in_array('CLAUDE_CONFIG_DIR=/data/claude', $process->command), 2);
     Process::assertRan(fn (PendingProcess $process) => $process->command === ['docker', 'exec', '-u', 'root', 'abc123', 'chown', 'sandbox:sandbox', '/data/claude']);
 })->group('AI-005');
+
+test('each container port gets its own host port, kept when the container restarts', function () {
+    Process::fake(['*' => Process::result('abc123')]);
+
+    $this->docker->create(new SandboxSpec('onedrop-project-1-x', port: 8000, proxyPort: 8081, shellPort: 7681));
+
+    Process::assertRan(function (PendingProcess $process) {
+        $hostPorts = collect($process->command)
+            ->filter(fn (string $arg) => preg_match('/^127\.0\.0\.1:(\d+):\d+$/', $arg) === 1)
+            ->map(fn (string $arg) => explode(':', $arg)[1]);
+
+        return $hostPorts->count() === 3 && $hostPorts->unique()->count() === 3;
+    });
+})->group('SBX-007');
+
+test('behind the gateway, docker picks the host ports', function () {
+    Process::fake(['*' => Process::result('abc123')]);
+
+    (new DockerSandboxProvider([...$this->dockerConfig, 'reach' => 'network']))->create(new SandboxSpec('onedrop-project-1-x', port: 8000));
+
+    Process::assertRan(fn (PendingProcess $process) => in_array('127.0.0.1::8000', $process->command));
+})->group('SBX-007');
+
+test('containers run a real init, and stopping one gives it a few seconds before killing it', function () {
+    Process::fake(['*' => Process::result('abc123')]);
+
+    $this->docker->create(new SandboxSpec('onedrop-project-1-x'));
+    $this->docker->pause('abc123');
+
+    Process::assertRan(fn (PendingProcess $process) => $process->command[1] === 'run' && in_array('--init', $process->command));
+    Process::assertRan(fn (PendingProcess $process) => $process->command === ['docker', 'stop', '--time', '5', 'abc123']);
+})->group('SBX-007');
+
+test('suspending freezes the container', function () {
+    Process::fake(['*' => Process::result('abc123')]);
+
+    $this->docker->suspend('abc123');
+
+    Process::assertRan(fn (PendingProcess $process) => $process->command === ['docker', 'pause', 'abc123']);
+})->group('SBX-007');
+
+test('suspending a paused or stopped container is not an error', function (string $stderr) {
+    Process::fake(['*' => Process::result(errorOutput: $stderr, exitCode: 1)]);
+
+    $this->docker->suspend('abc123');
+})->with([
+    'already paused' => ['Error response from daemon: container abc123 is already paused'],
+    'stopped' => ['Error response from daemon: Container abc123 is not running'],
+])->throwsNoExceptions()->group('SBX-007');
+
+test('waking unpauses a suspended container, starts a stopped one, and leaves a running one alone', function (string $state, ?string $action) {
+    Process::fake(['*inspect*' => Process::result("{$state}\n"), '*' => Process::result('abc123')]);
+
+    expect($this->docker->wake('abc123'))->toBe($action !== null);
+
+    $action
+        ? Process::assertRan(fn (PendingProcess $process) => $process->command === ['docker', $action, 'abc123'])
+        : Process::assertRanTimes(fn (PendingProcess $process) => true, 1);
+})->with([
+    'suspended' => ['paused', 'unpause'],
+    'stopped' => ['exited', 'start'],
+    'running' => ['running', null],
+])->group('SBX-007');
+
+test('waking a container that no longer exists says so', function () {
+    Process::fake(['*' => Process::result(errorOutput: 'Error: No such object: abc123', exitCode: 1)]);
+
+    $this->docker->wake('abc123');
+})->throws(SandboxException::class)->group('SBX-007');
+
+test('a command in a suspended container wakes it first', function () {
+    Process::fake([
+        '*exec*' => Process::sequence()
+            ->push(Process::result(errorOutput: 'Error response from daemon: Container abc123 is paused, unpause the container before exec', exitCode: 1))
+            ->push(Process::result('hello')),
+        '*inspect*' => Process::result('paused'),
+        '*unpause*' => Process::result('abc123'),
+    ]);
+
+    $result = $this->docker->exec('abc123', ['echo', 'hello']);
+
+    expect($result->successful())->toBeTrue()->and(trim($result->output))->toBe('hello');
+    Process::assertRan(fn (PendingProcess $process) => $process->command === ['docker', 'unpause', 'abc123']);
+    Process::assertRanTimes(fn (PendingProcess $process) => $process->command[1] === 'exec', 2);
+})->group('SBX-007');
+
+test('starting a stopped container starts it, and a suspended one is woken, since docker won\'t start a paused one', function (string $state, string $action) {
+    Process::fake(['*inspect*' => Process::result($state), '*' => Process::result('abc123')]);
+
+    $this->docker->start('abc123');
+
+    Process::assertRan(fn (PendingProcess $process) => $process->command === ['docker', $action, 'abc123']);
+})->with([
+    'stopped' => ['exited', 'start'],
+    'suspended' => ['paused', 'unpause'],
+])->group('SBX-007');

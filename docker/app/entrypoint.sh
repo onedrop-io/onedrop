@@ -5,6 +5,9 @@ cd /app
 
 log() { echo "[drop] $*"; }
 
+# Settings → Server (ADMIN-004) shows how to change this install's domain with `drop`.
+export APP_INSTALL=container
+
 # Everything worth keeping lives in /data: the database, settings (.env) and storage.
 mkdir -p /data/storage/app/public /data/storage/app/private /data/storage/logs \
     /data/storage/framework/cache/data /data/storage/framework/sessions /data/storage/framework/views
@@ -38,6 +41,9 @@ php artisan optimize --no-interaction >/dev/null
 
 # The queue worker creates sandboxes and runs agents; restart it whenever it exits.
 (while true; do php artisan queue:work --tries=1 --timeout=0 --sleep=1 || true; sleep 1; done) &
+
+# The scheduler: idle sandboxes (SBX-007), server monitoring samples (ADMIN-003) and database backups (ADMIN-005).
+(while true; do php artisan schedule:work || true; sleep 1; done) &
 
 if [ -n "${APP_DOMAIN:-}" ]; then
     log "OneDrop is running at https://$APP_DOMAIN"

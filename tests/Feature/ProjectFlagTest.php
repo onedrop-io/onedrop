@@ -108,7 +108,7 @@ test('adding a flag asks the agent in the chat, queued while it works', function
         ->assertJsonPath('queued', false);
 
     expect($this->project->messages()->latest('id')->value('content'))
-        ->toBe('Put this behind a feature flag: The new pricing page. Follow the guide at /opt/zap/guides/flags.md.');
+        ->toBe('Put this behind a feature flag: The new pricing page. Follow the guide at /opt/onedrop/guides/flags.md.');
 
     $this->project->update(['status' => ProjectStatus::Working]);
 

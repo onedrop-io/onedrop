@@ -1,32 +1,32 @@
 #!/usr/bin/env bash
 # Keeps the preview server running: the app's own dev server once the agent has
-# created /workspace/.zap/dev, otherwise a placeholder page.
-# `/opt/zap/restart` kills the current server; this loop starts the right one again.
+# created /workspace/.onedrop/dev, otherwise a placeholder page.
+# `/opt/onedrop/restart` kills the current server; this loop starts the right one again.
 # Also keeps a web terminal (ttyd) running on $SHELL_PORT for the Shell tab, and sshd on $SSH_PORT.
 set -uo pipefail
 
 # The sandbox user's real home, whatever the platform started us with (Runtime uses HOME=/workspace), so
-# ~/.zap-env, ~/.ssh and the Shell tab's ~/.bashrc are found where the image put them, not in the project.
+# ~/.onedrop-env, ~/.ssh and the Shell tab's ~/.bashrc are found where the image put them, not in the project.
 HOME="$(getent passwd "$(id -un)" | cut -d: -f6)"
 export HOME
 
-touch /tmp/zap-server.log
+touch /tmp/onedrop-server.log
 
 # Host-rewriting proxy in front of the app, used by published URLs.
 (
     while true; do
-        node /opt/zap/host-proxy.mjs >>/tmp/zap-proxy.log 2>&1
+        node /opt/onedrop/host-proxy.mjs >>/tmp/onedrop-proxy.log 2>&1
         sleep 1
     done
 ) &
 
-# Tells the Files panel when files are added, removed or renamed. Its address may only arrive in ~/.zap-env after start.
+# Tells the Files panel when files are added, removed or renamed. Its address may only arrive in ~/.onedrop-env after start.
 (
     while true; do
-        [ -f ~/.zap-env ] && set -a && . ~/.zap-env && set +a
+        [ -f ~/.onedrop-env ] && set -a && . ~/.onedrop-env && set +a
 
         if [ -n "${APP_FILES_CHANGED_URL:-}" ]; then
-            node /opt/zap/file-watcher.mjs >>/tmp/zap-watcher.log 2>&1
+            node /opt/onedrop/file-watcher.mjs >>/tmp/onedrop-watcher.log 2>&1
             sleep 5
         else
             sleep 30
@@ -45,7 +45,7 @@ SHELL_THEME+='"brightBlack":"#5c6370","brightRed":"#ff7b86","brightGreen":"#b1e1
             -t fontSize=13 -t lineHeight=1.2 -t cursorBlink=true -t rendererType=dom -t disableLeaveAlert=true \
             -t 'fontFamily=ui-monospace,SFMono-Regular,Menlo,Consolas,Liberation Mono,monospace' \
             -t "theme=${SHELL_THEME}" \
-            /opt/zap/shell-entry >/dev/null 2>&1
+            /opt/onedrop/shell-entry >/dev/null 2>&1
         sleep 1
     done
 ) &
@@ -56,7 +56,7 @@ if [ -x /usr/sbin/sshd ]; then
         mkdir -p ~/.ssh && chmod 700 ~/.ssh
         [ -f ~/.ssh/host_ed25519 ] || ssh-keygen -q -t ed25519 -N '' -f ~/.ssh/host_ed25519
         while true; do
-            /usr/sbin/sshd -D -e -f /opt/zap/sshd_config -p "${SSH_PORT:-2222}" >>/tmp/zap-sshd.log 2>&1
+            /usr/sbin/sshd -D -e -f /opt/onedrop/sshd_config -p "${SSH_PORT:-2222}" >>/tmp/onedrop-sshd.log 2>&1
             sleep 1
         done
     ) &
@@ -64,15 +64,15 @@ fi
 
 while true; do
     # Settings written after start by providers that can't set env at create (RuntimeSandboxProvider).
-    [ -f ~/.zap-env ] && set -a && . ~/.zap-env && set +a
+    [ -f ~/.onedrop-env ] && set -a && . ~/.onedrop-env && set +a
 
-    if [ -x /workspace/.zap/dev ]; then
-        setsid bash -c 'cd /workspace && exec /workspace/.zap/dev' >>/tmp/zap-server.log 2>&1 &
+    if [ -x /workspace/.onedrop/dev ]; then
+        setsid bash -c 'cd /workspace && exec /workspace/.onedrop/dev' >>/tmp/onedrop-server.log 2>&1 &
     else
-        setsid php -S "0.0.0.0:${PORT}" /opt/zap/placeholder/index.php >>/tmp/zap-server.log 2>&1 &
+        setsid php -S "0.0.0.0:${PORT}" /opt/onedrop/placeholder/index.php >>/tmp/onedrop-server.log 2>&1 &
     fi
 
-    echo $! > /tmp/zap-server.pid
+    echo $! > /tmp/onedrop-server.pid
     wait $!
     sleep 1
 done

@@ -31,7 +31,7 @@ beforeEach(function () {
 
 test('a real container serves the placeholder app on its preview url', function () {
     $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
-    $id = $docker->create(new SandboxSpec('zap-test-'.bin2hex(random_bytes(3)), ['APP_PROJECT_NAME' => 'Integration Check']));
+    $id = $docker->create(new SandboxSpec('onedrop-test-'.bin2hex(random_bytes(3)), ['APP_PROJECT_NAME' => 'Integration Check']));
 
     try {
         $url = $docker->previewUrl($id, 8000);
@@ -47,17 +47,17 @@ test('a real container serves the placeholder app on its preview url', function 
     }
 })->group('SBX-001');
 
-test('the preview switches to the app dev server after /opt/zap/restart', function () {
+test('the preview switches to the app dev server after /opt/onedrop/restart', function () {
     $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
-    $id = $docker->create(new SandboxSpec('zap-test-'.bin2hex(random_bytes(3))));
+    $id = $docker->create(new SandboxSpec('onedrop-test-'.bin2hex(random_bytes(3))));
 
     try {
         $url = $docker->previewUrl($id, 8000);
         expect(retry(20, fn () => Http::timeout(2)->get($url)->throw()->body(), 250))->toContain('Sandbox is running');
 
-        $script = 'mkdir -p /workspace/.zap /workspace/public && echo "hello from the app" > /workspace/public/index.html'
-            .' && printf "#!/usr/bin/env bash\nexec php -S 0.0.0.0:\$PORT -t /workspace/public\n" > /workspace/.zap/dev'
-            .' && chmod +x /workspace/.zap/dev && /opt/zap/restart';
+        $script = 'mkdir -p /workspace/.onedrop /workspace/public && echo "hello from the app" > /workspace/public/index.html'
+            .' && printf "#!/usr/bin/env bash\nexec php -S 0.0.0.0:\$PORT -t /workspace/public\n" > /workspace/.onedrop/dev'
+            .' && chmod +x /workspace/.onedrop/dev && /opt/onedrop/restart';
         expect($docker->exec($id, ['bash', '-c', $script])->successful())->toBeTrue();
 
         $body = retry(40, function () use ($url) {
@@ -75,7 +75,7 @@ test('the preview switches to the app dev server after /opt/zap/restart', functi
 
 test('the web terminal answers on the shell port', function () {
     $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
-    $id = $docker->create(new SandboxSpec('zap-test-'.bin2hex(random_bytes(3)), shellPort: 7681));
+    $id = $docker->create(new SandboxSpec('onedrop-test-'.bin2hex(random_bytes(3)), shellPort: 7681));
 
     try {
         $url = $docker->previewUrl($id, 7681);
@@ -90,13 +90,13 @@ test('the web terminal answers on the shell port', function () {
 
 test('the shell greets each new terminal with a banner, but not nested shells, and has the shell tools', function () {
     $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
-    $id = $docker->create(new SandboxSpec('zap-test-'.bin2hex(random_bytes(3)), ['APP_PROJECT_NAME' => 'Banner Check']));
+    $id = $docker->create(new SandboxSpec('onedrop-test-'.bin2hex(random_bytes(3)), ['APP_PROJECT_NAME' => 'Banner Check']));
 
     try {
         $first = $docker->exec($id, ['bash', '-ic', 'true']);
-        expect($first->output)->toContain('\\____/_/ /_/\\___/')->toContain('Banner Check')->toContain('/opt/zap/restart');
+        expect($first->output)->toContain('\\____/_/ /_/\\___/')->toContain('Banner Check')->toContain('/opt/onedrop/restart');
 
-        $nested = $docker->exec($id, ['bash', '-ic', 'true'], ['ZAP_BANNER_SHOWN' => '1']);
+        $nested = $docker->exec($id, ['bash', '-ic', 'true'], ['ONEDROP_BANNER_SHOWN' => '1']);
         expect($nested->output)->not->toContain('Banner Check')
             ->and($docker->exec($id, ['bash', '-ic', 'type z && echo "editor=$EDITOR"'])->output)->toContain('z is a function')->toContain('editor=micro');
 
@@ -116,16 +116,16 @@ test('the shell greets each new terminal with a banner, but not nested shells, a
 
 test('old shell files carried over by an update give way to the image\'s, and the user\'s own are kept', function () {
     $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
-    $id = $docker->create(new SandboxSpec('zap-test-'.bin2hex(random_bytes(3)), ['APP_PROJECT_NAME' => 'Bashrc Check']));
+    $id = $docker->create(new SandboxSpec('onedrop-test-'.bin2hex(random_bytes(3)), ['APP_PROJECT_NAME' => 'Bashrc Check']));
     $sh = fn (string $script) => $docker->exec($id, ['bash', '-c', $script]);
 
     try {
         // An old sandbox: the whole setup in ~/.bashrc and the image's prompt config in ~/.config.
-        $sh('echo "PS1=old" > ~/.bashrc && mkdir -p ~/.config && cp /opt/zap/starship.toml ~/.config/starship.toml');
+        $sh('echo "PS1=old" > ~/.bashrc && mkdir -p ~/.config && cp /opt/onedrop/starship.toml ~/.config/starship.toml');
         $sh(SandboxUpdater::USE_IMAGE_SHELL_SETUP);
         expect($docker->exec($id, ['bash', '-ic', 'true'])->output)->toContain('Bashrc Check')
             ->and($sh('test -e ~/.config/starship.toml')->successful())->toBeFalse()
-            ->and(trim($docker->exec($id, ['bash', '-ic', 'echo "$STARSHIP_CONFIG"'])->output))->toEndWith('/opt/zap/starship.toml');
+            ->and(trim($docker->exec($id, ['bash', '-ic', 'echo "$STARSHIP_CONFIG"'])->output))->toEndWith('/opt/onedrop/starship.toml');
 
         $sh('echo "alias mine=true" >> ~/.bashrc && echo "add_newline = true" > ~/.config/starship.toml');
         $sh(SandboxUpdater::USE_IMAGE_SHELL_SETUP);
@@ -138,13 +138,13 @@ test('old shell files carried over by an update give way to the image\'s, and th
 
 test('the host proxy rewrites unknown hostnames to localhost', function () {
     $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
-    $id = $docker->create(new SandboxSpec('zap-test-'.bin2hex(random_bytes(3))));
+    $id = $docker->create(new SandboxSpec('onedrop-test-'.bin2hex(random_bytes(3))));
 
     try {
-        $script = 'mkdir -p /workspace/.zap /workspace/public'
+        $script = 'mkdir -p /workspace/.onedrop /workspace/public'
             .' && echo \'<?php echo $_SERVER["HTTP_HOST"], "|", $_SERVER["HTTP_X_FORWARDED_HOST"] ?? "";\' > /workspace/public/index.php'
-            .' && printf "#!/usr/bin/env bash\nexec php -S 0.0.0.0:\$PORT -t /workspace/public\n" > /workspace/.zap/dev'
-            .' && chmod +x /workspace/.zap/dev && /opt/zap/restart';
+            .' && printf "#!/usr/bin/env bash\nexec php -S 0.0.0.0:\$PORT -t /workspace/public\n" > /workspace/.onedrop/dev'
+            .' && chmod +x /workspace/.onedrop/dev && /opt/onedrop/restart';
         expect($docker->exec($id, ['bash', '-c', $script])->successful())->toBeTrue();
 
         $body = retry(40, function () use ($docker, $id) {
@@ -162,15 +162,15 @@ test('the host proxy rewrites unknown hostnames to localhost', function () {
 
 test('the host proxy sends routed paths to other local servers, but never to the sandbox\'s own', function () {
     $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
-    $id = $docker->create(new SandboxSpec('zap-test-'.bin2hex(random_bytes(3))));
+    $id = $docker->create(new SandboxSpec('onedrop-test-'.bin2hex(random_bytes(3))));
 
     try {
-        $script = 'mkdir -p /workspace/.zap /workspace/public /tmp/rt'
+        $script = 'mkdir -p /workspace/.onedrop /workspace/public /tmp/rt'
             .' && echo \'<?php echo "app";\' > /workspace/public/index.php'
             .' && echo \'<?php echo "realtime|", $_SERVER["HTTP_HOST"], "|", $_SERVER["REQUEST_URI"];\' > /tmp/rt/index.php'
-            .' && printf "#!/usr/bin/env bash\nphp -S 127.0.0.1:8090 /tmp/rt/index.php &\nexec php -S 0.0.0.0:\$PORT /workspace/public/index.php\n" > /workspace/.zap/dev'
-            .' && echo \'{"/rt/": 8090, "/term": 7681, "/ssh": 2222, "/loop": 8081}\' > /workspace/.zap/routes.json'
-            .' && chmod +x /workspace/.zap/dev && /opt/zap/restart';
+            .' && printf "#!/usr/bin/env bash\nphp -S 127.0.0.1:8090 /tmp/rt/index.php &\nexec php -S 0.0.0.0:\$PORT /workspace/public/index.php\n" > /workspace/.onedrop/dev'
+            .' && echo \'{"/rt/": 8090, "/term": 7681, "/ssh": 2222, "/loop": 8081}\' > /workspace/.onedrop/routes.json'
+            .' && chmod +x /workspace/.onedrop/dev && /opt/onedrop/restart';
         expect($docker->exec($id, ['bash', '-c', $script])->successful())->toBeTrue();
 
         $get = fn (string $path) => trim($docker->exec($id, ['curl', '-s', '-H', 'Host: my-app.tail1.ts.net', "http://127.0.0.1:8081{$path}"])->output);
@@ -191,7 +191,7 @@ test('the host proxy sends routed paths to other local servers, but never to the
 
 test('the sandbox has the PHP extensions realtime servers and queue workers need', function () {
     $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
-    $id = $docker->create(new SandboxSpec('zap-test-'.bin2hex(random_bytes(3))));
+    $id = $docker->create(new SandboxSpec('onedrop-test-'.bin2hex(random_bytes(3))));
 
     try {
         expect($docker->exec($id, ['php', '-m'])->output)->toContain('pcntl');
@@ -202,13 +202,13 @@ test('the sandbox has the PHP extensions realtime servers and queue workers need
 
 test('the host proxy points localhost links in pages and redirects at the visitor\'s address', function () {
     $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
-    $id = $docker->create(new SandboxSpec('zap-test-'.bin2hex(random_bytes(3))));
+    $id = $docker->create(new SandboxSpec('onedrop-test-'.bin2hex(random_bytes(3))));
 
     try {
-        $script = 'mkdir -p /workspace/.zap /workspace/public'
+        $script = 'mkdir -p /workspace/.onedrop /workspace/public'
             .' && echo \'<?php if ($_SERVER["REQUEST_URI"] === "/") { header("Location: http://localhost:8000/contacts"); exit; } echo "<link href=\\"http://localhost:8000/build/app.css\\">";\' > /workspace/public/index.php'
-            .' && printf "#!/usr/bin/env bash\nexec php -S 0.0.0.0:\$PORT /workspace/public/index.php\n" > /workspace/.zap/dev'
-            .' && chmod +x /workspace/.zap/dev && /opt/zap/restart';
+            .' && printf "#!/usr/bin/env bash\nexec php -S 0.0.0.0:\$PORT /workspace/public/index.php\n" > /workspace/.onedrop/dev'
+            .' && chmod +x /workspace/.onedrop/dev && /opt/onedrop/restart';
         expect($docker->exec($id, ['bash', '-c', $script])->successful())->toBeTrue();
 
         $headers = ['-H', 'Host: abc.preview.bl.run', '-H', 'X-Forwarded-Proto: https'];
@@ -229,14 +229,14 @@ test('the host proxy points localhost links in pages and redirects at the visito
 
 test('the host proxy presents same-site Origin and Referer as localhost', function () {
     $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
-    $id = $docker->create(new SandboxSpec('zap-test-'.bin2hex(random_bytes(3))));
+    $id = $docker->create(new SandboxSpec('onedrop-test-'.bin2hex(random_bytes(3))));
 
     try {
-        $script = 'mkdir -p /workspace/.zap /workspace/public'
+        $script = 'mkdir -p /workspace/.onedrop /workspace/public'
             // Binary, so the proxy's localhost-link rewriting leaves the echoed headers as the app saw them.
             .' && echo \'<?php header("Content-Type: application/octet-stream"); echo $_SERVER["HTTP_ORIGIN"] ?? "-", "|", $_SERVER["HTTP_REFERER"] ?? "-";\' > /workspace/public/index.php'
-            .' && printf "#!/usr/bin/env bash\nexec php -S 0.0.0.0:\$PORT -t /workspace/public\n" > /workspace/.zap/dev'
-            .' && chmod +x /workspace/.zap/dev && /opt/zap/restart';
+            .' && printf "#!/usr/bin/env bash\nexec php -S 0.0.0.0:\$PORT -t /workspace/public\n" > /workspace/.onedrop/dev'
+            .' && chmod +x /workspace/.onedrop/dev && /opt/onedrop/restart';
         expect($docker->exec($id, ['bash', '-c', $script])->successful())->toBeTrue();
 
         $body = retry(40, function () use ($docker, $id) {
@@ -258,21 +258,21 @@ test('the host proxy presents same-site Origin and Referer as localhost', functi
 
 test('stop-agent ends the agent run and everything it started', function () {
     $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
-    $id = $docker->create(new SandboxSpec('zap-test-'.bin2hex(random_bytes(3))));
+    $id = $docker->create(new SandboxSpec('onedrop-test-'.bin2hex(random_bytes(3))));
 
     try {
         // A stand-in agent that starts a long-running child, like `npm run build` would.
         $fake = 'mkdir -p /tmp/fake && printf "#!/bin/sh\nsleep 600 &\nsleep 601\n" > /tmp/fake/opencode && chmod +x /tmp/fake/opencode';
         expect($docker->exec($id, ['bash', '-c', $fake])->successful())->toBeTrue();
 
-        $docker->exec($id, ['bash', '-c', 'PATH=/tmp/fake:$PATH APP_PROMPT=x APP_MODEL=x APP_EVENTS_URL=http://127.0.0.1:9/none APP_EVENTS_TOKEN=x node /opt/zap/forwarder.mjs >/dev/null 2>&1'], detach: true);
+        $docker->exec($id, ['bash', '-c', 'PATH=/tmp/fake:$PATH APP_PROMPT=x APP_MODEL=x APP_EVENTS_URL=http://127.0.0.1:9/none APP_EVENTS_TOKEN=x node /opt/onedrop/forwarder.mjs >/dev/null 2>&1'], detach: true);
 
         retry(20, fn () => throw_unless(
             str_contains($docker->exec($id, ['bash', '-c', 'pgrep -f "sleep 60[01]" | wc -l'])->output, '2'),
             new RuntimeException('agent not started'),
         ), 250);
 
-        expect($docker->exec($id, ['/opt/zap/stop-agent'])->successful())->toBeTrue();
+        expect($docker->exec($id, ['/opt/onedrop/stop-agent'])->successful())->toBeTrue();
 
         $left = retry(20, function () use ($docker, $id) {
             $count = trim($docker->exec($id, ['bash', '-c', 'pgrep -f "sleep 60[01]|[f]orwarder.mjs" | wc -l'])->output);
@@ -282,7 +282,7 @@ test('stop-agent ends the agent run and everything it started', function () {
         }, 250);
 
         expect($left)->toBe('0')
-            ->and($docker->exec($id, ['test', '-f', '/tmp/zap-agent.pid'])->successful())->toBeFalse();
+            ->and($docker->exec($id, ['test', '-f', '/tmp/onedrop-agent.pid'])->successful())->toBeFalse();
     } finally {
         $docker->destroy($id);
     }
@@ -290,18 +290,18 @@ test('stop-agent ends the agent run and everything it started', function () {
 
 test('the host proxy records requests and resource samples for monitoring', function () {
     $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
-    $id = $docker->create(new SandboxSpec('zap-test-'.bin2hex(random_bytes(3)), ['APP_METRICS_INTERVAL' => '1000']));
+    $id = $docker->create(new SandboxSpec('onedrop-test-'.bin2hex(random_bytes(3)), ['APP_METRICS_INTERVAL' => '1000']));
     $lines = function () use ($docker, $id): array {
-        $log = trim($docker->exec($id, ['cat', '/workspace/.zap/access.log'])->output);
+        $log = trim($docker->exec($id, ['cat', '/workspace/.onedrop/access.log'])->output);
 
         return $log === '' ? [] : array_map(fn ($line) => json_decode($line, true), explode("\n", $log));
     };
 
     try {
-        $script = 'mkdir -p /workspace/.zap /workspace/public'
+        $script = 'mkdir -p /workspace/.onedrop /workspace/public'
             .' && echo \'<?php http_response_code(str_contains($_SERVER["REQUEST_URI"], "missing") ? 404 : 200); echo "ok";\' > /workspace/public/index.php'
-            .' && printf "#!/usr/bin/env bash\nexec php -S 0.0.0.0:\$PORT -t /workspace/public /workspace/public/index.php\n" > /workspace/.zap/dev'
-            .' && chmod +x /workspace/.zap/dev && /opt/zap/restart';
+            .' && printf "#!/usr/bin/env bash\nexec php -S 0.0.0.0:\$PORT -t /workspace/public /workspace/public/index.php\n" > /workspace/.onedrop/dev'
+            .' && chmod +x /workspace/.onedrop/dev && /opt/onedrop/restart';
         expect($docker->exec($id, ['bash', '-c', $script])->successful())->toBeTrue();
 
         retry(40, fn () => throw_unless(
@@ -332,7 +332,7 @@ test('the host proxy records requests and resource samples for monitoring', func
 
         // CPU (share of the 2-CPU limit) and memory samples arrive on the configured interval.
         $sample = retry(20, function () use ($docker, $id) {
-            $log = trim($docker->exec($id, ['cat', '/workspace/.zap/metrics.log'])->output);
+            $log = trim($docker->exec($id, ['cat', '/workspace/.onedrop/metrics.log'])->output);
             throw_unless($log !== '', new RuntimeException('no samples yet'));
 
             return json_decode(strtok($log, "\n"), true);
@@ -348,9 +348,9 @@ test('the host proxy records requests and resource samples for monitoring', func
 
 test('the host proxy records custom analytics events without passing them to the app', function () {
     $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
-    $id = $docker->create(new SandboxSpec('zap-test-'.bin2hex(random_bytes(3))));
+    $id = $docker->create(new SandboxSpec('onedrop-test-'.bin2hex(random_bytes(3))));
     $post = fn (string $body, array $headers = []) => trim($docker->exec($id, [
-        'curl', '-s', '-o', '/dev/null', '-w', '%{http_code}', '-X', 'POST', ...$headers, '-d', $body, 'http://127.0.0.1:8081/__zap/event',
+        'curl', '-s', '-o', '/dev/null', '-w', '%{http_code}', '-X', 'POST', ...$headers, '-d', $body, 'http://127.0.0.1:8081/__onedrop/event',
     ])->output);
 
     try {
@@ -365,7 +365,7 @@ test('the host proxy records custom analytics events without passing them to the
             ->and($post(json_encode(['name' => 'big', 'props' => ['a' => str_repeat('x', 5000)]])))->toBe('400');
 
         $log = retry(20, function () use ($docker, $id) {
-            $log = trim($docker->exec($id, ['cat', '/workspace/.zap/events.log'])->output);
+            $log = trim($docker->exec($id, ['cat', '/workspace/.onedrop/events.log'])->output);
             throw_unless($log !== '', new RuntimeException('not logged yet'));
 
             return array_map(fn ($line) => json_decode($line, true), explode("\n", $log));
@@ -373,7 +373,7 @@ test('the host proxy records custom analytics events without passing them to the
 
         expect($log)->toHaveCount(1)
             ->and($log[0])->toMatchArray(['n' => 'project_created', 'props' => ['template' => 'blank', 'count' => 2], 'ip' => '203.0.113.7', 'pub' => true])
-            ->and(trim($docker->exec($id, ['sh', '-c', 'grep -c __zap /workspace/.zap/access.log || true'])->output))->toBe('0');
+            ->and(trim($docker->exec($id, ['sh', '-c', 'grep -c __onedrop /workspace/.onedrop/access.log || true'])->output))->toBe('0');
     } finally {
         $docker->destroy($id);
     }
@@ -381,10 +381,10 @@ test('the host proxy records custom analytics events without passing them to the
 
 test('the host proxy records server errors, preview browser errors and the app being down', function () {
     $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
-    $id = $docker->create(new SandboxSpec('zap-test-'.bin2hex(random_bytes(3))));
+    $id = $docker->create(new SandboxSpec('onedrop-test-'.bin2hex(random_bytes(3))));
     $curl = fn (string ...$args) => $docker->exec($id, ['curl', '-s', ...$args])->output;
     $errors = function () use ($docker, $id): array {
-        $log = trim($docker->exec($id, ['sh', '-c', 'cat /workspace/.zap/errors.log 2>/dev/null'])->output);
+        $log = trim($docker->exec($id, ['sh', '-c', 'cat /workspace/.onedrop/errors.log 2>/dev/null'])->output);
 
         return $log === '' ? [] : array_map(fn ($line) => json_decode($line, true), explode("\n", $log));
     };
@@ -400,10 +400,10 @@ test('the host proxy records server errors, preview browser errors and the app b
             }
             echo '<!doctype html><html><head><title>App</title></head><body>ok</body></html>';
             PHP;
-        $script = 'mkdir -p /workspace/.zap /workspace/public'
+        $script = 'mkdir -p /workspace/.onedrop /workspace/public'
             .' && printf %s "$APP" > /workspace/public/index.php'
-            .' && printf "#!/usr/bin/env bash\nexec php -S 0.0.0.0:\$PORT -t /workspace/public /workspace/public/index.php\n" > /workspace/.zap/dev'
-            .' && chmod +x /workspace/.zap/dev && /opt/zap/restart';
+            .' && printf "#!/usr/bin/env bash\nexec php -S 0.0.0.0:\$PORT -t /workspace/public /workspace/public/index.php\n" > /workspace/.onedrop/dev'
+            .' && chmod +x /workspace/.onedrop/dev && /opt/onedrop/restart';
         expect($docker->exec($id, ['bash', '-c', $script], ['APP' => $app])->successful())->toBeTrue();
 
         retry(40, fn () => throw_unless(
@@ -412,12 +412,12 @@ test('the host proxy records server errors, preview browser errors and the app b
         ), 250);
 
         // Preview pages get the error reporter first thing in their head; published pages don't.
-        expect($curl('http://127.0.0.1:8081/'))->toContain('<head><script src="/__zap/errors.js"></script><title>App</title>')
-            ->and($curl('-H', 'Host: my-app.tail1.ts.net', 'http://127.0.0.1:8081/'))->not->toContain('/__zap/errors.js')
-            ->and($curl('http://127.0.0.1:8081/__zap/errors.js'))->toContain("navigator.sendBeacon('/__zap/error'");
+        expect($curl('http://127.0.0.1:8081/'))->toContain('<head><script src="/__onedrop/errors.js"></script><title>App</title>')
+            ->and($curl('-H', 'Host: my-app.tail1.ts.net', 'http://127.0.0.1:8081/'))->not->toContain('/__onedrop/errors.js')
+            ->and($curl('http://127.0.0.1:8081/__onedrop/errors.js'))->toContain("navigator.sendBeacon('/__onedrop/error'");
 
         // A 5xx is logged with the page's text and the end of the server's output, and its page says so to the app builder.
-        expect($curl('http://127.0.0.1:8081/boom?id=1'))->toContain('<script src="/__zap/errors.js" data-status="500"></script>');
+        expect($curl('http://127.0.0.1:8081/boom?id=1'))->toContain('<script src="/__onedrop/errors.js" data-status="500"></script>');
         $server = retry(20, function () use ($errors) {
             $found = collect($errors())->firstWhere('k', 'server');
             throw_unless($found, new RuntimeException('not logged yet'));
@@ -428,7 +428,7 @@ test('the host proxy records server errors, preview browser errors and the app b
             ->and($server['log'])->toContain('stack: BoomException in routes/web.php');
 
         // Browser errors are taken from the preview only, and must look like one.
-        $post = fn (string $body, string ...$headers) => trim($curl(...['-o', '/dev/null', '-w', '%{http_code}', '-X', 'POST', ...$headers, '-d', $body, 'http://127.0.0.1:8081/__zap/error']));
+        $post = fn (string $body, string ...$headers) => trim($curl(...['-o', '/dev/null', '-w', '%{http_code}', '-X', 'POST', ...$headers, '-d', $body, 'http://127.0.0.1:8081/__onedrop/error']));
         $report = json_encode(['type' => 'error', 'message' => 'x is not defined', 'stack' => 'at App (app.js:1:1)', 'page' => '/dashboard']);
         expect($post($report))->toBe('204')
             ->and($post($report, '-H', 'Host: my-app.tail1.ts.net'))->toBe('400')
@@ -436,7 +436,7 @@ test('the host proxy records server errors, preview browser errors and the app b
             ->and($post('not json'))->toBe('400');
 
         // The app going away (here: crashing on start) is logged too.
-        $docker->exec($id, ['sh', '-c', 'printf "#!/usr/bin/env bash\nexit 1\n" > /workspace/.zap/dev && /opt/zap/restart']);
+        $docker->exec($id, ['sh', '-c', 'printf "#!/usr/bin/env bash\nexit 1\n" > /workspace/.onedrop/dev && /opt/onedrop/restart']);
         retry(20, fn () => throw_unless(str_contains($curl('http://127.0.0.1:8081/'), 'starting'), new RuntimeException('still up')), 250);
 
         $logged = retry(20, function () use ($errors) {
@@ -455,7 +455,7 @@ test('the host proxy records server errors, preview browser errors and the app b
 
 test('files can be created, uploaded and downloaded as a zip in a real container', function () {
     $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
-    $id = $docker->create(new SandboxSpec('zap-test-'.bin2hex(random_bytes(3))));
+    $id = $docker->create(new SandboxSpec('onedrop-test-'.bin2hex(random_bytes(3))));
     $sandbox = new Sandbox(['external_id' => $id]);
     $files = new WorkspaceFiles($docker);
 
@@ -468,7 +468,7 @@ test('files can be created, uploaded and downloaded as a zip in a real container
         $files->upload($sandbox, 'site/img/logo.bin', $binary);
         $docker->exec($id, ['sh', '-c', 'mkdir -p /workspace/node_modules/x && echo skip > /workspace/node_modules/x/y']);
 
-        $path = tempnam(sys_get_temp_dir(), 'zap-zip');
+        $path = tempnam(sys_get_temp_dir(), 'onedrop-zip');
         file_put_contents($path, $files->zip($sandbox));
         $zip = new ZipArchive;
         $zip->open($path);
@@ -487,8 +487,8 @@ test('files can be created, uploaded and downloaded as a zip in a real container
 
 test('developer tools read ports, usage and storage, and SSH takes the owner\'s key', function () {
     $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
-    $id = $docker->create(new SandboxSpec('zap-test-'.bin2hex(random_bytes(3)), shellPort: 7681, proxyPort: 8081, sshPort: 2222));
-    $keyFile = sys_get_temp_dir().'/zap-test-key-'.bin2hex(random_bytes(3));
+    $id = $docker->create(new SandboxSpec('onedrop-test-'.bin2hex(random_bytes(3)), shellPort: 7681, proxyPort: 8081, sshPort: 2222));
+    $keyFile = sys_get_temp_dir().'/onedrop-test-key-'.bin2hex(random_bytes(3));
 
     try {
         $sandbox = new Sandbox(['external_id' => $id]);
@@ -542,13 +542,13 @@ test('a checkpoint is backed up and restored, with its branches, into a fresh sa
     $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
     $backups = new ProjectBackups($docker);
     $project = Project::factory()->create();
-    $old = $docker->create(new SandboxSpec('zap-test-'.bin2hex(random_bytes(3))));
-    $new = $docker->create(new SandboxSpec('zap-test-'.bin2hex(random_bytes(3))));
+    $old = $docker->create(new SandboxSpec('onedrop-test-'.bin2hex(random_bytes(3))));
+    $new = $docker->create(new SandboxSpec('onedrop-test-'.bin2hex(random_bytes(3))));
     $sandbox = Sandbox::factory()->for($project)->create(['external_id' => $old]);
 
     try {
         $script = 'cd /workspace && echo "<h1>Timer</h1>" > index.html && echo SECRET=1 > .env'
-            .' && echo "Build a timer" | /opt/zap/checkpoint && git branch experiment';
+            .' && echo "Build a timer" | /opt/onedrop/checkpoint && git branch experiment';
         expect($docker->exec($old, ['bash', '-c', $script])->successful())->toBeTrue()
             ->and($backups->backUp($project))->toBeTrue()
             ->and($backups->backUp($project->fresh()))->toBeFalse();
@@ -577,13 +577,13 @@ test('a checkpoint is backed up and restored, with its branches, into a fresh sa
 
 test('the git tool commits, lists and restores in a real container', function () {
     $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
-    $id = $docker->create(new SandboxSpec('zap-test-'.bin2hex(random_bytes(3))));
+    $id = $docker->create(new SandboxSpec('onedrop-test-'.bin2hex(random_bytes(3))));
     $sandbox = new Sandbox(['external_id' => $id]);
     $git = new WorkspaceGit($docker);
     $user = new User(['name' => 'Dev User', 'email' => 'dev@example.com']);
 
     try {
-        $docker->exec($id, ['bash', '-c', 'cd /workspace && echo one > a.txt && echo "Build a timer" | /opt/zap/checkpoint && echo two > a.txt']);
+        $docker->exec($id, ['bash', '-c', 'cd /workspace && echo one > a.txt && echo "Build a timer" | /opt/onedrop/checkpoint && echo two > a.txt']);
 
         expect($git->status($sandbox))->toMatchArray(['branch' => 'main', 'changes' => [['path' => 'a.txt', 'status' => 'M']]]);
 

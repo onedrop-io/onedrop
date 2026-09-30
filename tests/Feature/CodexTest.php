@@ -113,7 +113,7 @@ test('Codex runs on the ChatGPT sign-in without its refresh token, with the chos
     app(HarnessRunner::class)->start($project, $message);
 
     $env = $this->provider->envs[0];
-    expect($this->provider->executed[0]['command'])->toBe(['node', '/opt/zap/forwarder.mjs'])
+    expect($this->provider->executed[0]['command'])->toBe(['node', '/opt/onedrop/forwarder.mjs'])
         ->and($env)->toMatchArray([
             'APP_AGENT' => 'codex',
             'APP_PROMPT' => 'build a timer',
@@ -173,7 +173,7 @@ test('a Codex run becomes chat messages in order and remembers its thread', func
     [$project] = codexProject($this->user);
 
     sendCodexEvents($project, [
-        ['type' => 'zap.start'],
+        ['type' => 'onedrop.start'],
         ['type' => 'thread.started', 'thread_id' => 'thread-1'],
         ['type' => 'item.completed', 'item' => ['type' => 'reasoning']],
         ['type' => 'item.completed', 'item' => ['type' => 'agent_message', 'text' => "I'll build a timer."]],
@@ -184,7 +184,7 @@ test('a Codex run becomes chat messages in order and remembers its thread', func
         ['type' => 'item.completed', 'item' => ['type' => 'error', 'message' => 'Model metadata not found']],
         ['type' => 'item.completed', 'item' => ['type' => 'agent_message', 'text' => 'Done! Press Start to begin timing.']],
         ['type' => 'turn.completed', 'usage' => ['input_tokens' => 1000, 'cached_input_tokens' => 800, 'output_tokens' => 50], 'model' => 'gpt-5.5'],
-        ['type' => 'zap.exit', 'code' => 0, 'stderr' => '', 'reported' => false],
+        ['type' => 'onedrop.exit', 'code' => 0, 'stderr' => '', 'reported' => false],
     ]);
 
     $project->refresh();
@@ -219,7 +219,7 @@ test('failed Codex turns are explained once', function (string $error, string $e
         ['type' => 'error', 'message' => 'Reconnecting... 1/5 (stream disconnected, cf-ray: a4301e429503)'],
         ['type' => 'error', 'message' => $error],
         ['type' => 'turn.failed', 'error' => ['message' => $error]],
-        ['type' => 'zap.exit', 'code' => 1, 'stderr' => '', 'reported' => true],
+        ['type' => 'onedrop.exit', 'code' => 1, 'stderr' => '', 'reported' => true],
     ]);
 
     expect($project->messages()->where('role', '!=', MessageRole::User)->pluck('content')->all())->toBe(['Reconnecting to OpenAI', $expected])
@@ -234,7 +234,7 @@ test('failed Codex turns are explained once', function (string $error, string $e
 test('a Codex crash without a failed turn is still explained', function () {
     [$project] = codexProject($this->user);
 
-    sendCodexEvents($project, [['type' => 'zap.exit', 'code' => 1, 'stderr' => 'Error: spawn codex ENOENT', 'reported' => false]]);
+    sendCodexEvents($project, [['type' => 'onedrop.exit', 'code' => 1, 'stderr' => 'Error: spawn codex ENOENT', 'reported' => false]]);
 
     expect($project->messages()->reorder()->latest('id')->value('content'))->toBe('The agent stopped unexpectedly. Error: Error: spawn codex ENOENT');
 })->group('AGT-009');

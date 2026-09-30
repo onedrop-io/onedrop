@@ -3,7 +3,7 @@
 /**
  * Users & Auth tool behind the workspace's Tools → Users & Auth panel.
  *
- * Reads the app's sign-in setup from /workspace/.zap/auth.json (written by the agent, see
+ * Reads the app's sign-in setup from /workspace/.onedrop/auth.json (written by the agent, see
  * guides/auth.md), lists the app's users from its own database, and saves sign-in provider
  * keys into the app's .env. Secret values never leave the sandbox: the platform only learns
  * whether each one is set.
@@ -11,7 +11,7 @@
  * Reads one JSON request from $APP_AUTH_REQUEST and prints one JSON response:
  * {"ok": true, "data": ...} or {"ok": false, "error": "..."}.
  *
- * Usage: APP_AUTH_REQUEST='{"op":"status"}' php /opt/zap/auth.php
+ * Usage: APP_AUTH_REQUEST='{"op":"status"}' php /opt/onedrop/auth.php
  */
 
 declare(strict_types=1);
@@ -20,7 +20,7 @@ define('APP_DB_LIBRARY', true);
 
 require __DIR__.'/db.php';
 
-const MANIFEST = '.zap/auth.json';
+const MANIFEST = '.onedrop/auth.json';
 const METHODS = ['password', 'google', 'github', 'microsoft', 'onedrop'];
 const PROVIDERS = ['google', 'github', 'microsoft'];
 const USER_COLUMNS = ['id', 'name', 'email', 'role', 'created_at', 'last_login_at', 'disabled_at', 'password_change_required'];
@@ -32,7 +32,7 @@ const ONEDROP_VARS = ['client_id' => 'ONEDROP_CLIENT_ID', 'client_secret' => 'ON
 const EXPORT_MAX = 50_000;
 const USERS_PAGE_MAX = 100;
 /** The app's own helper for what needs its auth library (hashing passwords), see guides/auth.md. */
-const USERS_COMMAND = '.zap/users';
+const USERS_COMMAND = '.onedrop/users';
 const USERS_COMMAND_SECONDS = 60;
 
 /**
@@ -229,7 +229,7 @@ function users(array $request, int $max = USERS_PAGE_MAX): array
 }
 
 /**
- * Which account controls the app supports: the .zap/users helper (add users, set passwords,
+ * Which account controls the app supports: the .onedrop/users helper (add users, set passwords,
  * sign out everywhere, sign in as someone) and the columns the app checks (turned-off accounts,
  * forced password change, roles).
  *

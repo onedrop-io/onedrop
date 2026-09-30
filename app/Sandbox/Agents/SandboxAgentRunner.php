@@ -23,7 +23,7 @@ use Illuminate\Support\Number;
 abstract class SandboxAgentRunner implements AgentRunner
 {
     /** Where a message's attachments go in the workspace (followed by /{message id}/{file name}). */
-    public const ATTACHMENTS_DIR = '.zap/attachments';
+    public const ATTACHMENTS_DIR = '.onedrop/attachments';
 
     public function __construct(protected SandboxProvider $provider, protected ModelCatalog $catalog, protected WorkspaceFiles $files) {}
 
@@ -40,7 +40,7 @@ abstract class SandboxAgentRunner implements AgentRunner
 
         try {
             // Only this conversation's run: the project's other chats keep working.
-            $this->provider->exec($sandbox->external_id, ['/opt/zap/stop-agent', $conversation->runKey()]);
+            $this->provider->exec($sandbox->external_id, ['/opt/onedrop/stop-agent', $conversation->runKey()]);
         } catch (SandboxException) {
             // The sandbox is gone or unreachable; there's nothing left to stop.
         }
@@ -178,7 +178,7 @@ abstract class SandboxAgentRunner implements AgentRunner
         ];
 
         try {
-            $result = $this->provider->exec($sandbox->external_id, ['node', '/opt/zap/forwarder.mjs'], $env, detach: true);
+            $result = $this->provider->exec($sandbox->external_id, ['node', '/opt/onedrop/forwarder.mjs'], $env, detach: true);
         } catch (SandboxException $e) {
             $this->fail($conversation, $e->getMessage());
 

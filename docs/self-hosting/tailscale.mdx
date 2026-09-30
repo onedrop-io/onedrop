@@ -11,7 +11,7 @@ Publishing runs a small Tailscale container next to each published project's san
   <Tab title="Sign-in link (no setup)">
     Leave `TAILSCALE_AUTHKEY` empty. When someone publishes a project for the first time, the Publish panel shows **Approve in Tailscale**. They approve the device in their browser and it joins as their device.
 
-    - Approval is needed once per project; the identity is saved in a Docker volume named `zap-publish-<id>-state`
+    - Approval is needed once per project; the identity is saved in a Docker volume named `onedrop-publish-<id>-state`
     - Devices stay in your Machines list (offline) after unpublishing
     - Devices belong to the person who approved them
 
@@ -27,12 +27,12 @@ Publishing runs a small Tailscale container next to each published project's san
         In **Access controls**, add:
 
         ```json
-        "tagOwners": { "tag:zap-preview": ["autogroup:admin"] },
-        "nodeAttrs": [{ "target": ["tag:zap-preview"], "attr": ["funnel"] }]
+        "tagOwners": { "tag:onedrop-preview": ["autogroup:admin"] },
+        "nodeAttrs": [{ "target": ["tag:onedrop-preview"], "attr": ["funnel"] }]
         ```
       </Step>
       <Step title="Generate the key">
-        In **Settings → Keys**, create an auth key that is reusable, ephemeral, and tagged `tag:zap-preview`.
+        In **Settings → Keys**, create an auth key that is reusable, ephemeral, and tagged `tag:onedrop-preview`.
       </Step>
       <Step title="Add it to .env">
         ```bash

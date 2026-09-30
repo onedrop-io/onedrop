@@ -52,7 +52,7 @@ export default function StoragePanel({
     /** The agent is running a task. */
     working: boolean;
 }) {
-    const remembered = `zap.storage.bucket.${projectId}`;
+    const remembered = `onedrop.storage.bucket.${projectId}`;
     const [buckets, setBuckets] = useState<StorageBucket[] | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [selected, setSelected] = useState<string | null>(() =>

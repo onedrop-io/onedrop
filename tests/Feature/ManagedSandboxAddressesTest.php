@@ -69,7 +69,7 @@ test('the image is built on runtime with the key in the environment, not the com
     $this->artisan('sandbox:build-image')->assertSuccessful();
 
     Process::assertRan(fn ($process) => in_array('withruntime@0.8', $process->command, true)
-        && in_array('zap-sandbox:latest', $process->command, true)
+        && in_array('onedrop-sandbox:latest', $process->command, true)
         && ! str_contains(implode(' ', $process->command), 'rt-secret')
         && $process->environment['RUNTIME_API_KEY'] === 'rt-secret');
 })->group('SBX-003');
@@ -121,14 +121,14 @@ test('the blaxel image is docker/sandbox plus the blaxel steps, pushed with the 
 
     Process::assertRan(fn (PendingProcess $process) => $process->command[0] === 'bl'
         && $process->command[1] === 'push'
-        && in_array('zap-sandbox', $process->command, true)
+        && in_array('onedrop-sandbox', $process->command, true)
         && ! str_contains(implode(' ', $process->command), 'bl-secret')
         && $process->environment === ['BL_API_KEY' => 'bl-secret', 'BL_WORKSPACE' => 'onedrop']);
 
     expect($pushed['dockerfile'])->toStartWith(File::get(base_path('docker/sandbox/Dockerfile')))
         ->toContain('/usr/local/bin/sandbox-api')
         ->toEndWith(File::get(base_path('docker/sandbox/blaxel/Dockerfile.append')))
-        ->and($pushed['toml'])->toContain('name = "zap-sandbox"')->toContain('type = "sandbox"')
+        ->and($pushed['toml'])->toContain('name = "onedrop-sandbox"')->toContain('type = "sandbox"')
         ->and(glob(storage_path('framework/blaxel-image-*')))->toBe([]);
 })->group('SBX-004');
 

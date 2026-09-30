@@ -134,7 +134,7 @@ test("stopping a task's real run leaves the sandbox's other runs and events alon
 
     app(OpenCodeRunner::class)->stop($task);
 
-    expect($provider->executed[0]['command'])->toBe(['/opt/zap/stop-agent', "task-{$task->id}"])
+    expect($provider->executed[0]['command'])->toBe(['/opt/onedrop/stop-agent', "task-{$task->id}"])
         ->and($task->fresh()->acceptsEventsToken($taskToken))->toBeFalse()
         ->and($sandbox->fresh()->acceptsEventsToken($mainToken))->toBeTrue();
 })->group('TASK-001');
@@ -145,12 +145,12 @@ test("a task's run reports to its own chat with its own token", function () {
     $token = $task->issueEventsToken();
     $url = route('sandbox-events.tasks.store', [$sandbox, $task]);
 
-    $this->withToken($sandbox->issueEventsToken())->postJson($url, ['events' => [['type' => 'zap.start']]])->assertUnauthorized();
-    $this->withToken($token)->postJson(route('sandbox-events.tasks.store', [Sandbox::factory()->create(), $task]), ['events' => [['type' => 'zap.start']]])->assertNotFound();
+    $this->withToken($sandbox->issueEventsToken())->postJson($url, ['events' => [['type' => 'onedrop.start']]])->assertUnauthorized();
+    $this->withToken($token)->postJson(route('sandbox-events.tasks.store', [Sandbox::factory()->create(), $task]), ['events' => [['type' => 'onedrop.start']]])->assertNotFound();
 
     $this->withToken($token)->postJson($url, ['events' => [
         ['type' => 'text', 'sessionID' => 'ses_task', 'part' => ['type' => 'text', 'text' => 'Added the toggle.']],
-        ['type' => 'zap.exit', 'code' => 0, 'stderr' => ''],
+        ['type' => 'onedrop.exit', 'code' => 0, 'stderr' => ''],
     ]])->assertOk();
 
     $task->refresh();

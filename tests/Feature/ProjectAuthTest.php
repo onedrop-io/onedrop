@@ -85,7 +85,7 @@ test('saving provider keys writes them into the app and restarts it', function (
         ->assertJsonMissing(['GOCSPX-secret']);
 
     expect(file_get_contents($this->workspace.'/.env'))->toContain("GOOGLE_CLIENT_SECRET=GOCSPX-secret\n")
-        ->and(collect($this->provider->executed)->pluck('command')->last())->toBe(['/opt/zap/restart']);
+        ->and(collect($this->provider->executed)->pluck('command')->last())->toBe(['/opt/onedrop/restart']);
 })->group('APPAUTH-001');
 
 test('setting up asks the agent in the chat, and changing methods asks for just the change', function () {
@@ -98,7 +98,7 @@ test('setting up asks the agent in the chat, and changing methods asks for just 
         ->assertJsonPath('queued', false);
 
     expect($this->project->messages()->latest('id')->value('content'))
-        ->toBe('Add user sign-in to my app with email and password and GitHub. Follow the guide at /opt/zap/guides/auth.md.');
+        ->toBe('Add user sign-in to my app with email and password and GitHub. Follow the guide at /opt/onedrop/guides/auth.md.');
 
     app()->instance(SandboxProvider::class, $this->provider);
     $this->project->update(['status' => ProjectStatus::Working]);
@@ -109,7 +109,7 @@ test('setting up asks the agent in the chat, and changing methods asks for just 
         ->assertJsonPath('queued', true);
 
     expect($this->project->queuedMessages()->value('content'))
-        ->toBe('Change how people sign in to my app: turn on GitHub and Microsoft, and turn off Google. Follow the guide at /opt/zap/guides/auth.md.');
+        ->toBe('Change how people sign in to my app: turn on GitHub and Microsoft, and turn off Google. Follow the guide at /opt/onedrop/guides/auth.md.');
 
     $this->actingAs($this->user)
         ->postJson(route('projects.auth.setup', $this->project), ['methods' => ['google', 'password']])
@@ -174,7 +174,7 @@ test('the owner can add, edit, set the password of, and delete app users', funct
 test('asking for the users helper sends the agent a message', function () {
     $this->actingAs($this->user)->postJson(route('projects.auth.helper', $this->project))->assertOk();
 
-    expect($this->project->messages()->latest('id')->value('content'))->toContain('.zap/users');
+    expect($this->project->messages()->latest('id')->value('content'))->toContain('.onedrop/users');
 })->group('APPAUTH-001');
 
 test('other users cannot change app users', function () {
@@ -214,7 +214,7 @@ test('asking for missing account controls names only what is missing', function 
         ->toStartWith('Let me manage users from Tools → Users & Auth: add turning accounts off, requiring a new password, roles and signing in as a user.');
 
     withAccountControls($this->workspace);
-    file_put_contents($this->workspace.'/.zap/auth.json', json_encode(['methods' => ['password'], 'helper' => ['sign-in-link']]));
+    file_put_contents($this->workspace.'/.onedrop/auth.json', json_encode(['methods' => ['password'], 'helper' => ['sign-in-link']]));
     $this->actingAs($this->user)->postJson(route('projects.auth.helper', $this->project))
         ->assertUnprocessable()
         ->assertJsonPath('message', 'Your app already has every account control.');
@@ -254,12 +254,12 @@ test('the owner can download the users as a CSV, safe to open in a spreadsheet',
 
 test('the owner gets a one-time link that opens the app as a user', function () {
     withUsersHelper($this->workspace);
-    file_put_contents($this->workspace.'/.zap/auth.json', json_encode(['methods' => ['password'], 'helper' => ['sign-in-link']]));
+    file_put_contents($this->workspace.'/.onedrop/auth.json', json_encode(['methods' => ['password'], 'helper' => ['sign-in-link']]));
 
     $this->actingAs($this->user)
         ->postJson(route('projects.auth.users.sign-in', [$this->project, 2]))
         ->assertOk()
-        ->assertJsonPath('url', 'http://127.0.0.1:49152/auth/zap-sign-in?token=one-time-2');
+        ->assertJsonPath('url', 'http://127.0.0.1:49152/auth/onedrop-sign-in?token=one-time-2');
 })->group('APPAUTH-001');
 
 test('choosing OneDrop accounts sets up the app keys and asks the agent', function () {
@@ -276,7 +276,7 @@ test('choosing OneDrop accounts sets up the app keys and asks the agent', functi
         ->and($project->onedrop_callback_path)->toBe('/auth/onedrop/callback')
         ->and($env)->toContain("ONEDROP_CLIENT_ID={$project->onedrop_client_id}\n")
         ->toContain("ONEDROP_TOKEN_URL=http://host.docker.internal:8000/oauth/token\n")
-        ->and(collect($this->provider->executed)->pluck('command')->last())->toBe(['/opt/zap/restart'])
+        ->and(collect($this->provider->executed)->pluck('command')->last())->toBe(['/opt/onedrop/restart'])
         ->and($this->project->messages()->latest('id')->value('content'))->toContain('turn on OneDrop accounts');
 
     preg_match('/^ONEDROP_CLIENT_SECRET=(.+)$/m', $env, $secret);
@@ -287,7 +287,7 @@ test('choosing OneDrop accounts sets up the app keys and asks the agent', functi
 
 test('turning OneDrop accounts off stops OneDrop sign-ins', function () {
     app(OneDropSignIn::class)->enable($this->project, '/auth/onedrop/callback');
-    file_put_contents($this->workspace.'/.zap/auth.json', json_encode(['methods' => ['password', 'onedrop']]));
+    file_put_contents($this->workspace.'/.onedrop/auth.json', json_encode(['methods' => ['password', 'onedrop']]));
 
     $this->actingAs($this->user)
         ->postJson(route('projects.auth.setup', $this->project), ['methods' => ['password']])

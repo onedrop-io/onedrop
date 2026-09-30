@@ -152,7 +152,7 @@ describe('the agent', function () {
 
         $provider = app(SandboxProvider::class);
 
-        return [$message, collect($provider->executed)->firstWhere('command', ['node', '/opt/zap/forwarder.mjs'])['env'] ?? null, $provider];
+        return [$message, collect($provider->executed)->firstWhere('command', ['node', '/opt/onedrop/forwarder.mjs'])['env'] ?? null, $provider];
     }
 
     test('gets the files in the workspace and sees the images', function () {
@@ -164,7 +164,7 @@ describe('the agent', function () {
             Attachment::factory()->text('brand colors')->state(['name' => 'brand.txt']),
         ]);
 
-        $dir = "/workspace/.zap/attachments/{$message->id}";
+        $dir = "/workspace/.onedrop/attachments/{$message->id}";
         $written = collect($provider->executed)->pluck('env.APP_CONTENT')->filter()->map(base64_decode(...))->all();
 
         expect(json_decode($env['APP_FILES']))->toBe(["{$dir}/My-Logo.png", "{$dir}/My-Logo-2.png"])
@@ -197,7 +197,7 @@ describe('the agent', function () {
 
         expect($env['APP_MODEL'])->toBe('openrouter/moonshotai/kimi-k3')
             ->and($env['APP_FILES'])->toBe('[]')
-            ->and($env['APP_PROMPT'])->toContain('/workspace/.zap/attachments/')
+            ->and($env['APP_PROMPT'])->toContain('/workspace/.onedrop/attachments/')
             ->and($this->project->messages()->where('role', MessageRole::Activity)->value('content'))->toBe("MoonshotAI: Kimi K3 can't see images, so I'm working from your text");
     })->group('AGT-006');
 

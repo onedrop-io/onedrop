@@ -49,7 +49,7 @@ test('an outdated sandbox moves to the current image with its files, agent histo
         ->and($copies->where(0, 'out')->pluck(1)->unique()->all())->toBe(['old-ctr'])
         ->and($copies->where(0, 'in')->pluck(2)->all())->toBe(SandboxUpdater::KEPT_PATHS)
         ->and($copies->where(0, 'in')->pluck(1)->unique()->all())->toBe([$sandbox->external_id])
-        ->and(collect($this->provider->executed)->pluck('command')->all())->toContain(['/opt/zap/restart'])
+        ->and(collect($this->provider->executed)->pluck('command')->all())->toContain(['/opt/onedrop/restart'])
         ->toContain(['bash', '-c', SandboxUpdater::USE_IMAGE_SHELL_SETUP]) // old shell files give way to the image's
         ->and($this->project->fresh()->agent_session_id)->toBe('ses_1')
         ->and($this->project->fresh()->publish_status)->toBe(PublishStatus::Live)

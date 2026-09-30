@@ -33,9 +33,9 @@ beforeEach(function () {
     $this->services = '';
     $this->provider->execUsing = fn (array $command) => match (true) {
         $command[0] === 'bash' && ($command[3] ?? null) === 'check' => new ExecResult(0, "done\n"),
-        $command[0] === '/opt/zap/fork' && $command[1] === 'branch' => new ExecResult(0, "abc123\n"),
-        $command[0] === '/opt/zap/fork' && $command[1] === 'merge' => $this->mergeResult,
-        $command[0] === '/opt/zap/fork' && $command[1] === 'services' => new ExecResult(0, $this->services),
+        $command[0] === '/opt/onedrop/fork' && $command[1] === 'branch' => new ExecResult(0, "abc123\n"),
+        $command[0] === '/opt/onedrop/fork' && $command[1] === 'merge' => $this->mergeResult,
+        $command[0] === '/opt/onedrop/fork' && $command[1] === 'services' => new ExecResult(0, $this->services),
         default => new ExecResult(0, ''),
     };
     app()->instance(SandboxProvider::class, $this->provider);
@@ -77,13 +77,13 @@ test('the copy is Main\'s kept paths at one instant, on its own branch, with its
     $copy = $task->sandbox()->first();
     $snapshot = commandsIn($this->provider, 'main-1')[0];
 
-    expect($snapshot)->toMatchArray([0 => '/opt/zap/fork', 1 => 'snapshot'])
+    expect($snapshot)->toMatchArray([0 => '/opt/onedrop/fork', 1 => 'snapshot'])
         ->and(array_slice($snapshot, 3))->toBe(['/workspace', '/data/storage', '/home/sandbox'])
         ->and(collect($this->provider->executed)->firstWhere('command', $snapshot)['detach'])->toBeTrue()
         ->and($copy->status)->toBe(SandboxStatus::Running)
         ->and($copy->project_id)->toBe($this->project->id)
         ->and($this->provider->created[$copy->external_id]->storageKey)->toBe("project-{$this->project->id}-task-{$task->id}")
-        ->and(commandsIn($this->provider, $copy->external_id))->toContain(['/opt/zap/fork', 'branch', "task-{$task->id}"], ['/opt/zap/restart'])
+        ->and(commandsIn($this->provider, $copy->external_id))->toContain(['/opt/onedrop/fork', 'branch', "task-{$task->id}"], ['/opt/onedrop/restart'])
         ->and(collect($this->provider->copied)->where(0, 'in')->where(1, $copy->external_id)->pluck(2)->all())->toBe(['/workspace', '/data/storage', '/home/sandbox'])
         ->and($task->fresh()->base_commit)->toBe('abc123')
         ->and($this->project->fresh()->sandbox->is($this->main))->toBeTrue();
@@ -148,8 +148,8 @@ test("applying merges the task into Main, hands the rest to Main's agent, and re
     (new SyncTask($task->fresh(), TaskSyncStatus::Applying))->handle(app(TaskCopies::class), app(AgentQueue::class));
 
     $task->refresh();
-    expect(commandsIn($this->provider, 'copy-1')[0][2])->toContain('/opt/zap/fork bundle')
-        ->and(collect(commandsIn($this->provider, 'main-1'))->first(fn ($command) => $command[0] === '/opt/zap/fork'))->toMatchArray([1 => 'merge', 3 => 'Apply task: Dark mode'])
+    expect(commandsIn($this->provider, 'copy-1')[0][2])->toContain('/opt/onedrop/fork bundle')
+        ->and(collect(commandsIn($this->provider, 'main-1'))->first(fn ($command) => $command[0] === '/opt/onedrop/fork'))->toMatchArray([1 => 'merge', 3 => 'Apply task: Dark mode'])
         ->and($task->stage)->toBe(TaskStage::Done)
         ->and($task->applied_at)->not->toBeNull()
         ->and($task->sync_status)->toBeNull()
@@ -181,7 +181,7 @@ test("updating from Main merges Main into the copy and hands it to the task's ag
 
     (new SyncTask($task, TaskSyncStatus::Updating))->handle(app(TaskCopies::class), app(AgentQueue::class));
 
-    expect(collect(commandsIn($this->provider, 'copy-1'))->first(fn ($command) => $command[0] === '/opt/zap/fork'))->toMatchArray([1 => 'merge'])
+    expect(collect(commandsIn($this->provider, 'copy-1'))->first(fn ($command) => $command[0] === '/opt/onedrop/fork'))->toMatchArray([1 => 'merge'])
         ->and($task->fresh()->status)->toBe(ProjectStatus::Working)
         ->and($task->messages()->where('role', MessageRole::User)->sole()->content)->toContain('latest work from Main')
         ->and($task->sandbox()->exists())->toBeTrue();

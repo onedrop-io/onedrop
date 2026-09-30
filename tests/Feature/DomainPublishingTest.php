@@ -20,7 +20,7 @@ beforeEach(function () {
 
     $this->owner = User::factory()->has(AgentConnection::factory())->create();
     $this->project = Project::factory()->for($this->owner)->create(['name' => 'Time Tracker']);
-    $this->sandbox = Sandbox::factory()->for($this->project)->create(['preview_url' => 'http://zap-project-1-x:8081']);
+    $this->sandbox = Sandbox::factory()->for($this->project)->create(['preview_url' => 'http://onedrop-project-1-x:8081']);
 });
 
 function publishToDomain(Project $project, User $user, string $visibility): Project
@@ -54,7 +54,7 @@ test('anyone can open a public app, without signing in', function () {
     $this->withHeaders(['X-Forwarded-Host' => appHost($project)])
         ->get(route('sandbox-gateway.authorize'))
         ->assertOk()
-        ->assertHeader('X-Zap-Upstream', 'zap-project-1-x:8081');
+        ->assertHeader('X-OneDrop-Upstream', 'onedrop-project-1-x:8081');
 })->group('PUB-002');
 
 test('a private app sends visitors to sign in, then back to the page they asked for', function () {
@@ -63,7 +63,7 @@ test('a private app sends visitors to sign in, then back to the page they asked 
     $this->withHeaders(['X-Forwarded-Host' => appHost($project), 'X-Forwarded-Uri' => '/invoices?page=2'])
         ->get(route('sandbox-gateway.authorize'))
         ->assertRedirect(rtrim(config('app.url'), '/')."/projects/{$project->id}/open/app?path=%2Finvoices%3Fpage%3D2")
-        ->assertHeaderMissing('X-Zap-Upstream');
+        ->assertHeaderMissing('X-OneDrop-Upstream');
 })->group('PUB-002');
 
 test('anyone signed in to OneDrop can open a private app, not only the project\'s people', function () {
@@ -74,7 +74,7 @@ test('anyone signed in to OneDrop can open a private app, not only the project\'
         ->get(route('projects.gateway.open', [$project, 'app', 'path' => '/invoices']))
         ->assertRedirect();
 
-    expect($enter->headers->get('Location'))->toStartWith("https://time-tracker-{$project->id}.onedrop.example.com/__zap/enter?");
+    expect($enter->headers->get('Location'))->toStartWith("https://time-tracker-{$project->id}.onedrop.example.com/__onedrop/enter?");
 
     $target = app(Gateway::class)->parse(appHost($project));
 
@@ -82,7 +82,7 @@ test('anyone signed in to OneDrop can open a private app, not only the project\'
         ->withCookie(Gateway::COOKIE, app(Gateway::class)->pass($colleague->id, $target))
         ->get(route('sandbox-gateway.authorize'))
         ->assertOk()
-        ->assertHeader('X-Zap-Upstream', 'zap-project-1-x:8081');
+        ->assertHeader('X-OneDrop-Upstream', 'onedrop-project-1-x:8081');
 
     // Their preview and shell stay the project's own.
     $this->get(route('projects.gateway.open', [$project, 'preview']))->assertForbidden();
@@ -133,22 +133,22 @@ test('behind the Cloudflare Worker, a public app gets the provider address and t
     config(['sandbox.gateway_secret' => 'worker-secret']);
     $this->sandbox->update(['preview_url' => 'https://abc.preview.bl.run/?bl_preview_token=secret-token']);
     $project = publishToDomain($this->project, $this->owner, 'public');
-    $worker = ['X-Zap-Gateway-Secret' => 'worker-secret', 'X-Zap-Gateway-Host' => appHost($project)];
+    $worker = ['X-OneDrop-Gateway-Secret' => 'worker-secret', 'X-OneDrop-Gateway-Host' => appHost($project)];
 
     $this->withHeaders($worker)->get(route('sandbox-gateway.authorize'))
         ->assertOk()
-        ->assertHeader('X-Zap-Upstream', 'https://abc.preview.bl.run')
-        ->assertHeader('X-Zap-Upstream-Header', 'X-Blaxel-Preview-Token')
-        ->assertHeader('X-Zap-Upstream-Token', 'secret-token');
+        ->assertHeader('X-OneDrop-Upstream', 'https://abc.preview.bl.run')
+        ->assertHeader('X-OneDrop-Upstream-Header', 'X-Blaxel-Preview-Token')
+        ->assertHeader('X-OneDrop-Upstream-Token', 'secret-token');
 
     $project->update(['publish_visibility' => PublishVisibility::Private]);
 
     $this->withHeaders($worker)->get(route('sandbox-gateway.authorize'))
         ->assertRedirect(rtrim(config('app.url'), '/')."/projects/{$project->id}/open/app?path=%2F")
-        ->assertHeaderMissing('X-Zap-Upstream');
+        ->assertHeaderMissing('X-OneDrop-Upstream');
 
     // Without the Worker's secret, nobody learns where it lives.
-    $this->flushHeaders()->withHeaders(['X-Zap-Gateway-Host' => appHost($project)])->get(route('sandbox-gateway.authorize'))->assertNotFound();
+    $this->flushHeaders()->withHeaders(['X-OneDrop-Gateway-Host' => appHost($project)])->get(route('sandbox-gateway.authorize'))->assertNotFound();
 })->group('PUB-002');
 
 test('the publish panel says who private and public mean for each target', function () {
@@ -205,7 +205,7 @@ test('signing in to a private app lands on its address with its own cookie', fun
         ->withHeaders(['X-Forwarded-Host' => $host])
         ->get(route('sandbox-gateway.authorize'))
         ->assertOk()
-        ->assertHeader('X-Zap-Upstream', 'zap-project-1-x:8081');
+        ->assertHeader('X-OneDrop-Upstream', 'onedrop-project-1-x:8081');
 
     // That cookie is for the app only, not the project's preview.
     $this->withUnencryptedCookie(Gateway::COOKIE, $cookie->getValue())

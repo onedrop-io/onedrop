@@ -8,9 +8,9 @@ run="${1:-}"
 
 if [ -n "$run" ]; then
     if [ "$run" = "main" ]; then
-        pid_file=/tmp/zap-agent.pid
+        pid_file=/tmp/onedrop-agent.pid
     else
-        pid_file="/tmp/zap-agent-${run//[^a-z0-9-]/}.pid"
+        pid_file="/tmp/onedrop-agent-${run//[^a-z0-9-]/}.pid"
     fi
 
     if [ -f "$pid_file" ]; then
@@ -21,7 +21,7 @@ if [ -n "$run" ]; then
     exit 0
 fi
 
-for pid_file in /tmp/zap-agent.pid /tmp/zap-agent-*.pid; do
+for pid_file in /tmp/onedrop-agent.pid /tmp/onedrop-agent-*.pid; do
     if [ -f "$pid_file" ]; then
         kill -TERM "$(cat "$pid_file")" 2>/dev/null || true
     fi

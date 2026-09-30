@@ -7,7 +7,7 @@ use Tests\TestCase;
 uses(TestCase::class);
 
 beforeEach(function () {
-    $this->workspace = sys_get_temp_dir().'/zap-git-tool-'.uniqid();
+    $this->workspace = sys_get_temp_dir().'/onedrop-git-tool-'.uniqid();
     File::ensureDirectoryExists($this->workspace);
     $sandbox = dirname(__DIR__, 2).'/docker/sandbox';
 
@@ -43,25 +43,62 @@ test('a project without a repository reports it, and its first commit starts one
 
 test('the agent\'s checkpoints are marked as the agent\'s', function () {
     ($this->write)('index.html', 'hi');
-    Process::path($this->workspace)->env(['ZAP_WORKSPACE' => $this->workspace])->input('Build a timer')->run([dirname(__DIR__, 2).'/docker/sandbox/checkpoint']);
+    Process::path($this->workspace)->env(['ONEDROP_WORKSPACE' => $this->workspace])->input('Build a timer')->run([dirname(__DIR__, 2).'/docker/sandbox/checkpoint']);
 
     expect(($this->data)(['op' => 'log'])['commits'][0])->toMatchArray(['subject' => 'Build a timer', 'author' => 'OneDrop', 'agent' => true]);
 })->group('GIT-001');
 
-test('uncommitted changes are listed with their state', function () {
-    ($this->write)('kept.txt', 'a');
-    ($this->write)('gone.txt', 'a');
+test('uncommitted changes are listed with their state and the lines added and removed', function () {
+    ($this->write)('kept.txt', "a\nb\n");
+    ($this->write)('gone.txt', "a\n");
+    ($this->write)('logo.png', "\x89PNG\0");
     ($this->data)(['op' => 'commit', 'message' => 'Start']);
-    ($this->write)('kept.txt', 'b');
+    ($this->write)('kept.txt', "a\nc\nd\n");
     File::delete("{$this->workspace}/gone.txt");
-    ($this->write)('new.txt', 'c');
+    ($this->write)('logo.png', "\x89PNG\0\0");
+    ($this->write)('new.txt', "one\ntwo\nthree");
 
     expect(($this->data)(['op' => 'status'])['changes'])->toEqualCanonicalizing([
-        ['path' => 'kept.txt', 'status' => 'M'],
-        ['path' => 'gone.txt', 'status' => 'D'],
-        ['path' => 'new.txt', 'status' => '?'],
+        ['path' => 'kept.txt', 'status' => 'M', 'additions' => 2, 'deletions' => 1, 'binary' => false],
+        ['path' => 'gone.txt', 'status' => 'D', 'additions' => 0, 'deletions' => 1, 'binary' => false],
+        ['path' => 'logo.png', 'status' => 'M', 'additions' => null, 'deletions' => null, 'binary' => true],
+        ['path' => 'new.txt', 'status' => '?', 'additions' => 3, 'deletions' => 0, 'binary' => false],
     ]);
-})->group('GIT-002');
+})->group('GIT-002', 'GIT-006');
+
+test('only the chosen files are committed, and the rest stay uncommitted', function () {
+    ($this->write)('a.txt', 'a');
+    ($this->write)('b.txt', 'b');
+    ($this->data)(['op' => 'commit', 'message' => 'Start']);
+    ($this->write)('a.txt', 'changed');
+    File::delete("{$this->workspace}/b.txt");
+    ($this->write)('new.txt', 'new');
+
+    $status = ($this->data)(['op' => 'commit', 'message' => 'Some of it', 'paths' => ['b.txt', 'new.txt']]);
+
+    expect(array_column($status['changes'], 'path'))->toBe(['a.txt'])
+        ->and(explode("\n", ($this->git)('show', '--name-status', '--format=', 'HEAD')))->toEqualCanonicalizing(["D\tb.txt", "A\tnew.txt"])
+        ->and(($this->tool)(['op' => 'commit', 'message' => 'Nope', 'paths' => ['elsewhere.txt']]))->toBe(['ok' => false, 'error' => 'Some of those files have no changes to commit.'])
+        ->and(($this->tool)(['op' => 'commit', 'message' => 'Nope', 'paths' => []]))->toBe(['ok' => false, 'error' => 'Pick at least one file to commit.']);
+})->group('GIT-006');
+
+test('the uncommitted changes can be read as a diff for writing a commit message', function () {
+    ($this->write)('a.txt', "old\n");
+    ($this->write)('b.txt', "b\n");
+    ($this->data)(['op' => 'commit', 'message' => 'Start']);
+    ($this->write)('a.txt', "new\n");
+    ($this->write)('b.txt', "bb\n");
+    ($this->write)('new.txt', 'new');
+
+    $all = ($this->data)(['op' => 'changes_diff']);
+    $some = ($this->data)(['op' => 'changes_diff', 'paths' => ['a.txt']]);
+
+    expect($all['patch'])->toContain('+new')->toContain('+bb')
+        ->and($all['new_files'])->toBe(['new.txt'])
+        ->and($all['truncated'])->toBeFalse()
+        ->and($some['patch'])->toContain('+new')->not->toContain('+bb')
+        ->and($some['new_files'])->toBe([]);
+})->group('GIT-006');
 
 test('committing with nothing changed or no message is refused', function () {
     ($this->write)('index.html', 'hi');
@@ -134,22 +171,22 @@ test('what the platform pushed and pulled is tracked, and pulls only fast-forwar
     expect(($this->data)(['op' => 'pushed', 'branch' => 'main', 'sha' => $start])['tracking'])->toBe(['ahead' => 1, 'behind' => 0]);
 
     // The remote gains a commit on top of what we have: a fast-forward.
-    $remote = sys_get_temp_dir().'/zap-git-remote-'.uniqid();
+    $remote = sys_get_temp_dir().'/onedrop-git-remote-'.uniqid();
     Process::run(['git', 'clone', '-q', $this->workspace, $remote])->throw();
-    Process::path($remote)->run('echo c > c.txt && git add c.txt && git -c user.name=Me -c user.email=me@example.com commit -q -m "From the remote" && git bundle create -q /tmp/zap-test-pull.bundle main')->throw();
+    Process::path($remote)->run('echo c > c.txt && git add c.txt && git -c user.name=Me -c user.email=me@example.com commit -q -m "From the remote" && git bundle create -q /tmp/onedrop-test-pull.bundle main')->throw();
 
-    $status = ($this->data)(['op' => 'pulled', 'branch' => 'main', 'bundle' => '/tmp/zap-test-pull.bundle']);
+    $status = ($this->data)(['op' => 'pulled', 'branch' => 'main', 'bundle' => '/tmp/onedrop-test-pull.bundle']);
 
     expect(File::get("{$this->workspace}/c.txt"))->toBe("c\n")
         ->and($status['tracking'])->toBe(['ahead' => 0, 'behind' => 0])
-        ->and(File::exists('/tmp/zap-test-pull.bundle'))->toBeFalse();
+        ->and(File::exists('/tmp/onedrop-test-pull.bundle'))->toBeFalse();
 
     // Both sides move on: refused, for the agent to merge.
     ($this->write)('a.txt', 'local again');
     ($this->data)(['op' => 'commit', 'message' => 'Local again']);
-    Process::path($remote)->run('echo d > d.txt && git add d.txt && git -c user.name=Me -c user.email=me@example.com commit -q -m "Remote again" && git bundle create -q /tmp/zap-test-pull.bundle main')->throw();
+    Process::path($remote)->run('echo d > d.txt && git add d.txt && git -c user.name=Me -c user.email=me@example.com commit -q -m "Remote again" && git bundle create -q /tmp/onedrop-test-pull.bundle main')->throw();
 
-    expect(($this->tool)(['op' => 'pulled', 'branch' => 'main', 'bundle' => '/tmp/zap-test-pull.bundle'])['error'])
+    expect(($this->tool)(['op' => 'pulled', 'branch' => 'main', 'bundle' => '/tmp/onedrop-test-pull.bundle'])['error'])
         ->toBe('This branch and the remote both have new commits. Ask the agent to merge them.');
 
     File::deleteDirectory($remote);
@@ -188,11 +225,11 @@ test('a commit shows its full message, author, parents and changed files, and ea
 })->group('GIT-001');
 
 test('pulling into a project with no repository yet brings the repository in on its branch', function () {
-    $remote = sys_get_temp_dir().'/zap-git-import-'.uniqid();
+    $remote = sys_get_temp_dir().'/onedrop-git-import-'.uniqid();
     File::ensureDirectoryExists($remote);
-    Process::path($remote)->run('git init -q -b trunk && echo hi > README.md && git add . && git -c user.name=Me -c user.email=me@example.com commit -q -m "Imported" && git bundle create -q /tmp/zap-test-import.bundle trunk')->throw();
+    Process::path($remote)->run('git init -q -b trunk && echo hi > README.md && git add . && git -c user.name=Me -c user.email=me@example.com commit -q -m "Imported" && git bundle create -q /tmp/onedrop-test-import.bundle trunk')->throw();
 
-    $status = ($this->data)(['op' => 'pulled', 'branch' => 'trunk', 'bundle' => '/tmp/zap-test-import.bundle']);
+    $status = ($this->data)(['op' => 'pulled', 'branch' => 'trunk', 'bundle' => '/tmp/onedrop-test-import.bundle']);
 
     expect($status)->toMatchArray(['initialized' => true, 'branch' => 'trunk', 'changes' => [], 'tracking' => ['ahead' => 0, 'behind' => 0]])
         ->and(File::get("{$this->workspace}/README.md"))->toBe("hi\n")
@@ -219,3 +256,155 @@ test('the history is searched by message, author or id across every commit, a pa
         ->and($subjects(['limit' => 2, 'offset' => 2]))->toBe(['Make the button blue', 'Build a timer'])
         ->and(($this->data)(['op' => 'log', 'limit' => 2, 'offset' => 2])['more'])->toBeFalse();
 })->group('GIT-001');
+
+test('one uncommitted change can be read as a diff: edits, new files, binary files and new folders', function () {
+    ($this->write)('a.txt', "old\nsame\n");
+    ($this->write)('logo.png', "\x89PNG\0");
+    ($this->data)(['op' => 'commit', 'message' => 'Start']);
+    ($this->write)('a.txt', "new\nsame\n");
+    ($this->write)('logo.png', "\x89PNG\0\0");
+    ($this->write)('new.txt', "one\ntwo");
+    File::ensureDirectoryExists("{$this->workspace}/docs");
+    ($this->write)('docs/one.md', 'one');
+    ($this->write)('docs/two.md', 'two');
+
+    $edited = ($this->data)(['op' => 'change_diff', 'path' => 'a.txt']);
+    $new = ($this->data)(['op' => 'change_diff', 'path' => 'new.txt']);
+
+    expect($edited['patch'])->toContain("-old\n+new\n same")
+        ->and($new['patch'])->toBe("diff --git a/new.txt b/new.txt\nnew file mode 100644\n--- /dev/null\n+++ b/new.txt\n@@ -0,0 +1,2 @@\n+one\n+two\n\\ No newline at end of file\n")
+        ->and($new['hash'])->toBe(sha1($new['patch']))
+        ->and(($this->data)(['op' => 'change_diff', 'path' => 'logo.png']))->toMatchArray(['binary' => true, 'patch' => ''])
+        ->and(($this->data)(['op' => 'change_diff', 'path' => 'docs/'])['files'])->toEqualCanonicalizing(['docs/one.md', 'docs/two.md'])
+        ->and(($this->tool)(['op' => 'change_diff', 'path' => 'unchanged.txt']))->toBe(['ok' => false, 'error' => 'That file has no uncommitted changes.'])
+        ->and(($this->tool)(['op' => 'change_diff', 'path' => '../etc/passwd']))->toBe(['ok' => false, 'error' => "That isn't a file in this project."]);
+})->group('GIT-006');
+
+test('a branch is compared with its base: the commits it adds and their diff', function () {
+    ($this->write)('a.txt', "one\n");
+    ($this->data)(['op' => 'commit', 'message' => 'Start']);
+    ($this->data)(['op' => 'switch', 'branch' => 'pricing', 'create' => true]);
+    ($this->write)('a.txt', "two\n");
+    ($this->data)(['op' => 'commit', 'message' => 'Add pricing']);
+    ($this->write)('b.txt', "plans\n");
+    ($this->data)(['op' => 'commit', 'message' => 'Add plans']);
+
+    $compared = ($this->data)(['op' => 'compare', 'base' => 'main']);
+
+    expect(array_column($compared['commits'], 'subject'))->toBe(['Add plans', 'Add pricing'])
+        ->and($compared['patch'])->toContain('+two')->toContain('+plans')
+        ->and($compared['more'])->toBeFalse()
+        ->and(($this->tool)(['op' => 'compare', 'base' => 'nowhere']))->toBe(['ok' => false, 'error' => "That base branch isn't in this project."]);
+})->group('GIT-007');
+
+test('the commits no remote has yet are counted and combined into one, keeping the files', function () {
+    ($this->write)('a.txt', "one\n");
+    ($this->data)(['op' => 'commit', 'message' => 'Start']);
+
+    expect(($this->data)(['op' => 'status'])['unpushed'])->toBeNull()
+        ->and(($this->tool)(['op' => 'combine_preview'])['error'])->toBe('Push the branch once first; then commits made after that can be combined.');
+
+    $pushed = ($this->git)('rev-parse', 'HEAD');
+    ($this->data)(['op' => 'pushed', 'branch' => 'main', 'sha' => $pushed]);
+    ($this->write)('a.txt', "two\n");
+    ($this->data)(['op' => 'commit', 'message' => 'Make it two']);
+
+    expect(($this->tool)(['op' => 'combine_preview'])['error'])->toBe("There's only one commit to push, so there's nothing to combine.");
+
+    ($this->write)('b.txt', "bee\n");
+    ($this->data)(['op' => 'commit', 'message' => 'Add a bee']);
+    $preview = ($this->data)(['op' => 'combine_preview']);
+
+    expect(($this->data)(['op' => 'status'])['unpushed'])->toBe(2)
+        ->and(array_column($preview['commits'], 'subject'))->toBe(['Add a bee', 'Make it two'])
+        ->and($preview['patch'])->toContain('+two')->toContain('+bee');
+
+    ($this->write)('c.txt', 'uncommitted');
+    expect(($this->tool)(['op' => 'combine', 'message' => 'Both']))->toBe(['ok' => false, 'error' => 'Commit or discard your changes first.']);
+    File::delete("{$this->workspace}/c.txt");
+
+    $status = ($this->data)(['op' => 'combine', 'message' => 'Two and a bee', 'name' => 'Dev User', 'email' => 'dev@example.com']);
+
+    expect($status['unpushed'])->toBe(1)
+        ->and(($this->git)('log', '--format=%s|%an', "{$pushed}..HEAD"))->toBe('Two and a bee|Dev User')
+        ->and(($this->git)('rev-parse', 'HEAD^'))->toBe($pushed)
+        ->and(File::get("{$this->workspace}/a.txt"))->toBe("two\n")
+        ->and(File::get("{$this->workspace}/b.txt"))->toBe("bee\n");
+})->group('GIT-008');
+
+/**
+ * A 20-line file committed, then edited near the top (line 2) and the bottom (line 19): two hunks.
+ */
+function twoHunks(object $test): array
+{
+    $lines = array_map(fn (int $n) => "line {$n}", range(1, 20));
+    ($test->write)('a.txt', implode("\n", $lines)."\n");
+    ($test->data)(['op' => 'commit', 'message' => 'Start']);
+    $lines[1] = 'line 2 changed';
+    $lines[18] = 'line 19 changed';
+    ($test->write)('a.txt', implode("\n", $lines)."\n");
+
+    return ($test->data)(['op' => 'change_diff', 'path' => 'a.txt']);
+}
+
+/**
+ * The indexes of a patch's lines that are exactly $wanted.
+ *
+ * @return list<int>
+ */
+function patchLines(string $patch, string ...$wanted): array
+{
+    return array_keys(array_filter(explode("\n", $patch), fn (string $line) => in_array($line, $wanted, true)));
+}
+
+test('parts of a file are committed, and what was left out stays uncommitted', function () {
+    $diff = twoHunks($this);
+
+    // Leave out the second hunk.
+    $status = ($this->data)(['op' => 'commit', 'message' => 'Top only', 'paths' => [], 'partials' => [
+        ['path' => 'a.txt', 'hash' => $diff['hash'], 'excluded' => patchLines($diff['patch'], '-line 19', '+line 19 changed')],
+    ]]);
+
+    expect(($this->git)('show', 'HEAD:a.txt'))->toContain('line 2 changed')->not->toContain('line 19 changed')
+        ->and(File::get("{$this->workspace}/a.txt"))->toContain('line 2 changed')->toContain('line 19 changed')
+        ->and($status['changes'])->toHaveCount(1)
+        ->and($status['changes'][0])->toMatchArray(['path' => 'a.txt', 'additions' => 1, 'deletions' => 1]);
+})->group('GIT-009');
+
+test('single lines are left out: an added line is dropped and a removed one stays', function () {
+    ($this->write)('a.txt', "keep\nold\n");
+    ($this->data)(['op' => 'commit', 'message' => 'Start']);
+    ($this->write)('a.txt', "keep\nnew one\nnew two\n");
+    ($this->write)('b.txt', "first\nsecond\n");
+    $edited = ($this->data)(['op' => 'change_diff', 'path' => 'a.txt']);
+    $new = ($this->data)(['op' => 'change_diff', 'path' => 'b.txt']);
+
+    ($this->data)(['op' => 'commit', 'message' => 'Some lines', 'partials' => [
+        ['path' => 'a.txt', 'hash' => $edited['hash'], 'excluded' => patchLines($edited['patch'], '-old', '+new two')],
+        ['path' => 'b.txt', 'hash' => $new['hash'], 'excluded' => patchLines($new['patch'], '+second')],
+    ]]);
+
+    expect(($this->git)('show', 'HEAD:a.txt'))->toBe("keep\nold\nnew one")
+        ->and(($this->git)('show', 'HEAD:b.txt'))->toBe('first');
+})->group('GIT-009');
+
+test('parts of a file that changed since it was shown are refused', function () {
+    $diff = twoHunks($this);
+    ($this->write)('a.txt', "something else\n");
+
+    expect(($this->tool)(['op' => 'commit', 'message' => 'Stale', 'partials' => [['path' => 'a.txt', 'hash' => $diff['hash'], 'excluded' => []]]]))
+        ->toBe(['ok' => false, 'error' => 'This file changed. Review it again.'])
+        ->and(($this->tool)(['op' => 'commit', 'message' => 'Nothing', 'paths' => [], 'partials' => []]))
+        ->toBe(['ok' => false, 'error' => 'Pick at least one file to commit.']);
+})->group('GIT-009');
+
+test('one hunk is discarded, putting just that part back', function () {
+    $diff = twoHunks($this);
+
+    $status = ($this->data)(['op' => 'discard_hunk', 'path' => 'a.txt', 'hash' => $diff['hash'], 'hunk' => 0]);
+
+    expect(File::get("{$this->workspace}/a.txt"))->toContain("line 2\n")->toContain('line 19 changed')
+        ->and($status['changes'][0])->toMatchArray(['additions' => 1, 'deletions' => 1])
+        ->and(($this->tool)(['op' => 'discard_hunk', 'path' => 'a.txt', 'hash' => $diff['hash'], 'hunk' => 1]))
+        ->toBe(['ok' => false, 'error' => 'This file changed. Review it again.']);
+})->group('GIT-009');

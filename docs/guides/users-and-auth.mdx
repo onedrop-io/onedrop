@@ -44,7 +44,7 @@ Each user's **⋯** menu has:
 | **Turn account off** / **on** | They can't sign in, and anyone already signed in as them is signed out. Shows **Turned off**. Reversible, and their data is kept.                                                          |
 | **Delete user**               | Removes the account after you confirm. If other data in the app belongs to the user and the app doesn't allow removing it, the panel explains and nothing is deleted.                      |
 
-The app enforces turned-off accounts and required password changes on every request, so they apply to people who are already signed in. Adding users, setting passwords and signing people out go through a small helper in the app (`.zap/users`), which uses the app's own sign-in library so passwords are stored the way sign-in expects.
+The app enforces turned-off accounts and required password changes on every request, so they apply to people who are already signed in. Adding users, setting passwords and signing people out go through a small helper in the app (`.onedrop/users`), which uses the app's own sign-in library so passwords are stored the way sign-in expects.
 
 <Note>
     The agent adds these controls when it sets up sign-in. If your app's sign-in
@@ -62,19 +62,19 @@ Flip a method's switch and click **Update with agent**. The agent changes the ap
 
 ### Sign in with OneDrop
 
-Turn on **OneDrop accounts** to let people sign in to the app with the account they already use for Zap. There are no keys to create: Zap sets up the app's keys itself when you click **Update with agent**, and the agent adds a **Sign in with OneDrop** button.
+Turn on **OneDrop accounts** to let people sign in to the app with the account they already use for OneDrop. There are no keys to create: OneDrop sets up the app's keys itself when you click **Update with agent**, and the agent adds a **Sign in with OneDrop** button.
 
 Once it's on, choose **Who can sign in**:
 
 - **Everyone with a OneDrop account**
 - **Only members of these groups**: pick one or more [groups](/guides/groups-and-users). You can always sign in to your own app.
 
-Someone who isn't signed in to Zap signs in first, then lands back in the app. Someone outside the chosen groups sees an explanation and isn't signed in. Turning the method off stops sign-ins through OneDrop right away.
+Someone who isn't signed in to OneDrop signs in first, then lands back in the app. Someone outside the chosen groups sees an explanation and isn't signed in. Turning the method off stops sign-ins through OneDrop right away.
 
 <Note>
-    People sign in on Zap's own address, so they must be able to reach it.
-    That's fine when Zap runs on a server or your tailnet. A public app can't
-    use it while Zap runs on a laptop that visitors can't reach.
+    People sign in on OneDrop's own address, so they must be able to reach it.
+    That's fine when OneDrop runs on a server or your tailnet. A public app can't
+    use it while OneDrop runs on a laptop that visitors can't reach.
 </Note>
 
 Under the hood this is standard OAuth 2.0 (authorization code with PKCE, plus a user-info endpoint returning `sub`, `name`, `email`, `email_verified` and `groups`), so it works with any stack's auth library.
@@ -103,4 +103,4 @@ Sign-in with a provider needs an OAuth app at that provider. A provider that's o
 
 ## How it works
 
-The agent follows a built-in guide (`/opt/zap/guides/auth.md` in the sandbox) so sign-in is built the same way in every project. When it's done, it describes the setup in `.zap/auth.json` and adds the `.zap/users` helper: the library, the sign-in methods, the env file, and the users table and its columns. The panel reads that file and the users table through the sandbox, the same way the [Database](/guides/workspace#database) browser does.
+The agent follows a built-in guide (`/opt/onedrop/guides/auth.md` in the sandbox) so sign-in is built the same way in every project. When it's done, it describes the setup in `.onedrop/auth.json` and adds the `.onedrop/users` helper: the library, the sign-in methods, the env file, and the users table and its columns. The panel reads that file and the users table through the sandbox, the same way the [Database](/guides/workspace#database) browser does.

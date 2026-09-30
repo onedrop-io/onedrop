@@ -14,7 +14,7 @@ use App\Sandbox\ProjectIcons;
 use Illuminate\Support\Str;
 
 /**
- * Turns a coding agent's JSON events (plus the forwarder's zap.* events) into chat messages.
+ * Turns a coding agent's JSON events (plus the forwarder's onedrop.* events) into chat messages.
  * Unknown events are ignored so agent upgrades degrade gracefully.
  */
 abstract class AgentEvents

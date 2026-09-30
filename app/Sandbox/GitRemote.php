@@ -18,7 +18,7 @@ use Illuminate\Support\Str;
 class GitRemote
 {
     /** Where fetched commits are copied into the sandbox. */
-    protected const PULL_DIRECTORY = '/tmp/zap-pull';
+    protected const PULL_DIRECTORY = '/tmp/onedrop-pull';
 
     public function __construct(
         protected SandboxProvider $provider,
@@ -26,6 +26,14 @@ class GitRemote
         protected WorkspaceGit $git,
         protected GitHubApp $github,
     ) {}
+
+    /**
+     * The "owner/name" of a GitHub repository URL, or null when it isn't one.
+     */
+    public static function gitHubRepository(string $url): ?string
+    {
+        return preg_match('#^https://github\.com/([A-Za-z0-9-]+/[A-Za-z0-9._-]+?)(?:\.git)?/?$#i', $url, $match) ? $match[1] : null;
+    }
 
     /**
      * Why a remote URL can't be used, or null when it can: HTTPS only, no credentials in it, and (unless

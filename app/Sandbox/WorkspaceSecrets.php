@@ -10,7 +10,7 @@ use App\Models\Sandbox;
  */
 class WorkspaceSecrets
 {
-    public const SCRIPT = '/opt/zap/secrets.php';
+    public const SCRIPT = '/opt/onedrop/secrets.php';
 
     public function __construct(protected SandboxProvider $provider) {}
 
@@ -58,7 +58,7 @@ class WorkspaceSecrets
 
         $names = $this->namesFrom($this->call($sandbox, $request));
 
-        $this->provider->exec($sandbox->external_id, ['/opt/zap/restart']);
+        $this->provider->exec($sandbox->external_id, ['/opt/onedrop/restart']);
 
         return $names;
     }
@@ -72,7 +72,7 @@ class WorkspaceSecrets
     {
         $names = $this->namesFrom($this->call($sandbox, ['op' => 'delete', 'name' => $name]));
 
-        $this->provider->exec($sandbox->external_id, ['/opt/zap/restart']);
+        $this->provider->exec($sandbox->external_id, ['/opt/onedrop/restart']);
 
         return $names;
     }

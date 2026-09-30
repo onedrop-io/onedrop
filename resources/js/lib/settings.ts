@@ -4,6 +4,7 @@ const SETTINGS_PAGE_PREFIXES = [
     'groups/',
     'invitations/',
     'users/',
+    'admin/',
 ];
 
 const RETURN_URL_KEY = 'settings.returnTo';

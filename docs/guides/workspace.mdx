@@ -33,11 +33,11 @@ Add Console or Shell from the **+** button. Drag the tabs you can close to put t
 | `micro <file>`           | Edit a file (**Ctrl-S** saves, **Ctrl-Q** quits)                         |
 | `vim <file>`             | Edit a file in vim                                                       |
 | **Ctrl-R**               | Search your command history                                              |
-| `/opt/zap/restart`       | Restart the preview                                                      |
+| `/opt/onedrop/restart`       | Restart the preview                                                      |
 
 ## When the app hits an error
 
-The agent sees your app's errors, whatever it's built with. The sandbox records three kinds in `/workspace/.zap/errors.log`:
+The agent sees your app's errors, whatever it's built with. The sandbox records three kinds in `/workspace/.onedrop/errors.log`:
 
 - **Server errors:** any 5xx response, with the error page's text and the end of the dev server's output.
 - **Browser errors in the preview:** uncaught exceptions, unhandled promise rejections, `console.error` calls, and scripts or stylesheets that fail to load.
@@ -69,13 +69,13 @@ Publishing shows the project's current status and URL. Monitoring, Growth and Da
 
 Choose **Published only** to leave out your own preview traffic. Hover a chart for exact values, or open **Show data table** under it.
 
-Numbers are collected inside the sandbox: its proxy logs each request and samples CPU and memory once a minute, into `/workspace/.zap/access.log` and `metrics.log`. Requests for development-server internals (hot reload, module loading) aren't counted. The data survives sandbox recreation.
+Numbers are collected inside the sandbox: its proxy logs each request and samples CPU and memory once a minute, into `/workspace/.onedrop/access.log` and `metrics.log`. Requests for development-server internals (hot reload, module loading) aren't counted. The data survives sandbox recreation.
 
 ## Growth
 
 **Tools → Growth** helps you get your app found and shows who visits it.
 
-**SEO rating.** Click **Run scan with agent** and the agent checks what search engines and link previews see: page titles, descriptions, headings, Open Graph tags, `robots.txt`, the sitemap, image alt text, canonical URLs and more. It rates the app from 0 to 100 and lists each check as passed, needs work, or failed. To have it fix the problems too, open the arrow next to the button and choose **Scan and fix issues**. Either way, the request shows up in the chat; if the agent is busy, it runs next. The agent saves the result in `/workspace/.zap/seo.json`.
+**SEO rating.** Click **Run scan with agent** and the agent checks what search engines and link previews see: page titles, descriptions, headings, Open Graph tags, `robots.txt`, the sitemap, image alt text, canonical URLs and more. It rates the app from 0 to 100 and lists each check as passed, needs work, or failed. To have it fix the problems too, open the arrow next to the button and choose **Scan and fix issues**. Either way, the request shows up in the chat; if the agent is busy, it runs next. The agent saves the result in `/workspace/.onedrop/seo.json`.
 
 **Analytics.** Choose a time range (past day, week, or 30 days), and **Published only** to leave out your own preview traffic.
 
@@ -92,7 +92,7 @@ Numbers are collected inside the sandbox: its proxy logs each request and sample
     front of the published app. Without one, the Countries list stays empty.
 </Note>
 
-The numbers come from the same request log as Monitoring (`/workspace/.zap/access.log`), so there's nothing extra to install and nothing leaves the sandbox. Requests logged before Growth existed count as visitors, but they have no page, browser or referrer.
+The numbers come from the same request log as Monitoring (`/workspace/.onedrop/access.log`), so there's nothing extra to install and nothing leaves the sandbox. Requests logged before Growth existed count as visitors, but they have no page, browser or referrer.
 
 **Custom events.** Page views don't tell you whether people actually sign up, create things or finish a flow. Click **Set up with agent** and the agent finds your app's key moments and records an event for each, like `signed_up` or `project_created`. The request shows up in the chat as "Add custom analytics events to my project"; if the agent is busy, it runs next. The agent uses the model you picked for the project.
 
@@ -104,7 +104,7 @@ Once events are set up, Growth lists each one with its description, how many tim
     typed, or IDs of people.
 </Note>
 
-How it works: the app sends each event to its own address (`POST /__zap/event`). The sandbox's proxy records it in `/workspace/.zap/events.log` and doesn't pass it on to the app. Invalid or oversized events are dropped, and a failed event never breaks the app. The agent describes the events in `/workspace/.zap/analytics.json`, following the platform's analytics guide, so every app tracks events the same way.
+How it works: the app sends each event to its own address (`POST /__onedrop/event`). The sandbox's proxy records it in `/workspace/.onedrop/events.log` and doesn't pass it on to the app. Invalid or oversized events are dropped, and a failed event never breaks the app. The agent describes the events in `/workspace/.onedrop/analytics.json`, following the platform's analytics guide, so every app tracks events the same way.
 
 ## Database
 
@@ -141,7 +141,7 @@ Views can't be edited. Nor can existing rows of a table without a primary key; c
 
 ## Files
 
-The files panel on the right shows the project's folder tree, with a colored icon for each file type. Click a file to open it next to the preview. Files added, removed or renamed show up in the tree within a few seconds, whether the agent, the Shell or your running app made them, and any open file refreshes as the agent works.
+The files panel on the right shows the project's folder tree, with a colored icon for each file type. Click a file to open it next to the preview. Files added, removed or renamed show up in the tree right away, whether the agent, the Shell or your running app made them, and any open file refreshes as the agent works.
 
 - Folders like `node_modules`, `vendor`, and `.git` are listed but not expanded
 - Binary files and files over 200 KB show a notice instead of their contents

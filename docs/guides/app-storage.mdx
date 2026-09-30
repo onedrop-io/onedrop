@@ -49,12 +49,12 @@ With Docker sandboxes, on a laptop or a server, `/data/storage` is a folder on t
 ```php config/filesystems.php
 'photos' => [
     'driver' => 'local',
-    'root' => rtrim(env('APP_STORAGE_DIR', storage_path('app/zap-storage')), '/').'/photos',
+    'root' => rtrim(env('APP_STORAGE_DIR', storage_path('app/onedrop-storage')), '/').'/photos',
     'throw' => true,
 ],
 ```
 
-The agent follows a guide (`/opt/zap/guides/storage.md` in the sandbox): it validates uploads on the server, names objects itself instead of trusting uploaded file names, stores object keys in the database, and serves files through app routes that check who can see them.
+The agent follows a guide (`/opt/onedrop/guides/storage.md` in the sandbox): it validates uploads on the server, names objects itself instead of trusting uploaded file names, stores object keys in the database, and serves files through app routes that check who can see them.
 
 <Note>
     Sandboxes created before App Storage existed need the new sandbox image.

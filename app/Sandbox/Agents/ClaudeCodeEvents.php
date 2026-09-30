@@ -30,11 +30,11 @@ class ClaudeCodeEvents extends AgentEvents
         $this->rememberSession($conversation, $event['session_id'] ?? null);
 
         match ($event['type'] ?? null) {
-            'zap.start' => $conversation->update(['status' => ProjectStatus::Working]),
+            'onedrop.start' => $conversation->update(['status' => ProjectStatus::Working]),
             'assistant' => $this->assistant($conversation, is_array($event['message'] ?? null) ? $event['message'] : []),
             'system' => ($event['subtype'] ?? null) === 'api_retry' ? $this->say($conversation, MessageRole::Activity, 'Claude is busy, retrying') : null,
             'result' => $this->result($conversation, $event),
-            'zap.exit' => $this->finish($conversation, (int) ($event['code'] ?? 0), (string) ($event['stderr'] ?? ''), (bool) ($event['reported'] ?? false)),
+            'onedrop.exit' => $this->finish($conversation, (int) ($event['code'] ?? 0), (string) ($event['stderr'] ?? ''), (bool) ($event['reported'] ?? false)),
             default => null,
         };
     }

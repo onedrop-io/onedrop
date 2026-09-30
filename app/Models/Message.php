@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Concerns\BroadcastsProjectChanges;
 use App\Enums\MessageRole;
 use App\Sandbox\Agents\Conversation;
 use Database\Factories\MessageFactory;
@@ -25,6 +26,8 @@ use Illuminate\Support\Carbon;
 #[Fillable(['role', 'content', 'queued'])]
 class Message extends Model
 {
+    use BroadcastsProjectChanges;
+
     /** @use HasFactory<MessageFactory> */
     use HasFactory;
 

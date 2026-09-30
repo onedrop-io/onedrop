@@ -36,7 +36,7 @@ class CreateSandbox implements ShouldQueue
         $connection = $this->project->user->agentConnections()->firstWhere('is_default', true);
 
         $spec = new SandboxSpec(
-            name: "zap-project-{$this->project->id}-".($this->task ? "task-{$this->task->id}-" : '').strtolower(str()->random(6)),
+            name: "onedrop-project-{$this->project->id}-".($this->task ? "task-{$this->task->id}-" : '').strtolower(str()->random(6)),
             env: [
                 'APP_PROJECT_NAME' => $this->project->name,
                 // Where the file watcher reports added, removed or renamed files (FILE-004).

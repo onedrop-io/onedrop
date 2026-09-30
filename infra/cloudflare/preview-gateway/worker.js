@@ -2,7 +2,7 @@
 // published to the domain at <name>-<project id>.<domain> (PUB-002), in front of whichever provider runs the
 // sandbox (Blaxel, Runtime). It does what Caddy does on a server (GW-001):
 //
-//   /__zap/enter  → the app trades its short-lived hand-off token for this address's own cookie.
+//   /__onedrop/enter  → the app trades its short-lived hand-off token for this address's own cookie.
 //   anything else → the app checks that cookie (who may see the project), answers with the provider's address
 //                   and private preview token, and the Worker forwards the request there with the token in a
 //                   header, so the browser only ever deals with onedrop.io addresses and cookies. A public app
@@ -14,7 +14,7 @@ const GATEWAY_HOST = /^(preview|shell)-\d+\./;
 
 /** A project published to the domain. Names like this that the app doesn't know go on to their own origin. */
 const APP_HOST = /^[a-z0-9-]+-\d+\./;
-const COOKIE = 'zap_gateway';
+const COOKIE = 'onedrop_gateway';
 
 /** How long an authorization answer is reused for the same cookie on the same address. */
 const AUTH_CACHE_SECONDS = 60;
@@ -38,9 +38,9 @@ export default {
             return fetch(request);
         }
 
-        if (url.pathname === '/__zap/enter') {
+        if (url.pathname === '/__onedrop/enter') {
             return withoutFrameBlock(
-                await askApp(env, '/__zap/enter' + url.search, url.hostname),
+                await askApp(env, '/__onedrop/enter' + url.search, url.hostname),
             );
         }
 
@@ -56,9 +56,9 @@ export default {
         }
 
         return forward(request, url, {
-            upstream: auth.headers.get('X-Zap-Upstream'),
-            header: auth.headers.get('X-Zap-Upstream-Header'),
-            token: auth.headers.get('X-Zap-Upstream-Token'),
+            upstream: auth.headers.get('X-OneDrop-Upstream'),
+            header: auth.headers.get('X-OneDrop-Upstream-Header'),
+            token: auth.headers.get('X-OneDrop-Upstream-Token'),
         });
     },
 };
@@ -69,8 +69,8 @@ export default {
 function askApp(env, path, host, cookie = '') {
     return fetch(new URL(path, env.APP_URL), {
         headers: {
-            'X-Zap-Gateway-Secret': env.GATEWAY_SECRET,
-            'X-Zap-Gateway-Host': host,
+            'X-OneDrop-Gateway-Secret': env.GATEWAY_SECRET,
+            'X-OneDrop-Gateway-Host': host,
             Accept: 'text/html',
             ...(cookie ? { Cookie: `${COOKIE}=${cookie}` } : {}),
         },

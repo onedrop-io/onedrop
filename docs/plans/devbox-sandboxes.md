@@ -9,7 +9,7 @@ becomes the E2B template.
 - **One image, three providers.** `docker/sandbox/Dockerfile` stays the only definition. Docker runs it; E2B
   builds its template `fromImage()` from the same image pushed to a registry; Daytona (later) snapshots it.
   Nothing provider-specific goes in the image.
-- **Platform and project are separate.** The platform's tools live under `/opt/zap` with their own PHP and Node
+- **Platform and project are separate.** The platform's tools live under `/opt/onedrop` with their own PHP and Node
   and are called by absolute path. The project's stack lives in `/workspace/devbox.json`. A project that drops
   PHP, or pins Node 18, can't break the Tools panels, the forwarder, or the agent.
 - **Slim base, pre-warmed default stack.** The image ships the platform plus a pre-filled `/nix/store` for the
@@ -22,7 +22,7 @@ becomes the E2B template.
 
 | Where                             | What                                                                                                                                                                                                                       |
 | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Base image, platform              | Debian slim, single-user Nix, Devbox, `/opt/zap/bin/{php,node}` (PHP with pdo_sqlite/pdo_pgsql/pdo_mysql, Node 22), ttyd, openssh, git, sqlite, OpenCode (pinned), starship, eza, fzf, bash-completion, `/opt/zap` scripts |
+| Base image, platform              | Debian slim, single-user Nix, Devbox, `/opt/onedrop/bin/{php,node}` (PHP with pdo_sqlite/pdo_pgsql/pdo_mysql, Node 22), ttyd, openssh, git, sqlite, OpenCode (pinned), starship, eza, fzf, bash-completion, `/opt/onedrop` scripts |
 | Base image, pre-warmed store only | Default stack: php84 + composer, nodejs_22, postgresql, python3 (~683 MiB closure together, measured)                                                                                                                      |
 | Project `devbox.json`             | The project's language(s), libraries and services (Postgres/Redis via `devbox services`); Claude Code / Codex CLIs if wanted                                                                                               |
 
@@ -42,7 +42,7 @@ cache and the Claude Code/Codex CLIs leave the base, and platform PHP/Node share
 
 Do this first; it's independent of Nix and de-risks the rest.
 
-- Add `/opt/zap/bin/php` and `/opt/zap/bin/node` (symlinks to today's binaries for now).
+- Add `/opt/onedrop/bin/php` and `/opt/onedrop/bin/node` (symlinks to today's binaries for now).
 - Call them by path instead of bare `php`/`node`: `WorkspaceDatabase`, `WorkspaceSecrets`, `WorkspaceStorage`,
   `WorkspaceAuth`, `WorkspaceFlags`, `SandboxInspector`, `OpenCodeRunner` (forwarder), `start.sh` (host-proxy,
   placeholder server). One constant (e.g. `SandboxSpec::PLATFORM_PHP`), not seven strings.
@@ -51,8 +51,8 @@ Do this first; it's independent of Nix and de-risks the rest.
 ### Phase 2: Nix + Devbox image
 
 - `FROM debian:bookworm-slim`; create `sandbox` user; install single-user Nix and Devbox (`DEVBOX_USE_VERSION` pinned).
-- Platform packages as a Devbox project at `/opt/zap/platform/devbox.json` (+ lock), root-owned so `devbox add` in
-  the workspace can't change it. `/opt/zap/bin/*` point into its profile. Shell tab extras move here and the three
+- Platform packages as a Devbox project at `/opt/onedrop/platform/devbox.json` (+ lock), root-owned so `devbox add` in
+  the workspace can't change it. `/opt/onedrop/bin/*` point into its profile. Shell tab extras move here and the three
   `curl` downloads are deleted (`bashrc` already detects each tool).
 - OpenCode stays an `npm install -g` pin run with the platform Node (nixpkgs lags its releases; `OpenCodeEvents`
   depends on the exact version). Add `npm cache clean --force`.
@@ -63,10 +63,10 @@ Do this first; it's independent of Nix and de-risks the rest.
 
 - On create, seed `/workspace/devbox.json` + `devbox.lock` from `docker/sandbox/stack/` if the workspace has none.
 - `start.sh`: `devbox install` (fast when pre-warmed), `devbox services up -b` if the project declares services,
-  then run `.zap/dev` inside `devbox run` so the dev server sees the project's stack. `/opt/zap/restart` unchanged.
+  then run `.onedrop/dev` inside `devbox run` so the dev server sees the project's stack. `/opt/onedrop/restart` unchanged.
 - `bashrc`: activate the project env (`eval "$(devbox shellenv)"` in `/workspace`), platform tools after it on `PATH`.
 - Agent: `instructions.md` "Stack" section says to add packages with `devbox add <pkg>@<version>` (never apt), and
-  lists the defaults. Keep `.zap/dev` as the start contract; skip the build plan's `app.yaml` until publish needs it.
+  lists the defaults. Keep `.onedrop/dev` as the start contract; skip the build plan's `app.yaml` until publish needs it.
 - Updates (`SandboxUpdater`) already recreate and copy `KEPT_PATHS`. Packages outside the pre-warmed set are
   re-downloaded from the lock on the new sandbox: acceptable; a shared host-level cache can come later if it hurts.
 - Spec: new `SBX-003: Any stack` (below). Tests: seeding, start order, restart inside the env. Integration test
@@ -78,7 +78,7 @@ Do this first; it's independent of Nix and de-risks the rest.
 M0 (build plan) first: start this template on E2B with Laravel + Postgres, pause, resume, and measure resume-to-first-response.
 
 - **Template:** CI builds the image and pushes it to GHCR/ECR; the template is `fromImage()` (the Dockerfile-parsing
-  path doesn't support multi-stage builds), `setUser('sandbox')`, `setStartCmd('/opt/zap/start.sh', waitForPort(7681))`.
+  path doesn't support multi-stage builds), `setUser('sandbox')`, `setStartCmd('/opt/onedrop/start.sh', waitForPort(7681))`.
   The start command runs once at build time and its processes are snapshotted, so sandboxes boot with ttyd/sshd/proxy
   already running.
 - **Env caveat:** create-time `envVars` reach commands we run, not the snapshotted start processes. Agent runs

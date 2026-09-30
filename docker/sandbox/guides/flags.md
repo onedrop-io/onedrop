@@ -1,10 +1,10 @@
 # Feature flags
 
 Follow this when the user asks you to put a feature behind a flag, or to remove a flag. The app builder's
-Tools → Feature Flags panel lists the flags in `/workspace/.zap/flags.json` and switches them on and off by
+Tools → Feature Flags panel lists the flags in `/workspace/.onedrop/flags.json` and switches them on and off by
 editing that file, so stick to the contract below.
 
-## /workspace/.zap/flags.json
+## /workspace/.onedrop/flags.json
 
 ```json
 {
@@ -28,7 +28,7 @@ editing that file, so stick to the contract below.
 
 ## How the app checks a flag
 
-Every app checks flags the same way: through one small helper that reads `.zap/flags.json`.
+Every app checks flags the same way: through one small helper that reads `.onedrop/flags.json`.
 
 - Read the file each time a request checks flags (once per request is fine), never cache it across
   requests, so a switch in the panel applies on the next page load without a restart.
@@ -39,10 +39,10 @@ Every app checks flags the same way: through one small helper that reads `.zap/f
 By stack:
 
 - **Laravel**: add `app/Support/Features.php` with `Features::enabled(string $key): bool` reading
-  `base_path('.zap/flags.json')`. Use it in PHP code and Blade. For Inertia, share the flags as an
+  `base_path('.onedrop/flags.json')`. Use it in PHP code and Blade. For Inertia, share the flags as an
   `enabledFeatures` prop (a list of the keys that are on) in `HandleInertiaRequests`, and check them in React
   with a small `useFeature('key')` hook. Gate routes and actions on the server too, not only in the UI.
-- **Front-end-only apps (Vite)**: add `src/features.ts` that imports `../.zap/flags.json` and exports
+- **Front-end-only apps (Vite)**: add `src/features.ts` that imports `../.onedrop/flags.json` and exports
   `isEnabled(key)`. Vite reloads the page when the file changes.
 - **Other stacks**: the same idea, in the stack's usual place for helpers.
 

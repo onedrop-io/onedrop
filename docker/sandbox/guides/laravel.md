@@ -7,7 +7,7 @@ rewritten.
 
 ## Set it up
 
-/workspace may already hold `.zap/` (attachments), so create the app next door and copy it in:
+/workspace may already hold `.onedrop/` (attachments), so create the app next door and copy it in:
 
 ```bash
 composer create-project laravel/react-starter-kit /tmp/app --no-interaction --prefer-dist
@@ -32,13 +32,13 @@ configureEcho({
 });
 ```
 
-Write `/workspace/.zap/routes.json` so the proxy sends Reverb's WebSockets to it:
+Write `/workspace/.onedrop/routes.json` so the proxy sends Reverb's WebSockets to it:
 
 ```json
 { "/app": 8080 }
 ```
 
-Then create `/workspace/.zap/dev` (executable) and run `/opt/zap/restart`:
+Then create `/workspace/.onedrop/dev` (executable) and run `/opt/onedrop/restart`:
 
 ```bash
 #!/usr/bin/env bash
@@ -67,8 +67,8 @@ In `bootstrap/app.php`, trust the preview's proxy: `$middleware->trustProxies(at
   reload: broadcast an event (`ShouldBroadcast`, on a private channel authorized in
   `routes/channels.php` when the data isn't public) and listen with `useEcho` from
   `@laravel/echo-react`, or `useEchoPublic` for public channels.
-- Uploaded files go in App Storage (/opt/zap/guides/storage.md), not `storage/app`.
-- If people sign in to the app, follow /opt/zap/guides/auth.md so Tools → Users & Auth can manage them.
+- Uploaded files go in App Storage (/opt/onedrop/guides/storage.md), not `storage/app`.
+- If people sign in to the app, follow /opt/onedrop/guides/auth.md so Tools → Users & Auth can manage them.
   If the app is public and has no accounts, remove the sign-in and register links from its pages.
 - Write tests for what you build and run `php artisan test`.
-- After changing `.zap/dev`, `.env` or `composer.json`, run `/opt/zap/restart`.
+- After changing `.onedrop/dev`, `.env` or `composer.json`, run `/opt/onedrop/restart`.

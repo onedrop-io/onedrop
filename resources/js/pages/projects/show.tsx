@@ -5,7 +5,7 @@ import {
     setLayoutProps,
     usePage,
     usePoll,
-} from '@inertiajs/react';
+} from "@inertiajs/react";
 import {
     Ban,
     Check,
@@ -26,59 +26,66 @@ import {
     Trash2,
     Wrench,
     X,
-} from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { CSSProperties } from 'react';
-import ProjectAgentController from '@/actions/App/Http/Controllers/ProjectAgentController';
-import ProjectMessageController from '@/actions/App/Http/Controllers/ProjectMessageController';
-import TaskController from '@/actions/App/Http/Controllers/TaskController';
-import TaskMessageController from '@/actions/App/Http/Controllers/TaskMessageController';
-import AgentModelPicker from '@/components/agent-model-picker';
-import ClaudeLoginStatus from '@/components/claude-login-status';
-import HeaderActions from '@/components/header-actions';
-import Markdown from '@/components/markdown';
-import MessageAttachments from '@/components/message-attachments';
-import NotificationsPrompt from '@/components/notifications-prompt';
-import type { AttachmentPreview } from '@/components/message-attachments';
-import PromptComposer from '@/components/prompt-composer';
-import { Skeleton } from '@/components/ui/skeleton';
+} from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { CSSProperties } from "react";
+import ProjectAgentController from "@/actions/App/Http/Controllers/ProjectAgentController";
+import ProjectMessageController from "@/actions/App/Http/Controllers/ProjectMessageController";
+import TaskController from "@/actions/App/Http/Controllers/TaskController";
+import TaskMessageController from "@/actions/App/Http/Controllers/TaskMessageController";
+import AgentModelPicker from "@/components/agent-model-picker";
+import ClaudeLoginStatus from "@/components/claude-login-status";
+import HeaderActions from "@/components/header-actions";
+import Markdown from "@/components/markdown";
+import MessageAttachments from "@/components/message-attachments";
+import NotificationsPrompt from "@/components/notifications-prompt";
+import type { AttachmentPreview } from "@/components/message-attachments";
+import PromptComposer from "@/components/prompt-composer";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { TaskStatusIcon } from '@/components/task-status-icon';
-import ConsoleView, { Notice } from '@/components/workspace/console-view';
-import FileIcon from '@/components/workspace/file-icon';
-import FileTree from '@/components/workspace/file-tree';
-import FilesMenu from '@/components/workspace/files-menu';
+} from "@/components/ui/dropdown-menu";
+import { TaskStatusIcon } from "@/components/task-status-icon";
+import ConsoleView, { Notice } from "@/components/workspace/console-view";
+import FileIcon from "@/components/workspace/file-icon";
+import FileTree from "@/components/workspace/file-tree";
+import FilesMenu from "@/components/workspace/files-menu";
 import {
     fixRequest,
     PreviewErrorBar,
     usePreviewErrors,
-} from '@/components/workspace/preview-errors';
-import PublishMenu from '@/components/workspace/publish-menu';
-import ShareMenu from '@/components/workspace/share-menu';
-import ToolsPanel from '@/components/workspace/tools-panel';
-import FileViewer from '@/components/workspace/file-viewer';
-import ResizeHandle from '@/components/workspace/resize-handle';
-import { isLocalHostname, useIsRemote } from '@/hooks/use-is-remote';
-import { useResizableWidth } from '@/hooks/use-resizable-width';
+} from "@/components/workspace/preview-errors";
+import GitActionsMenu from "@/components/workspace/git-actions-menu";
+import PublishMenu from "@/components/workspace/publish-menu";
+import ShareMenu from "@/components/workspace/share-menu";
+import ToolsPanel from "@/components/workspace/tools-panel";
+import FileViewer from "@/components/workspace/file-viewer";
+import ResizeHandle from "@/components/workspace/resize-handle";
+import { isLocalHostname, useIsRemote } from "@/hooks/use-is-remote";
+import { useResizableWidth } from "@/hooks/use-resizable-width";
+import { useSandboxActivity } from "@/hooks/use-sandbox-activity";
 import {
     fetchWorkspaceFile,
     useFilesVersion,
     useWorkspaceFiles,
-} from '@/hooks/use-workspace-files';
-import { cn } from '@/lib/utils';
-import { setWorkspaceView, viewFromUrl } from '@/lib/workspace-view';
-import { board, show } from '@/routes/projects';
+} from "@/hooks/use-workspace-files";
+import { useLiveReload, useProjectChannel } from "@/lib/realtime";
+import { cn } from "@/lib/utils";
+import {
+    onOpenWorkspaceTool,
+    setWorkspaceView,
+    viewFromUrl,
+} from "@/lib/workspace-view";
+import { board, show } from "@/routes/projects";
 import {
     create as createTask,
     show as showTask,
-} from '@/routes/projects/tasks';
-import type { RouteDefinition } from '@/wayfinder';
+} from "@/routes/projects/tasks";
+import type { RouteDefinition } from "@/wayfinder";
 import type {
     AgentSelection,
     ChatMessage,
@@ -91,14 +98,14 @@ import type {
     TaskDetail,
     TaskStage,
     WorkspaceFile,
-} from '@/types';
+} from "@/types";
 
 /**
  * Where the chat on screen sends things: the project"s main chat, a task"s (TASK-001), or,
  * for a new task, the first message creates the task.
  */
 type ChatRoutes = {
-    send: RouteDefinition<'post'>;
+    send: RouteDefinition<"post">;
     stop: string | null;
     removeQueued: (messageId: number) => string;
 };
@@ -123,7 +130,7 @@ function chatRoutes(
         return {
             send: TaskController.store(project.id),
             stop: null,
-            removeQueued: () => '',
+            removeQueued: () => "",
         };
     }
 
@@ -167,17 +174,17 @@ export default function ShowProject({
     // Bumped by "Sign in to Claude": the workspace opens the Shell tab on Claude Code's sign-in.
     const [claudeSignIns, setClaudeSignIns] = useState(0);
     const working = task
-        ? task.status === 'working'
-        : !newTask && project.status === 'working';
+        ? task.status === "working"
+        : !newTask && project.status === "working";
     const routes = chatRoutes(project, task, newTask);
-    const title = task ? task.title : newTask ? 'New task' : null;
+    const title = task ? task.title : newTask ? "New task" : null;
     const busy =
         working ||
-        sandbox?.status === 'creating' ||
+        sandbox?.status === "creating" ||
         sandbox?.updating ||
         !!task?.sync_status ||
-        publication.status === 'publishing' ||
-        sharing.card_status === 'capturing';
+        publication.status === "publishing" ||
+        sharing.card_status === "capturing";
 
     const [chatWidth, setChatWidth] = useResizableWidth(
         CHAT_WIDTH_KEY,
@@ -198,42 +205,62 @@ export default function ShowProject({
                       },
                   ]
                 : newTask
-                  ? [{ title: 'New task', href: createTask(project.id) }]
+                  ? [{ title: "New task", href: createTask(project.id) }]
                   : []),
         ],
     });
+    const reloadLive = useLiveReload(LIVE_PROPS);
+    // Bumped when the tab comes back to a sandbox that had been asleep: the preview reloads (SBX-007).
+    const [wakes, setWakes] = useState(0);
+    // Keeps the sandbox awake while the workspace is open, and wakes it when the tab comes back (SBX-007). Coming
+    // back also catches up on anything missed meanwhile, without moving the chat.
+    useSandboxActivity(project.id, task?.own_copy ? task.id : null, (woke) => {
+        reloadLive();
+
+        if (woke) {
+            setWakes((count) => count + 1);
+        }
+    });
+    // Bumped when the sandbox's files come or go (FILE-004): the Files panel checks whether they're its own.
+    const [filesChanges, setFilesChanges] = useState(0);
+    // Pushed updates (LIVE-001): the chat, the agent's progress and the sandbox's status, as they change.
+    const live = useProjectChannel(project.id, {
+        ProjectUpdated: reloadLive,
+        ProjectFilesChanged: () => setFilesChanges((count) => count + 1),
+    });
     const { start, stop } = usePoll(
         1000,
-        {
-            only: [
-                'project',
-                'task',
-                'agent',
-                'sandbox',
-                'messages',
-                'queued',
-                'publication',
-                'sharing',
-            ],
-        },
+        { only: LIVE_PROPS },
         { autoStart: false },
     );
 
-    // Stream: poll for agent events and sandbox status only while something is happening.
+    // Catch up on anything missed while connecting (or reconnecting).
     useEffect(() => {
-        if (busy) {
+        if (live) {
+            reloadLive();
+        }
+    }, [live, reloadLive]);
+
+    // Without live updates, poll for agent events and sandbox status while something is happening.
+    useEffect(() => {
+        if (busy && !live) {
             start();
         } else {
             stop();
         }
 
         return stop;
-    }, [busy, start, stop]);
+    }, [busy, live, start, stop]);
 
     return (
         <>
             <Head title={title ? `${title} · ${project.name}` : project.name} />
             <HeaderActions>
+                <GitActionsMenu
+                    projectId={project.id}
+                    running={sandbox?.status === "running"}
+                    working={working}
+                />
                 <ShareMenu
                     projectId={project.id}
                     projectName={project.name}
@@ -244,7 +271,7 @@ export default function ShowProject({
 
             <div className="flex h-[calc(100svh-4rem)] min-h-0 flex-col md:h-[calc(100svh-5rem)] lg:flex-row">
                 <ChatPanel
-                    key={task?.id ?? (newTask ? 'new' : 'main')}
+                    key={task?.id ?? (newTask ? "new" : "main")}
                     project={project}
                     task={task}
                     newTask={newTask}
@@ -255,7 +282,7 @@ export default function ShowProject({
                     working={working}
                     width={chatWidth}
                     claudeSignIn={
-                        claudeSubscription && agent?.harness === 'claude_code'
+                        claudeSubscription && agent?.harness === "claude_code"
                             ? () => setClaudeSignIns((count) => count + 1)
                             : null
                     }
@@ -278,6 +305,9 @@ export default function ShowProject({
                     working={working}
                     activity={messages.length}
                     claudeSignIns={claudeSignIns}
+                    live={live}
+                    filesChanges={filesChanges}
+                    wakes={wakes}
                 />
             </div>
         </>
@@ -332,14 +362,14 @@ function ChatPanel({
         );
 
     useEffect(() => {
-        bottom.current?.scrollIntoView({ behavior: 'smooth' });
+        bottom.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages.length, queued.length, working]);
 
     return (
         <section
             aria-label="Chat"
             className="flex min-h-0 flex-1 flex-col lg:w-(--chat-width) lg:max-w-[calc(100%-20rem)] lg:flex-none"
-            style={{ '--chat-width': `${width}px` } as CSSProperties}
+            style={{ "--chat-width": `${width}px` } as CSSProperties}
         >
             {(task || newTask) && (
                 <TaskHeader projectId={project.id} task={task} />
@@ -377,9 +407,9 @@ function ChatPanel({
                         data-test="agent-working"
                     >
                         <span className="size-2 animate-pulse rounded-full bg-emerald-500" />
-                        {messages.at(-1)?.role === 'user'
-                            ? 'Thinking…'
-                            : 'Working…'}
+                        {messages.at(-1)?.role === "user"
+                            ? "Thinking…"
+                            : "Working…"}
                     </p>
                 )}
                 {working && <NotificationsPrompt />}
@@ -439,8 +469,8 @@ function ChatPanel({
                     history={messages
                         .filter(
                             (message) =>
-                                message.role === 'user' &&
-                                message.content !== '',
+                                message.role === "user" &&
+                                message.content !== "",
                         )
                         .map((message) => message.content)}
                     value={draft}
@@ -448,10 +478,10 @@ function ChatPanel({
                     autoFocus={newTask}
                     placeholder={
                         working
-                            ? 'Queue a message, or ⌘/Ctrl+Enter to send now…'
+                            ? "Queue a message, or ⌘/Ctrl+Enter to send now…"
                             : newTask
-                              ? 'Describe the task…'
-                              : 'Message the agent…'
+                              ? "Describe the task…"
+                              : "Message the agent…"
                     }
                     footer={
                         <>
@@ -460,7 +490,7 @@ function ChatPanel({
                                     selection={agent}
                                     harnessLocked={
                                         working
-                                            ? 'Stop the agent or wait for it to finish to switch agents'
+                                            ? "Stop the agent or wait for it to finish to switch agents"
                                             : null
                                     }
                                     onChange={(next) =>
@@ -507,7 +537,7 @@ function MessageItem({
     /** The agent's current step: its dot pulses green. */
     live?: boolean;
 }) {
-    if (message.role === 'user') {
+    if (message.role === "user") {
         return (
             <div
                 className="flex flex-col items-end gap-2"
@@ -517,7 +547,7 @@ function MessageItem({
                     attachments={sentAttachments(message.attachments)}
                     className="max-w-[85%] justify-end"
                 />
-                {message.content !== '' && (
+                {message.content !== "" && (
                     <p className="max-w-[85%] rounded-2xl bg-muted px-4 py-2 text-sm whitespace-pre-wrap">
                         {message.content}
                     </p>
@@ -526,7 +556,7 @@ function MessageItem({
         );
     }
 
-    if (message.role === 'activity') {
+    if (message.role === "activity") {
         return (
             <p
                 className="flex items-center gap-2 text-sm text-muted-foreground"
@@ -534,8 +564,8 @@ function MessageItem({
             >
                 <span
                     className={cn(
-                        'size-1.5 rounded-full',
-                        live ? 'animate-pulse bg-emerald-500' : 'bg-current',
+                        "size-1.5 rounded-full",
+                        live ? "animate-pulse bg-emerald-500" : "bg-current",
                     )}
                 />
                 {message.content}
@@ -561,6 +591,9 @@ function WorkspacePanel({
     working,
     activity,
     claudeSignIns,
+    live,
+    filesChanges,
+    wakes,
 }: {
     project: Project;
     /** Where the chat on screen sends messages. */
@@ -574,8 +607,14 @@ function WorkspacePanel({
     activity: number;
     /** Changes when the user asks to sign in to Claude: open the Shell tab on Claude Code's sign-in. */
     claudeSignIns: number;
+    /** Live updates are flowing (LIVE-001), so there's no need to poll. */
+    live: boolean;
+    /** Changes when a sandbox of this project saw files come or go (FILE-004). */
+    filesChanges: number;
+    /** Changes when the tab came back to the sandbox asleep: the preview reloads (SBX-007). */
+    wakes: number;
 }) {
-    const running = sandbox?.status === 'running';
+    const running = sandbox?.status === "running";
     const isRemoteBrowser = useIsRemote();
     // A 127.0.0.1 preview (laptop) can't be reached from another machine; servers use gateway URLs instead.
     const remote =
@@ -590,7 +629,7 @@ function WorkspacePanel({
         ? null
         : !remote
           ? sandbox.preview_url
-          : publication.status === 'live'
+          : publication.status === "live"
             ? publication.url
             : null;
     const [reloadKey, setReloadKey] = useState(0);
@@ -604,22 +643,22 @@ function WorkspacePanel({
     const [initialView] = useState(() => viewFromUrl(pageUrl));
     const [tool, setTool] = useState<string | null>(initialView.tool);
     const [tab, setTab] = useState<ActiveTab>(() => {
-        const asked = initialView.tab ?? (initialView.tool ? 'tools' : null);
+        const asked = initialView.tab ?? (initialView.tool ? "tools" : null);
 
-        return asked === 'file' && !initialView.file
-            ? 'preview'
+        return asked === "file" && !initialView.file
+            ? "preview"
             : ACTIVE_TABS.includes(asked as ActiveTab)
               ? (asked as ActiveTab)
-              : 'preview';
+              : "preview";
     });
     const [extraTabs, setExtraTabs] = useState<MovableTab[]>(() =>
-        tab === 'console' || tab === 'shell' || tab === 'file' ? [tab] : [],
+        tab === "console" || tab === "shell" || tab === "file" ? [tab] : [],
     );
     const [draggedTab, setDraggedTab] = useState<MovableTab | null>(null);
 
     // Put the cursor in the terminal whenever the Shell tab is shown.
     useEffect(() => {
-        if (tab === 'shell') {
+        if (tab === "shell") {
             shellFrame.current?.focus();
         }
     }, [tab]);
@@ -627,7 +666,17 @@ function WorkspacePanel({
     const [filesOpen, setFilesOpen] = useState(false);
     const [hideHidden, setHideHidden] = useState(false);
     const [openPath, setOpenPath] = useState<string | null>(
-        tab === 'file' ? initialView.file : null,
+        tab === "file" ? initialView.file : null,
+    );
+
+    // The header's git menu asks for Tools → Git to connect a repository (GIT-006).
+    useEffect(
+        () =>
+            onOpenWorkspaceTool((section) => {
+                setTab("tools");
+                setTool(section);
+            }),
+        [],
     );
 
     // Keep the address bar (and links to the project's other pages) on what's showing.
@@ -638,7 +687,10 @@ function WorkspacePanel({
     const [fileError, setFileError] = useState<string | null>(null);
     const [fileDirty, setFileDirty] = useState(false);
     const files = useWorkspaceFiles(project.id);
-    const filesVersion = useFilesVersion(project.id, running && filesOpen);
+    const filesVersion = useFilesVersion(project.id, running && filesOpen, {
+        live,
+        changes: filesChanges,
+    });
     // The sandbox has a file watcher (FILE-004), so the tree reloads only when files come or go.
     const watchingFiles = filesVersion > 0;
     const seenFilesVersion = useRef(0);
@@ -651,13 +703,13 @@ function WorkspacePanel({
     // only where there's room for chat, preview and files. Decided after
     // mount so server-rendered and client HTML match.
     useEffect(() => {
-        setHideHidden(localStorage.getItem(HIDE_HIDDEN_KEY) === 'true');
+        setHideHidden(localStorage.getItem(HIDE_HIDDEN_KEY) === "true");
 
         const saved = localStorage.getItem(FILES_OPEN_KEY);
 
         if (saved !== null) {
-            setFilesOpen(saved === 'true');
-        } else if (window.matchMedia('(min-width: 1440px)').matches) {
+            setFilesOpen(saved === "true");
+        } else if (window.matchMedia("(min-width: 1440px)").matches) {
             setFilesOpen(true);
         }
     }, []);
@@ -675,7 +727,7 @@ function WorkspacePanel({
     const visibleEntries = hideHidden
         ? files.entries.filter(
               (entry) =>
-                  !entry.path.split('/').some((part) => part.startsWith('.')),
+                  !entry.path.split("/").some((part) => part.startsWith(".")),
           )
         : files.entries;
 
@@ -691,6 +743,14 @@ function WorkspacePanel({
         if (!working) {
             reloadPreview();
         }
+    }
+
+    // Coming back to a sandbox that was asleep: its dev server's connection to the page was cut.
+    const [seenWakes, setSeenWakes] = useState(wakes);
+
+    if (seenWakes !== wakes) {
+        setSeenWakes(wakes);
+        reloadPreview();
     }
 
     // Ask the agent to fix what the preview reported (queued if it's busy).
@@ -755,7 +815,7 @@ function WorkspacePanel({
         if (
             path !== openPath &&
             fileDirty &&
-            !window.confirm('Discard unsaved changes?')
+            !window.confirm("Discard unsaved changes?")
         ) {
             return;
         }
@@ -767,9 +827,9 @@ function WorkspacePanel({
 
         setOpenPath(path);
         setExtraTabs((tabs) =>
-            tabs.includes('file') ? tabs : [...tabs, 'file'],
+            tabs.includes("file") ? tabs : [...tabs, "file"],
         );
-        setTab('file');
+        setTab("file");
     };
 
     const addTab = (kind: ToolTab) => {
@@ -780,9 +840,9 @@ function WorkspacePanel({
     useEffect(() => {
         if (claudeSignIns > 0) {
             setExtraTabs((tabs) =>
-                tabs.includes('shell') ? tabs : [...tabs, 'shell'],
+                tabs.includes("shell") ? tabs : [...tabs, "shell"],
             );
-            setTab('shell');
+            setTab("shell");
         }
     }, [claudeSignIns]);
 
@@ -790,17 +850,17 @@ function WorkspacePanel({
         setExtraTabs((tabs) => tabs.filter((t) => t !== kind));
 
         if (tab === kind) {
-            setTab('preview');
+            setTab("preview");
         }
     };
 
     const closeFile = () => {
-        if (fileDirty && !window.confirm('Discard unsaved changes?')) {
+        if (fileDirty && !window.confirm("Discard unsaved changes?")) {
             return;
         }
 
         setOpenPath(null);
-        closeTab('file');
+        closeTab("file");
     };
 
     /**
@@ -849,8 +909,8 @@ function WorkspacePanel({
             draggable: true,
             dragging: draggedTab === kind,
             onDragStart: (event: React.DragEvent) => {
-                event.dataTransfer.effectAllowed = 'move';
-                event.dataTransfer.setData('text/plain', kind);
+                event.dataTransfer.effectAllowed = "move";
+                event.dataTransfer.setData("text/plain", kind);
                 setDraggedTab(kind);
             },
             onDragOver: (event: React.DragEvent<HTMLElement>) =>
@@ -862,13 +922,13 @@ function WorkspacePanel({
     };
 
     const statusText = sandbox?.updating
-        ? 'Updating sandbox…'
+        ? "Updating sandbox…"
         : {
-              creating: copy ? 'Copying the app…' : 'Starting sandbox…',
-              running: url ?? 'Running',
-              paused: 'Paused',
-              failed: 'Sandbox failed to start',
-          }[sandbox?.status ?? 'creating'];
+              creating: copy ? "Copying the app…" : "Starting sandbox…",
+              running: url ?? "Running",
+              paused: "Paused",
+              failed: "Sandbox failed to start",
+          }[sandbox?.status ?? "creating"];
 
     return (
         <div className="flex min-h-80 min-w-0 flex-1 border-t border-sidebar-border/70 lg:border-t-0 dark:border-sidebar-border">
@@ -878,37 +938,37 @@ function WorkspacePanel({
             >
                 <div className="flex items-center gap-1 border-b border-sidebar-border/70 px-2 py-1.5 text-sm dark:border-sidebar-border">
                     <TabButton
-                        active={tab === 'tools'}
-                        onClick={() => setTab('tools')}
+                        active={tab === "tools"}
+                        onClick={() => setTab("tools")}
                         testId="tab-tools"
                     >
                         <Wrench className="size-4" />
                         Tools
                     </TabButton>
                     <TabButton
-                        active={tab === 'preview'}
-                        onClick={() => setTab('preview')}
+                        active={tab === "preview"}
+                        onClick={() => setTab("preview")}
                         testId="tab-preview"
                     >
                         <Monitor className="size-4" />
                         Preview
                     </TabButton>
                     {extraTabs.map((kind) =>
-                        kind === 'file' ? (
+                        kind === "file" ? (
                             openPath && (
                                 <TabButton
                                     key={kind}
-                                    active={tab === 'file'}
-                                    onClick={() => setTab('file')}
+                                    active={tab === "file"}
+                                    onClick={() => setTab("file")}
                                     onClose={closeFile}
                                     testId="tab-file"
                                     {...sortable(kind)}
                                 >
                                     <FileIcon
-                                        name={openPath.split('/').pop() ?? ''}
+                                        name={openPath.split("/").pop() ?? ""}
                                     />
                                     <span className="max-w-48 truncate">
-                                        {openPath.split('/').pop()}
+                                        {openPath.split("/").pop()}
                                     </span>
                                     {fileDirty && (
                                         <span
@@ -950,7 +1010,7 @@ function WorkspacePanel({
                             onFocusOutside={(event) => event.preventDefault()}
                             onCloseAutoFocus={(event) => {
                                 // The menu hands focus back to "+" as it closes; keep it in the shell instead.
-                                if (tab === 'shell') {
+                                if (tab === "shell") {
                                     event.preventDefault();
                                     shellFrame.current?.focus();
                                 }
@@ -977,14 +1037,14 @@ function WorkspacePanel({
                         {
                             {
                                 preview: statusText,
-                                tools: '',
+                                tools: "",
                                 file: openPath,
-                                console: 'App output',
-                                shell: '~/workspace',
+                                console: "App output",
+                                shell: "~/workspace",
                             }[tab]
                         }
                     </span>
-                    {tab === 'preview' && url && (
+                    {tab === "preview" && url && (
                         <>
                             <IconButton
                                 label="Reload preview"
@@ -1003,7 +1063,7 @@ function WorkspacePanel({
                             </a>
                         </>
                     )}
-                    {tab === 'console' && (
+                    {tab === "console" && (
                         <IconButton
                             label="Clear console"
                             onClick={() => setConsoleClears((n) => n + 1)}
@@ -1012,7 +1072,7 @@ function WorkspacePanel({
                         </IconButton>
                     )}
                     <IconButton
-                        label={filesOpen ? 'Hide files' : 'Show files'}
+                        label={filesOpen ? "Hide files" : "Show files"}
                         onClick={toggleFiles}
                         testId="toggle-files"
                     >
@@ -1023,8 +1083,8 @@ function WorkspacePanel({
                 {url ? (
                     <div
                         className={cn(
-                            'relative flex flex-1 flex-col',
-                            tab !== 'preview' && 'hidden',
+                            "relative flex flex-1 flex-col",
+                            tab !== "preview" && "hidden",
                         )}
                     >
                         <iframe
@@ -1043,11 +1103,11 @@ function WorkspacePanel({
                         )}
                     </div>
                 ) : (
-                    tab === 'preview' && (
+                    tab === "preview" && (
                         <PreviewPlaceholder sandbox={sandbox} copy={copy} />
                     )
                 )}
-                {tab === 'tools' && (
+                {tab === "tools" && (
                     <ToolsPanel
                         projectId={project.id}
                         running={running}
@@ -1057,7 +1117,7 @@ function WorkspacePanel({
                         onSectionChange={setTool}
                     />
                 )}
-                {tab === 'file' && openPath && (
+                {tab === "file" && openPath && (
                     <FileViewer
                         key={openPath}
                         projectId={project.id}
@@ -1066,7 +1126,7 @@ function WorkspacePanel({
                         onDirtyChange={setFileDirty}
                     />
                 )}
-                {extraTabs.includes('console') && tab === 'console' && (
+                {extraTabs.includes("console") && tab === "console" && (
                     <ConsoleView
                         projectId={project.id}
                         active
@@ -1074,7 +1134,7 @@ function WorkspacePanel({
                         clearSignal={consoleClears}
                     />
                 )}
-                {extraTabs.includes('shell') &&
+                {extraTabs.includes("shell") &&
                     (running && sandbox.shell_url && !shellUnreachable ? (
                         // Stays mounted while the tab is open so the session survives tab switches.
                         <iframe
@@ -1088,22 +1148,22 @@ function WorkspacePanel({
                             }
                             title="Shell"
                             onLoad={() =>
-                                tab === 'shell' && shellFrame.current?.focus()
+                                tab === "shell" && shellFrame.current?.focus()
                             }
                             className={cn(
-                                'flex-1 bg-neutral-950',
-                                tab !== 'shell' && 'hidden',
+                                "flex-1 bg-neutral-950",
+                                tab !== "shell" && "hidden",
                             )}
                             data-test="shell-frame"
                         />
                     ) : (
-                        tab === 'shell' && (
+                        tab === "shell" && (
                             <Notice>
                                 {shellUnreachable
-                                    ? 'The shell only works on the machine running this app builder.'
+                                    ? "The shell only works on the machine running this app builder."
                                     : running
                                       ? "This sandbox doesn't have a shell. It was created before shells were added; recreate it to get one."
-                                      : 'The shell starts when the sandbox is running.'}
+                                      : "The shell starts when the sandbox is running."}
                             </Notice>
                         )
                     ))}
@@ -1136,8 +1196,8 @@ function WorkspacePanel({
                             >
                                 <RefreshCw
                                     className={cn(
-                                        'size-3.5',
-                                        files.loading && 'animate-spin',
+                                        "size-3.5",
+                                        files.loading && "animate-spin",
                                     )}
                                 />
                             </IconButton>
@@ -1164,15 +1224,15 @@ function WorkspacePanel({
                         ) : visibleEntries.length === 0 ? (
                             <p className="p-3 text-sm text-muted-foreground">
                                 {files.loading
-                                    ? 'Loading…'
+                                    ? "Loading…"
                                     : files.entries.length > 0
-                                      ? 'Only hidden files so far.'
-                                      : 'No files yet. The agent will create them.'}
+                                      ? "Only hidden files so far."
+                                      : "No files yet. The agent will create them."}
                             </p>
                         ) : (
                             <FileTree
                                 entries={visibleEntries}
-                                selected={tab === 'file' ? openPath : null}
+                                selected={tab === "file" ? openPath : null}
                                 onSelect={openFile}
                             />
                         )}
@@ -1183,34 +1243,46 @@ function WorkspacePanel({
     );
 }
 
-type ToolTab = 'console' | 'shell';
+type ToolTab = "console" | "shell";
 /** Tabs that can be closed and dragged into a different order; Tools and Preview stay put. */
-type MovableTab = ToolTab | 'file';
-type ActiveTab = 'tools' | 'preview' | MovableTab;
+type MovableTab = ToolTab | "file";
+type ActiveTab = "tools" | "preview" | MovableTab;
 
 const ACTIVE_TABS: ActiveTab[] = [
-    'tools',
-    'preview',
-    'console',
-    'shell',
-    'file',
+    "tools",
+    "preview",
+    "console",
+    "shell",
+    "file",
 ];
 
 /** localStorage key for whether the files panel was last left open. */
-const FILES_OPEN_KEY = 'zap.files-open';
+/** What the page reloads when the project changes (LIVE-001). */
+const LIVE_PROPS = [
+    "project",
+    "task",
+    "agent",
+    "sandbox",
+    "messages",
+    "queued",
+    "publication",
+    "sharing",
+];
+
+const FILES_OPEN_KEY = "onedrop.files-open";
 
 /** localStorage keys and limits for the chat and files panel widths, in px. */
-const CHAT_WIDTH_KEY = 'zap.chat-width';
+const CHAT_WIDTH_KEY = "onedrop.chat-width";
 const CHAT_WIDTH = { initial: 448, min: 280, max: 960 };
-const FILES_WIDTH_KEY = 'zap.files-width';
+const FILES_WIDTH_KEY = "onedrop.files-width";
 const FILES_WIDTH = { initial: 224, min: 160, max: 480 };
 
 /** localStorage key for whether dotfiles are hidden in the files panel. */
-const HIDE_HIDDEN_KEY = 'zap.files-hide-hidden';
+const HIDE_HIDDEN_KEY = "onedrop.files-hide-hidden";
 
 const TOOL_TABS: Record<ToolTab, { label: string; icon: React.ReactNode }> = {
-    console: { label: 'Console', icon: <Terminal className="size-4" /> },
-    shell: { label: 'Shell', icon: <SquareTerminal className="size-4" /> },
+    console: { label: "Console", icon: <Terminal className="size-4" /> },
+    shell: { label: "Shell", icon: <SquareTerminal className="size-4" /> },
 };
 
 function TabButton({
@@ -1230,17 +1302,17 @@ function TabButton({
     children: React.ReactNode;
 } & Pick<
     React.HTMLAttributes<HTMLDivElement>,
-    'draggable' | 'onDragStart' | 'onDragOver' | 'onDrop' | 'onDragEnd'
+    "draggable" | "onDragStart" | "onDragOver" | "onDrop" | "onDragEnd"
 >) {
     return (
         <div
             {...dragProps}
             className={cn(
-                'flex items-center rounded-md transition-colors',
+                "flex items-center rounded-md transition-colors",
                 active
-                    ? 'bg-muted font-medium'
-                    : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
-                dragging && 'opacity-50',
+                    ? "bg-muted font-medium"
+                    : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                dragging && "opacity-50",
             )}
         >
             <button
@@ -1280,15 +1352,15 @@ function AutofixToggle({ project }: { project: Project }) {
             }
             title={
                 project.autofix
-                    ? 'Autofix is on: errors the preview shows after a turn go back to the agent. Click to turn off.'
-                    : 'Autofix is off. Click to send errors the preview shows after a turn back to the agent.'
+                    ? "Autofix is on: errors the preview shows after a turn go back to the agent. Click to turn off."
+                    : "Autofix is off. Click to send errors the preview shows after a turn back to the agent."
             }
             data-test="composer-autofix"
             className={cn(
-                'flex h-7 shrink-0 items-center gap-1 rounded-full px-2 text-xs hover:bg-muted',
+                "flex h-7 shrink-0 items-center gap-1 rounded-full px-2 text-xs hover:bg-muted",
                 project.autofix
-                    ? 'bg-muted text-foreground'
-                    : 'text-muted-foreground',
+                    ? "bg-muted text-foreground"
+                    : "text-muted-foreground",
             )}
         >
             <Wrench className="size-3.5" />
@@ -1330,25 +1402,25 @@ function PreviewPlaceholder({
     /** A task's own copy of the app (TASK-003). */
     copy: boolean;
 }) {
-    const failed = sandbox?.status === 'failed';
+    const failed = sandbox?.status === "failed";
     const title = failed
         ? "Sandbox didn't start"
         : copy && !sandbox
-          ? 'No copy of the app yet'
+          ? "No copy of the app yet"
           : copy
-            ? 'Copying the app…'
+            ? "Copying the app…"
             : sandbox?.updating
-              ? 'Updating sandbox…'
-              : 'Starting sandbox…';
+              ? "Updating sandbox…"
+              : "Starting sandbox…";
     const detail = failed
         ? sandbox.error
         : copy && !sandbox
           ? "This task gets its own copy of Main's app when its agent starts, so its changes don't touch Main until you apply them."
           : copy
-            ? 'Its files, packages and data, as Main has them now. Main keeps running.'
+            ? "Its files, packages and data, as Main has them now. Main keeps running."
             : sandbox?.updating
-              ? 'Getting the latest tools. Your files are kept, and your app will be back in a moment.'
-              : 'Your app will appear here in a moment.';
+              ? "Getting the latest tools. Your files are kept, and your app will be back in a moment."
+              : "Your app will appear here in a moment.";
 
     return (
         <div
@@ -1373,8 +1445,8 @@ function PreviewPlaceholder({
                     <p className="font-medium">{title}</p>
                     <p
                         className={cn(
-                            'mt-1',
-                            failed ? 'text-red-600' : 'text-muted-foreground',
+                            "mt-1",
+                            failed ? "text-red-600" : "text-muted-foreground",
                         )}
                         data-test="sandbox-message"
                     >
@@ -1387,10 +1459,10 @@ function PreviewPlaceholder({
 }
 
 const STAGE_LABELS: Record<TaskStage, string> = {
-    todo: 'To do',
-    in_progress: 'In progress',
-    review: 'Review',
-    done: 'Done',
+    todo: "To do",
+    in_progress: "In progress",
+    review: "Review",
+    done: "Done",
 };
 
 /** Above a task's chat: its title and column, with rename, move and delete (TASK-001). */
@@ -1402,13 +1474,13 @@ function TaskHeader({
     task: TaskDetail | null;
 }) {
     const [renaming, setRenaming] = useState(false);
-    const [name, setName] = useState(task?.title ?? '');
+    const [name, setName] = useState(task?.title ?? "");
     const ids = task ? { project: projectId, task: task.id } : null;
 
     const save = () => {
         setRenaming(false);
 
-        if (ids && name.trim() !== '' && name !== task?.title) {
+        if (ids && name.trim() !== "" && name !== task?.title) {
             router.patch(
                 TaskController.update.url(ids),
                 { title: name },
@@ -1425,7 +1497,7 @@ function TaskHeader({
             {task && (
                 <TaskStatusIcon
                     stage={task.stage}
-                    working={task.status === 'working'}
+                    working={task.status === "working"}
                 />
             )}
             {renaming && task ? (
@@ -1434,9 +1506,9 @@ function TaskHeader({
                     onChange={(event) => setName(event.target.value)}
                     onBlur={save}
                     onKeyDown={(event) => {
-                        if (event.key === 'Enter') {
+                        if (event.key === "Enter") {
                             save();
-                        } else if (event.key === 'Escape') {
+                        } else if (event.key === "Escape") {
                             setName(task.title);
                             setRenaming(false);
                         }
@@ -1453,7 +1525,7 @@ function TaskHeader({
                     className="min-w-0 truncate font-medium"
                     data-test="task-title"
                 >
-                    {task?.title ?? 'New task'}
+                    {task?.title ?? "New task"}
                 </span>
             )}
             {task && ids && !renaming && (
@@ -1539,8 +1611,8 @@ function TaskHeader({
             <Link
                 href={board(projectId)}
                 className={cn(
-                    'flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-muted',
-                    !task && 'ml-auto',
+                    "flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-muted",
+                    !task && "ml-auto",
                 )}
                 data-test="task-board-link"
             >
@@ -1592,15 +1664,15 @@ function TaskCopyBar({
                 className="min-w-0 flex-1 truncate"
                 data-test="task-copy-status"
             >
-                {task.sync_status === 'applying'
-                    ? 'Applying to Main…'
-                    : task.sync_status === 'updating'
-                      ? 'Bringing in the latest from Main…'
+                {task.sync_status === "applying"
+                    ? "Applying to Main…"
+                    : task.sync_status === "updating"
+                      ? "Bringing in the latest from Main…"
                       : task.has_copy
-                        ? 'Working in its own copy of the app'
+                        ? "Working in its own copy of the app"
                         : task.applied_at
-                          ? 'Applied to Main'
-                          : 'Gets its own copy of the app when it starts'}
+                          ? "Applied to Main"
+                          : "Gets its own copy of the app when it starts"}
             </span>
             {task.sync_error && (
                 <span
@@ -1628,9 +1700,9 @@ function TaskCopyBar({
                     >
                         <RefreshCw
                             className={cn(
-                                'size-3.5',
-                                task.sync_status === 'updating' &&
-                                    'animate-spin',
+                                "size-3.5",
+                                task.sync_status === "updating" &&
+                                    "animate-spin",
                             )}
                         />
                         Update from Main
@@ -1677,7 +1749,7 @@ function TaskEmptyState({
         );
     }
 
-    const content = [task.title, task.description].filter(Boolean).join('\n\n');
+    const content = [task.title, task.description].filter(Boolean).join("\n\n");
 
     return (
         <div

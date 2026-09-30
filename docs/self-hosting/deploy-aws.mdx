@@ -33,10 +33,10 @@ Expect roughly $60 per month for the default size.
 
     ```bash
     export AWS_PROFILE=jeff
-    aws s3api create-bucket --bucket zap-pulumi-state-<account-id> --region us-east-1
-    aws s3api put-bucket-versioning --bucket zap-pulumi-state-<account-id> \
+    aws s3api create-bucket --bucket onedrop-pulumi-state-<account-id> --region us-east-1
+    aws s3api put-bucket-versioning --bucket onedrop-pulumi-state-<account-id> \
       --versioning-configuration Status=Enabled
-    pulumi login s3://zap-pulumi-state-<account-id>
+    pulumi login s3://onedrop-pulumi-state-<account-id>
     ```
 
   </Step>
@@ -53,9 +53,9 @@ Expect roughly $60 per month for the default size.
     Optional settings:
 
     ```bash
-    pulumi config set zap:instanceType t4g.medium   # smaller/cheaper
-    pulumi config set zap:diskGb 50
-    pulumi config set zap:domain zap.example.com    # point an A record at the Elastic IP first
+    pulumi config set onedrop:instanceType t4g.medium   # smaller/cheaper
+    pulumi config set onedrop:diskGb 50
+    pulumi config set onedrop:domain onedrop.example.com    # point an A record at the Elastic IP first
     ```
 
   </Step>
@@ -76,7 +76,7 @@ Expect roughly $60 per month for the default size.
 
     ```bash
     aws ssm start-session --target <instance-id>
-    sudo -u zap php /opt/zap/current/artisan zap:admin you@example.com
+    sudo -u onedrop php /opt/onedrop/current/artisan onedrop:admin you@example.com
     ```
 
   </Step>
@@ -103,7 +103,7 @@ Expect roughly $60 per month for the default size.
   </Step>
   <Step title="Record it in Pulumi">
     ```bash
-    pulumi config set zap:domain example.com
+    pulumi config set onedrop:domain example.com
     pulumi up
     ```
     This only updates the stack outputs; the server is not restarted.
@@ -112,7 +112,7 @@ Expect roughly $60 per month for the default size.
     Once the records resolve (`dig +short example.com`), run in a Session Manager session:
 
     ```bash
-    sudo /opt/zap/bin/set-domain example.com
+    sudo /opt/onedrop/bin/set-domain example.com
     ```
     Caddy gets new certificates on the first visit. Everyone has to log in again.
 
@@ -126,7 +126,7 @@ cd infra/aws
 bash scripts/release.sh
 ```
 
-The script uploads a new release and runs the deploy on the server through Session Manager. It prints a command to follow the deploy's output. Releases are kept in `/opt/zap/releases`; the five newest are kept.
+The script uploads a new release and runs the deploy on the server through Session Manager. It prints a command to follow the deploy's output. Releases are kept in `/opt/onedrop/releases`; the five newest are kept.
 
 ## Access the server
 
@@ -140,11 +140,11 @@ Useful places on the server:
 
 | Path                              | What it is                          |
 | --------------------------------- | ----------------------------------- |
-| `/var/log/zap-bootstrap.log`      | First-boot install log              |
-| `/opt/zap/current`                | The running release                 |
-| `/opt/zap/shared/.env`            | Configuration, kept across releases |
-| `/opt/zap/shared/database.sqlite` | The database                        |
-| `journalctl -u zap-queue`         | Queue worker logs                   |
+| `/var/log/onedrop-bootstrap.log`      | First-boot install log              |
+| `/opt/onedrop/current`                | The running release                 |
+| `/opt/onedrop/shared/.env`            | Configuration, kept across releases |
+| `/opt/onedrop/shared/database.sqlite` | The database                        |
+| `journalctl -u onedrop-queue`         | Queue worker logs                   |
 
 To join the server to your tailnet (for Tailscale publishing and private access), run `sudo tailscale up` in a session.
 

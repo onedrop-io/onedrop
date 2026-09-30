@@ -62,7 +62,7 @@ expect()->extend('toBeOne', function () {
  */
 function databaseWorkspace(): string
 {
-    $root = sys_get_temp_dir().'/zap-db-'.bin2hex(random_bytes(4));
+    $root = sys_get_temp_dir().'/onedrop-db-'.bin2hex(random_bytes(4));
     mkdir($root.'/database', recursive: true);
     file_put_contents($root.'/.env', "APP_NAME=Demo\nDB_CONNECTION=sqlite\n");
 
@@ -115,7 +115,7 @@ function fakeDatabaseSandbox(string $workspace): FakeSandboxProvider
 
 /**
  * databaseWorkspace() with sign-in set up the way docker/sandbox/guides/auth.md describes:
- * users get created_at and last_login_at, and .zap/auth.json describes it.
+ * users get created_at and last_login_at, and .onedrop/auth.json describes it.
  *
  * @param  array<string, mixed>  $manifest  merged over the default manifest
  * @param  string|null  $root  an existing databaseWorkspace() to set up, instead of a new one
@@ -130,8 +130,8 @@ function authWorkspace(array $manifest = [], ?string $root = null): string
     $pdo->exec("UPDATE users SET created_at = '2026-09-0' || id || ' 10:00:00'");
     $pdo->exec("UPDATE users SET last_login_at = '2026-09-20 08:00:00' WHERE name = 'Ann'");
 
-    mkdir($root.'/.zap');
-    file_put_contents($root.'/.zap/auth.json', json_encode([
+    mkdir($root.'/.onedrop');
+    file_put_contents($root.'/.onedrop/auth.json', json_encode([
         'version' => 1,
         'library' => 'Laravel Fortify + Socialite',
         'methods' => ['password', 'google'],
@@ -153,7 +153,7 @@ function withUsersHelper(string $workspace): string
     $pdo->exec('ALTER TABLE users ADD COLUMN password TEXT');
 
     // Stands in for the helper the agent writes (guides/auth.md): JSON on stdin, a banner, then one JSON line.
-    file_put_contents($workspace.'/.zap/users', '#!'.PHP_BINARY.<<<'PHP'
+    file_put_contents($workspace.'/.onedrop/users', '#!'.PHP_BINARY.<<<'PHP'
 
         <?php
         $request = json_decode(stream_get_contents(STDIN), true);
@@ -174,18 +174,18 @@ function withUsersHelper(string $workspace): string
         }
 
         if ($request['op'] === 'sign-in-link') {
-            exit(json_encode(['ok' => true, 'path' => '/auth/zap-sign-in?token=one-time-'.$request['id']])."\n");
+            exit(json_encode(['ok' => true, 'path' => '/auth/onedrop-sign-in?token=one-time-'.$request['id']])."\n");
         }
 
         if ($request['op'] === 'sign-out') {
-            file_put_contents('.zap/signed-out', $request['id']."\n", FILE_APPEND);
+            file_put_contents('.onedrop/signed-out', $request['id']."\n", FILE_APPEND);
             exit(json_encode(['ok' => true])."\n");
         }
 
         $pdo->prepare('UPDATE users SET password = ? WHERE id = ?')->execute([password_hash($request['password'], PASSWORD_BCRYPT), $request['id']]);
         echo json_encode(['ok' => true]), "\n";
         PHP);
-    chmod($workspace.'/.zap/users', 0755);
+    chmod($workspace.'/.onedrop/users', 0755);
 
     return $workspace;
 }
@@ -211,7 +211,7 @@ function withAccountControls(string $workspace): string
  */
 function signedOutUsers(string $workspace): array
 {
-    return file("{$workspace}/.zap/signed-out", FILE_IGNORE_NEW_LINES) ?: [];
+    return file("{$workspace}/.onedrop/signed-out", FILE_IGNORE_NEW_LINES) ?: [];
 }
 
 /**
@@ -262,7 +262,7 @@ function runSecretsScript(string $workspace, string $request): string
  */
 function storageRoot(): string
 {
-    $root = sys_get_temp_dir().'/zap-storage-'.bin2hex(random_bytes(4));
+    $root = sys_get_temp_dir().'/onedrop-storage-'.bin2hex(random_bytes(4));
     mkdir($root);
     register_shutdown_function(fn () => exec('rm -rf '.escapeshellarg($root)));
 

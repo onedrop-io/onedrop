@@ -30,8 +30,13 @@
             }
         </style>
 
-        <link rel="icon" href="/favicon.ico" sizes="any">
-        <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+        @if ($logo = app(\App\Sandbox\Branding::class)->logoUrl())
+            {{-- An admin's own logo (ADMIN-001). --}}
+            <link rel="icon" href="{{ $logo }}">
+        @else
+            <link rel="icon" href="/favicon.ico" sizes="any">
+            <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+        @endif
         <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 
         {{-- Link previews for Slack, Facebook, X, etc. Crawlers don't run JS, so these must be server-rendered. A page can pass its own $meta (e.g. a share page, SHARE-001). --}}

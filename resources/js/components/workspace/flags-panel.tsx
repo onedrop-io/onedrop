@@ -20,7 +20,7 @@ const QUEUED =
     'Asked the agent. It runs after the current task; follow along in the chat.';
 
 /**
- * Feature flags: switch the app's flags (.zap/flags.json) on and off, and ask the agent to add or remove them.
+ * Feature flags: switch the app's flags (.onedrop/flags.json) on and off, and ask the agent to add or remove them.
  */
 export default function FlagsPanel({
     projectId,
@@ -208,7 +208,7 @@ export default function FlagsPanel({
             <p className="text-xs text-muted-foreground">
                 Switching a flag applies right away, in the preview and the
                 published app. Flags are saved in{' '}
-                <code className="font-mono">.zap/flags.json</code>.
+                <code className="font-mono">.onedrop/flags.json</code>.
             </p>
         </div>
     );

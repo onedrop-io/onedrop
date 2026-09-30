@@ -219,6 +219,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Pausing, resuming, updating (files kept) and deleting a sandbox should work as they do with Docker.
 - A sandbox made from an older image should be reported as outdated, so SBX-002 updates it.
 - Sandboxes should use the free trial unless `RUNTIME_FUNDING=paid` is set; Runtime errors should reach the user with Runtime's hint.
+- A paused Runtime sandbox should wake on the next command even when Runtime briefly has no room for it (the trial's running limit, a full host): commands wait a few seconds and retry, then say to try again in a moment instead of failing outright.
 - While an update copies a Runtime sandbox's files, the app's processes should be frozen (not the sandbox paused, which a copy would wake), so a database is copied in a consistent state; if the update fails or is cut off, they should carry on where they were.
 - When the trial's limit on running sandboxes is reached, creating one should wait for a free slot (up to two minutes) instead of failing at once.
 
@@ -249,6 +250,18 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - After each turn the platform should copy the project's whole git history (a verified git bundle) to its backup disk (`SANDBOX_BACKUP_DISK`), outside any sandbox provider, and remember which commit it holds; a turn with no new commit copies nothing.
 - A sandbox that gets a fresh workspace (recreated without its files, or its old sandbox is gone) should get the project's code back from the backup, with its branches, and start the app.
 - Deleting a project should delete its backup.
+
+## SBX-007: Idle Docker sandboxes are suspended
+
+- A Docker sandbox nobody has used for a minute (`SANDBOX_DOCKER_IDLE_SECONDS`, 60 by default; 0 turns it off) should be suspended: its processes frozen with their memory kept, so it stops using CPU, the way Runtime and Blaxel sandboxes pause by themselves.
+- An open workspace, the agent's events, gateway visits and the container's network traffic (such as its preview open in its own tab) should count as use; a sandbox whose agent is working, or whose project is published, should never be suspended.
+- A suspended sandbox should wake by itself, carrying on where it was, when its project is opened, when its workspace is open, when the gateway sends someone to it, and before any command the platform runs in it.
+- When user comes back to the workspace's tab and its sandbox had been asleep, the preview should reload by itself, and the chat and sandbox status should catch up on anything missed, without the chat scrolling.
+- Using the workspace (clicking, typing, scrolling, or clicking into the preview or shell) should wake a sandbox that had fallen asleep and reload its preview the same way.
+- A sandbox that stays suspended for a while (`SANDBOX_DOCKER_STOP_AFTER_MINUTES`, 5 by default; 0 turns it off) should be stopped, freeing its memory; it starts again by itself the same way, with its files, in a second or two, and should never be stopped while its agent is working or its project is published.
+- Task copies (TASK-003) should be suspended and woken the same way.
+- A sandbox whose container was removed outside the app should show as failed, with an error saying so.
+- A Docker sandbox stopped outside the app (Docker Desktop, a restart) should start again when its project is opened or its workspace is open, and its preview and shell links should keep working: each container keeps its host ports across restarts, and links are refreshed for containers made before that.
 
 ## AGT-001: Real coding agent
 
@@ -296,9 +309,10 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## FILE-004: Files panel follows changes from anywhere
 
-- User should see files that are added, removed or renamed appear in the Files panel within a few seconds, whether the agent, the Shell or the running app made them.
+- User should see files that are added, removed or renamed appear in the Files panel right away (within a second or so), whether the agent, the Shell or the running app made them.
 - The sandbox should watch its files and tell the platform when files come or go; files inside `node_modules`, `.git`, `vendor` and `.cache`, SQLite journals and editor swap files shouldn't count, and neither should a file made and removed again straight away.
-- The Files panel should only reload the tree after such a change, and should check for changes without calling into the sandbox, only while the panel is open and the page is visible.
+- The platform should push each change to the open Files panel (LIVE-001); the panel should only reload the tree after such a change, and only for the sandbox it's showing (Main's or the task's copy).
+- Without a live connection, the Files panel should check for changes every few seconds instead, without calling into the sandbox, only while the panel is open and the page is visible.
 - Sandboxes made before the watcher should keep reloading the tree as the agent works.
 - Only the sandbox itself (through the signed address it was created with) should be able to report changes, and only for itself; only the project's owner (or an admin) should be able to check them.
 
@@ -383,7 +397,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 - An admin should be able to install the app builder on a fresh Ubuntu 24.04 server with one script, and redeploy new versions with one command.
 - An admin should be able to provision that server on AWS with Pulumi.
-- An admin should be able to make a user an admin from the command line (`php artisan zap:admin you@example.com`).
+- An admin should be able to make a user an admin from the command line (`php artisan onedrop:admin you@example.com`).
 - An admin should be able to turn off email verification for sign-ups (for servers without outgoing email).
 - Local dev installs (`APP_ENV=local`) should skip email verification for sign-ups unless `AUTH_VERIFY_EMAIL` says otherwise.
 - Sandboxes on Linux should be able to reach the app to report agent events.
@@ -418,7 +432,9 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Visitor should see a slowly turning spiral galaxy form around the black hole once it's full size: glowing cloud arms, stars of many colors and sizes, and a few stars with planets circling them, tilting with the black hole's view (only alongside the WebGL black hole).
 - Visitor should be able to spot our solar system, labeled Sol, orbiting the galaxy along with its other stars: the Sun and all eight planets orbiting it (not to scale), with a blue-green Earth and rings around Jupiter, Saturn, Uranus, and Neptune, plus Voyager 1 and Voyager 2 spiraling out from Earth and heading off across the galaxy, each labeled.
 - Visitor might spot two easter eggs among the stars: the Endurance from Interstellar spinning its ring as it orbits the black hole, and the Enterprise-D cruising the galaxy and now and then jumping to warp.
-- Visitor should be able to hover over the Earth in Sol to zoom in on it for about fifteen seconds: a realistic, sunlit Earth (real day, night, and cloud maps) turning under clouds that drift faster than real ones, with city lights and lightning storms on its night side, a massive hurricane in the Atlantic (from a real satellite photo, slowly turning), and the northern lights over the pole. Circling it are the ISS, a 1980s Space Shuttle, Hubble, a few satellites, a Starlink train, Starman's Roadster, and a realistic Moon (NASA's maps, with its craters catching the light) with an astronaut and an American flag on it (each labeled, going dark in the Earth's shadow). Then it shrinks back into its orbit and the galaxy returns.
+- Visitor should be able to hover over the Earth in Sol to zoom in on it for about fifteen seconds: a realistic, sunlit Earth (real day, night, and cloud maps) turning under clouds that drift faster than real ones, with city lights and lightning storms on its night side, a massive hurricane in the Atlantic (from a real satellite photo, slowly turning), and the northern lights over the pole. Circling it are the ISS, a 1980s Space Shuttle, Hubble, a few satellites, a Starlink train, Starman's Roadster, and a realistic Moon (NASA's maps, with its craters catching the light) with an astronaut and an American flag on it (each labeled, going dark in the Earth's shadow). They orbit every which way: some round the equator, some steeply inclined or over the poles, and some going the other way round. Then it shrinks back into its orbit and the galaxy returns.
+- Visitor should be able to hover over the Moon while the Earth fills the view (its close-up or the Earth level) to fly in to it: the Moon stops in its orbit, slides to the middle and grows as everything else fades, then dives through to NASA's black-and-white TV footage of the Apollo 11 moonwalk (Neil Armstrong's first step, Buzz Aldrin climbing down, planting the flag), shown like a 1969 TV picture with a readout and a caption for each part, for about half a minute, before pulling back out to the Earth. The Earth's close-up waits for it to finish, and it plays again only after the pointer leaves the Moon and comes back.
+- Visitor should see a SpaceX Starship launch from Florida soon after the Earth fills the view, once Florida has come round the Earth's sunlit edge: it lifts off on a big plume of fire over a billowing cloud of smoke, leaving a white trail as it climbs and pitches over, drops its Super Heavy booster (which flies back to the pad), then heads out to the Moon and settles into orbit round it, passing behind and in front of it (labeled).
 - Visitor should be able to hover over Mars in Sol for a ride on the Curiosity rover, about eighteen seconds: Mars grows into a realistic globe and turns to bring Gale Crater round, then dives down to the surface, where they look out of Curiosity's mast camera as it drives across the crater floor toward Mount Sharp (rocks, sand ripples, a hazy butterscotch sky, and the rover's own shadow ahead of it, with the camera's readout and today's sol), before pulling back out to the globe and shrinking back into its orbit.
 - Visitor should get whichever planet or probe is nearest the pointer when they pass close by each other.
 - Visitor should see Pioneer 10 and Pioneer 11 leave Earth and head off across the galaxy alongside the Voyagers, each labeled.
@@ -453,9 +469,9 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 - User should be able to click their name at the bottom of the sidebar to open an account menu with Settings, Invite people, Theme, Help, and Log out.
 - User should be able to switch between light, dark, and system theme from the Theme submenu, and see the current theme next to it.
-- User should find Documentation and Repository links under Help.
 - User should see the dark theme by default until they pick another.
-- User should see settings open in a modal with a left-hand list of sections: Account (Profile, Security, AI, Appearance, Notifications), People (Groups, Invite people), and, for admins only, Admin (Users).
+- User should find Documentation and Repository links under Help.
+- User should see settings open in a modal with a left-hand list of sections: Account (Profile, Security, AI, Appearance, Notifications), People (Groups, Invite people), and, for admins only, Admin (Users, General, Sandboxes, Monitoring, Server, Backups; see ADMIN-001 to ADMIN-005).
 - User should be able to move between sections without the modal closing, and link straight to any section.
 - User should be able to close the modal with the close button or Escape and land back on the page they opened it from (the dashboard if they arrived by a direct link).
 - Groups, Invite people, and Users should no longer be in the sidebar.
@@ -542,11 +558,20 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - When the user asks for a different framework by name or says they want no server, or the project already has an app, the agent should use that instead.
 - The Laravel app should run in the preview on its one port, with its queue worker and Reverb, and the preview should show changes when the agent finishes.
 
+## LIVE-001: The workspace updates live
+
+- User should see the chat, the agent's progress, the sandbox's status, publishing and sharing update as soon as they change, without the page polling every second.
+- User should see changes made elsewhere (another tab, a teammate, a background job) while the agent is idle too.
+- The platform should push a "project changed" signal over WebSockets (Laravel Reverb) on a private channel per project; the page then reloads only its live data. Many changes in one request should send one signal.
+- Only people who can see the project should be able to listen on its channel.
+- When the live connection isn't available (not configured, or dropped), the page should fall back to polling as before, and a broadcasting failure should never break the request or job that caused it.
+- Reverb should run locally with `composer dev`, on servers (behind Caddy on the app's own address) and on Laravel Cloud (its WebSockets cluster).
+
 ## RT-001: Realtime in apps
 
 - Visitors to an app should see live updates (WebSockets) in the preview and at its published address, whatever the framework.
 - Servers that handle WebSockets on the app's own port should work with no setup.
-- An app should be able to put a second local server (e.g. Laravel Reverb on 8080) behind the same address by mapping path prefixes to ports in `/workspace/.zap/routes.json`; HTTP requests and WebSockets under a prefix go to that port.
+- An app should be able to put a second local server (e.g. Laravel Reverb on 8080) behind the same address by mapping path prefixes to ports in `/workspace/.onedrop/routes.json`; HTTP requests and WebSockets under a prefix go to that port.
 - Routes should never reach the sandbox's own services (the proxy, the web terminal, SSH), so they stay behind the platform's sign-in.
 - The sandbox's PHP should have the extensions Reverb and queue workers need (`pcntl`).
 
@@ -579,10 +604,10 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 - User should see a Users & Auth section under Tools that explains how to let people sign in to their app.
 - User should be able to choose sign-in methods (email and password, Google, GitHub, Microsoft) and click "Set up with agent", which sends the agent a plain request in the chat (queued if it's working).
-- The agent should build sign-in with the app's own stack, keep users in the app's own database, and follow a platform guide so the result works the same way in every project; it should describe the setup in `.zap/auth.json`.
+- The agent should build sign-in with the app's own stack, keep users in the app's own database, and follow a platform guide so the result works the same way in every project; it should describe the setup in `.onedrop/auth.json`.
 - Once set up, user should see a Users tab listing the people who signed up (name, email, when they joined, when they last signed in), with search and paging, and a clear empty state.
 - User should be able to edit a user's name and email, and delete a user (after confirming); changes go straight to the app's database, and a user who can't be deleted (other data depends on them) is explained.
-- User should be able to add a user with a password and set a user's password; this goes through a small helper the agent adds to the app (`.zap/users`) so passwords are stored the way the app's sign-in expects. Without the helper, user should be offered to ask the agent to add it.
+- User should be able to add a user with a password and set a user's password; this goes through a small helper the agent adds to the app (`.onedrop/users`) so passwords are stored the way the app's sign-in expects. Without the helper, user should be offered to ask the agent to add it.
 - User should be able to turn a user's account off (they can't sign in and are signed out) and back on, require a user to choose a new password next time they use the app, and sign a user out everywhere (also offered when setting their password). The app enforces these on every request; the panel sets `disabled_at` and `password_change_required` in the users table and asks the helper to end sessions.
 - User should see which users are turned off or must choose a new password.
 - For apps set up before an account control existed, choosing it should offer to ask the agent to add just what's missing.
@@ -599,7 +624,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 - User should see a Growth section under Tools for reviewing how to grow their app and who visits it.
 - User should be able to click "Run scan with agent" to have the agent check the app's SEO (titles, descriptions, headings, link previews, sitemap, robots.txt, image alt text, and so on), or "Scan and fix issues" to also fix what it finds; this sends the agent a plain request in the chat (queued if it's working).
-- The agent should record the result in `.zap/seo.json`; user should see an SEO rating (0–100), when it was scanned, and each check with whether it passed, needs work, or failed.
+- The agent should record the result in `.onedrop/seo.json`; user should see an SEO rating (0–100), when it was scanned, and each check with whether it passed, needs work, or failed.
 - User should see visitors (unique IP addresses) with the change against the previous period, and how many of the app's users signed in during the period when the app has sign-in.
 - User should see visitors over time, top pages, top referrers (other sites that sent visitors), top countries, top browsers and top devices.
 - User should be able to choose the time range (past day, week, or 30 days) and show all traffic or only traffic from the published address.
@@ -613,8 +638,8 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see a Custom events section in Growth that explains how custom events show how people use their app, with a "Set up with agent" button.
 - Clicking it sends the agent "Add custom analytics events to my project" in the chat (queued if it's working); the agent finds the app's key moments (signing up, creating things, finishing a flow) and records an event for each, following a platform guide so every app does it the same way.
 - Events should never carry personal data: fixed event names and a few fixed-value properties, no emails, names, free-form text or IDs of people.
-- The app should send events to its own address (`/__zap/event`); the sandbox's proxy records them to `.zap/events.log` and never passes them on to the app. Invalid or oversized events are dropped, and recording an event never breaks the app.
-- The agent should describe each event in `.zap/analytics.json`.
+- The app should send events to its own address (`/__onedrop/event`); the sandbox's proxy records them to `.onedrop/events.log` and never passes them on to the app. Invalid or oversized events are dropped, and recording an event never breaks the app.
+- The agent should describe each event in `.onedrop/analytics.json`.
 - User should see each event with its description, how many times it happened, how many visitors triggered it, and the change against the previous period, for the chosen time range and traffic (all or published only); described events that haven't happened yet show zero.
 - User should be able to pick an event to see it over time and its most common property values.
 - Once set up, user should be able to describe more events to track and click "Add with agent".
@@ -636,10 +661,10 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 ## FLAG-001: Feature flags
 
 - User should see a Feature Flags section under Tools listing the app's flags, each with what it turns on, its key, and an on/off switch.
-- User should be able to turn a flag on or off; the change is saved to `.zap/flags.json` in the sandbox straight away (no agent), and the preview and published app follow it without a restart.
+- User should be able to turn a flag on or off; the change is saved to `.onedrop/flags.json` in the sandbox straight away (no agent), and the preview and published app follow it without a restart.
 - User should be able to describe a feature and click "Add with agent", which asks the agent in the chat (queued if it's working) to put that feature behind a new flag, following a platform guide so every app checks flags the same way.
 - User should be able to click "Remove with agent" on a flag, which asks the agent to take the flag out and keep the feature as it is now (on or off).
-- A flag the app checks but that isn't in `.zap/flags.json` should count as off.
+- A flag the app checks but that isn't in `.onedrop/flags.json` should count as off.
 - User should see a clear empty state when there are no flags yet, and a clear message when the sandbox isn't running or a flag no longer exists.
 
 ## GIT-001: Git history
@@ -688,6 +713,40 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - The dialog should open on "New repository" for a project with commits and "Existing repository" for one without.
 - Pushes and pulls for a GitHub-connected repository should use a short-lived installation token made on the platform when needed; no token is stored for the project, and none enters the sandbox. The connected remote shows as the GitHub repository with a link to it.
 - Admins should see in Tools → Git what's wrong with the GitHub App setup (missing settings, missing Contents or Metadata permission, creating repositories unavailable without Administration permission, and installs on GitHub that never came back to OneDrop), with a link to the app's permission settings, and the Callback and Setup URL GitHub must use. Other users fall back to the token-based ways (GIT-004), which stay available as "Other git host".
+
+## GIT-006: Commit and push from the header
+
+- User should see a "Commit & push" button next to Share (just "Commit" with no remote), with a menu of Commit, Push and Create PR.
+- User should be able to click it to open "Commit changes", then commit and push the branch when a remote is connected; with nothing to commit but commits to push, it just pushes. A toast says Pushing…, then Pushed or why it failed.
+- The dialog should show the branch (marked "Default branch" on `main` or `master`), each changed file with its state and lines added and removed (binary files marked), and the total.
+- User should be able to click Edit and untick files to leave them out of the commit; the count and total follow, and the files left out stay uncommitted.
+- User should be able to leave the message blank and have the project's AI write one from the diff; when it can't, the message names the files ("Update app.tsx and 2 other files").
+- User should be able to pick "Commit on new branch", name it, and commit there (the app restarts on it).
+- User should be able to click a file to open its diff beside the list (the dialog widens): added lines in green and removed in red, a new file as all added lines, a binary file marked as such, and a new folder as its list of files; very large diffs are cut short and say so.
+- With a diff open, ↑/↓ should move to the next or previous file and show its diff, Space should tick or untick it while editing, and clicking the file again, the close button or Esc should close the diff (Esc again closes the dialog).
+- Commit should only be offered with uncommitted changes, and Push with a remote and commits it hasn't got; with no remote, the menu offers "Connect a repository…", which opens Tools → Git.
+- Create PR should open a pull request for the current branch (GIT-007), and Combine should combine commits before pushing (GIT-008).
+- The buttons should wait while the agent is working or the sandbox isn't running.
+
+## GIT-007: Open a pull request with a written title and description
+
+- On a pushed branch of a GitHub repository, user should be able to pick "Create PR" to open a dialog with the base branch (`main` or `master` first, any other branch to choose) and a title and description the project's AI writes from the branch's commits and diff; both can be edited.
+- When the AI can't write them, the title should be the only commit's message (or the branch name), and the description should list the commits.
+- "Open on GitHub" should open GitHub's new pull request page for the branch against the base, with the title and description filled in.
+- Create PR should say why it isn't available: on the base branch itself ("Commit on a new branch first"), before pushing, or without a GitHub repository.
+
+## GIT-008: Combine commits before pushing
+
+- When the branch has more than one commit that isn't pushed yet, user should be able to combine them into one ("Combine N commits") from the header's menu, with a message the project's AI writes from them (editable), or their messages listed when it can't.
+- Only commits that haven't been pushed should be combined, so pushing never has to overwrite the remote; the files are unchanged and nothing is lost from the working tree.
+- Combining should wait while the agent is working, and be refused with uncommitted changes or while merging or rebasing.
+
+## GIT-009: Choose hunks and lines, and discard a hunk
+
+- In the commit dialog's diff, user should be able to untick a hunk, or click single added or removed lines, to leave them out of the commit; the file shows as partly included and the totals count only what's chosen.
+- Committing should commit only the chosen parts of each file; what was left out stays uncommitted in the file.
+- If a file changed after its diff was shown, the commit should be refused with "This file changed. Review it again." rather than committing something else.
+- User should be able to discard one hunk of an uncommitted file after confirming, putting just that part back as it was in the last commit.
 
 ## STORE-001: App Storage
 
@@ -742,7 +801,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## ERR-001: The agent sees the app's errors
 
-- Errors should be recorded inside the sandbox in `/workspace/.zap/errors.log`, whatever the app's stack: server errors (5xx answers, with the page's text and the end of the dev server's log), errors in the preview's browser (uncaught exceptions, unhandled promise rejections, `console.error`, scripts or styles that fail to load), and the app not answering.
+- Errors should be recorded inside the sandbox in `/workspace/.onedrop/errors.log`, whatever the app's stack: server errors (5xx answers, with the page's text and the end of the dev server's log), errors in the preview's browser (uncaught exceptions, unhandled promise rejections, `console.error`, scripts or styles that fail to load), and the app not answering.
 - Browser errors should only be accepted from the preview, never from the published address.
 - The agent should be told where the log is and to check it before it finishes and when the user says something is broken.
 - User should see a bar over the preview when the page hits an error, with the error and a "Fix it" button that sends it to the agent (queued if the agent is busy), and be able to dismiss it.
@@ -816,3 +875,41 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see where it's published and who can open it (in the Publish panel, Tools → Publishing, and Developer tools).
 - Moving a published project to the other target should take it down from the first. Unpublishing, or a failed publish, should stop it being served on the domain.
 - With the Cloudflare preview gateway (GW-002, e.g. on Laravel Cloud), the Worker serves published apps the same way: public ones without a cookie (its answer shared for a minute), private ones by passing the sign-in redirect on. Names under the domain that only look like a published app still reach their own origin.
+
+## ADMIN-001: Name and logo
+
+- Admin should be able to change the app's name from Settings → General, and see it in the sidebar, header, browser tab title and emails.
+- Admin should be able to upload a logo (PNG, JPEG, WebP or SVG, up to 1 MB) that replaces the droplet in the sidebar, header and browser tab, and remove it to go back to the droplet.
+- Non-admins should not be able to see or change these settings.
+
+## ADMIN-002: Sandbox providers
+
+- Admin should see every sandbox provider (Docker, Blaxel, Runtime Cloud) in Settings → Sandboxes, which one is active (where new projects run), and how many sandboxes each one holds.
+- Admin should be able to turn a provider on or off and change its settings (image, CPU and memory, idle timeouts, region, and its API key); keys are stored encrypted and never shown again, and leaving a key blank keeps the saved one.
+- Admin should be able to make any turned-on provider the active one; existing projects move to it the next time they're opened (their files kept), as when SANDBOX_PROVIDER changes.
+- Admin should not be able to turn off the active provider, or make a provider active without the settings it needs (an API key, and a workspace for Blaxel).
+- Settings saved here should win over the ones in `.env`, and running queue workers should pick them up without a restart by hand.
+
+## ADMIN-003: Server monitoring
+
+- Admin should see the server's CPU use, memory used of total, disk space used of total, block I/O read and written, and network traffic in and out, in Settings → Monitoring, each as a current value and a chart over the past hour, day or week.
+- The server should record a sample every minute (kept for a week); charts should show I/O and network as rates, and totals since the server started.
+- Admin should see Docker's disk usage (images, containers, volumes and build cache: size and reclaimable), loaded on its own so the rest of the page doesn't wait for it.
+- Admin should see how many projects, users and sandboxes (running and by provider) the install has.
+- Metrics the server can't report (e.g. CPU and memory on macOS, Docker when it isn't installed) should say so instead of showing zero.
+
+## ADMIN-004: Server domain and HTTPS
+
+- Admin should see the address the app is served at, and whether it has HTTPS, in Settings → Server.
+- On a server install (`infra/server/bootstrap.sh`), admin should be able to change the domain, the email Let's Encrypt sends certificate notices to, and the certificate authority (Let's Encrypt, or OneDrop's own for a LAN without public DNS); the server applies it in the background and everyone logs in again at the new address.
+- Admin should be told that DNS for the domain and `*.<domain>` must point at the server first, and see which change is pending until it's applied.
+- On other installs (a laptop, the one-line container install, AWS), admin should see how that install sets its address instead of a form.
+
+## ADMIN-005: Database backups
+
+- Admin should be able to back up the app's database (SQLite or Postgres) on a schedule to this server's disk or to S3-compatible storage (bucket, region, endpoint, keys, and a folder prefix), from Settings → Backups.
+- Admin should be able to turn scheduled backups on and off, set the schedule (a cron expression, daily at midnight by default) and how many backups to keep (older ones are deleted after each backup).
+- Admin should be able to run a backup now, see the list of backups (newest first, with size and date), download one, and delete one.
+- Admin should see when the last backup ran and whether it failed, with the error.
+- Admin should be able to restore a backup after typing the file's name to confirm; the current database is backed up first, and a restore replaces all of the app's data.
+

@@ -1,0 +1,6 @@
+[Unit]
+Description=Apply server settings saved in OneDrop (domain, certificates)
+
+[Service]
+Type=oneshot
+ExecStart=/opt/onedrop/bin/apply-server-settings

@@ -13,8 +13,8 @@ import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 
-const INSTRUCTIONS = '/opt/zap/instructions.md';
-const CHECKPOINT = '/opt/zap/checkpoint';
+const INSTRUCTIONS = '/opt/onedrop/instructions.md';
+const CHECKPOINT = '/opt/onedrop/checkpoint';
 
 const {
     APP_AGENT = 'opencode',
@@ -30,12 +30,12 @@ const {
     CODEX_AUTH_CONTENT,
 } = process.env;
 
-// /opt/zap/stop-agent signals this process to end the run. The project's main chat and each of its
+// /opt/onedrop/stop-agent signals this process to end the run. The project's main chat and each of its
 // tasks run separately (APP_RUN is "main" or "task-<id>"), so each run has its own PID file.
 const PID_FILE =
     APP_RUN === 'main'
-        ? '/tmp/zap-agent.pid'
-        : `/tmp/zap-agent-${APP_RUN.replace(/[^a-z0-9-]/g, '')}.pid`;
+        ? '/tmp/onedrop-agent.pid'
+        : `/tmp/onedrop-agent-${APP_RUN.replace(/[^a-z0-9-]/g, '')}.pid`;
 
 const claude = APP_AGENT === 'claude_code';
 const codex = APP_AGENT === 'codex';
@@ -71,7 +71,7 @@ function opencodeCommand() {
     return {
         command: 'opencode',
         args,
-        env: { OPENCODE_CONFIG: '/opt/zap/opencode.json' },
+        env: { OPENCODE_CONFIG: '/opt/onedrop/opencode.json' },
     };
 }
 
@@ -347,7 +347,7 @@ async function post(events) {
 }
 
 // Tell the platform we're alive before the model's first token.
-pending.push({ type: 'zap.start' });
+pending.push({ type: 'onedrop.start' });
 
 writeFileSync(PID_FILE, String(process.pid));
 
@@ -504,7 +504,7 @@ function run(resume) {
         // A stopped run's events are ignored by the platform anyway; don't report it as a crash.
         if (!stopped) {
             pending.push({
-                type: 'zap.exit',
+                type: 'onedrop.exit',
                 code,
                 stderr: code === 0 ? '' : stderr,
                 reported,

@@ -73,6 +73,6 @@ class SyncTask implements ShouldQueue
 
         $resolve = $conflicts === [] ? '' : "\n\nThe merge stopped with conflicts in: ".implode(', ', $conflicts).'. Resolve them so both sides\' changes work together, then finish the merge with `git add -A && git commit --no-edit`.';
 
-        return $what.$resolve."\n\nBring this copy up to date with it: install dependencies if lockfiles or manifests changed, apply any database migrations or schema changes it added, and restart the dev server with /opt/zap/restart if it needs it. Then check the preview works and fix anything the merge broke. If nothing needed doing, say so in one line.";
+        return $what.$resolve."\n\nBring this copy up to date with it: install dependencies if lockfiles or manifests changed, apply any database migrations or schema changes it added, and restart the dev server with /opt/onedrop/restart if it needs it. Then check the preview works and fix anything the merge broke. If nothing needed doing, say so in one line.";
     }
 }

@@ -16,7 +16,7 @@ description: 'Run the install script on any Ubuntu 24.04 server, on any provider
 
 - Ubuntu 24.04 with root access
 - Ports 80 and 443 open to the internet
-- A domain name pointing at the server, including a wildcard record (`*.zap.example.com`) for previews and shells. Or use `<ip>.sslip.io`, which needs no DNS.
+- A domain name pointing at the server, including a wildcard record (`*.onedrop.example.com`) for previews and shells. Or use `<ip>.sslip.io`, which needs no DNS.
 - At least 4 GB of RAM; 8 GB or more for several people building at once
 
 ## Install
@@ -26,23 +26,23 @@ description: 'Run the install script on any Ubuntu 24.04 server, on any provider
     From a checkout of the repository:
 
     ```bash
-    git ls-files -co --exclude-standard -z | tar --null -czf zap.tar.gz -T -
-    scp zap.tar.gz root@your-server:/tmp/
+    git ls-files -co --exclude-standard -z | tar --null -czf onedrop.tar.gz -T -
+    scp onedrop.tar.gz root@your-server:/tmp/
     ```
 
   </Step>
   <Step title="Run the install script">
     ```bash
-    mkdir -p /tmp/zap && tar -xzf /tmp/zap.tar.gz -C /tmp/zap infra/server
-    APP_DOMAIN=zap.example.com APP_RELEASE=/tmp/zap.tar.gz bash /tmp/zap/infra/server/bootstrap.sh
+    mkdir -p /tmp/onedrop && tar -xzf /tmp/onedrop.tar.gz -C /tmp/onedrop infra/server
+    APP_DOMAIN=onedrop.example.com APP_RELEASE=/tmp/onedrop.tar.gz bash /tmp/onedrop/infra/server/bootstrap.sh
     ```
     `APP_RELEASE` can also be an `https://` or `s3://` URL.
   </Step>
   <Step title="Create your admin account">
-    Open `https://zap.example.com` and sign up. The first account on a new install is the admin. To make someone else an admin later, run:
+    Open `https://onedrop.example.com` and sign up. The first account on a new install is the admin. To make someone else an admin later, run:
 
     ```bash
-    sudo -u zap php /opt/zap/current/artisan zap:admin them@example.com
+    sudo -u onedrop php /opt/onedrop/current/artisan onedrop:admin them@example.com
     ```
 
   </Step>
@@ -53,13 +53,13 @@ description: 'Run the install script on any Ubuntu 24.04 server, on any provider
 | Component                 | Details                                                                      |
 | ------------------------- | ---------------------------------------------------------------------------- |
 | Packages                  | PHP 8.4 (FPM), Composer, Node.js 22, Docker, Caddy, Tailscale                |
-| `zap` user                | Owns the app and belongs to the `docker` group                               |
-| PHP-FPM pool              | Runs as `zap` so the app can manage sandboxes                                |
-| `zap-queue` service       | The queue worker that creates sandboxes and runs agents                      |
+| `onedrop` user                | Owns the app and belongs to the `docker` group                               |
+| PHP-FPM pool              | Runs as `onedrop` so the app can manage sandboxes                                |
+| `onedrop-queue` service       | The queue worker that creates sandboxes and runs agents                      |
 | Caddy                     | HTTPS for the app and for `preview-<id>` / `shell-<id>` addresses            |
-| `/opt/zap/bin/deploy`     | Deploys a new release: `sudo /opt/zap/bin/deploy /path/to/zap.tar.gz`        |
-| `/opt/zap/bin/set-domain` | Moves the server to a new domain: `sudo /opt/zap/bin/set-domain example.com` |
+| `/opt/onedrop/bin/deploy`     | Deploys a new release: `sudo /opt/onedrop/bin/deploy /path/to/onedrop.tar.gz`        |
+| `/opt/onedrop/bin/set-domain` | Moves the server to a new domain: `sudo /opt/onedrop/bin/set-domain example.com` |
 
-The first deploy writes `/opt/zap/shared/.env` with production settings: SQLite database, email verification off (no outgoing email is configured), and the sandbox gateway on your domain. Edit it and run a deploy to change settings.
+The first deploy writes `/opt/onedrop/shared/.env` with production settings: SQLite database, email verification off (no outgoing email is configured), and the sandbox gateway on your domain. Edit it and run a deploy to change settings.
 
 The script is safe to run again; it skips steps that are already done.

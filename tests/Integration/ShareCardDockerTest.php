@@ -27,7 +27,7 @@ beforeEach(function () {
 test('headless Chromium in the sandbox screenshots the app and renders its share card', function () {
     $this->artisan('migrate:fresh');
     Storage::fake(ShareCards::disk());
-    $storage = sys_get_temp_dir().'/zap-share-card-'.bin2hex(random_bytes(3));
+    $storage = sys_get_temp_dir().'/onedrop-share-card-'.bin2hex(random_bytes(3));
     config(['sandbox.provider' => 'docker', 'sandbox.providers.docker.storage_path' => $storage]);
     $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
     app()->instance(SandboxProvider::class, $docker);
@@ -38,10 +38,10 @@ test('headless Chromium in the sandbox screenshots the app and renders its share
 
     try {
         // An app whose page is drawn by JavaScript, so the screenshot proves scripts ran first.
-        $setup = 'cd /workspace && mkdir -p .zap public'
+        $setup = 'cd /workspace && mkdir -p .onedrop public'
             .' && echo "<body><div id=app></div><script>app.textContent=\"Pipeline\"</script></body>" > public/index.html'
-            .' && printf "#!/usr/bin/env bash\nexec php -S 0.0.0.0:\$PORT -t /workspace/public\n" > .zap/dev && chmod +x .zap/dev'
-            .' && /opt/zap/restart';
+            .' && printf "#!/usr/bin/env bash\nexec php -S 0.0.0.0:\$PORT -t /workspace/public\n" > .onedrop/dev && chmod +x .onedrop/dev'
+            .' && /opt/onedrop/restart';
         expect($docker->exec($id, ['bash', '-c', $setup])->successful())->toBeTrue();
         sleep(2);
 

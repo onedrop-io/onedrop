@@ -1,8 +1,13 @@
 import { Link, router, usePage } from '@inertiajs/react';
 import {
+    Activity,
     Bell,
+    Box,
+    DatabaseBackup,
+    Globe,
     Palette,
     Settings,
+    Settings2,
     Shield,
     Sparkles,
     User,
@@ -21,6 +26,11 @@ import { useCurrentUrl } from '@/hooks/use-current-url';
 import { settingsReturnUrl } from '@/lib/settings';
 import { cn, toUrl } from '@/lib/utils';
 import { dashboard } from '@/routes';
+import { index as backupsIndex } from '@/routes/admin/backups';
+import { edit as editGeneral } from '@/routes/admin/general';
+import { show as showMonitoring } from '@/routes/admin/monitoring';
+import { index as sandboxesIndex } from '@/routes/admin/sandboxes';
+import { edit as editServer } from '@/routes/admin/server';
 import { index as aiSettings } from '@/routes/agent-connections';
 import { edit as editAppearance } from '@/routes/appearance';
 import { index as groupsIndex } from '@/routes/groups';
@@ -54,7 +64,14 @@ const peopleSection: NavSection = {
 
 const adminSection: NavSection = {
     title: 'Admin',
-    items: [{ title: 'Users', href: usersIndex(), icon: UserCog }],
+    items: [
+        { title: 'Users', href: usersIndex(), icon: UserCog },
+        { title: 'General', href: editGeneral(), icon: Settings2 },
+        { title: 'Sandboxes', href: sandboxesIndex(), icon: Box },
+        { title: 'Monitoring', href: showMonitoring(), icon: Activity },
+        { title: 'Server', href: editServer(), icon: Globe },
+        { title: 'Backups', href: backupsIndex(), icon: DatabaseBackup },
+    ],
 };
 
 /** Settings pages render in a modal over the app; closing it returns to the page you came from. */

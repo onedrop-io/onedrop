@@ -10,7 +10,7 @@
  * Reads one JSON request from $APP_SECRETS_REQUEST and prints one JSON response:
  * {"ok": true, "data": ...} or {"ok": false, "error": "..."}.
  *
- * Usage: APP_SECRETS_REQUEST='{"op":"list"}' php /opt/zap/secrets.php
+ * Usage: APP_SECRETS_REQUEST='{"op":"list"}' php /opt/onedrop/secrets.php
  */
 
 declare(strict_types=1);
@@ -116,7 +116,7 @@ function line(string $name, string $value): string
 function writeLines(array $lines): void
 {
     $path = envPath();
-    $temp = $path.'.zap-'.bin2hex(random_bytes(4));
+    $temp = $path.'.onedrop-'.bin2hex(random_bytes(4));
 
     file_put_contents($temp, $lines === [] ? '' : implode("\n", $lines)."\n");
     chmod($temp, 0600);

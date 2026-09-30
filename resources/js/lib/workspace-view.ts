@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import { useSyncExternalStore } from "react";
 
 /**
  * What the workspace shows on the right (TASK-004): its tab, the Tools section, and the open file.
@@ -12,7 +12,7 @@ export type WorkspaceView = {
     file: string | null;
 };
 
-const PARAMS = ['tab', 'tool', 'file'] as const;
+const PARAMS = ["tab", "tool", "file"] as const;
 const EMPTY: WorkspaceView = { tab: null, tool: null, file: null };
 
 let current: { projectId: number | null; view: WorkspaceView } = {
@@ -23,12 +23,12 @@ const listeners = new Set<() => void>();
 
 /** The view a URL asks for. */
 export function viewFromUrl(url: string): WorkspaceView {
-    const params = new URL(url, 'http://localhost').searchParams;
+    const params = new URL(url, "http://localhost").searchParams;
 
     return {
-        tab: params.get('tab'),
-        tool: params.get('tool'),
-        file: params.get('file'),
+        tab: params.get("tab"),
+        tool: params.get("tool"),
+        file: params.get("file"),
     };
 }
 
@@ -38,15 +38,15 @@ export function viewFromUrl(url: string): WorkspaceView {
  */
 export function setWorkspaceView(projectId: number, view: WorkspaceView): void {
     const next: WorkspaceView = {
-        tab: view.tab === 'preview' ? null : view.tab,
-        tool: view.tab === 'tools' ? view.tool : null,
-        file: view.tab === 'file' ? view.file : null,
+        tab: view.tab === "preview" ? null : view.tab,
+        tool: view.tab === "tools" ? view.tool : null,
+        file: view.tab === "file" ? view.file : null,
     };
 
     current = { projectId, view: next };
     listeners.forEach((listener) => listener());
 
-    if (typeof window === 'undefined') {
+    if (typeof window === "undefined") {
         return;
     }
 
@@ -59,7 +59,7 @@ export function setWorkspaceView(projectId: number, view: WorkspaceView): void {
     );
 
     if (url.href !== window.location.href) {
-        window.history.replaceState(window.history.state, '', url.href);
+        window.history.replaceState(window.history.state, "", url.href);
     }
 }
 
@@ -88,7 +88,7 @@ export function useWorkspaceLinks(): (
 }
 
 function withView(href: string, view: WorkspaceView): string {
-    const url = new URL(href, 'http://localhost');
+    const url = new URL(href, "http://localhost");
 
     PARAMS.forEach((param) => {
         if (view[param]) {
@@ -96,5 +96,22 @@ function withView(href: string, view: WorkspaceView): string {
         }
     });
 
-    return href.startsWith('http') ? url.href : `${url.pathname}${url.search}`;
+    return href.startsWith("http") ? url.href : `${url.pathname}${url.search}`;
+}
+
+const OPEN_TOOL_EVENT = "workspace:open-tool";
+
+/** Show a Tools section in the workspace from outside it (e.g. the header's git menu opening Tools → Git). */
+export function openWorkspaceTool(tool: string): void {
+    window.dispatchEvent(new CustomEvent(OPEN_TOOL_EVENT, { detail: tool }));
+}
+
+/** Calls `open` with the section whenever something asks the workspace to show a Tools section. */
+export function onOpenWorkspaceTool(open: (tool: string) => void): () => void {
+    const listener = (event: Event) =>
+        open((event as CustomEvent<string>).detail);
+
+    window.addEventListener(OPEN_TOOL_EVENT, listener);
+
+    return () => window.removeEventListener(OPEN_TOOL_EVENT, listener);
 }

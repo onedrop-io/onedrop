@@ -25,7 +25,7 @@ class CodexEvents extends AgentEvents
         $item = is_array($event['item'] ?? null) ? $event['item'] : [];
 
         match ($event['type'] ?? null) {
-            'zap.start' => $conversation->update(['status' => ProjectStatus::Working]),
+            'onedrop.start' => $conversation->update(['status' => ProjectStatus::Working]),
             'thread.started' => $this->rememberSession($conversation, $event['thread_id'] ?? null),
             'item.started' => $this->started($conversation, $item),
             'item.completed' => $this->completed($conversation, $item),
@@ -33,7 +33,7 @@ class CodexEvents extends AgentEvents
             'error' => str_starts_with((string) ($event['message'] ?? ''), 'Reconnecting') ? $this->say($conversation, MessageRole::Activity, 'Reconnecting to OpenAI') : null,
             'turn.completed' => $this->turnCompleted($conversation, is_array($event['usage'] ?? null) ? $event['usage'] : [], $event['model'] ?? null),
             'turn.failed' => $this->say($conversation, MessageRole::Assistant, $this->explainError($conversation, $this->errorMessage($event['error']['message'] ?? null))),
-            'zap.exit' => $this->finish($conversation, (int) ($event['code'] ?? 0), (string) ($event['stderr'] ?? ''), (bool) ($event['reported'] ?? false)),
+            'onedrop.exit' => $this->finish($conversation, (int) ($event['code'] ?? 0), (string) ($event['stderr'] ?? ''), (bool) ($event['reported'] ?? false)),
             default => null,
         };
     }

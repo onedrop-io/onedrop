@@ -5,7 +5,7 @@ description: 'Turn parts of your app on or off without changing its code.'
 
 **Tools → Feature Flags** lets you hide a feature until it's ready, or switch it off again if something goes wrong. The agent puts the feature behind a flag, and you switch the flag on or off in the panel.
 
-Flags live in the app itself, in `.zap/flags.json`. The app reads that file each time it checks a flag, so a switch applies on the next page load, in the preview and the published app, without a restart or a new publish. No flag service is involved.
+Flags live in the app itself, in `.onedrop/flags.json`. The app reads that file each time it checks a flag, so a switch applies on the next page load, in the preview and the published app, without a restart or a new publish. No flag service is involved.
 
 ## Add a flag
 
@@ -26,7 +26,7 @@ Flags live in the app itself, in `.zap/flags.json`. The app reads that file each
 
 ## Switch flags on and off
 
-Each flag shows what it turns on, its key (the name the app's code uses), and a switch. Switching saves straight to `.zap/flags.json` in the sandbox; the agent isn't involved.
+Each flag shows what it turns on, its key (the name the app's code uses), and a switch. Switching saves straight to `.onedrop/flags.json` in the sandbox; the agent isn't involved.
 
 A flag the app checks but that isn't in the file counts as off.
 
@@ -41,7 +41,7 @@ Once a feature is settled, open the flag's menu (⋮) and choose **Remove with a
 
 The file looks like this:
 
-```json .zap/flags.json
+```json .onedrop/flags.json
 {
     "version": 1,
     "flags": [
@@ -54,4 +54,4 @@ The file looks like this:
 }
 ```
 
-The agent follows a guide (`/opt/zap/guides/flags.md` in the sandbox) that adds one small helper for the app's stack, for example `Features::enabled('new-checkout')` in Laravel, shared with React through an Inertia prop, or `isEnabled('new-checkout')` in a Vite app.
+The agent follows a guide (`/opt/onedrop/guides/flags.md` in the sandbox) that adds one small helper for the app's stack, for example `Features::enabled('new-checkout')` in Laravel, shared with React through an Inertia prop, or `isEnabled('new-checkout')` in a Vite app.

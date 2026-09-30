@@ -1,5 +1,5 @@
 {
-    "name": "zap-aws",
+    "name": "onedrop-aws",
     "private": true,
     "main": "index.ts",
     "scripts": {

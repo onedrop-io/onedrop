@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\Storage;
 class ProjectBackups
 {
     /** Where bundles are made, and restored from, inside a sandbox. */
-    protected const SANDBOX_DIRECTORY = '/tmp/zap-backup';
+    protected const SANDBOX_DIRECTORY = '/tmp/onedrop-backup';
 
     /** Exit code of BUNDLE when HEAD is already backed up (or there are no commits yet). */
     protected const NOTHING_NEW = 3;
@@ -27,22 +27,22 @@ class ProjectBackups
     protected const ANY_OWNER = 'export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0="*"; ';
 
     /**
-     * Bundles every branch and tag unless HEAD is $ZAP_BACKED_UP, then prints HEAD.
+     * Bundles every branch and tag unless HEAD is $ONEDROP_BACKED_UP, then prints HEAD.
      */
     protected const BUNDLE = self::ANY_OWNER.'set -e; cd /workspace; '
-        .'head="$(git rev-parse --verify -q HEAD)" || exit 3; [ "$head" != "${ZAP_BACKED_UP:-}" ] || exit 3; '
-        .'rm -rf /tmp/zap-backup; mkdir -p /tmp/zap-backup; '
-        .'git bundle create -q /tmp/zap-backup/repo.bundle --all; git bundle verify -q /tmp/zap-backup/repo.bundle >/dev/null 2>&1; '
+        .'head="$(git rev-parse --verify -q HEAD)" || exit 3; [ "$head" != "${ONEDROP_BACKED_UP:-}" ] || exit 3; '
+        .'rm -rf /tmp/onedrop-backup; mkdir -p /tmp/onedrop-backup; '
+        .'git bundle create -q /tmp/onedrop-backup/repo.bundle --all; git bundle verify -q /tmp/onedrop-backup/repo.bundle >/dev/null 2>&1; '
         .'echo "$head"';
 
     /**
      * Clones the bundle with all its branches into /workspace (over whatever a fresh image put there), without a
      * remote pointing at the bundle.
      */
-    protected const RESTORE = self::ANY_OWNER.'set -e; cd /tmp/zap-backup; '
+    protected const RESTORE = self::ANY_OWNER.'set -e; cd /tmp/onedrop-backup; '
         .'git clone -q repo.bundle repo; git -C repo remote remove origin; '
         .'git -C repo fetch -q --update-head-ok "$PWD/repo.bundle" "+refs/heads/*:refs/heads/*" "+refs/tags/*:refs/tags/*"; '
-        .'cp -a repo/. /workspace/; cd /; rm -rf /tmp/zap-backup';
+        .'cp -a repo/. /workspace/; cd /; rm -rf /tmp/onedrop-backup';
 
     public function __construct(protected SandboxProvider $provider) {}
 
@@ -60,7 +60,7 @@ class ProjectBackups
             return false;
         }
 
-        $result = $this->provider->exec($sandbox->external_id, ['bash', '-c', self::BUNDLE], ['ZAP_BACKED_UP' => $force ? '' : (string) $project->backup_commit]);
+        $result = $this->provider->exec($sandbox->external_id, ['bash', '-c', self::BUNDLE], ['ONEDROP_BACKED_UP' => $force ? '' : (string) $project->backup_commit]);
 
         if ($result->exitCode === self::NOTHING_NEW) {
             return false;
@@ -123,8 +123,8 @@ class ProjectBackups
             throw new SandboxException('Could not restore the project\'s code from its backup: '.trim($result->errorOutput ?: $result->output));
         }
 
-        // The app's dev server (.zap/dev) came back with the code; start it.
-        $this->provider->exec($sandbox->external_id, ['/opt/zap/restart']);
+        // The app's dev server (.onedrop/dev) came back with the code; start it.
+        $this->provider->exec($sandbox->external_id, ['/opt/onedrop/restart']);
 
         return true;
     }

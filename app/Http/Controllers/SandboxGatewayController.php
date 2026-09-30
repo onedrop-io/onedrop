@@ -8,6 +8,7 @@ use App\Models\Project;
 use App\Models\Sandbox;
 use App\Models\User;
 use App\Sandbox\Gateway;
+use App\Sandbox\SandboxProvider;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -79,7 +80,7 @@ class SandboxGatewayController extends Controller
     /**
      * Called by Caddy (forward_auth) or the Cloudflare Worker: may this browser open the preview or shell? If so, where does it live?
      */
-    public function authorize(Request $request, Gateway $gateway): Response|RedirectResponse
+    public function authorize(Request $request, Gateway $gateway, SandboxProvider $provider): Response|RedirectResponse
     {
         $target = $gateway->parse((string) $gateway->requestedHost($request, $request->header('X-Forwarded-Host')));
         $sandbox = $target ? Sandbox::with('project')->find($target['sandbox_id']) : null;
@@ -113,15 +114,18 @@ class SandboxGatewayController extends Controller
             }
         }
 
+        // Someone is using it: wake it if it was suspended for sitting idle (SBX-007).
+        $sandbox->wake($provider);
+
         // The Worker forwards to the provider's address with its token; Caddy to a published host:port.
         if ($gateway->viaWorker()) {
             $upstream = $gateway->target($sandbox, $target['kind']);
 
             return $upstream
                 ? response('', 200, array_filter([
-                    'X-Zap-Upstream' => $upstream['url'],
-                    'X-Zap-Upstream-Header' => $upstream['header'],
-                    'X-Zap-Upstream-Token' => $upstream['token'],
+                    'X-OneDrop-Upstream' => $upstream['url'],
+                    'X-OneDrop-Upstream-Header' => $upstream['header'],
+                    'X-OneDrop-Upstream-Token' => $upstream['token'],
                     'Cache-Control' => 'no-store',
                 ]))
                 : response('Not available', 404);
@@ -130,7 +134,7 @@ class SandboxGatewayController extends Controller
         $upstream = $gateway->upstream($sandbox, $target['kind']);
 
         return $upstream
-            ? response('', 200, ['X-Zap-Upstream' => $upstream])
+            ? response('', 200, ['X-OneDrop-Upstream' => $upstream])
             : response('Not available', 404);
     }
 
@@ -158,7 +162,7 @@ class SandboxGatewayController extends Controller
             'openUrl' => $project && $target
                 ? self::appUrl(route('projects.gateway.open', [$project, $target['kind']], false))
                 : self::appUrl(route('login', absolute: false)),
-        ], 401)->header('X-Zap-Gateway', "login-required; reason={$reason}");
+        ], 401)->header('X-OneDrop-Gateway', "login-required; reason={$reason}");
     }
 
     /**

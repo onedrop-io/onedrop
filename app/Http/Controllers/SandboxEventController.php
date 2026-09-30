@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\AgentHarness;
+use App\Events\ProjectFilesChanged;
 use App\Models\Sandbox;
 use App\Models\Task;
 use App\Sandbox\Agents\ClaudeCodeEvents;
@@ -44,6 +45,9 @@ class SandboxEventController extends Controller
             $events->apply($conversation, $event);
         }
 
+        // An agent at work counts as use, so the sandbox isn't suspended right after it finishes (SBX-007).
+        $sandbox->markActive();
+
         return response()->json(['ok' => true]);
     }
 
@@ -54,6 +58,7 @@ class SandboxEventController extends Controller
     public function filesChanged(Sandbox $sandbox): JsonResponse
     {
         $sandbox->increment('files_version');
+        ProjectFilesChanged::dispatch($sandbox);
 
         return response()->json(['version' => $sandbox->files_version]);
     }

@@ -106,9 +106,9 @@ test('saves a file through a temp file, keeping its permissions', function () {
 
     [$write, $replace] = $this->provider->executed;
 
-    expect($write['command'])->toBe(['sh', '-c', 'printf %s "$APP_CONTENT" > "$1"', 'sh', '/workspace/src/App.tsx.zap-tmp'])
+    expect($write['command'])->toBe(['sh', '-c', 'printf %s "$APP_CONTENT" > "$1"', 'sh', '/workspace/src/App.tsx.onedrop-tmp'])
         ->and($write['env'])->toBe(['APP_CONTENT' => "export default 2;\n"])
-        ->and($replace['command'])->toBe(['sh', '-c', 'cat "$1" > "$2" && rm -f "$1"', 'sh', '/workspace/src/App.tsx.zap-tmp', '/workspace/src/App.tsx']);
+        ->and($replace['command'])->toBe(['sh', '-c', 'cat "$1" > "$2" && rm -f "$1"', 'sh', '/workspace/src/App.tsx.onedrop-tmp', '/workspace/src/App.tsx']);
 })->group('FILE-002');
 
 test('large files are written in chunks', function () {
@@ -197,9 +197,9 @@ test('uploads a file as base64, creating its folders', function () {
     [$mkdir, $write, $decode] = $this->provider->executed;
 
     expect($mkdir['command'])->toBe(['mkdir', '-p', '--', '/workspace/site/img'])
-        ->and($write['command'])->toBe(['sh', '-c', 'printf %s "$APP_CONTENT" > "$1"', 'sh', '/workspace/site/img/logo.png.zap-upload'])
+        ->and($write['command'])->toBe(['sh', '-c', 'printf %s "$APP_CONTENT" > "$1"', 'sh', '/workspace/site/img/logo.png.onedrop-upload'])
         ->and($write['env'])->toBe(['APP_CONTENT' => base64_encode($bytes)])
-        ->and($decode['command'][4])->toBe('/workspace/site/img/logo.png.zap-upload')
+        ->and($decode['command'][4])->toBe('/workspace/site/img/logo.png.onedrop-upload')
         ->and($decode['command'][5])->toBe('/workspace/site/img/logo.png')
         ->and($decode['command'][2])->toContain('base64 -d');
 })->group('FILE-003');
@@ -236,7 +236,7 @@ test('downloads the workspace as a zip built in the sandbox', function () {
     $temp = $zip['command'][4];
 
     expect(array_slice($zip['command'], 0, 2))->toBe(['php', '-r'])
-        ->and($temp)->toStartWith('/tmp/zap-download-')
+        ->and($temp)->toStartWith('/tmp/onedrop-download-')
         ->and(array_slice($zip['command'], 5))->toBe(WorkspaceFiles::COLLAPSED)
         ->and($read['command'][4])->toBe($temp);
 })->group('FILE-003');

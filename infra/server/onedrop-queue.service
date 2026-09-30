@@ -1,11 +1,11 @@
 [Unit]
-Description=Zap queue worker (sandboxes, agent runs, publishing)
+Description=OneDrop queue worker (sandboxes, agent runs, publishing)
 After=network.target docker.service
 
 [Service]
-User=zap
-Group=zap
-WorkingDirectory=/opt/zap/current
+User=onedrop
+Group=onedrop
+WorkingDirectory=/opt/onedrop/current
 ExecStart=/usr/bin/php artisan queue:work --tries=1 --timeout=0 --sleep=1
 Restart=always
 RestartSec=3

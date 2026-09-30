@@ -20,7 +20,7 @@ beforeEach(function () {
     Storage::fake('backups');
     config(['sandbox.backup_disk' => 'backups', 'sandbox.git.protocols' => ['https', 'file']]);
 
-    $this->root = sys_get_temp_dir().'/zap-git-remote-'.uniqid();
+    $this->root = sys_get_temp_dir().'/onedrop-git-remote-'.uniqid();
     $this->workspace = "{$this->root}/workspace";
     $this->remote = "{$this->root}/remote.git";
     $this->sh = fn (string $command, ?string $path = null) => trim(Process::path($path ?? $this->workspace)->run($command)->throw()->output());
@@ -113,7 +113,7 @@ test('pulling copies the remote\'s branch into the sandbox as a bundle to fast-f
     SyncGitRemote::dispatchSync($this->project, GitSyncStatus::Pulling);
 
     expect(($this->sh)('git bundle list-heads pull.bundle', $this->copiedIn))->toBe(($this->sh)('git rev-parse HEAD', $other).' refs/heads/main')
-        ->and(collect($this->gitRequests)->last())->toBe(['op' => 'pulled', 'branch' => 'main', 'bundle' => '/tmp/zap-pull/pull.bundle'])
+        ->and(collect($this->gitRequests)->last())->toBe(['op' => 'pulled', 'branch' => 'main', 'bundle' => '/tmp/onedrop-pull/pull.bundle'])
         ->and($this->project->fresh()->git_sync_status)->toBeNull()
         ->and($this->project->fresh()->git_synced_at)->not->toBeNull();
 })->group('GIT-004');

@@ -1,8 +1,23 @@
+import { usePage } from '@inertiajs/react';
 import { useId } from 'react';
 import type { SVGAttributes } from 'react';
+import { cn } from '@/lib/utils';
 
+/** The droplet, or the logo an admin uploaded (ADMIN-001). */
 export default function AppLogoIcon(props: SVGAttributes<SVGElement>) {
+    const { logo } = usePage().props;
     const highlight = useId();
+
+    if (logo) {
+        return (
+            <img
+                src={logo}
+                alt=""
+                className={cn('object-contain', props.className)}
+                data-test="custom-logo"
+            />
+        );
+    }
 
     return (
         <svg {...props} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">

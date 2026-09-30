@@ -23,9 +23,9 @@ beforeEach(function () {
     Sandbox::factory()->for($this->project)->create(['preview_url' => null]);
     $this->actingAs($this->user);
 
-    $this->image = sys_get_temp_dir().'/zap-logo.png';
+    $this->image = sys_get_temp_dir().'/onedrop-logo.png';
     imagepng(imagecreatetruecolor(8, 8), $this->image);
-    $this->notes = sys_get_temp_dir().'/zap-notes.txt';
+    $this->notes = sys_get_temp_dir().'/onedrop-notes.txt';
     file_put_contents($this->notes, 'brand colors');
 });
 
@@ -49,8 +49,8 @@ test('the user pastes and picks files, sees and removes them, and sees sent imag
 
     $page->assertCount('form [data-test="attachment"]', 2)
         ->assertVisible('form img[alt="pasted.png"]')
-        ->assertVisible('[aria-label="Remove zap-notes.txt"]')
-        ->click('[aria-label="Remove zap-notes.txt"]')
+        ->assertVisible('[aria-label="Remove onedrop-notes.txt"]')
+        ->click('[aria-label="Remove onedrop-notes.txt"]')
         ->assertCount('form [data-test="attachment"]', 1)
         ->assertEnabled('@composer-send')
         ->assertVisible('[data-test="message-user"] img[alt="sent-logo.png"]')

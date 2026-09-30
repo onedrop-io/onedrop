@@ -29,7 +29,7 @@ class Gateway
     public const APP = 'app';
 
     /** The per-address cookie. Caddy strips it before traffic reaches the sandbox. */
-    public const COOKIE = 'zap_gateway';
+    public const COOKIE = 'onedrop_gateway';
 
     /** How long the hand-off token in enterUrl() is valid. */
     public const TOKEN_SECONDS = 60;
@@ -38,9 +38,9 @@ class Gateway
     public const PASS_MINUTES = 720;
 
     /** Header the Cloudflare Worker proves itself with, and the one naming the preview/shell address it serves. */
-    public const SECRET_HEADER = 'X-Zap-Gateway-Secret';
+    public const SECRET_HEADER = 'X-OneDrop-Gateway-Secret';
 
-    public const HOST_HEADER = 'X-Zap-Gateway-Host';
+    public const HOST_HEADER = 'X-OneDrop-Gateway-Host';
 
     /** Private preview links' token parameter => the header the provider also accepts it in. */
     public const PROVIDER_TOKENS = [
@@ -195,7 +195,7 @@ class Gateway
             'expires' => now()->addSeconds(self::TOKEN_SECONDS)->getTimestamp(),
         ], JSON_THROW_ON_ERROR));
 
-        return $this->url($sandbox, $kind).'/__zap/enter?'.http_build_query(['token' => $token, 'path' => $path]);
+        return $this->url($sandbox, $kind).'/__onedrop/enter?'.http_build_query(['token' => $token, 'path' => $path]);
     }
 
     /**

@@ -85,7 +85,7 @@ test('finishing an agent run picks up the app\'s icon in the background', functi
     $this->project->update(['status' => ProjectStatus::Working]);
 
     $this->withToken($this->sandbox->issueEventsToken())
-        ->postJson(route('sandbox-events.store', $this->sandbox), ['events' => [['type' => 'zap.exit', 'code' => 0, 'stderr' => '']]])
+        ->postJson(route('sandbox-events.store', $this->sandbox), ['events' => [['type' => 'onedrop.exit', 'code' => 0, 'stderr' => '']]])
         ->assertOk();
 
     Queue::assertPushed(UpdateProjectIcon::class, fn (UpdateProjectIcon $job) => $job->project->is($this->project) && ! $job->redraw);

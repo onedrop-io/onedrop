@@ -30,7 +30,7 @@ OneDrop can show **Continue with …** buttons on the log-in and sign-up pages. 
 When you create the OAuth app at each provider, use this redirect (callback) URL, with your `APP_URL`:
 
 ```text
-https://zap.example.com/login/{provider}/callback
+https://onedrop.example.com/login/{provider}/callback
 ```
 
 where `{provider}` is `google`, `microsoft`, `github`, `gitlab`, or `oidc`.
@@ -40,7 +40,7 @@ where `{provider}` is `google`, `microsoft`, `github`, `gitlab`, or `oidc`.
 <Tabs>
     <Tab title="Google">
         1. In the [Google Cloud console](https://console.cloud.google.com/apis/credentials), create an **OAuth client ID** of type **Web application**.
-        2. Add `https://zap.example.com/login/google/callback` as an authorized redirect URI.
+        2. Add `https://onedrop.example.com/login/google/callback` as an authorized redirect URI.
         3. Add the credentials to `.env`:
 
         ```bash
@@ -50,7 +50,7 @@ where `{provider}` is `google`, `microsoft`, `github`, `gitlab`, or `oidc`.
     </Tab>
     <Tab title="Microsoft">
         1. In the [Microsoft Entra admin center](https://entra.microsoft.com), go to **App registrations → New registration**.
-        2. Choose who can sign in, and add a **Web** redirect URI of `https://zap.example.com/login/microsoft/callback`.
+        2. Choose who can sign in, and add a **Web** redirect URI of `https://onedrop.example.com/login/microsoft/callback`.
         3. Under **Certificates & secrets**, create a client secret.
         4. Add the credentials to `.env`:
 
@@ -62,12 +62,12 @@ where `{provider}` is `google`, `microsoft`, `github`, `gitlab`, or `oidc`.
         ```
     </Tab>
     <Tab title="GitHub">
-        If you've set up the [GitHub App](/self-hosting/github-app) for Tools → Git, you're nearly done: add `https://zap.example.com/login/github/callback` as a Callback URL and the **Email addresses: Read-only** account permission, and the button appears. No extra settings needed.
+        If you've set up the [GitHub App](/self-hosting/github-app) for Tools → Git, you're nearly done: add `https://onedrop.example.com/login/github/callback` as a Callback URL and the **Email addresses: Read-only** account permission, and the button appears. No extra settings needed.
 
         To use a separate OAuth app instead:
 
         1. In GitHub, go to **Settings → Developer settings → OAuth Apps → New OAuth App**.
-        2. Set the authorization callback URL to `https://zap.example.com/login/github/callback`.
+        2. Set the authorization callback URL to `https://onedrop.example.com/login/github/callback`.
         3. Generate a client secret and add the credentials to `.env`:
 
         ```bash
@@ -77,7 +77,7 @@ where `{provider}` is `google`, `microsoft`, `github`, `gitlab`, or `oidc`.
     </Tab>
     <Tab title="GitLab">
         1. In GitLab, go to **Preferences → Applications → Add new application**.
-        2. Set the redirect URI to `https://zap.example.com/login/gitlab/callback` and select the `read_user` scope.
+        2. Set the redirect URI to `https://onedrop.example.com/login/gitlab/callback` and select the `read_user` scope.
         3. Add the credentials to `.env`. For a self-managed GitLab, also set its URL:
 
         ```bash
@@ -89,7 +89,7 @@ where `{provider}` is `google`, `microsoft`, `github`, `gitlab`, or `oidc`.
     <Tab title="OIDC (Okta, Keycloak, …)">
         Any issuer that publishes `/.well-known/openid-configuration` works: Okta, Keycloak, Authentik, Auth0, Zitadel, and others.
 
-        1. Create an OIDC web application at your identity provider with the redirect URI `https://zap.example.com/login/oidc/callback` and the `openid email profile` scopes.
+        1. Create an OIDC web application at your identity provider with the redirect URI `https://onedrop.example.com/login/oidc/callback` and the `openid email profile` scopes.
         2. Add it to `.env`. `OIDC_LABEL` is the name on the button:
 
         ```bash

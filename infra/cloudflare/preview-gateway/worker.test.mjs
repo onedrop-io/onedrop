@@ -43,7 +43,7 @@ async function run(url, authorize, { cookie } = {}) {
         });
     };
 
-    const headers = cookie ? { Cookie: `zap_gateway=${cookie}` } : {};
+    const headers = cookie ? { Cookie: `onedrop_gateway=${cookie}` } : {};
     const waits = [];
     const response = await worker.fetch(new Request(url, { headers }), env, {
         waitUntil: (p) => waits.push(p),
@@ -97,15 +97,15 @@ test('binary answers pass through untouched', async () => {
 
 test('the gateway cookie is read, and kept from the app in the sandbox', () => {
     assert.equal(
-        readCookie('a=1; zap_gateway=abc=; b=2', 'zap_gateway'),
+        readCookie('a=1; onedrop_gateway=abc=; b=2', 'onedrop_gateway'),
         'abc=',
     );
-    assert.equal(readCookie('a=1', 'zap_gateway'), null);
+    assert.equal(readCookie('a=1', 'onedrop_gateway'), null);
     assert.equal(
-        withoutCookie('a=1; zap_gateway=abc; b=2', 'zap_gateway'),
+        withoutCookie('a=1; onedrop_gateway=abc; b=2', 'onedrop_gateway'),
         'a=1; b=2',
     );
-    assert.equal(withoutCookie('zap_gateway=abc', 'zap_gateway'), '');
+    assert.equal(withoutCookie('onedrop_gateway=abc', 'onedrop_gateway'), '');
 });
 
 test("the app's own gateway pages can be shown in the workspace frame", () => {
@@ -127,9 +127,9 @@ test('a public app is served without a cookie, and the answer is shared for a mi
             new Response(null, {
                 status: 200,
                 headers: {
-                    'X-Zap-Upstream': 'https://abc.preview.bl.run',
-                    'X-Zap-Upstream-Header': 'X-Blaxel-Preview-Token',
-                    'X-Zap-Upstream-Token': 'secret-token',
+                    'X-OneDrop-Upstream': 'https://abc.preview.bl.run',
+                    'X-OneDrop-Upstream-Header': 'X-Blaxel-Preview-Token',
+                    'X-OneDrop-Upstream-Token': 'secret-token',
                 },
             }),
     );
@@ -142,7 +142,7 @@ test('a public app is served without a cookie, and the answer is shared for a mi
         'from https://time-tracker-4.onedrop.io/invoices',
     );
     assert.equal(
-        sent[0].headers.get('X-Zap-Gateway-Host'),
+        sent[0].headers.get('X-OneDrop-Gateway-Host'),
         'time-tracker-4.onedrop.io',
     );
     assert.equal(sent[1].headers.get('X-Blaxel-Preview-Token'), 'secret-token');

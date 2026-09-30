@@ -1,7 +1,7 @@
 # Checking the app's SEO
 
 Follow this when the user asks you to check (and maybe fix) their app's SEO. The app builder's
-Tools → Growth panel shows the result you write to `/workspace/.zap/seo.json`, so stick to the contract below.
+Tools → Growth panel shows the result you write to `/workspace/.onedrop/seo.json`, so stick to the contract below.
 
 ## How to check
 
@@ -35,7 +35,7 @@ Tools → Growth panel shows the result you write to `/workspace/.zap/seo.json`,
   sitemap URLs when you know it; otherwise use relative URLs. Then check again and write the report as it is
   after your fixes.
 
-## Write /workspace/.zap/seo.json
+## Write /workspace/.onedrop/seo.json
 
 Write this file every time you check:
 

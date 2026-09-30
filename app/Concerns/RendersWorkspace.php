@@ -47,6 +47,7 @@ trait RendersWorkspace
         $task = $conversation instanceof Task ? $conversation : null;
         // A task with its own copy of the app shows that copy's preview, shell and files (TASK-003).
         $sandbox = $task && Task::getsCopies() ? $task->sandbox()->first() : $project->sandbox;
+        $sandbox?->wake(app(SandboxProvider::class));
         $open = fn (string $kind, string $path = '/') => route('projects.gateway.open', [$project, $kind, ...($sandbox?->task_id ? ['task' => $sandbox->task_id] : []), ...($path !== '/' ? ['path' => $path] : [])]);
         $messages = $newTask ? collect() : $conversation->messages()->with('attachments')->get();
         $queued = $newTask ? collect() : $conversation->queuedMessages()->with('attachments')->get();

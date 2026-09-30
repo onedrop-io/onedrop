@@ -10,7 +10,7 @@
  * Reads one JSON request from $APP_DB_REQUEST and prints one JSON response:
  * {"ok": true, "data": ...} or {"ok": false, "error": "..."}.
  *
- * Usage: APP_DB_REQUEST='{"op":"connections"}' php /opt/zap/db.php
+ * Usage: APP_DB_REQUEST='{"op":"connections"}' php /opt/onedrop/db.php
  */
 
 declare(strict_types=1);
@@ -22,7 +22,7 @@ const PAGE_SIZE_MAX = 100;
 const QUERY_ROWS_MAX = 500;
 const CELL_BYTES_MAX = 10_000;
 const SQLITE_SCAN_DEPTH = 4;
-const SKIPPED_DIRS = ['node_modules', 'vendor', '.git', '.cache', '.zap', 'storage/framework'];
+const SKIPPED_DIRS = ['node_modules', 'vendor', '.git', '.cache', '.onedrop', 'storage/framework'];
 const FILTER_OPERATORS = ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'contains', 'null', 'notnull'];
 
 final class ToolError extends RuntimeException {}

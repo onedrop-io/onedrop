@@ -235,7 +235,7 @@ test('Claude Code runs on the user\'s own Claude sign-in with the chosen model a
 
     app(HarnessRunner::class)->start($project, $message);
 
-    expect($this->provider->executed[0]['command'])->toBe(['node', '/opt/zap/forwarder.mjs'])
+    expect($this->provider->executed[0]['command'])->toBe(['node', '/opt/onedrop/forwarder.mjs'])
         ->and($this->provider->envs[0])->toMatchArray([
             'APP_AGENT' => 'claude_code',
             'APP_PROMPT' => 'build a timer',
@@ -263,7 +263,7 @@ test('a Claude Code run becomes chat messages in order', function () {
     $project = Project::factory()->for($this->user)->create(['status' => ProjectStatus::Working]);
 
     sendClaudeEvents($project, [
-        ['type' => 'zap.start'],
+        ['type' => 'onedrop.start'],
         ['type' => 'system', 'subtype' => 'init', 'session_id' => 'sess-1'],
         ['type' => 'assistant', 'session_id' => 'sess-1', 'message' => ['model' => 'claude-opus-5-5', 'content' => [['type' => 'thinking']]]],
         ['type' => 'assistant', 'session_id' => 'sess-1', 'message' => ['model' => 'claude-opus-5-5', 'content' => [['type' => 'text', 'text' => "I'll build a timer."]]]],
@@ -271,7 +271,7 @@ test('a Claude Code run becomes chat messages in order', function () {
         ['type' => 'assistant', 'session_id' => 'sess-1', 'message' => ['model' => 'claude-opus-5-5', 'content' => [['type' => 'tool_use', 'name' => 'Bash', 'input' => ['command' => 'npm install', 'description' => 'Install dependencies']]]]],
         ['type' => 'assistant', 'session_id' => 'sess-1', 'message' => ['model' => 'claude-opus-5-5', 'content' => [['type' => 'text', 'text' => 'Done! Press Start to begin timing.']]]],
         ['type' => 'result', 'subtype' => 'success', 'is_error' => false, 'result' => 'Done! Press Start to begin timing.', 'session_id' => 'sess-1'],
-        ['type' => 'zap.exit', 'code' => 0, 'stderr' => '', 'reported' => false],
+        ['type' => 'onedrop.exit', 'code' => 0, 'stderr' => '', 'reported' => false],
     ]);
 
     $project->refresh();
@@ -293,7 +293,7 @@ test('failed Claude Code runs are explained once', function (array $result, stri
     sendClaudeEvents($project, [
         ['type' => 'assistant', 'message' => ['model' => '<synthetic>', 'content' => [['type' => 'text', 'text' => 'API Error']]]],
         ['type' => 'result', 'is_error' => true, ...$result],
-        ['type' => 'zap.exit', 'code' => 1, 'stderr' => '', 'reported' => true],
+        ['type' => 'onedrop.exit', 'code' => 1, 'stderr' => '', 'reported' => true],
     ]);
 
     expect($project->messages()->pluck('content')->all())->toBe([$expected])
@@ -312,7 +312,7 @@ test('a run that fails because Claude isn\'t signed in waits to run again after 
 
     sendClaudeEvents($project, [
         ['type' => 'result', 'is_error' => true, ...$result],
-        ['type' => 'zap.exit', 'code' => 1, 'stderr' => '', 'reported' => true],
+        ['type' => 'onedrop.exit', 'code' => 1, 'stderr' => '', 'reported' => true],
     ]);
 
     expect($project->fresh()->sign_in_retry_message_id)->toBe($waits ? $message->id : null);
@@ -327,7 +327,7 @@ test('a run whose Claude sign-in is rejected tries once more before asking the u
     $message = $project->messages()->create(['role' => MessageRole::User, 'content' => 'Build a timer']);
     $rejected = [
         ['type' => 'result', 'is_error' => true, 'api_error_status' => 401, 'result' => 'OAuth access token has been revoked.'],
-        ['type' => 'zap.exit', 'code' => 1, 'stderr' => '', 'reported' => true],
+        ['type' => 'onedrop.exit', 'code' => 1, 'stderr' => '', 'reported' => true],
     ];
     $logouts = fn () => collect($this->provider->executed)->where('command', ['claude', 'auth', 'logout'])->count();
 
@@ -352,7 +352,7 @@ test('a run whose Claude sign-in is rejected tries once more before asking the u
 test('a Claude Code crash without a result is still explained', function () {
     $project = Project::factory()->for($this->user)->create(['status' => ProjectStatus::Working]);
 
-    sendClaudeEvents($project, [['type' => 'zap.exit', 'code' => 1, 'stderr' => 'Error: spawn claude ENOENT', 'reported' => false]]);
+    sendClaudeEvents($project, [['type' => 'onedrop.exit', 'code' => 1, 'stderr' => 'Error: spawn claude ENOENT', 'reported' => false]]);
 
     expect($project->messages()->sole()->content)->toBe('The agent stopped unexpectedly. Error: Error: spawn claude ENOENT');
 })->group('AGT-007');

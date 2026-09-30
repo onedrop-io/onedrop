@@ -7,7 +7,7 @@ use Dotenv\Dotenv;
  */
 
 beforeEach(function () {
-    $this->workspace = sys_get_temp_dir().'/zap-secrets-'.bin2hex(random_bytes(4));
+    $this->workspace = sys_get_temp_dir().'/onedrop-secrets-'.bin2hex(random_bytes(4));
     mkdir($this->workspace);
     $root = $this->workspace;
     register_shutdown_function(fn () => exec('rm -rf '.escapeshellarg($root)));

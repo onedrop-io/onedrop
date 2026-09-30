@@ -1,15 +1,17 @@
-# Zap on a server. APP_DOMAIN is set by bootstrap.sh (systemd drop-in).
+# OneDrop on a server. APP_DOMAIN is set by bootstrap.sh (systemd drop-in).
 {
 	# Only issue certificates for preview-<id>/shell-<id> hosts of sandboxes that exist.
 	on_demand_tls {
 		ask http://127.0.0.1:8080/sandbox-gateway/certificate
 	}
+	# Settings → Server (ADMIN-004): the Let's Encrypt email and "local_certs", written by apply-server-settings.
+	import /etc/caddy/onedrop-options.caddy
 }
 
 (laravel) {
-	root * /opt/zap/current/public
+	root * /opt/onedrop/current/public
 	encode zstd gzip
-	php_fastcgi unix//run/php/php8.4-fpm-zap.sock
+	php_fastcgi unix//run/php/php8.4-fpm-onedrop.sock
 	file_server
 }
 
@@ -31,6 +33,12 @@ http://:8080 {
 	header +Set-Cookie "XSRF-TOKEN=; Domain={$APP_DOMAIN}; Path=/; Max-Age=0; Secure"
 	header +Set-Cookie "laravel-session=; Domain={$APP_DOMAIN}; Path=/; Max-Age=0; Secure; HttpOnly"
 
+	# Live updates (LIVE-001): browsers' WebSockets to Reverb. Only the socket path; Reverb's HTTP API
+	# (/apps/...) stays on loopback, where the app sends from.
+	handle /app/* {
+		reverse_proxy 127.0.0.1:8081
+	}
+
 	handle {
 		import laravel
 	}
@@ -45,21 +53,21 @@ http://:8080 {
 	# route keeps these in the written order (Caddy would otherwise reorder them).
 	route {
 		# Never trust a client-supplied upstream.
-		request_header -X-Zap-Upstream
+		request_header -X-OneDrop-Upstream
 
-		# The app's hand-off lands here; Laravel sets this address's own zap_gateway cookie.
-		@enter path /__zap/enter
+		# The app's hand-off lands here; Laravel sets this address's own onedrop_gateway cookie.
+		@enter path /__onedrop/enter
 		reverse_proxy @enter 127.0.0.1:8080
 
-		# Laravel checks the zap_gateway cookie and answers with the sandbox's local address.
+		# Laravel checks the onedrop_gateway cookie and answers with the sandbox's local address.
 		forward_auth 127.0.0.1:8080 {
 			uri /sandbox-gateway/authorize
-			copy_headers X-Zap-Upstream
+			copy_headers X-OneDrop-Upstream
 		}
 
 		# Code in the sandbox never sees the gateway cookie.
-		reverse_proxy {http.request.header.X-Zap-Upstream} {
-			header_up Cookie "(^|;\s*)zap_gateway=[^;]*(;\s*)?" "$1"
+		reverse_proxy {http.request.header.X-OneDrop-Upstream} {
+			header_up Cookie "(^|;\s*)onedrop_gateway=[^;]*(;\s*)?" "$1"
 		}
 	}
 }

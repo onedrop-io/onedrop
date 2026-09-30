@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Models\SystemSetting;
 use App\Models\User;
 use App\Sandbox\Agents\AgentRunner;
 use App\Sandbox\Gateway;
@@ -14,7 +15,9 @@ use App\Sandbox\Publishing\FakePublisher;
 use App\Sandbox\Publishing\Publisher;
 use App\Sandbox\Publishing\TailscalePublisher;
 use App\Sandbox\SandboxProvider;
+use App\Sandbox\SystemConfig;
 use Carbon\CarbonImmutable;
+use Illuminate\Foundation\DevCommands;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -66,9 +69,17 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->configureDefaults();
 
+        // Settings admins saved in the app win over `.env` (ADMIN-001, ADMIN-002).
+        SystemSetting::flush();
+        SystemConfig::apply();
+
         Gate::define('manage-users', fn (User $user): bool => $user->is_admin);
+        Gate::define('administer', fn (User $user): bool => $user->is_admin);
 
         Event::listen(fn (SocialiteWasCalled $event) => $event->extendSocialite('microsoft', MicrosoftProvider::class));
+
+        // `composer run dev` runs the scheduler too, so idle Docker sandboxes are suspended locally (SBX-007).
+        DevCommands::artisan('schedule:work', 'scheduler');
     }
 
     /**

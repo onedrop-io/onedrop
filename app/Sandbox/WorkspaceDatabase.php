@@ -10,7 +10,7 @@ use App\Models\Sandbox;
  */
 class WorkspaceDatabase
 {
-    public const SCRIPT = '/opt/zap/db.php';
+    public const SCRIPT = '/opt/onedrop/db.php';
 
     /** Largest request sent per exec; keeps the env value under Linux's 128 KiB limit. */
     public const MAX_REQUEST_BYTES = 120_000;

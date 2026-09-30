@@ -25,7 +25,7 @@ beforeEach(function () {
 
 test("a task's copy has Main's files and a consistent database mid-write, and its work merges back", function () {
     $this->artisan('migrate:fresh');
-    $storage = sys_get_temp_dir().'/zap-task-copy-'.bin2hex(random_bytes(3));
+    $storage = sys_get_temp_dir().'/onedrop-task-copy-'.bin2hex(random_bytes(3));
     config(['sandbox.provider' => 'docker', 'sandbox.providers.docker.storage_path' => $storage, 'sandbox.task_copies' => true]);
     $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
     app()->instance(SandboxProvider::class, $docker);
@@ -40,12 +40,12 @@ test("a task's copy has Main's files and a consistent database mid-write, and it
 
     try {
         // An app with a dev server, a dependency folder, and a SQLite database written to constantly (no stack knowledge needed).
-        $setup = 'mkdir -p .zap/data node_modules/left-pad public && echo "module.exports=1" > node_modules/left-pad/index.js'
+        $setup = 'mkdir -p .onedrop/data node_modules/left-pad public && echo "module.exports=1" > node_modules/left-pad/index.js'
             .' && echo "<h1>Main</h1>" > public/index.html'
-            .' && printf "#!/usr/bin/env bash\nexec php -S 0.0.0.0:\$PORT -t /workspace/public\n" > .zap/dev && chmod +x .zap/dev'
-            .' && sqlite3 .zap/data/app.db "create table hits (id integer primary key, at text)"'
-            .' && echo "Build the app" | /opt/zap/checkpoint && /opt/zap/restart'
-            .' && (setsid bash -c "while true; do sqlite3 .zap/data/app.db \"insert into hits (at) values (datetime())\"; done" >/dev/null 2>&1 &)';
+            .' && printf "#!/usr/bin/env bash\nexec php -S 0.0.0.0:\$PORT -t /workspace/public\n" > .onedrop/dev && chmod +x .onedrop/dev'
+            .' && sqlite3 .onedrop/data/app.db "create table hits (id integer primary key, at text)"'
+            .' && echo "Build the app" | /opt/onedrop/checkpoint && /opt/onedrop/restart'
+            .' && (setsid bash -c "while true; do sqlite3 .onedrop/data/app.db \"insert into hits (at) values (datetime())\"; done" >/dev/null 2>&1 &)';
         expect($sh($main, $setup)->successful())->toBeTrue();
         sleep(2);
 
@@ -55,8 +55,8 @@ test("a task's copy has Main's files and a consistent database mid-write, and it
 
         expect(trim($sh($copy, 'git branch --show-current')->output))->toBe("task-{$task->id}")
             ->and(trim($sh($copy, 'cat node_modules/left-pad/index.js')->output))->toBe('module.exports=1')
-            ->and(trim($sh($copy, 'sqlite3 .zap/data/app.db "pragma integrity_check"')->output))->toBe('ok')
-            ->and((int) trim($sh($copy, 'sqlite3 .zap/data/app.db "select count(*) from hits"')->output))->toBeGreaterThan(0)
+            ->and(trim($sh($copy, 'sqlite3 .onedrop/data/app.db "pragma integrity_check"')->output))->toBe('ok')
+            ->and((int) trim($sh($copy, 'sqlite3 .onedrop/data/app.db "select count(*) from hits"')->output))->toBeGreaterThan(0)
             ->and($task->fresh()->base_commit)->toBe(trim($sh($main, 'git rev-parse HEAD')->output))
             // Main kept running while it was copied.
             ->and(trim($sh($main, 'ps -o stat= -p "$(pgrep -f "insert into hits" | head -1)"')->output))->not->toContain('T');

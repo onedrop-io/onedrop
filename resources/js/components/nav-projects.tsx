@@ -314,7 +314,7 @@ function ProjectList({ projects }: { projects: SidebarProject[] }) {
 }
 
 /** localStorage key for the projects whose tasks are shown (or hidden) in the sidebar, by id. */
-const EXPANDED_KEY = 'zap.sidebar-expanded-projects';
+const EXPANDED_KEY = 'onedrop.sidebar-expanded-projects';
 
 /** Which projects the user expanded (true) or collapsed (false); unset ones follow `isExpanded`'s default. */
 function useExpandedProjects(): [

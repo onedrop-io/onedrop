@@ -46,7 +46,7 @@ test('the owner can list databases, tables and rows', function () {
         ->assertJsonPath('rows.0.name', 'Cy_1')
         ->assertJsonCount(2, 'rows');
 
-    expect($this->provider->executed[0])->toMatchArray(['id' => 'ctr-1', 'command' => ['php', '/opt/zap/db.php']]);
+    expect($this->provider->executed[0])->toMatchArray(['id' => 'ctr-1', 'command' => ['php', '/opt/onedrop/db.php']]);
 })->group('DB-001');
 
 test('saving changes keeps empty strings and spaces as typed', function () {
@@ -113,7 +113,7 @@ test('it explains a stopped sandbox and a sandbox without the database tool', fu
 
     $this->sandbox->update(['status' => SandboxStatus::Running]);
     $old = new FakeSandboxProvider;
-    $old->execUsing = fn () => new ExecResult(1, 'Could not open input file: /opt/zap/db.php');
+    $old->execUsing = fn () => new ExecResult(1, 'Could not open input file: /opt/onedrop/db.php');
     app()->instance(SandboxProvider::class, $old);
 
     $this->actingAs($this->user)

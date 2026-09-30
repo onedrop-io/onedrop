@@ -63,6 +63,19 @@ class FakeSandboxProvider implements SandboxProvider
         $this->suspended[] = $id;
     }
 
+    /** @var list<string> ids woken, in order */
+    public array $woken = [];
+
+    /** What wake() answers: whether the sandbox had to be woken. */
+    public bool $wakes = false;
+
+    public function wake(string $id): bool
+    {
+        $this->woken[] = $id;
+
+        return $this->wakes;
+    }
+
     public function exec(string $id, array $command, array $env = [], bool $detach = false): ExecResult
     {
         $this->executed[] = ['id' => $id, 'command' => $command, 'env' => $env, 'detach' => $detach];

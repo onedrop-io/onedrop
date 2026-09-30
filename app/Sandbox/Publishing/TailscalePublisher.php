@@ -46,7 +46,7 @@ class TailscalePublisher implements Publisher
         $command = [
             'docker', 'run', '--detach',
             '--name', $name,
-            '--label', 'zap.sandbox.publisher=1',
+            '--label', 'onedrop.sandbox.publisher=1',
             '--network', "container:{$sandbox->external_id}",
             '--volume', "{$name}-state:/var/lib/tailscale",
             '--env', "TS_HOSTNAME={$project->publishHostname()}",
@@ -120,7 +120,7 @@ class TailscalePublisher implements Publisher
      */
     public function containerName(Project $project): string
     {
-        return "zap-publish-{$project->id}";
+        return "onedrop-publish-{$project->id}";
     }
 
     protected function isRunning(string $name): bool

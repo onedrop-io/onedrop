@@ -3,7 +3,7 @@ title: 'Sandboxes'
 description: "How project sandboxes run in Docker, on Blaxel or on Runtime Cloud, what's inside them, and how to maintain them."
 ---
 
-Each project runs in its own sandbox. Locally that's a Docker container made from the `zap-sandbox` image. In production it's a microVM made from the same image, on [Blaxel](https://blaxel.ai) or [Runtime Cloud](https://withruntime.com).
+Each project runs in its own sandbox. Locally that's a Docker container made from the `onedrop-sandbox` image. In production it's a microVM made from the same image, on [Blaxel](https://blaxel.ai) or [Runtime Cloud](https://withruntime.com).
 
 ## What's in the image
 
@@ -31,8 +31,20 @@ Each container gets:
 
 - A 2 GB memory and 2 CPU limit
 - Ports published on `127.0.0.1` only: the proxy (preview) and the terminal
-- The `zap.sandbox` label, so you can find all sandboxes
+- The `onedrop.sandbox` label, so you can find all sandboxes
 - The owner's default AI key as an environment variable, passed by name so it never appears in the process list
+
+## Idle sandboxes are suspended
+
+Blaxel and Runtime pause idle sandboxes by themselves. Docker doesn't, so the app does it: a Docker sandbox nobody has used for a minute is suspended with `docker pause`, as Runtime pauses its sandboxes after a minute. Its processes are frozen with their memory kept, and it uses no CPU.
+
+An open workspace tab, the agent's events and any network traffic to or from the container (such as its preview open in its own tab) count as use. It wakes by itself in well under a second, carrying on where it was, when its project is opened, while its workspace is open in a browser tab, when the gateway sends someone to it, and before any command the app runs in it. A sandbox whose agent is working, or whose project is published, is never suspended. Coming back to a workspace tab whose sandbox was asleep reloads its preview by itself.
+
+A paused sandbox still holds its memory, so one left suspended for 5 minutes is stopped (`docker stop`), freeing it. It starts again the same way, in a second or two, with its files; only its processes (the app's dev server, an open Shell tab) start afresh. Change the wait with `SANDBOX_DOCKER_STOP_AFTER_MINUTES`, or set it to `0` to keep suspended sandboxes paused.
+
+A container stopped outside the app (from Docker Desktop, or by a restart) starts again the same way. Each container keeps the host ports it was created with, so its preview and shell links still work after a restart.
+
+The `sandbox:suspend-idle` command does the suspending, every 15 seconds, from Laravel's scheduler: `composer run dev` runs the scheduler locally, and the [server install](/install#install-on-a-server) runs it as the `drop-scheduler` service. Change the wait with `SANDBOX_DOCKER_IDLE_SECONDS`, or set it to `0` to never suspend.
 
 ## Run sandboxes on Blaxel
 
@@ -53,7 +65,7 @@ Blaxel runs each sandbox in its own microVM. OneDrop talks to its REST APIs, so 
 
 How it differs from Docker:
 
-- **Settings and the AI key** are passed as Blaxel sandbox settings when the sandbox is created. The key is marked secret, so the API and console never show it. Blaxel sets `PORT=80` in every process, so OneDrop passes the app's port as `ZAP_PORT` and sets `PORT` again for each command.
+- **Settings and the AI key** are passed as Blaxel sandbox settings when the sandbox is created. The key is marked secret, so the API and console never show it. Blaxel sets `PORT=80` in every process, so OneDrop passes the app's port as `ONEDROP_PORT` and sets `PORT` again for each command.
 - **Previews and the Shell tab** use private Blaxel preview links under `bl.run`. Each link carries a token, and OneDrop hands it only to people allowed to see the project. The first visit trades the token for a cookie. Tokens last 7 days, and OneDrop fetches new links at most once a day when someone opens the project.
 - **Idle sandboxes go to standby** a few seconds after the last connection, with memory and processes kept, and wake on the next request. Agent runs keep their sandbox awake until they end.
 - **Size.** `BLAXEL_MEMORY_MIB` (4096 by default, the most a new account allows) also sets CPUs, one per 2048 MB. About half of it holds the sandbox's files.
@@ -78,9 +90,9 @@ Runtime Cloud runs each sandbox in its own Firecracker microVM. OneDrop talks to
     ```bash
     php artisan sandbox:build-image
     ```
-    With `SANDBOX_PROVIDER=runtime`, this builds `docker/sandbox` on Runtime as `zap-sandbox:latest`. It needs Node.js 22.12 or later. Run it again after changing `docker/sandbox/`; existing sandboxes then update themselves.
+    With `SANDBOX_PROVIDER=runtime`, this builds `docker/sandbox` on Runtime as `onedrop-sandbox:latest`. It needs Node.js 22.12 or later. Run it again after changing `docker/sandbox/`; existing sandboxes then update themselves.
 
-    To do this automatically, add a `RUNTIME_API_KEY` secret to the GitHub repository (and a `RUNTIME_IMAGE` variable if you don't use `zap-sandbox:latest`). The **runtime image** workflow then rebuilds the image whenever a push to `main` changes `docker/sandbox/`, and never otherwise, because each build makes every sandbox update itself.
+    To do this automatically, add a `RUNTIME_API_KEY` secret to the GitHub repository (and a `RUNTIME_IMAGE` variable if you don't use `onedrop-sandbox:latest`). The **runtime image** workflow then rebuilds the image whenever a push to `main` changes `docker/sandbox/`, and never otherwise, because each build makes every sandbox update itself.
   </Step>
   <Step title="Choose paid credit when ready">
     Sandboxes use the free trial until you set `RUNTIME_FUNDING=paid`. Add credit at [billing](https://withruntime.com/account/billing) before production traffic runs.
@@ -89,9 +101,9 @@ Runtime Cloud runs each sandbox in its own Firecracker microVM. OneDrop talks to
 
 How it differs from Docker:
 
-- **Settings at start.** Runtime can't set a sandbox's environment when it's created, so OneDrop writes the settings and the owner's AI key to `/home/sandbox/.zap-env`, readable only by the sandbox user. `start.sh` and the Shell tab read it. They never appear in a command line.
+- **Settings at start.** Runtime can't set a sandbox's environment when it's created, so OneDrop writes the settings and the owner's AI key to `/home/sandbox/.onedrop-env`, readable only by the sandbox user. `start.sh` and the Shell tab read it. They never appear in a command line.
 - **Previews and the Shell tab** use private Runtime preview links under `runtimehost.com`. Each link carries a token, and OneDrop hands it only to people allowed to see the project. Tokens last 7 days, and OneDrop fetches new links at most once a day when someone opens the project. Browsers won't show private Runtime links inside another site's page, so with private links the Preview and Shell tabs only open in their own browser tab. With paid credit, set `RUNTIME_PREVIEW_VISIBILITY=public` to show them in the workspace: public links carry no token, so anyone who has one can open it.
-- **Idle sandboxes pause.** After 60 seconds with nothing happening, a sandbox pauses with its memory and processes kept. The next preview visit, command or agent run wakes it in about a second.
+- **Idle sandboxes pause.** After 60 seconds with nothing happening, a sandbox pauses with its memory and processes kept. The next preview visit, command or agent run wakes it in about a second. If the trial is at its running limit, waking waits a few seconds for a slot, then asks you to try again.
 - **Leases.** A trial sandbox pauses when its hour-long lease ends, even during an agent run. With paid credit, set `RUNTIME_PERSISTENT=true` so leases renew.
 - **Trial limit.** At most 8 trial sandboxes run at once. When the limit is reached, creating one waits up to two minutes for a slot, as Runtime's own SDKs do; idle sandboxes pause after a minute and free theirs.
 - **Not available yet:** SSH (Tools → Developer → SSH) and Tailscale publishing, which need Docker.
@@ -123,9 +135,9 @@ Build the image on the new provider first (`php artisan sandbox:build-image` wit
 
 ## How the app's dev server runs
 
-The agent creates an executable `/workspace/.zap/dev` script that starts the app's dev server on `$PORT`, then runs `/opt/zap/restart`. The container's loop starts that script instead of the placeholder. Output goes to `/tmp/zap-server.log`, which the Console tab shows.
+The agent creates an executable `/workspace/.onedrop/dev` script that starts the app's dev server on `$PORT`, then runs `/opt/onedrop/restart`. The container's loop starts that script instead of the placeholder. Output goes to `/tmp/onedrop-server.log`, which the Console tab shows.
 
-The sandbox's proxy (`docker/sandbox/host-proxy.mjs`) records the app's errors in `/workspace/.zap/errors.log`: 5xx responses, the app not answering, and browser errors. It adds a small script, `/__zap/errors.js`, to HTML pages served on the preview address only. That script reports browser errors to `/__zap/error` and to the app builder around the preview. Reports are only accepted from the preview address, which sits behind the app builder's sign-in. See [When the app hits an error](/guides/workspace#when-the-app-hits-an-error).
+The sandbox's proxy (`docker/sandbox/host-proxy.mjs`) records the app's errors in `/workspace/.onedrop/errors.log`: 5xx responses, the app not answering, and browser errors. It adds a small script, `/__onedrop/errors.js`, to HTML pages served on the preview address only. That script reports browser errors to `/__onedrop/error` and to the app builder around the preview. Reports are only accepted from the preview address, which sits behind the app builder's sign-in. See [When the app hits an error](/guides/workspace#when-the-app-hits-an-error).
 
 ## Sandboxes update themselves
 
@@ -157,7 +169,7 @@ php artisan sandbox:recreate 12 --keep-files
 
 ## Code backups
 
-After every agent turn, `/opt/zap/checkpoint` commits the workspace to git (the forwarder runs it, whichever agent ran the turn), and a `BackupProject` job copies the whole history out of the sandbox as a verified git bundle. Bundles are stored at `project-backups/<project id>/repo.bundle` on the filesystem disk named by `SANDBOX_BACKUP_DISK`, or the app's default disk (`FILESYSTEM_DISK`) when that isn't set. The sandbox never gets credentials for that disk: the platform copies the bundle out through the provider.
+After every agent turn, `/opt/onedrop/checkpoint` commits the workspace to git (the forwarder runs it, whichever agent ran the turn), and a `BackupProject` job copies the whole history out of the sandbox as a verified git bundle. Bundles are stored at `project-backups/<project id>/repo.bundle` on the filesystem disk named by `SANDBOX_BACKUP_DISK`, or the app's default disk (`FILESYSTEM_DISK`) when that isn't set. The sandbox never gets credentials for that disk: the platform copies the bundle out through the provider.
 
 Checkpoints never include `node_modules`, `vendor`, `.cache` or `.env` files (except `.env.example`), and a repository in the middle of a merge or rebase is left alone. Backups hold code and its history only; App Storage buckets and databases outside git aren't in them.
 
@@ -172,7 +184,7 @@ When a sandbox is replaced without its files, the backup is cloned into the new 
 Nothing removes old containers automatically yet. To remove every sandbox and publish container:
 
 ```bash
-docker rm -f $(docker ps -aq --filter label=zap.sandbox) $(docker ps -aq --filter label=zap.sandbox.publisher)
+docker rm -f $(docker ps -aq --filter label=onedrop.sandbox) $(docker ps -aq --filter label=onedrop.sandbox.publisher)
 ```
 
 ## Real-Docker tests

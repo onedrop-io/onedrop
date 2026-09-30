@@ -10,7 +10,7 @@ use App\Sandbox\Providers\FakeSandboxProvider;
 use App\Sandbox\SandboxProvider;
 
 beforeEach(function () {
-    $this->workspace = sys_get_temp_dir().'/zap-secrets-'.bin2hex(random_bytes(4));
+    $this->workspace = sys_get_temp_dir().'/onedrop-secrets-'.bin2hex(random_bytes(4));
     mkdir($this->workspace);
     file_put_contents($this->workspace.'/.env', "APP_NAME=Demo\nSTRIPE_SECRET_KEY=sk_live_123\n");
     $root = $this->workspace;
@@ -55,7 +55,7 @@ test('it adds, changes and deletes secrets in the app\'s env file and restarts t
         ->assertExactJson(['secrets' => ['STRIPE_SECRET_KEY', 'OPENAI_API_KEY']]);
 
     expect(file_get_contents($this->workspace.'/.env'))->toBe("STRIPE_SECRET_KEY=sk_live_456\nOPENAI_API_KEY='sk proj \"1\"'\n")
-        ->and(collect($this->provider->executed)->where('command', ['/opt/zap/restart']))->toHaveCount(3);
+        ->and(collect($this->provider->executed)->where('command', ['/opt/onedrop/restart']))->toHaveCount(3);
 })->group('SECRET-001');
 
 test('it says when a new secret\'s name is taken instead of overwriting it', function () {
@@ -94,7 +94,7 @@ test('it adds pasted secrets together, replacing only the existing names the use
         ->assertExactJson(['secrets' => ['APP_NAME', 'STRIPE_SECRET_KEY', 'RESEND_API_KEY', 'PEM']]);
 
     expect(file_get_contents($this->workspace.'/.env'))->toBe("APP_NAME=Demo\nSTRIPE_SECRET_KEY=sk_live_new\nRESEND_API_KEY=re_1\nPEM=\"-----BEGIN-----\nabc\n-----END-----\"\n")
-        ->and(collect($this->provider->executed)->where('command', ['/opt/zap/restart']))->toHaveCount(1);
+        ->and(collect($this->provider->executed)->where('command', ['/opt/onedrop/restart']))->toHaveCount(1);
 })->group('SECRET-001');
 
 test('it refuses a batch too big to send to the sandbox', function () {

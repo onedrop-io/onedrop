@@ -54,9 +54,9 @@ class TaskCopies
             }
 
             $this->provider->exec($copy->external_id, ['bash', '-c', SandboxUpdater::USE_IMAGE_SHELL_SETUP]);
-            $branch = $this->run($copy, ['/opt/zap/fork', 'branch', self::branch($task)]);
-            // The app's dev server (.zap/dev) and its services came with the files; start them.
-            $this->provider->exec($copy->external_id, ['/opt/zap/restart']);
+            $branch = $this->run($copy, ['/opt/onedrop/fork', 'branch', self::branch($task)]);
+            // The app's dev server (.onedrop/dev) and its services came with the files; start them.
+            $this->provider->exec($copy->external_id, ['/opt/onedrop/restart']);
 
             $task->update(['base_commit' => trim($branch) ?: null, 'applied_at' => null]);
 
@@ -106,7 +106,7 @@ class TaskCopies
     public function externalServices(Sandbox $sandbox): array
     {
         try {
-            $result = $this->provider->exec($sandbox->external_id, ['/opt/zap/fork', 'services']);
+            $result = $this->provider->exec($sandbox->external_id, ['/opt/onedrop/fork', 'services']);
         } catch (SandboxException) {
             return [];
         }
@@ -126,9 +126,9 @@ class TaskCopies
      */
     protected function snapshot(Sandbox $main, string $local): void
     {
-        $dir = '/tmp/zap-fork-'.Str::lower(Str::random(8));
+        $dir = '/tmp/onedrop-fork-'.Str::lower(Str::random(8));
 
-        $this->provider->exec($main->external_id, ['/opt/zap/fork', 'snapshot', $dir, ...SandboxUpdater::KEPT_PATHS], detach: true);
+        $this->provider->exec($main->external_id, ['/opt/onedrop/fork', 'snapshot', $dir, ...SandboxUpdater::KEPT_PATHS], detach: true);
 
         try {
             $this->waitForSnapshot($main, $dir);
@@ -175,17 +175,17 @@ class TaskCopies
      */
     protected function merge(Sandbox $from, Sandbox $to, string $commitMessage, string $mergeMessage): array
     {
-        $dir = '/tmp/zap-bundle-'.Str::lower(Str::random(8));
+        $dir = '/tmp/onedrop-bundle-'.Str::lower(Str::random(8));
         $local = storage_path('framework/task-bundle-'.uniqid());
 
         try {
-            $this->run($from, ['bash', '-c', 'mkdir -p "$1" && /opt/zap/fork bundle "$1/branch.bundle" "$2"', 'bundle', $dir, $commitMessage]);
+            $this->run($from, ['bash', '-c', 'mkdir -p "$1" && /opt/onedrop/fork bundle "$1/branch.bundle" "$2"', 'bundle', $dir, $commitMessage]);
 
             File::ensureDirectoryExists($local);
             $this->provider->copyOut($from->external_id, $dir, $local);
             $this->provider->copyIn($to->external_id, $local, $dir);
 
-            $result = $this->provider->exec($to->external_id, ['/opt/zap/fork', 'merge', "{$dir}/branch.bundle", $mergeMessage]);
+            $result = $this->provider->exec($to->external_id, ['/opt/onedrop/fork', 'merge', "{$dir}/branch.bundle", $mergeMessage]);
 
             if ($result->exitCode === 3) {
                 return array_values(array_filter(array_map('trim', explode("\n", $result->output))));

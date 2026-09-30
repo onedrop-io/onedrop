@@ -5,6 +5,7 @@ use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxSpec;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Sleep;
 
@@ -18,7 +19,7 @@ beforeEach(function () {
     $this->runtimeConfig = [
         'api_key' => 'rt-test-key',
         'url' => 'https://api.withruntime.com',
-        'image' => 'zap-sandbox:latest',
+        'image' => 'onedrop-sandbox:latest',
         'funding' => 'trial',
         'vcpu' => 2,
         'memory_mib' => 4096,
@@ -42,7 +43,7 @@ test('create starts a trial sandbox from the current image and hands it its sett
         RT_API.'/sandboxes/'.RT_ID.':exec' => Http::response(['exitCode' => 0, 'stdout' => '', 'stderr' => '', 'timedOut' => false]),
     ]);
 
-    $id = $this->runtime->create(new SandboxSpec('zap-project-1-x', ['ANTHROPIC_API_KEY' => "sk-it's-secret"], 8000, shellPort: 7681));
+    $id = $this->runtime->create(new SandboxSpec('onedrop-project-1-x', ['ANTHROPIC_API_KEY' => "sk-it's-secret"], 8000, shellPort: 7681));
 
     expect($id)->toBe(RT_ID);
 
@@ -61,13 +62,13 @@ test('create starts a trial sandbox from the current image and hands it its sett
         && str_contains($request->body(), "ANTHROPIC_API_KEY='sk-it'\\''s-secret'")
         && str_contains($request->body(), "SHELL_PORT='7681'"));
 
-    Http::assertSent(fn (Request $request) => str_ends_with($request->url(), ':exec') && $request['argv'] === ['/opt/zap/restart']);
+    Http::assertSent(fn (Request $request) => str_ends_with($request->url(), ':exec') && $request['argv'] === ['/opt/onedrop/restart']);
 })->group('SBX-003');
 
 test('create says to build the image when it is not on Runtime yet', function () {
     Http::fake([RT_API.'/images/resolve*' => Http::response(runtimeError('not_found', 404), 404)]);
 
-    expect(fn () => $this->runtime->create(new SandboxSpec('zap-project-1-x')))
+    expect(fn () => $this->runtime->create(new SandboxSpec('onedrop-project-1-x')))
         ->toThrow(SandboxException::class, 'php artisan sandbox:build-image');
 })->group('SBX-003');
 
@@ -79,7 +80,7 @@ test('a sandbox that cannot take its settings is stopped instead of left running
         RT_API.'/sandboxes/'.RT_ID.':stop' => Http::response(['id' => RT_ID, 'state' => 'stopped']),
     ]);
 
-    expect(fn () => $this->runtime->create(new SandboxSpec('zap-project-1-x')))->toThrow(SandboxException::class);
+    expect(fn () => $this->runtime->create(new SandboxSpec('onedrop-project-1-x')))->toThrow(SandboxException::class);
 
     Http::assertSent(fn (Request $request) => str_ends_with($request->url(), ':stop'));
 })->group('SBX-003');
@@ -92,7 +93,7 @@ test('paid persistent sandboxes are asked for only when configured', function ()
         RT_API.'/sandboxes/'.RT_ID.':exec' => Http::response(['exitCode' => 0, 'stdout' => '', 'stderr' => '', 'timedOut' => false]),
     ]);
 
-    (new RuntimeSandboxProvider([...$this->runtimeConfig, 'funding' => 'paid', 'persistent' => true]))->create(new SandboxSpec('zap-project-1-x'));
+    (new RuntimeSandboxProvider([...$this->runtimeConfig, 'funding' => 'paid', 'persistent' => true]))->create(new SandboxSpec('onedrop-project-1-x'));
 
     Http::assertSent(fn (Request $request) => $request->url() === RT_API.'/sandboxes'
         && $request['funding'] === 'paid' && $request['persistent'] === true);
@@ -101,20 +102,20 @@ test('paid persistent sandboxes are asked for only when configured', function ()
 test('exec passes secrets in the body, never the command line, and maps the result', function () {
     Http::fake([RT_API.'/sandboxes/'.RT_ID.':exec' => Http::response(['exitCode' => 3, 'stdout' => 'out', 'stderr' => 'err', 'timedOut' => false])]);
 
-    $result = $this->runtime->exec(RT_ID, ['node', '/opt/zap/forwarder.mjs'], ['OPENAI_API_KEY' => 'sk-secret']);
+    $result = $this->runtime->exec(RT_ID, ['node', '/opt/onedrop/forwarder.mjs'], ['OPENAI_API_KEY' => 'sk-secret']);
 
     expect($result->exitCode)->toBe(3)
         ->and($result->output)->toBe('out')
         ->and($result->errorOutput)->toBe('err');
 
-    Http::assertSent(fn (Request $request) => $request['argv'] === ['node', '/opt/zap/forwarder.mjs']
+    Http::assertSent(fn (Request $request) => $request['argv'] === ['node', '/opt/onedrop/forwarder.mjs']
         && $request['env'] === ['HOME' => RuntimeSandboxProvider::HOME, 'OPENAI_API_KEY' => 'sk-secret']);
 })->group('SBX-003');
 
 test('a detached exec starts a background process', function () {
     Http::fake([RT_API.'/sandboxes/'.RT_ID.'/processes' => Http::response(['id' => 'p1', 'state' => 'running'])]);
 
-    expect($this->runtime->exec(RT_ID, ['node', '/opt/zap/forwarder.mjs'], detach: true)->successful())->toBeTrue();
+    expect($this->runtime->exec(RT_ID, ['node', '/opt/onedrop/forwarder.mjs'], detach: true)->successful())->toBeTrue();
 
     Http::assertSent(fn (Request $request) => str_ends_with($request->url(), '/processes') && ! isset($request['timeoutMs']));
 })->group('SBX-003');
@@ -185,7 +186,7 @@ test('pausing freezes the app\'s processes, with a watchdog that thaws them if n
     Http::assertSent(fn (Request $request) => str_ends_with($request->url(), ':exec') && str_contains($request['argv'][2], 'kill -STOP'));
     Http::assertSent(fn (Request $request) => str_ends_with($request->url(), '/processes')
         && str_contains($request['argv'][2], 'sleep '.RuntimeSandboxProvider::THAW_AFTER_SECONDS)
-        && end($request->data()['argv']) === 'zap-thaw-watchdog');
+        && end($request->data()['argv']) === 'onedrop-thaw-watchdog');
 })->group('SBX-003');
 
 test('a sandbox whose processes cannot be frozen is not copied', function () {
@@ -222,7 +223,7 @@ test('creating waits for a free slot while the trial is at its limit', function 
         RT_API.'/sandboxes/'.RT_ID.':exec' => Http::response(['exitCode' => 0, 'stdout' => '', 'stderr' => '', 'timedOut' => false]),
     ]);
 
-    expect($this->runtime->create(new SandboxSpec('zap-project-1-x')))->toBe(RT_ID);
+    expect($this->runtime->create(new SandboxSpec('onedrop-project-1-x')))->toBe(RT_ID);
 
     Sleep::assertSleptTimes(2);
 })->group('SBX-003');
@@ -234,7 +235,7 @@ test('creating gives up once the trial stays full', function () {
         RT_API.'/sandboxes' => Http::response(runtimeError('trial_busy', 409, 'trial already running: at most 8 trial sandboxes run at once'), 409),
     ]);
 
-    expect(fn () => $this->runtime->create(new SandboxSpec('zap-project-1-x')))
+    expect(fn () => $this->runtime->create(new SandboxSpec('onedrop-project-1-x')))
         ->toThrow(SandboxException::class, 'at most 8 trial sandboxes');
 })->group('SBX-003');
 
@@ -262,6 +263,30 @@ test('temporary refusals are retried with the same idempotency key', function ()
 
     $keys = Http::recorded()->map(fn (array $pair) => $pair[0]->header('Idempotency-Key')[0]);
     expect($keys)->toHaveCount(2)->and($keys->unique())->toHaveCount(1);
+})->group('SBX-003');
+
+test('a command waits while runtime has no room yet to wake the paused sandbox', function (string $code) {
+    Sleep::fake();
+    Http::fake([RT_API.'/sandboxes/'.RT_ID.':exec' => Http::sequence()
+        ->push(runtimeError($code, 409), 409)
+        ->push(runtimeError($code, 409), 409)
+        ->push(['exitCode' => 0, 'stdout' => 'ok', 'stderr' => '', 'timedOut' => false])]);
+
+    expect($this->runtime->exec(RT_ID, ['true'])->output)->toBe('ok');
+
+    Http::assertSentCount(3);
+})->with(['trial_busy', 'no_capacity', 'sandbox_not_ready'])->group('SBX-003');
+
+test('a sandbox runtime still has no room to wake says to try again, and is logged', function () {
+    Sleep::fake();
+    Log::spy();
+    Http::fake([RT_API.'/sandboxes/'.RT_ID.':exec' => Http::response(runtimeError('trial_busy', 409, 'trial already running: at most 8 trial sandboxes run at once'), 409)]);
+
+    expect(fn () => $this->runtime->exec(RT_ID, ['true']))
+        ->toThrow(SandboxException::class, 'Runtime has no room for the sandbox right now (trial already running: at most 8 trial sandboxes run at once). Try again in a moment.');
+
+    Http::assertSentCount(4);
+    Log::shouldHaveReceived('warning')->withArgs(fn (string $message, array $context) => $context['code'] === 'trial_busy' && $context['request_id'] === 'req_123');
 })->group('SBX-003');
 
 test('a missing api key is explained', function () {

@@ -339,7 +339,7 @@ cmd_uninstall() {
     $DOCKER rm --force "$NAME" >/dev/null 2>&1 || true
 
     if confirm "Also delete all projects and data? This can't be undone." n; then
-        ids="$($DOCKER ps -aq --filter label=zap.sandbox=1)"
+        ids="$($DOCKER ps -aq --filter label=onedrop.sandbox=1)"
         # shellcheck disable=SC2086 # one argument per container id
         [ -n "$ids" ] && $DOCKER rm --force $ids >/dev/null
         $DOCKER volume rm "$VOLUME" >/dev/null 2>&1 || true

@@ -2,7 +2,11 @@
 
 namespace App\Models;
 
+use App\Concerns\BroadcastsProjectChanges;
 use App\Enums\SandboxStatus;
+use App\Jobs\CreateSandbox;
+use App\Sandbox\SandboxException;
+use App\Sandbox\SandboxProvider;
 use Database\Factories\SandboxFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -10,6 +14,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
 /**
@@ -25,6 +30,9 @@ use Illuminate\Support\Str;
  * @property int $files_version
  * @property string|null $error
  * @property string|null $events_token_hash
+ * @property Carbon|null $last_active_at
+ * @property Carbon|null $suspended_at
+ * @property Carbon|null $stopped_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
@@ -32,6 +40,8 @@ use Illuminate\Support\Str;
 #[Hidden(['events_token_hash'])]
 class Sandbox extends Model
 {
+    use BroadcastsProjectChanges;
+
     /** @use HasFactory<SandboxFactory> */
     use HasFactory;
 
@@ -45,6 +55,9 @@ class Sandbox extends Model
         return [
             'status' => SandboxStatus::class,
             'files_version' => 'integer',
+            'last_active_at' => 'datetime',
+            'suspended_at' => 'datetime',
+            'stopped_at' => 'datetime',
         ];
     }
 
@@ -78,6 +91,51 @@ class Sandbox extends Model
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
+    }
+
+    /**
+     * Note that someone or something used the sandbox just now, so it isn't suspended for sitting idle (SBX-007).
+     */
+    public function markActive(): void
+    {
+        // The gateway asks on every request a page makes: every 15 seconds is plenty.
+        if ($this->last_active_at?->gt(now()->subSeconds(15))) {
+            return;
+        }
+
+        $this->forceFill(['last_active_at' => now()])->saveQuietly();
+    }
+
+    /**
+     * Wake the sandbox if it was suspended for sitting idle, and note that it's in use (SBX-007). A Docker container
+     * can also be stopped outside the app (Docker Desktop, a restart), so it's checked too, at most every 30 seconds.
+     * Returns whether it had been asleep, so a preview showing it can reload.
+     */
+    public function wake(SandboxProvider $provider): bool
+    {
+        $check = $this->suspended_at !== null
+            || ($this->provider === 'docker' && Cache::add("sandbox-awake-check:{$this->id}", true, 30));
+
+        if (! $check || $this->external_id === null || $this->status !== SandboxStatus::Running) {
+            $this->markActive();
+
+            return false;
+        }
+
+        try {
+            // A container that had to start again may be on other ports than the saved addresses.
+            $started = $provider->wake($this->external_id);
+            $addresses = $started ? CreateSandbox::addresses($provider, $this->external_id) : [];
+        } catch (SandboxException) {
+            // The workspace shows the sandbox as it is; the next visit tries again.
+            return false;
+        }
+
+        // Something else (a command the platform ran in it) may have woken a suspended one first.
+        $wasAsleep = $started || $this->suspended_at !== null;
+        $this->forceFill([...$addresses, 'suspended_at' => null, 'stopped_at' => null, 'last_active_at' => now()])->save();
+
+        return $wasAsleep;
     }
 
     /**

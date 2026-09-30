@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Concerns\BroadcastsProjectChanges;
 use App\Enums\AgentHarness;
 use App\Enums\AgentProvider;
 use App\Enums\GitSyncStatus;
@@ -71,6 +72,8 @@ use Illuminate\Support\Str;
 #[Hidden(['onedrop_client_secret', 'git_remote_token'])]
 class Project extends Model implements Conversation
 {
+    use BroadcastsProjectChanges;
+
     /** @use HasFactory<ProjectFactory> */
     use HasFactory;
 

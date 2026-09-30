@@ -60,7 +60,7 @@ Tools → Users & Auth panel reads what you build here, so stick to the contract
    keys in logs. Make sure the env file is in `.gitignore`.
 7. **Tests:** add tests for signing up, signing in, a wrong password and signing out, following the
    project's test setup. Then check `curl -sf "localhost:$PORT/login"` works and read
-   /tmp/zap-server.log if it doesn't.
+   /tmp/onedrop-server.log if it doesn't.
 
 ## Account controls
 
@@ -85,11 +85,11 @@ the very first user, who gets the first (`admin`). Admins can see and manage eve
 members only their own data, unless the user asked for something else. Read the role from the database
 on every request (the panel can change it at any time), and test that a member can't reach admin pages.
 
-## Let the panel add users, set passwords and sign people out: /workspace/.zap/users
+## Let the panel add users, set passwords and sign people out: /workspace/.onedrop/users
 
 The panel edits names and emails and deletes users directly in the database, but creating a user or
 setting a password needs the app's own auth library (so the password is hashed the way sign-in expects).
-Add an executable script `/workspace/.zap/users` that:
+Add an executable script `/workspace/.onedrop/users` that:
 
 - reads one JSON request from stdin and prints one JSON line to stdout (other output is ignored, so
   framework banners are fine);
@@ -101,7 +101,7 @@ Add an executable script `/workspace/.zap/users` that:
   rows, or bump a session version the app checks), replying `{"ok": true}`;
 - handles `{"op": "sign-in-link", "id": "..."}` so the app's owner can see the app as that user: make a
   random single-use token (32+ bytes), store only its hash with the user id and a 60-second expiry, and
-  reply `{"ok": true, "path": "/auth/zap-sign-in?token=..."}`. That route consumes the token, starts a
+  reply `{"ok": true, "path": "/auth/onedrop-sign-in?token=..."}`. That route consumes the token, starts a
   new session as the user (without updating `last_login_at`), and every page then shows a banner "You're
   signed in as NAME to check what they see · Stop", where Stop signs out. Refuse expired, used or unknown
   tokens with a plain message. List `"sign-in-link"` in auth.json's `helper`;
@@ -109,12 +109,12 @@ Add an executable script `/workspace/.zap/users` that:
   (e.g. the email is already used);
 - runs from /workspace with the app's env file loaded, and finishes within a few seconds.
 
-Examples: in Laravel, `#!/usr/bin/env bash` then `exec php artisan zap:users` with an artisan command
+Examples: in Laravel, `#!/usr/bin/env bash` then `exec php artisan onedrop:users` with an artisan command
 that uses `Hash::make`; in Node with Better Auth, a script that calls `auth.api.signUpEmail` and Better
 Auth's password hasher (`ctx.password.hash`) to update the credential account, and deletes the user's
 rows from its `session` table to sign them out. Test every operation.
 
-## Describe it in /workspace/.zap/auth.json
+## Describe it in /workspace/.onedrop/auth.json
 
 Write this file when you're done, and update it whenever sign-in changes:
 

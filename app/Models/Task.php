@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Concerns\BroadcastsProjectChanges;
 use App\Enums\MessageRole;
 use App\Enums\ProjectStatus;
 use App\Enums\SandboxStatus;
@@ -45,6 +46,8 @@ use Illuminate\Support\Str;
 #[Hidden(['events_token_hash'])]
 class Task extends Model implements Conversation
 {
+    use BroadcastsProjectChanges;
+
     /** @use HasFactory<TaskFactory> */
     use HasFactory;
 

@@ -17,7 +17,7 @@ class DockerSandboxProvider implements SandboxProvider
     /**
      * Label put on every container so they can be found and cleaned up.
      */
-    public const LABEL = 'zap.sandbox';
+    public const LABEL = 'onedrop.sandbox';
 
     /** Where App Storage lives inside the sandbox; backed by a host folder when storage_path is set. */
     public const STORAGE_MOUNT = '/data/storage';
@@ -28,6 +28,9 @@ class DockerSandboxProvider implements SandboxProvider
      * reads or writes it; the platform never does.
      */
     public const CLAUDE_MOUNT = '/data/claude';
+
+    /** Seconds a stopping container gets to exit by itself before it's killed. */
+    public const STOP_SECONDS = 5;
 
     /**
      * @param  array{image: string, memory: string, cpus: string, host: string, runtime?: ?string, network?: ?string, reach?: ?string, storage_path?: ?string}  $config
@@ -40,9 +43,11 @@ class DockerSandboxProvider implements SandboxProvider
             'docker', 'run', '--detach',
             '--name', $spec->name,
             '--label', self::LABEL.'=1',
+            // A real init as PID 1 passes `docker stop` on, so the container stops at once instead of being killed.
+            '--init',
             '--memory', $this->config['memory'],
             '--cpus', $this->config['cpus'],
-            '--publish', "127.0.0.1::{$spec->port}",
+            '--publish', $this->hostBinding($spec->port),
             '--env', "PORT={$spec->port}",
             // Linux Docker doesn't define host.docker.internal; sandboxes use it to report agent events.
             '--add-host', 'host.docker.internal:host-gateway',
@@ -57,15 +62,15 @@ class DockerSandboxProvider implements SandboxProvider
         }
 
         if ($spec->proxyPort) {
-            array_push($command, '--publish', "127.0.0.1::{$spec->proxyPort}", '--env', "PROXY_PORT={$spec->proxyPort}");
+            array_push($command, '--publish', $this->hostBinding($spec->proxyPort), '--env', "PROXY_PORT={$spec->proxyPort}");
         }
 
         if ($spec->shellPort) {
-            array_push($command, '--publish', "127.0.0.1::{$spec->shellPort}", '--env', "SHELL_PORT={$spec->shellPort}");
+            array_push($command, '--publish', $this->hostBinding($spec->shellPort), '--env', "SHELL_PORT={$spec->shellPort}");
         }
 
         if ($spec->sshPort) {
-            array_push($command, '--publish', "127.0.0.1::{$spec->sshPort}", '--env', "SSH_PORT={$spec->sshPort}");
+            array_push($command, '--publish', $this->hostBinding($spec->sshPort), '--env', "SSH_PORT={$spec->sshPort}");
         }
 
         $storage = $this->hostFolder($spec->storageKey, 'storage', 'App Storage');
@@ -106,20 +111,75 @@ class DockerSandboxProvider implements SandboxProvider
 
     public function start(string $id): void
     {
-        $this->docker(['start', $id]);
-    }
-
-    public function pause(string $id): void
-    {
-        $this->docker(['stop', $id]);
+        $this->wake($id);
     }
 
     /**
-     * Local containers cost nothing while idle: nothing to do.
+     * Stop the container, keeping its files. It gets STOP_SECONDS to exit by itself; those made before --init ignore
+     * the request (bash as PID 1) and are killed then.
      */
-    public function suspend(string $id): void {}
+    public function pause(string $id): void
+    {
+        $this->docker(['stop', '--time', (string) self::STOP_SECONDS, $id]);
+    }
+
+    /**
+     * Freeze the container's processes (docker pause): memory is kept and no CPU is used until wake() (SBX-007).
+     */
+    public function suspend(string $id): void
+    {
+        $result = Process::timeout(60)->run(['docker', 'pause', $id]);
+
+        // Already paused, or stopped: nothing is running to freeze.
+        if ($result->failed() && ! str_contains($result->errorOutput(), 'already paused') && ! str_contains($result->errorOutput(), 'is not running')) {
+            throw new SandboxException($this->explain($result));
+        }
+    }
+
+    /**
+     * Let a suspended container's processes carry on where they were, or start one that was stopped (by pause(), or
+     * outside the app: Docker Desktop, a restart). Docker won't start a paused container, nor exec in either.
+     */
+    public function wake(string $id): bool
+    {
+        $state = Process::timeout(15)->run(['docker', 'inspect', '--format', '{{.State.Status}}', $id]);
+
+        if ($state->failed()) {
+            throw new SandboxException($this->explain($state));
+        }
+
+        $action = match (trim($state->output())) {
+            'paused' => 'unpause',
+            'exited', 'created' => 'start',
+            default => null,
+        };
+
+        if ($action !== null) {
+            $this->docker([$action, $id]);
+        }
+
+        return $action !== null;
+    }
 
     public function exec(string $id, array $command, array $env = [], bool $detach = false): ExecResult
+    {
+        $result = $this->run($id, $command, $env, $detach);
+
+        // Docker won't exec in a paused container: wake it first, as managed providers do on the next request. One
+        // stopped outside the app stays stopped until its project is opened (Sandbox::wake()).
+        if ($result->failed() && str_contains($result->errorOutput(), 'is paused')) {
+            $this->wake($id);
+            $result = $this->run($id, $command, $env, $detach);
+        }
+
+        return new ExecResult($result->exitCode() ?? 1, $result->output(), $result->errorOutput());
+    }
+
+    /**
+     * @param  list<string>  $command
+     * @param  array<string, string>  $env
+     */
+    protected function run(string $id, array $command, array $env, bool $detach): ProcessResult
     {
         $args = ['docker', 'exec'];
 
@@ -131,9 +191,7 @@ class DockerSandboxProvider implements SandboxProvider
             array_push($args, '--env', $name);
         }
 
-        $result = Process::env($env)->timeout(120)->run([...$args, $id, ...$command]);
-
-        return new ExecResult($result->exitCode() ?? 1, $result->output(), $result->errorOutput());
+        return Process::env($env)->timeout(120)->run([...$args, $id, ...$command]);
     }
 
     public function previewUrl(string $id, int $port): ?string
@@ -209,6 +267,27 @@ class DockerSandboxProvider implements SandboxProvider
         if ($result->failed() && ! str_contains($result->errorOutput(), 'No such container')) {
             throw new SandboxException($this->explain($result));
         }
+    }
+
+    /**
+     * Where Docker publishes a container port: a free host port picked now, so the container keeps it across restarts
+     * and its saved addresses stay right; Docker would pick a new one on every start. Behind the gateway ("network"
+     * reach) the app may not share the host's ports, so Docker picks, as nothing reaches them by port anyway.
+     */
+    protected function hostBinding(int $port): string
+    {
+        if (($this->config['reach'] ?? null) === 'network') {
+            return "127.0.0.1::{$port}";
+        }
+
+        $socket = stream_socket_server('tcp://127.0.0.1:0');
+        $address = $socket ? stream_socket_get_name($socket, false) : false;
+
+        if ($socket) {
+            fclose($socket);
+        }
+
+        return $address ? '127.0.0.1:'.substr($address, strrpos($address, ':') + 1).":{$port}" : "127.0.0.1::{$port}";
     }
 
     /**

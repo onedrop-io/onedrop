@@ -14,8 +14,12 @@ import {
     EARTH_CLOSEUP_RADIUS,
     EARTH_CLOSEUP_SIZE,
     earthShowProgress,
+    endMoonwalk,
     isEarthCloseupReady,
+    isMoonwalkPlaying,
     loadEarthCloseup,
+    moonInCloseup,
+    startMoonwalk,
 } from '@/components/home/earth-closeup';
 import {
     drawMarsCloseup,
@@ -537,13 +541,20 @@ export function Galaxy({ children }: { children: ReactNode }) {
             at: { x: number; y: number };
             /** Started from a planet in the Solar System view, rather than in the galaxy. */
             isInSolarView: boolean;
+            /** How long it's been held up by the Moon's moonwalk (milliseconds). */
+            heldMs: number;
         } | null = null;
         let cooldownUntil = 0;
         let hovered: Closeup | null = null;
+        let pointer: { x: number; y: number } | null = null;
+        /** The moonwalk plays again only once the pointer has left the Moon. */
+        let isOffMoon = true;
+        let lastTickAt: number | null = null;
 
         // The headline's layer sits on top of the galaxy, so check where the
         // pointer is rather than waiting for a spot to be hovered.
         const trackPointer = (event: PointerEvent) => {
+            pointer = { x: event.clientX, y: event.clientY };
             hovered = null;
             let nearest = Infinity;
 
@@ -574,7 +585,35 @@ export function Galaxy({ children }: { children: ReactNode }) {
             passive: true,
         });
 
+        /** While the Earth fills the view, hovering over its Moon starts the Apollo 11 moonwalk. */
+        const watchForMoonwalk = (isEarthUp: boolean) => {
+            const moon = isEarthUp ? moonInCloseup() : null;
+
+            if (!moon || !pointer) {
+                isOffMoon ||= !isMoonwalkPlaying();
+
+                return;
+            }
+
+            const drawn = closeupCanvas.canvas.getBoundingClientRect();
+            const across = drawn.width / CLOSEUP_SIZE;
+            const isOnMoon =
+                Math.hypot(
+                    pointer.x - (drawn.left + moon.x * across),
+                    pointer.y - (drawn.top + moon.y * across),
+                ) <
+                moon.radius * across;
+
+            if (isOnMoon && isOffMoon) {
+                startMoonwalk();
+            }
+
+            isOffMoon = !isOnMoon;
+        };
+
         const endShow = (now: number) => {
+            endMoonwalk();
+
             if (show) {
                 spotFor(show.closeup).dataset.state = 'idle';
             }
@@ -597,7 +636,7 @@ export function Galaxy({ children }: { children: ReactNode }) {
                     ) < ZOOM_AREA_RADIUS
                 );
             },
-            canChange: () => !show,
+            canChange: () => !show && !isMoonwalkPlaying(),
             interrupt: () => {
                 if (show) {
                     endShow(performance.now());
@@ -630,6 +669,8 @@ export function Galaxy({ children }: { children: ReactNode }) {
 
         const tick = (now: number) => {
             frame = requestAnimationFrame(tick);
+            const sinceLastTick = Math.min(now - (lastTickAt ?? now), 100);
+            lastTickAt = now;
 
             if (!isVisible) {
                 return;
@@ -663,8 +704,14 @@ export function Galaxy({ children }: { children: ReactNode }) {
                 FADE_IN_SECONDS * 1000,
                 now - appearedAt,
             );
+            if (show && isMoonwalkPlaying()) {
+                show.heldMs += sinceLastTick;
+            }
+
             let zoomedIn = show
-                ? show.closeup.progress((now - show.startedAt) / 1000)
+                ? show.closeup.progress(
+                      (now - show.startedAt - show.heldMs) / 1000,
+                  )
                 : null;
 
             if (show && zoomedIn === null) {
@@ -1104,6 +1151,7 @@ export function Galaxy({ children }: { children: ReactNode }) {
                     startedAt: now,
                     at: hoveredAt,
                     isInSolarView: isAtSolar,
+                    heldMs: 0,
                 };
                 zoomedIn = 0;
                 spotFor(hovered).dataset.state = 'playing';
@@ -1208,6 +1256,12 @@ export function Galaxy({ children }: { children: ReactNode }) {
             } else if (!show) {
                 closeupCanvas.canvas.style.opacity = '0';
             }
+
+            watchForMoonwalk(
+                show
+                    ? show.closeup.name === 'Earth' && zoomedIn === 1
+                    : weights.earth === 1,
+            );
 
             // Laniakea, zooming out from the Milky Way's own spot in it.
             if (weights.laniakea > 0) {
@@ -1403,6 +1457,7 @@ export function Galaxy({ children }: { children: ReactNode }) {
             visibilityObserver.disconnect();
             window.removeEventListener('pointermove', trackPointer);
             zoomLevels.destroy();
+            endMoonwalk();
         };
     }, []);
 

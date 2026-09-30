@@ -25,7 +25,7 @@ export type AppAuthStatus =
           providers: AppAuthProvider[];
           login_url: string | null;
           published_login_url: string | null;
-          /** The app has the .zap/users helper, so users can be added and passwords set here. */
+          /** The app has the .onedrop/users helper, so users can be added and passwords set here. */
           can_create: boolean;
           /** The app's roles, most powerful first. */
           roles: string[];
@@ -57,7 +57,7 @@ export type AppUser = {
 
 /** Account controls the app supports (older setups may lack some until the agent adds them). */
 export type AppUserCapabilities = {
-    /** The .zap/users helper: add users, set passwords, sign out everywhere. */
+    /** The .onedrop/users helper: add users, set passwords, sign out everywhere. */
     helper: boolean;
     disable: boolean;
     require_password_change: boolean;

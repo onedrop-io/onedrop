@@ -37,7 +37,7 @@ test('later reads return only new output after the offset', function () {
         ->assertOk()
         ->assertExactJson(['content' => "page reload src/App.tsx\n", 'offset' => 1234 + 24]);
 
-    expect($this->provider->executed[0]['command'])->toBe(['tail', '--bytes', '+1235', '/tmp/zap-server.log']);
+    expect($this->provider->executed[0]['command'])->toBe(['tail', '--bytes', '+1235', '/tmp/onedrop-server.log']);
 })->group('TAB-001');
 
 test('a burst of output is trimmed to the latest part but the offset stays exact', function () {

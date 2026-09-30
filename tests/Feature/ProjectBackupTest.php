@@ -42,7 +42,7 @@ beforeEach(function () {
 
 test('finishing an agent turn backs up the project\'s git history', function () {
     $this->withToken($this->sandbox->issueEventsToken())
-        ->postJson(route('sandbox-events.store', $this->sandbox), ['events' => [['type' => 'zap.exit', 'code' => 0, 'stderr' => '']]])
+        ->postJson(route('sandbox-events.store', $this->sandbox), ['events' => [['type' => 'onedrop.exit', 'code' => 0, 'stderr' => '']]])
         ->assertOk();
 
     $this->project->refresh();
@@ -50,7 +50,7 @@ test('finishing an agent turn backs up the project\'s git history', function () 
     expect(Storage::disk('backups')->get("project-backups/{$this->project->id}/repo.bundle"))->toBe('bundle-bytes')
         ->and($this->project->backup_commit)->toBe('abc123')
         ->and($this->project->backed_up_at)->not->toBeNull()
-        ->and(collect($this->provider->copied)->where(0, 'out')->pluck(2)->all())->toBe(['/tmp/zap-backup']);
+        ->and(collect($this->provider->copied)->where(0, 'out')->pluck(2)->all())->toBe(['/tmp/onedrop-backup']);
 })->group('SBX-006');
 
 test('a turn with no new commit copies nothing', function () {
@@ -59,7 +59,7 @@ test('a turn with no new commit copies nothing', function () {
 
     BackupProject::dispatchSync($this->project);
 
-    expect(collect($this->provider->executed)->sole()['env'])->toBe(['ZAP_BACKED_UP' => 'abc123'])
+    expect(collect($this->provider->executed)->sole()['env'])->toBe(['ONEDROP_BACKED_UP' => 'abc123'])
         ->and($this->provider->copied)->toBe([])
         ->and(Storage::disk('backups')->allFiles())->toBe([]);
 })->group('SBX-006');
@@ -102,9 +102,9 @@ test('a sandbox recreated without its files gets the code back from the backup a
     $new = $this->project->sandbox()->first()->external_id;
     $commands = collect($this->provider->executed)->where('id', $new)->pluck('command')->map(fn (array $command) => implode(' ', $command));
 
-    expect(collect($this->provider->copied)->where(0, 'in')->map(fn (array $copy) => [$copy[1], $copy[2]])->values()->all())->toBe([[$new, '/tmp/zap-backup']])
+    expect(collect($this->provider->copied)->where(0, 'in')->map(fn (array $copy) => [$copy[1], $copy[2]])->values()->all())->toBe([[$new, '/tmp/onedrop-backup']])
         ->and($commands->first(fn (string $command) => str_contains($command, 'git clone -q repo.bundle repo')))->not->toBeNull()
-        ->and($commands->last())->toBe('/opt/zap/restart');
+        ->and($commands->last())->toBe('/opt/onedrop/restart');
 })->group('SBX-006');
 
 test('a sandbox recreated with its files is not restored from the backup', function () {
@@ -113,7 +113,7 @@ test('a sandbox recreated with its files is not restored from the backup', funct
 
     $this->artisan('sandbox:recreate', ['project' => $this->project->id, '--keep-files' => true])->assertSuccessful();
 
-    expect(collect($this->provider->copied)->where(0, 'in')->pluck(2)->all())->not->toContain('/tmp/zap-backup');
+    expect(collect($this->provider->copied)->where(0, 'in')->pluck(2)->all())->not->toContain('/tmp/onedrop-backup');
 })->group('SBX-006');
 
 test('a project without a backup is recreated empty', function () {

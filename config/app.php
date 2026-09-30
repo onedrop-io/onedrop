@@ -56,6 +56,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Install Type
+    |--------------------------------------------------------------------------
+    |
+    | How this copy was installed, which decides how Settings → Server changes
+    | its address (ADMIN-004): "server" (infra/server/bootstrap.sh, applied by
+    | a systemd unit), "container" (the one-line install, set by its image), or
+    | empty (a laptop, AWS, anything else: set in its own configuration).
+    |
+    */
+
+    'install' => env('APP_INSTALL'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |

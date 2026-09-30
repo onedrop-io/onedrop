@@ -81,8 +81,8 @@ test('a preview on this machine gets no QR code; a published address does', func
 })->group('DEVTOOLS-001');
 
 test('on a server the preview is the gateway address, with a QR code', function () {
-    config(['sandbox.gateway_domain' => 'zap.example.com']);
-    URL::forceRootUrl('https://zap.example.com');
+    config(['sandbox.gateway_domain' => 'onedrop.example.com']);
+    URL::forceRootUrl('https://onedrop.example.com');
 
     $response = $this->actingAs($this->user)
         ->getJson(route('projects.developer.networking', $this->project))
@@ -191,7 +191,7 @@ test('ssh explains when it isn\'t available', function (Closure $setUp, string $
         ->assertOk()
         ->assertJsonPath('unavailable', fn (string $text) => str_contains($text, $message));
 })->with([
-    'on a server' => [fn () => config(['sandbox.gateway_domain' => 'zap.example.com']), "isn't available on this server"],
+    'on a server' => [fn () => config(['sandbox.gateway_domain' => 'onedrop.example.com']), "isn't available on this server"],
     'sandbox without an ssh port' => [fn () => $this->sandbox->update(['ssh_address' => null]), 'created before SSH was added'],
     'image without sshd' => [fn () => $this->outputs['sync'] = WorkspaceSsh::NO_SERVER, "image doesn't have SSH yet"],
 ])->group('DEVTOOLS-001');

@@ -10,7 +10,7 @@
  * Reads one JSON request from $APP_STORAGE_REQUEST and prints one JSON response:
  * {"ok": true, "data": ...} or {"ok": false, "error": "..."}.
  *
- * Usage: APP_STORAGE_REQUEST='{"op":"buckets"}' php /opt/zap/storage.php
+ * Usage: APP_STORAGE_REQUEST='{"op":"buckets"}' php /opt/onedrop/storage.php
  */
 
 declare(strict_types=1);

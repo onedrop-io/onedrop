@@ -1,0 +1,72 @@
+---
+title: "Administer OneDrop"
+sidebarTitle: "Administration"
+description: "Change the name and logo, sandbox providers, domain, and database backups, and monitor the server, from the app."
+---
+
+Admins find install-wide settings under **Admin** in [Settings](/guides/settings). The first account on a new install is an admin; admins can make others admins from **Users** (see [Groups and users](/guides/groups-and-users)).
+
+Settings saved here win over the matching values in `.env`. OneDrop tells running queue workers to restart after their current job, so they use the new settings too.
+
+## Name and logo
+
+**Settings → General** changes the name shown in the sidebar, the browser tab, and emails. Leave it empty to go back to `APP_NAME`.
+
+Upload a logo (PNG, JPEG, WebP, or SVG, up to 1 MB) to replace the droplet in the sidebar, the sign-in pages, and the browser tab. A square image works best. **Remove** brings the droplet back.
+
+## Sandbox providers
+
+**Settings → Sandboxes** lists Docker, Blaxel, and Runtime Cloud, shows which one is active, and how many sandboxes each one holds.
+
+- Turn a provider on, fill in its settings (image, CPU and memory, idle timeouts, region, API key), and click **Save**. API keys are stored encrypted and never shown again; leave the field empty to keep the saved key.
+- Click **Make active** to run new projects on that provider. Existing projects move to it the next time they're opened, with their files, the same as changing `SANDBOX_PROVIDER`. See [Sandboxes](/self-hosting/sandboxes).
+- A provider needs its required settings before it can be active: an API key for both managed providers, and a workspace for Blaxel. You can't turn off the active provider.
+
+## Monitoring
+
+**Settings → Monitoring** shows the server's CPU use, memory, disk space, block I/O, and network traffic, as the current value and a chart over the past hour, day, or week. It also shows Docker's disk usage (images, containers, volumes, and build cache) and how many users, projects, and sandboxes the install has.
+
+The scheduler records a sample every minute and keeps a week of them. I/O and network charts show rates; the totals next to them count from when the server started. CPU, memory, I/O, and network come from `/proc`, so on macOS only disk space is shown.
+
+<Note>
+In the one-line container install, network traffic is the container's own, and memory is the whole server's.
+</Note>
+
+## Server domain and HTTPS
+
+**Settings → Server** shows the address OneDrop is served at and whether it uses HTTPS.
+
+On a [server install](/self-hosting/server-mode) (`infra/server/bootstrap.sh`), you can change:
+
+- **Domain**: where OneDrop is served. Previews and shells move to `preview-<id>.<domain>` and `shell-<id>.<domain>`.
+- **Let's Encrypt email**: where certificate notices go (optional).
+- **Certificates**: Let's Encrypt for a public domain, or OneDrop's own certificate authority for a network without public DNS (browsers must trust it).
+
+<Steps>
+  <Step title="Point DNS at the server">
+    Create records for the domain and `*.<domain>` that point at the server, and keep ports 80 and 443 open.
+  </Step>
+  <Step title="Save the new settings">
+    The page shows the change as pending while the server applies it. A root systemd unit (`onedrop-server-settings.path`) runs `/opt/onedrop/bin/apply-server-settings`, which checks the settings with Caddy and then runs `set-domain`.
+  </Step>
+  <Step title="Log in at the new address">
+    Changing the domain signs everyone out. If the server couldn't apply the change, the page shows why.
+  </Step>
+</Steps>
+
+On other installs the page tells you where the address is set instead: `drop install --domain <domain>` for the [one-line install](/self-hosting/install-anywhere), or `APP_URL` and `SANDBOX_GATEWAY_DOMAIN` elsewhere.
+
+## Database backups
+
+**Settings → Backups** backs up OneDrop's own database: users, projects, chats, and settings. Project files are backed up separately, as git history.
+
+- **Back up now** makes a backup straight away. SQLite databases are copied with `VACUUM INTO` and gzipped; Postgres databases are dumped with `pg_dump`, which must be installed on the server.
+- **Scheduled backups** run on a cron schedule, in UTC (`0 0 * * *`, daily at midnight, by default). After each backup, only the newest **Keep latest** backups are kept.
+- **Destination** is this server's disk (`storage/app/backups`) or S3-compatible storage: bucket, region, endpoint (empty for AWS), access keys, and path-style addresses for MinIO and similar. **Folder** puts backups under a prefix.
+- The page shows when the last backup ran, or the error if it failed. You can download or delete any backup.
+
+<Warning>
+Restoring replaces everything in OneDrop's database with the backup, including accounts and sessions, so you may need to log in again. Type the backup's name to confirm. OneDrop backs up the current database first, as a file ending in `-before-restore`.
+</Warning>
+
+A backup stored on the same server won't survive losing the server. Use S3-compatible storage for off-site copies.

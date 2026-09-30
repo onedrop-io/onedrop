@@ -142,7 +142,7 @@ test('asking the agent to set up a bucket sends a chat message that follows the 
         ->assertExactJson(['queued' => false]);
 
     expect($this->project->messages()->latest('id')->value('content'))
-        ->toBe('Use the App Storage bucket "photos" to store files in the app: profile photos on the account page. Follow the guide at /opt/zap/guides/storage.md.');
+        ->toBe('Use the App Storage bucket "photos" to store files in the app: profile photos on the account page. Follow the guide at /opt/onedrop/guides/storage.md.');
 })->group('STORE-001');
 
 test('the request is queued while the agent works, and refused for a bucket that does not exist', function () {

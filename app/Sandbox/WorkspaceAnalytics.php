@@ -5,16 +5,16 @@ namespace App\Sandbox;
 use App\Models\Sandbox;
 
 /**
- * Custom analytics events. The app posts them to /__zap/event, docker/sandbox/host-proxy.mjs logs them to
- * .zap/events.log, and the agent describes them in .zap/analytics.json (following docker/sandbox/guides/analytics.md).
+ * Custom analytics events. The app posts them to /__onedrop/event, docker/sandbox/host-proxy.mjs logs them to
+ * .onedrop/events.log, and the agent describes them in .onedrop/analytics.json (following docker/sandbox/guides/analytics.md).
  */
 class WorkspaceAnalytics
 {
-    public const EVENTS_LOG = '/workspace/.zap/events.log';
+    public const EVENTS_LOG = '/workspace/.onedrop/events.log';
 
-    public const CATALOG = '/workspace/.zap/analytics.json';
+    public const CATALOG = '/workspace/.onedrop/analytics.json';
 
-    public const GUIDE = '/opt/zap/guides/analytics.md';
+    public const GUIDE = '/opt/onedrop/guides/analytics.md';
 
     public const NAME_PATTERN = '/^[a-z][a-z0-9_]{0,63}$/';
 
@@ -111,7 +111,7 @@ class WorkspaceAnalytics
     }
 
     /**
-     * Event name => description, from the agent's .zap/analytics.json; empty when there's none yet.
+     * Event name => description, from the agent's .onedrop/analytics.json; empty when there's none yet.
      *
      * @return array<string, string|null>
      *

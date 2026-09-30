@@ -7,14 +7,14 @@ use Illuminate\Support\Arr;
 
 /**
  * The app's own sign-in, reached through docker/sandbox/auth.php inside the sandbox.
- * The agent builds it (following docker/sandbox/guides/auth.md) and describes it in .zap/auth.json;
+ * The agent builds it (following docker/sandbox/guides/auth.md) and describes it in .onedrop/auth.json;
  * users stay in the app's database and provider secrets stay in its env file.
  */
 class WorkspaceAuth
 {
-    public const SCRIPT = '/opt/zap/auth.php';
+    public const SCRIPT = '/opt/onedrop/auth.php';
 
-    public const GUIDE = '/opt/zap/guides/auth.md';
+    public const GUIDE = '/opt/onedrop/guides/auth.md';
 
     /** Sign-in methods the guide knows how to build, with their names in plain language. */
     public const METHODS = [
@@ -65,7 +65,7 @@ class WorkspaceAuth
     }
 
     /**
-     * Create a user with a password, through the app's own .zap/users helper (it hashes the password).
+     * Create a user with a password, through the app's own .onedrop/users helper (it hashes the password).
      *
      * @return array{created: bool, id: mixed}
      *
@@ -90,7 +90,7 @@ class WorkspaceAuth
     }
 
     /**
-     * Set a user's password, through the app's own .zap/users helper.
+     * Set a user's password, through the app's own .onedrop/users helper.
      *
      * @throws SandboxException|DatabaseException
      */
@@ -100,7 +100,7 @@ class WorkspaceAuth
     }
 
     /**
-     * End all of a user's sessions, through the app's own .zap/users helper.
+     * End all of a user's sessions, through the app's own .onedrop/users helper.
      *
      * @throws SandboxException|DatabaseException
      */
@@ -153,7 +153,7 @@ class WorkspaceAuth
     public function saveOneDrop(Sandbox $sandbox, array $settings): void
     {
         $this->call($sandbox, ['op' => 'onedrop', ...$settings]);
-        $this->provider->exec($sandbox->external_id, ['/opt/zap/restart']);
+        $this->provider->exec($sandbox->external_id, ['/opt/onedrop/restart']);
     }
 
     /**
@@ -175,7 +175,7 @@ class WorkspaceAuth
     {
         $status = $this->call($sandbox, ['op' => 'keys', 'provider' => $provider, 'client_id' => $clientId, 'client_secret' => $clientSecret]);
 
-        $this->provider->exec($sandbox->external_id, ['/opt/zap/restart']);
+        $this->provider->exec($sandbox->external_id, ['/opt/onedrop/restart']);
 
         return $status;
     }
@@ -199,7 +199,7 @@ class WorkspaceAuth
             return null;
         }
 
-        return 'Let me manage users from Tools → Users & Auth: add '.Arr::join($missing, ', ', ' and ').'. Follow the "Account controls", "Roles" and ".zap/users" parts of the guide at '.self::GUIDE.'.';
+        return 'Let me manage users from Tools → Users & Auth: add '.Arr::join($missing, ', ', ' and ').'. Follow the "Account controls", "Roles" and ".onedrop/users" parts of the guide at '.self::GUIDE.'.';
     }
 
     /**

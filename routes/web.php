@@ -1,6 +1,11 @@
 <?php
 
 use App\Http\Controllers\AcceptInvitationController;
+use App\Http\Controllers\Admin\BrandingController;
+use App\Http\Controllers\Admin\DatabaseBackupController;
+use App\Http\Controllers\Admin\SandboxProviderController;
+use App\Http\Controllers\Admin\ServerController;
+use App\Http\Controllers\Admin\ServerMonitoringController;
 use App\Http\Controllers\AgentModelController;
 use App\Http\Controllers\ChatGptAuthController;
 use App\Http\Controllers\ClaudeLoginController;
@@ -30,6 +35,7 @@ use App\Http\Controllers\ProjectSearchController;
 use App\Http\Controllers\ProjectSecretController;
 use App\Http\Controllers\ProjectShareController;
 use App\Http\Controllers\ProjectStorageController;
+use App\Http\Controllers\SandboxActivityController;
 use App\Http\Controllers\SandboxEventController;
 use App\Http\Controllers\SandboxGatewayController;
 use App\Http\Controllers\ShareController;
@@ -56,6 +62,9 @@ Route::post('s/{share}/remix', [ShareController::class, 'remix'])->middleware('t
 
 Route::get('invite/{token}', AcceptInvitationController::class)->name('invitations.accept');
 
+// The install's own logo (ADMIN-001); the sign-in page shows it too.
+Route::get('branding/logo', [BrandingController::class, 'logo'])->name('branding.logo');
+
 // Log in with Google, GitHub, etc. Signed-in users use the same routes to connect a provider.
 Route::middleware('throttle:20,1')->group(function () {
     Route::get('login/{provider}', [SocialLoginController::class, 'redirect'])->name('social.redirect');
@@ -69,7 +78,7 @@ Route::withoutMiddleware([StartSession::class, ShareErrorsFromSession::class, Pr
     Route::get('sandbox-gateway/certificate', [SandboxGatewayController::class, 'certificate'])->name('sandbox-gateway.certificate');
 
     // Served on each preview/shell address: trades the app's hand-off token for that address's cookie.
-    Route::get('__zap/enter', [SandboxGatewayController::class, 'enter'])->name('sandbox-gateway.enter');
+    Route::get('__onedrop/enter', [SandboxGatewayController::class, 'enter'])->name('sandbox-gateway.enter');
 });
 
 // "Sign in with OneDrop" for apps built here: called by each app's server, authenticated by its client secret or access token.
@@ -115,6 +124,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('projects/{project}/name', [ProjectController::class, 'regenerateName'])->name('projects.name.regenerate');
         Route::post('projects/{project}/messages', [ProjectMessageController::class, 'store'])->name('projects.messages.store');
         Route::get('projects/{project}/attachments/{attachment}', [ProjectAttachmentController::class, 'show'])->name('projects.attachments.show');
+        Route::post('projects/{project}/sandbox/activity', [SandboxActivityController::class, 'store'])->name('projects.sandbox.activity');
         Route::get('projects/{project}/files', [ProjectFileController::class, 'index'])->name('projects.files.index');
         Route::get('projects/{project}/files/version', [ProjectFileController::class, 'version'])->name('projects.files.version');
         Route::get('projects/{project}/files/show', [ProjectFileController::class, 'show'])->name('projects.files.show');
@@ -165,13 +175,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('projects/{project}/git/commits', [ProjectGitController::class, 'log'])->name('projects.git.log');
         Route::get('projects/{project}/git/commits/{sha}', [ProjectGitController::class, 'show'])->where('sha', '[0-9a-f]{7,40}')->name('projects.git.show');
         Route::get('projects/{project}/git/commits/{sha}/diff', [ProjectGitController::class, 'diff'])->where('sha', '[0-9a-f]{7,40}')->name('projects.git.diff');
+        Route::get('projects/{project}/git/changes/diff', [ProjectGitController::class, 'changeDiff'])->name('projects.git.change-diff');
         Route::post('projects/{project}/git/commit', [ProjectGitController::class, 'commit'])->name('projects.git.commit');
         Route::post('projects/{project}/git/discard', [ProjectGitController::class, 'discard'])->name('projects.git.discard');
+        Route::post('projects/{project}/git/discard-hunk', [ProjectGitController::class, 'discardHunk'])->name('projects.git.discard-hunk');
         Route::post('projects/{project}/git/switch', [ProjectGitController::class, 'switch'])->name('projects.git.switch');
         Route::post('projects/{project}/git/restore', [ProjectGitController::class, 'restore'])->name('projects.git.restore');
         Route::put('projects/{project}/git/remote', [ProjectGitController::class, 'connect'])->name('projects.git.connect');
         Route::delete('projects/{project}/git/remote', [ProjectGitController::class, 'disconnect'])->name('projects.git.disconnect');
         Route::post('projects/{project}/git/remote/github', [ProjectGitController::class, 'github'])->name('projects.git.github');
+        Route::post('projects/{project}/git/combine/draft', [ProjectGitController::class, 'combineDraft'])->name('projects.git.combine-draft');
+        Route::post('projects/{project}/git/combine', [ProjectGitController::class, 'combine'])->name('projects.git.combine');
+        Route::post('projects/{project}/git/pull-request', [ProjectGitController::class, 'pullRequest'])->name('projects.git.pull-request');
         Route::post('projects/{project}/git/push', [ProjectGitController::class, 'push'])->name('projects.git.push');
         Route::post('projects/{project}/git/pull', [ProjectGitController::class, 'pull'])->name('projects.git.pull');
         Route::get('projects/{project}/secrets', [ProjectSecretController::class, 'index'])->name('projects.secrets.index');
@@ -232,6 +247,30 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::middleware('can:manage-users')->group(function () {
         Route::get('users', [UserController::class, 'index'])->name('users.index');
         Route::patch('users/{user}', [UserController::class, 'update'])->name('users.update');
+    });
+
+    // Install-wide settings (ADMIN-001 to ADMIN-005).
+    Route::middleware('can:administer')->prefix('admin')->name('admin.')->group(function () {
+        Route::get('general', [BrandingController::class, 'edit'])->name('general.edit');
+        Route::patch('general', [BrandingController::class, 'update'])->name('general.update');
+        Route::post('general/logo', [BrandingController::class, 'storeLogo'])->name('general.logo.store');
+        Route::delete('general/logo', [BrandingController::class, 'destroyLogo'])->name('general.logo.destroy');
+
+        Route::get('sandboxes', [SandboxProviderController::class, 'index'])->name('sandboxes.index');
+        Route::put('sandboxes/{provider}', [SandboxProviderController::class, 'update'])->name('sandboxes.update');
+        Route::post('sandboxes/{provider}/activate', [SandboxProviderController::class, 'activate'])->name('sandboxes.activate');
+
+        Route::get('monitoring', [ServerMonitoringController::class, 'show'])->name('monitoring.show');
+
+        Route::get('server', [ServerController::class, 'edit'])->name('server.edit');
+        Route::put('server', [ServerController::class, 'update'])->name('server.update');
+
+        Route::get('backups', [DatabaseBackupController::class, 'index'])->name('backups.index');
+        Route::put('backups', [DatabaseBackupController::class, 'update'])->name('backups.update');
+        Route::post('backups', [DatabaseBackupController::class, 'store'])->name('backups.store');
+        Route::get('backups/{backup}', [DatabaseBackupController::class, 'download'])->name('backups.download');
+        Route::delete('backups/{backup}', [DatabaseBackupController::class, 'destroy'])->name('backups.destroy');
+        Route::post('backups/{backup}/restore', [DatabaseBackupController::class, 'restore'])->name('backups.restore');
     });
 });
 

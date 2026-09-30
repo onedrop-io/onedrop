@@ -14,8 +14,8 @@
 set -uo pipefail
 
 export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0="*"
-WORKSPACE="${ZAP_WORKSPACE:-/workspace}"
-AUTHOR=(-c user.name="${ZAP_GIT_AUTHOR_NAME:-OneDrop}" -c user.email="${ZAP_GIT_AUTHOR_EMAIL:-agent@onedrop.io}" -c commit.gpgsign=false)
+WORKSPACE="${ONEDROP_WORKSPACE:-/workspace}"
+AUTHOR=(-c user.name="${ONEDROP_GIT_AUTHOR_NAME:-OneDrop}" -c user.email="${ONEDROP_GIT_AUTHOR_EMAIL:-agent@onedrop.io}" -c commit.gpgsign=false)
 
 # Everything under DIR goes, including dependencies (node_modules, vendor, .venv): the copy should run as it is.
 copy() {
@@ -87,7 +87,7 @@ snapshot() {
 }
 
 commit_all() {
-    printf '%s' "$1" | "${ZAP_CHECKPOINT:-/opt/zap/checkpoint}"
+    printf '%s' "$1" | "${ONEDROP_CHECKPOINT:-/opt/onedrop/checkpoint}"
 }
 
 case "${1:-}" in
@@ -123,9 +123,9 @@ case "${1:-}" in
         fi
 
         commit_all "Checkpoint before merging"
-        git fetch -q "$2" "HEAD:refs/zap/incoming" --force || exit 1
+        git fetch -q "$2" "HEAD:refs/onedrop/incoming" --force || exit 1
 
-        if git "${AUTHOR[@]}" merge -q --no-ff --no-edit -m "$3" refs/zap/incoming >/dev/null 2>&1; then
+        if git "${AUTHOR[@]}" merge -q --no-ff --no-edit -m "$3" refs/onedrop/incoming >/dev/null 2>&1; then
             exit 0
         fi
 

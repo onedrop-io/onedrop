@@ -20,21 +20,21 @@ sequenceDiagram
     participant C as Caddy
     participant L as Laravel
     participant S as Sandbox
-    B->>L: GET zap.example.com/projects/12/open/preview (app login)
-    L-->>B: redirect to preview-12…/__zap/enter?token=… (valid 60 s)
-    B->>C: GET /__zap/enter
+    B->>L: GET onedrop.example.com/projects/12/open/preview (app login)
+    L-->>B: redirect to preview-12…/__onedrop/enter?token=… (valid 60 s)
+    B->>C: GET /__onedrop/enter
     C->>L: proxy
-    L-->>B: set zap_gateway cookie (this address only), redirect to /
-    B->>C: GET preview-12.zap.example.com (zap_gateway cookie)
+    L-->>B: set onedrop_gateway cookie (this address only), redirect to /
+    B->>C: GET preview-12.onedrop.example.com (onedrop_gateway cookie)
     C->>L: forward_auth /sandbox-gateway/authorize
-    L-->>C: 200 + X-Zap-Upstream: 127.0.0.1:32800 (or 401/403)
-    C->>S: proxy to 127.0.0.1:32800, without the zap_gateway cookie
+    L-->>C: 200 + X-OneDrop-Upstream: 127.0.0.1:32800 (or 401/403)
+    C->>S: proxy to 127.0.0.1:32800, without the onedrop_gateway cookie
 ```
 
 - The app's login cookie stays on the app's own host. Code in a sandbox never sees it, and a sandboxed app's own cookies (a Laravel app's `laravel-session`, say) can't clash with it
-- The workspace opens previews and shells through `/projects/<id>/open/<kind>`, which hands the browser a short-lived token for that one address. The address trades it for its own `zap_gateway` cookie, valid for 12 hours
+- The workspace opens previews and shells through `/projects/<id>/open/<kind>`, which hands the browser a short-lived token for that one address. The address trades it for its own `onedrop_gateway` cookie, valid for 12 hours
 - Laravel checks that cookie and only allows users who can see the project
-- Caddy strips any `X-Zap-Upstream` header sent by the browser, so a client can't choose where requests go
+- Caddy strips any `X-OneDrop-Upstream` header sent by the browser, so a client can't choose where requests go
 - Certificates are only issued for `preview-<id>` and `shell-<id>` hosts of sandboxes that exist
 - The `/sandbox-gateway/*` endpoints are blocked on the public site; only Caddy calls them
 

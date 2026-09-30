@@ -16,7 +16,7 @@ them, so stick to the contract below.
 - Never store uploads in `/workspace` (`public/`, `storage/app`, `uploads/`): that's code, it bloats git and
   the user can't manage it from the panel.
 - Always read the folder from the `APP_STORAGE_DIR` environment variable, never hard-code `/data/storage`.
-  Fall back to a folder inside the app (e.g. Laravel's `storage/app/zap-storage`) only when it isn't set.
+  Fall back to a folder inside the app (e.g. Laravel's `storage/app/onedrop-storage`) only when it isn't set.
 
 ## How the app uses a bucket
 
@@ -27,7 +27,7 @@ By stack:
     ```php
     'photos' => [
         'driver' => 'local',
-        'root' => rtrim(env('APP_STORAGE_DIR', storage_path('app/zap-storage')), '/').'/photos',
+        'root' => rtrim(env('APP_STORAGE_DIR', storage_path('app/onedrop-storage')), '/').'/photos',
         'throw' => true,
     ],
     ```

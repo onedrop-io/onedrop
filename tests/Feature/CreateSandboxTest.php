@@ -26,7 +26,7 @@ test('the sandbox gets the owner\'s default AI credential and project name', fun
         'APP_PROJECT_NAME' => 'Timesheets',
     ])
         ->and($spec->port)->toBe(8000)
-        ->and($spec->name)->toStartWith("zap-project-{$project->id}-")
+        ->and($spec->name)->toStartWith("onedrop-project-{$project->id}-")
         ->and($project->sandbox->status)->toBe(SandboxStatus::Running);
 })->group('SBX-001');
 

@@ -160,5 +160,5 @@ test('custom events: set up with the agent, then see each event over time and ad
 
     // The agent is still on the first request, so this one waits its turn.
     expect($project->queuedMessages()->value('content'))
-        ->toBe('Add these custom analytics events to my project: when someone shares a project. Follow the guide at /opt/zap/guides/analytics.md.');
+        ->toBe('Add these custom analytics events to my project: when someone shares a project. Follow the guide at /opt/onedrop/guides/analytics.md.');
 })->group('GROW-002');

@@ -34,7 +34,7 @@ import type { BoardTask, Project, TaskStage } from '@/types';
 type Stage = { value: TaskStage; label: string };
 
 /** Carries the dragged card's id between columns. */
-const DRAG_TYPE = 'application/x-zap-task';
+const DRAG_TYPE = 'application/x-onedrop-task';
 
 /**
  * A project's tasks as a kanban board (TASK-002): To do, In progress, Review and Done. Cards move

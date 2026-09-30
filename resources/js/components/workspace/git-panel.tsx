@@ -35,6 +35,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { GitHubConnect } from '@/components/workspace/github-connect';
+import PatchView from '@/components/workspace/patch-view';
 import type { GitHubInfo } from '@/components/workspace/github-connect';
 import { jsonRequest } from '@/lib/json-request';
 import { cn } from '@/lib/utils';
@@ -1459,48 +1460,13 @@ function FileDiff({
         );
     }
 
-    // Skip git's header lines (diff --git, index, ---, +++); the hunks start at the first @@.
-    const lines = diff.patch.split('\n');
-    const firstHunk = lines.findIndex((line) => line.startsWith('@@'));
-    const body = (firstHunk === -1 ? lines : lines.slice(firstHunk)).filter(
-        (line, index, all) => index < all.length - 1 || line !== '',
-    );
-
     return (
         <div className="border-t border-sidebar-border/70 dark:border-sidebar-border">
-            <pre
-                className="max-h-96 overflow-auto bg-muted/30 py-1 font-mono text-xs leading-5"
-                data-test="git-diff"
-            >
-                {body.length === 0 ? (
-                    <span className="px-3 text-muted-foreground">
-                        No text changes (e.g. only permissions changed).
-                    </span>
-                ) : (
-                    body.map((line, index) => (
-                        <div
-                            key={index}
-                            className={cn(
-                                'px-3 whitespace-pre',
-                                line.startsWith('@@')
-                                    ? 'text-sky-600 dark:text-sky-400'
-                                    : line.startsWith('+')
-                                      ? 'bg-green-500/10 text-green-700 dark:text-green-400'
-                                      : line.startsWith('-')
-                                        ? 'bg-red-500/10 text-red-700 dark:text-red-400'
-                                        : 'text-muted-foreground',
-                            )}
-                        >
-                            {line || ' '}
-                        </div>
-                    ))
-                )}
-            </pre>
-            {diff.truncated && (
-                <p className="px-3 py-1.5 text-xs text-muted-foreground">
-                    This diff is too large to show in full.
-                </p>
-            )}
+            <PatchView
+                patch={diff.patch}
+                truncated={diff.truncated}
+                className="max-h-96"
+            />
         </div>
     );
 }

@@ -7,7 +7,7 @@ use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 
-#[Signature('zap:admin {email : Email of an existing user}')]
+#[Signature('onedrop:admin {email : Email of an existing user}')]
 #[Description('Make an existing user a site admin')]
 class MakeAdmin extends Command
 {

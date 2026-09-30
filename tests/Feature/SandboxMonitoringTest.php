@@ -90,8 +90,8 @@ test('the endpoint returns both panels for the owner and reads both log files', 
         ->assertJsonCount(96, 'infrastructure.cpu');
 
     $commands = array_map(fn ($call) => implode(' ', $call['command']), $this->provider->executed);
-    expect($commands[0])->toContain('/workspace/.zap/access.log')
-        ->and($commands[1])->toContain('/workspace/.zap/metrics.log');
+    expect($commands[0])->toContain('/workspace/.onedrop/access.log')
+        ->and($commands[1])->toContain('/workspace/.onedrop/metrics.log');
 })->group('MON-001');
 
 test('the endpoint validates ranges, requires access, and explains a stopped sandbox', function () {

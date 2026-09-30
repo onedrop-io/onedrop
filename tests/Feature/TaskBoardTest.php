@@ -89,7 +89,7 @@ test('a failed run leaves the card In progress', function () {
     $sandbox = $this->project->sandbox()->create(['provider' => 'fake', 'status' => 'running']);
 
     $this->withToken($task->issueEventsToken())
-        ->postJson(route('sandbox-events.tasks.store', [$sandbox, $task]), ['events' => [['type' => 'zap.exit', 'code' => 1, 'stderr' => 'boom']]])
+        ->postJson(route('sandbox-events.tasks.store', [$sandbox, $task]), ['events' => [['type' => 'onedrop.exit', 'code' => 1, 'stderr' => 'boom']]])
         ->assertOk();
 
     expect($task->fresh()->stage)->toBe(TaskStage::InProgress)

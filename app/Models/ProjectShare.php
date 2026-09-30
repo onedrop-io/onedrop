@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Concerns\BroadcastsProjectChanges;
 use App\Enums\ShareCardStatus;
 use Database\Factories\ProjectShareFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -32,6 +33,8 @@ use Illuminate\Support\Str;
 #[Fillable(['slug', 'prompt', 'page_path', 'card_status', 'card_error', 'screenshot_file', 'card_file', 'captured_at', 'views', 'remixes'])]
 class ProjectShare extends Model
 {
+    use BroadcastsProjectChanges;
+
     /** @use HasFactory<ProjectShareFactory> */
     use HasFactory;
 

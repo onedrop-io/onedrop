@@ -28,10 +28,10 @@ class SandboxUpdater
     public const KEPT_PATHS = ['/workspace', '/data/storage', '/home/sandbox'];
 
     /**
-     * Hands a carried-over home folder back to the image's shell setup in /opt/zap: an old ~/.bashrc that doesn't load
-     * /opt/zap/bashrc gives way to one that does, and the image's old copy of the prompt config (marked by its header) goes.
+     * Hands a carried-over home folder back to the image's shell setup in /opt/onedrop: an old ~/.bashrc that doesn't load
+     * /opt/onedrop/bashrc gives way to one that does, and the image's old copy of the prompt config (marked by its header) goes.
      */
-    public const USE_IMAGE_SHELL_SETUP = 'grep -qF /opt/zap/bashrc ~/.bashrc 2>/dev/null || cp /opt/zap/home-bashrc ~/.bashrc; '
+    public const USE_IMAGE_SHELL_SETUP = 'grep -qF /opt/onedrop/bashrc ~/.bashrc 2>/dev/null || cp /opt/onedrop/home-bashrc ~/.bashrc; '
         .'if grep -qF "# Shell tab prompt (starship)" ~/.config/starship.toml 2>/dev/null; then rm ~/.config/starship.toml; fi';
 
     /** Longest an update may hold its lock, in seconds (copying a large workspace takes a while). */
@@ -170,8 +170,8 @@ class SandboxUpdater
                 // The old home folder brought its shell files; older ones held the whole setup, so hand it back to the image's.
                 $this->provider->exec($sandbox->external_id, ['bash', '-c', self::USE_IMAGE_SHELL_SETUP]);
 
-                // The app's dev server (.zap/dev) arrived with the files; start it.
-                $this->provider->exec($sandbox->external_id, ['/opt/zap/restart']);
+                // The app's dev server (.onedrop/dev) arrived with the files; start it.
+                $this->provider->exec($sandbox->external_id, ['/opt/onedrop/restart']);
                 $report('Copied files into the new sandbox.');
 
                 $this->provider->destroy($old);

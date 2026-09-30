@@ -2,14 +2,14 @@
 
 Follow this when the user asks you to add (or change) custom analytics events. Events show how people use the
 app: who signs up, creates things, or finishes a flow. The app builder's Tools → Growth panel counts them from
-the log the sandbox writes, and describes them from `/workspace/.zap/analytics.json`, so stick to the contract below.
+the log the sandbox writes, and describes them from `/workspace/.onedrop/analytics.json`, so stick to the contract below.
 
 ## How events are recorded
 
 The app sends each event to its own address, and the sandbox's proxy logs it (the app never sees the request):
 
 ```
-POST /__zap/event
+POST /__onedrop/event
 {"name": "project_created", "props": {"template": "blank"}}
 ```
 
@@ -32,8 +32,8 @@ export function track(
     try {
         const body = JSON.stringify({ name, props });
 
-        if (!navigator.sendBeacon?.('/__zap/event', body)) {
-            void fetch('/__zap/event', {
+        if (!navigator.sendBeacon?.('/__onedrop/event', body)) {
+            void fetch('/__onedrop/event', {
                 method: 'POST',
                 body,
                 keepalive: true,
@@ -63,7 +63,7 @@ confirms them (e.g. after sign-up succeeds), so every event goes through the hel
 - Property values come from a small fixed set the code controls: a plan name, a template, a step number,
   `true`/`false`. If in doubt, leave the property out.
 
-## Write /workspace/.zap/analytics.json
+## Write /workspace/.onedrop/analytics.json
 
 List every event the app sends, in the order a person meets them:
 
@@ -86,7 +86,7 @@ List every event the app sends, in the order a person meets them:
 
 ## Check it works
 
-`curl -s -o /dev/null -w '%{http_code}' -X POST "localhost:$PROXY_PORT/__zap/event" -d '{}'` should print `400`
+`curl -s -o /dev/null -w '%{http_code}' -X POST "localhost:$PROXY_PORT/__onedrop/event" -d '{}'` should print `400`
 (the endpoint answers without recording anything). Don't send real test events; they would count as visits.
 Make sure the app still builds and loads, then tell the user in one or two sentences which events you added
 and that they show up in Tools → Growth as people use the app.

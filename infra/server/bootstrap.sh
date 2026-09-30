@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Installs Zap on a fresh Ubuntu 24.04 server (x86_64 or arm64), then deploys a release.
+# Installs OneDrop on a fresh Ubuntu 24.04 server (x86_64 or arm64), then deploys a release.
 #
-#   sudo APP_DOMAIN=zap.example.com APP_RELEASE=/tmp/zap.tar.gz bash bootstrap.sh
+#   sudo APP_DOMAIN=onedrop.example.com APP_RELEASE=/tmp/onedrop.tar.gz bash bootstrap.sh
 #
 # APP_RELEASE may be a local path, an https:// URL, or an s3:// URL (needs the AWS CLI + credentials).
 # Safe to re-run: every step checks before changing anything.
 set -euo pipefail
 export PATH="$PATH:/snap/bin:/usr/local/bin"
 
-: "${APP_DOMAIN:?Set APP_DOMAIN, e.g. zap.example.com or 1-2-3-4.sslip.io}"
+: "${APP_DOMAIN:?Set APP_DOMAIN, e.g. onedrop.example.com or 1-2-3-4.sslip.io}"
 : "${APP_RELEASE:?Set APP_RELEASE to a release tarball path or URL}"
 
 export DEBIAN_FRONTEND=noninteractive
@@ -58,36 +58,37 @@ if ! command -v tailscale >/dev/null; then
     curl -fsSL https://tailscale.com/install.sh | sh
 fi
 
-log "zap user and directories"
-id zap >/dev/null 2>&1 || useradd --system --create-home --home-dir /opt/zap --shell /bin/bash zap
-usermod -aG docker zap
-# Caddy must pass through /opt/zap to serve public/; 751 lets it traverse without listing. Secrets stay 600.
-chmod 751 /opt/zap
-install -d -o zap -g zap /opt/zap/releases /opt/zap/shared /opt/zap/shared/storage /opt/zap/bin
+log "onedrop user and directories"
+id onedrop >/dev/null 2>&1 || useradd --system --create-home --home-dir /opt/onedrop --shell /bin/bash onedrop
+usermod -aG docker onedrop
+# Caddy must pass through /opt/onedrop to serve public/; 751 lets it traverse without listing. Secrets stay 600.
+chmod 751 /opt/onedrop
+install -d -o onedrop -g onedrop /opt/onedrop/releases /opt/onedrop/shared /opt/onedrop/shared/storage /opt/onedrop/bin
 for dir in app/public framework/cache/data framework/sessions framework/views framework/testing logs; do
-    install -d -o zap -g zap "/opt/zap/shared/storage/$dir"
+    install -d -o onedrop -g onedrop "/opt/onedrop/shared/storage/$dir"
 done
 # install -d only owns the last directory; the app must be able to write to the parents too.
-chown -R zap:zap /opt/zap/shared/storage
+chown -R onedrop:onedrop /opt/onedrop/shared/storage
 
-log "PHP-FPM pool (runs as zap so the app can drive Docker)"
-install -m 644 "$HERE/php-fpm-zap.conf" /etc/php/8.4/fpm/pool.d/zap.conf
+log "PHP-FPM pool (runs as onedrop so the app can drive Docker)"
+install -m 644 "$HERE/php-fpm-onedrop.conf" /etc/php/8.4/fpm/pool.d/onedrop.conf
 rm -f /etc/php/8.4/fpm/pool.d/www.conf
 
 log "Queue worker service"
-install -m 644 "$HERE/zap-queue.service" /etc/systemd/system/zap-queue.service
+install -m 644 "$HERE/onedrop-queue.service" /etc/systemd/system/onedrop-queue.service
 systemctl daemon-reload
-systemctl enable zap-queue
+systemctl enable onedrop-queue
 
 log "Caddy config"
 install -m 644 "$HERE/Caddyfile" /etc/caddy/Caddyfile
+[ -f /etc/caddy/onedrop-options.caddy ] || install -m 644 /dev/null /etc/caddy/onedrop-options.caddy
 mkdir -p /etc/systemd/system/caddy.service.d
-printf '[Service]\nEnvironment=APP_DOMAIN=%s\n' "$APP_DOMAIN" > /etc/systemd/system/caddy.service.d/zap.conf
+printf '[Service]\nEnvironment=APP_DOMAIN=%s\n' "$APP_DOMAIN" > /etc/systemd/system/caddy.service.d/onedrop.conf
 systemctl daemon-reload
 
-install -m 755 "$HERE/deploy.sh" /opt/zap/bin/deploy
-install -m 755 "$HERE/set-domain.sh" /opt/zap/bin/set-domain
-APP_DOMAIN="$APP_DOMAIN" /opt/zap/bin/deploy "$APP_RELEASE"
+install -m 755 "$HERE/deploy.sh" /opt/onedrop/bin/deploy
+install -m 755 "$HERE/set-domain.sh" /opt/onedrop/bin/set-domain
+APP_DOMAIN="$APP_DOMAIN" /opt/onedrop/bin/deploy "$APP_RELEASE"
 
 log "Done. Open https://$APP_DOMAIN, sign up, then make yourself an admin:"
-echo "    sudo -u zap php /opt/zap/current/artisan zap:admin you@example.com"
+echo "    sudo -u onedrop php /opt/onedrop/current/artisan onedrop:admin you@example.com"

@@ -148,7 +148,7 @@ test('stopping a real run kills it in the sandbox and ignores its later events',
 
     app(OpenCodeRunner::class)->stop($this->project);
 
-    expect($provider->executed[0]['command'])->toBe(['/opt/zap/stop-agent', 'main'])
+    expect($provider->executed[0]['command'])->toBe(['/opt/onedrop/stop-agent', 'main'])
         ->and($sandbox->fresh()->acceptsEventsToken($oldToken))->toBeFalse();
 
     $this->withToken($oldToken)

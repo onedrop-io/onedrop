@@ -1,0 +1,8 @@
+[Unit]
+Description=Watch for server settings saved in OneDrop (ADMIN-004)
+
+[Path]
+PathChanged=/opt/onedrop/shared/storage/app/server-settings.json
+
+[Install]
+WantedBy=multi-user.target

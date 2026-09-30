@@ -41,7 +41,7 @@ test('start runs a tailscale sidecar in the sandbox network, key via env only', 
             && in_array('container:ctr-1', $command)
             && in_array("TS_HOSTNAME=timesheets-{$this->project->id}", $command)
             && in_array('TS_USERSPACE=true', $command)
-            && in_array("zap-publish-{$this->project->id}-state:/var/lib/tailscale", $command)
+            && in_array("onedrop-publish-{$this->project->id}-state:/var/lib/tailscale", $command)
             && in_array('TS_AUTHKEY', $command)
             && ! str_contains(implode(' ', $command), 'tskey-auth-secret')
             && $process->environment['TS_AUTHKEY'] === 'tskey-auth-secret';
@@ -70,7 +70,7 @@ test('confirm applies funnel for public and serve for private to the host proxy,
 
     expect($this->tailscale->confirm($this->project, $visibility))->toBe('https://timesheets-1.tail1234.ts.net');
 
-    Process::assertRan(fn (PendingProcess $process) => $process->command === ['docker', 'exec', "zap-publish-{$this->project->id}", 'tailscale', $command, '--bg', '8081']);
+    Process::assertRan(fn (PendingProcess $process) => $process->command === ['docker', 'exec', "onedrop-publish-{$this->project->id}", 'tailscale', $command, '--bg', '8081']);
 })->with([
     'public' => [PublishVisibility::Public, 'funnel'],
     'private' => [PublishVisibility::Private, 'serve'],
@@ -137,5 +137,5 @@ test('stop removes the sidecar', function () {
 
     $this->tailscale->stop($this->project);
 
-    Process::assertRan(fn (PendingProcess $process) => $process->command === ['docker', 'rm', '--force', "zap-publish-{$this->project->id}"]);
+    Process::assertRan(fn (PendingProcess $process) => $process->command === ['docker', 'rm', '--force', "onedrop-publish-{$this->project->id}"]);
 })->group('PUB-001');

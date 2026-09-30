@@ -7,10 +7,15 @@ import AuthLayout from '@/layouts/auth-layout';
 import SettingsLayout from '@/layouts/settings/layout';
 import { isSettingsPage } from '@/lib/settings';
 
-const appName = import.meta.env.VITE_APP_NAME || 'OneDrop';
+const fallbackName = import.meta.env.VITE_APP_NAME || 'OneDrop';
 
 void createInertiaApp({
-    title: (title) => (title ? `${title} - ${appName}` : appName),
+    // The name an admin set (ADMIN-001) comes with every page.
+    title: (title, page) => {
+        const appName = (page?.props.name as string | undefined) || fallbackName;
+
+        return title ? `${title} - ${appName}` : appName;
+    },
     layout: (name) => {
         switch (true) {
             case name === 'welcome':

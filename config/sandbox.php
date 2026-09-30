@@ -19,9 +19,15 @@ return [
 
     'providers' => [
         'docker' => [
-            'image' => env('SANDBOX_DOCKER_IMAGE', 'zap-sandbox:latest'),
+            'image' => env('SANDBOX_DOCKER_IMAGE', 'onedrop-sandbox:latest'),
             'memory' => env('SANDBOX_DOCKER_MEMORY', '2g'),
             'cpus' => env('SANDBOX_DOCKER_CPUS', '2'),
+            // Seconds a sandbox may sit unused before it's suspended (frozen, memory kept) until its next use, as
+            // Runtime pauses its sandboxes after a minute; 0 never.
+            'idle_seconds' => (int) env('SANDBOX_DOCKER_IDLE_SECONDS', 60),
+            // Minutes a suspended sandbox stays frozen before it's stopped, freeing its memory (it starts again in a
+            // second or two on its next use, files kept); 0 never.
+            'stop_after_minutes' => (int) env('SANDBOX_DOCKER_STOP_AFTER_MINUTES', 5),
             // Host the browser uses to reach published container ports.
             'host' => env('SANDBOX_DOCKER_HOST', '127.0.0.1'),
             // Optional container runtime, e.g. "runsc" for gVisor isolation on Linux servers.
@@ -40,7 +46,7 @@ return [
         'runtime' => [
             'api_key' => env('RUNTIME_API_KEY'),
             'url' => env('RUNTIME_API_URL', 'https://api.withruntime.com'),
-            'image' => env('RUNTIME_IMAGE', 'zap-sandbox:latest'),
+            'image' => env('RUNTIME_IMAGE', 'onedrop-sandbox:latest'),
             // "trial" (the free hours) until the account has credit and you choose "paid".
             'funding' => env('RUNTIME_FUNDING', 'trial'),
             'vcpu' => (int) env('RUNTIME_VCPU', 2),
@@ -60,7 +66,7 @@ return [
             'api_key' => env('BL_API_KEY'),
             'workspace' => env('BL_WORKSPACE'),
             'url' => env('BL_API_URL', 'https://api.blaxel.ai'),
-            'image' => env('BLAXEL_IMAGE', 'zap-sandbox'),
+            'image' => env('BLAXEL_IMAGE', 'onedrop-sandbox'),
             // Also sets CPUs (one per 2048 MB). About half backs the sandbox's in-memory filesystem. New accounts allow 4096 at most.
             'memory_mib' => (int) env('BLAXEL_MEMORY_MIB', 4096),
             // Empty picks the region closest to this app.

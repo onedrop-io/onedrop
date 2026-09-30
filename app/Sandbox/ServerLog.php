@@ -9,7 +9,7 @@ use App\Models\Sandbox;
  */
 class ServerLog
 {
-    public const PATH = '/tmp/zap-server.log';
+    public const PATH = '/tmp/onedrop-server.log';
 
     /** Bytes returned on first open, and the most returned per read. */
     public const MAX_BYTES = 64_000;

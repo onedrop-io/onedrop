@@ -21,13 +21,13 @@ const LABELS: Record<PreviewError['type'], string> = {
 };
 
 function parse(data: unknown): PreviewError | null {
-    const { zap, error } = (data ?? {}) as {
-        zap?: unknown;
+    const { onedrop, error } = (data ?? {}) as {
+        onedrop?: unknown;
         error?: Partial<PreviewError>;
     };
 
     if (
-        zap !== 'error' ||
+        onedrop !== 'error' ||
         !error ||
         !TYPES.includes(String(error.type)) ||
         typeof error.message !== 'string' ||
@@ -94,7 +94,7 @@ export function fixRequest(errors: PreviewError[]): string {
         )
         .join('\n');
 
-    return `The preview shows ${errors.length === 1 ? 'this error' : 'these errors'}:\n\n\`\`\`\n${lines}\n\`\`\`\n\nFind the cause (details are in /workspace/.zap/errors.log) and fix it.`;
+    return `The preview shows ${errors.length === 1 ? 'this error' : 'these errors'}:\n\n\`\`\`\n${lines}\n\`\`\`\n\nFind the cause (details are in /workspace/.onedrop/errors.log) and fix it.`;
 }
 
 export function PreviewErrorBar({

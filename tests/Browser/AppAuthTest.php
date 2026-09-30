@@ -31,7 +31,7 @@ test('the user sets up sign-in with the agent, sees the app users and adds provi
         ->assertVisible('@auth-setup-sent')
         ->assertSee('Add user sign-in to my app with email and password and Google.');
 
-    // The agent built it: sign-in is described in .zap/auth.json and users are signing up.
+    // The agent built it: sign-in is described in .onedrop/auth.json and users are signing up.
     authWorkspace(root: $this->workspace);
 
     $page->click('Check again')
@@ -153,7 +153,7 @@ test('controls an older app lacks offer to ask the agent', function () {
         ->assertSee('Asked the agent')
         ->assertNoJavaScriptErrors();
 
-    expect($this->project->messages()->where('role', 'user')->latest('id')->value('content'))->toContain('.zap/users');
+    expect($this->project->messages()->where('role', 'user')->latest('id')->value('content'))->toContain('.onedrop/users');
 })->group('APPAUTH-001');
 
 test('the user turns on OneDrop accounts and chooses who can sign in', function () {
@@ -174,7 +174,7 @@ test('the user turns on OneDrop accounts and chooses who can sign in', function 
         ->and(file_get_contents($this->workspace.'/.env'))->toContain('ONEDROP_CLIENT_ID=od_');
 
     // The agent added the button.
-    file_put_contents($this->workspace.'/.zap/auth.json', json_encode(['methods' => ['password', 'google', 'onedrop']]));
+    file_put_contents($this->workspace.'/.onedrop/auth.json', json_encode(['methods' => ['password', 'google', 'onedrop']]));
 
     visit("/projects/{$this->project->id}")
         ->resize(1920, 1080)

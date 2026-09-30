@@ -29,6 +29,34 @@ To throw changes away, click the undo icon next to a file, or **Discard all**. F
 
 While the agent is working, committing, discarding, switching branches and restoring wait until it finishes.
 
+## Commit and push from the header
+
+The **Commit & push** button next to **Share** does the everyday steps without opening Tools. Click it to review what you're committing in **Commit changes**, and it commits and pushes the branch to your connected repository. With nothing to commit but commits not yet pushed, it just pushes. A notice shows **Pushing…**, then whether it worked.
+
+In **Commit changes**:
+
+- **Branch** shows where the commit goes, marked **Default branch** on `main` or `master`. Pick **Commit on new branch** and type a name to commit there instead; the app restarts on the new branch.
+- **Files** lists each change with its state and the lines added and removed, and the total below. Click **Edit** and untick files to leave them out; they stay uncommitted for later.
+- Click a file to see its changes beside the list: added lines in green, removed in red (a new file is all green, and a new folder lists its files). Use ↑/↓ to go through the files one by one, and Space to tick or untick the one you're on while editing. Click the file again or press Esc to close it.
+- To commit only part of a file, untick a part (the checkbox by each `@@` line) or click single lines to leave them out; they're struck through, the file shows **part**, and the totals count only what's left in. What you left out stays uncommitted in the file. If the file changes before you commit (say, the agent starts working), the commit is refused with **This file changed. Review it again.**
+- **Discard** on a part of an edited file puts just that part back as it was in the last commit, after you confirm. This can't be undone.
+- **Commit message** is optional. Leave it blank and your project's AI writes one from the changes (if it can't, the message names the files). Press ⌘/Ctrl+Enter to commit.
+
+The arrow next to it opens a menu:
+
+- **Commit** commits without pushing.
+- **Push** pushes the commits your repository doesn't have yet. With no repository connected, this is **Connect a repository…**, which opens **Tools → Git** (and the button itself just says **Commit**).
+- **Combine N commits** appears when more than one commit is waiting to be pushed (the agent commits after every turn, so they add up). It turns them into one commit with a message your project's AI writes from them, listing the original messages underneath; edit it before combining. Only commits that aren't pushed yet are combined, so pushing never has to overwrite your repository, and your files don't change. Commit or discard your changes first.
+- **Create PR** opens a pull request for the current branch (see below).
+
+The buttons wait while the agent is working or the sandbox isn't running.
+
+### Open a pull request
+
+On a branch other than `main` or `master` that's pushed to a GitHub repository, **Create PR** opens a dialog. Pick the branch it goes into (`main` or `master` to start with), and your project's AI writes a title and description from the branch's commits and changes. Edit them, then click **Open on GitHub**: GitHub's new pull request page opens with both filled in, ready to create. Without an AI, the title is the branch's only commit message (or the branch name) and the description lists its commits.
+
+When Create PR isn't available, the menu says why: **Commit on a new branch first**, **Push the branch first**, or **Needs a GitHub repository**.
+
 ## Branches
 
 The branch menu at the top shows the current branch. Pick another to switch to it, or choose **New branch…** to start one from the current commit. The app restarts on the new branch.

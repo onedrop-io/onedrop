@@ -47,7 +47,7 @@ test('new preview errors after a turn are sent to the agent once', function () {
         ->and($request->content)
         ->toContain('Server error 500 on GET /: ViteManifestNotFoundException Vite manifest not found')
         ->toContain('Browser error on /dashboard: x is not defined')
-        ->toContain('/workspace/.zap/errors.log')
+        ->toContain('/workspace/.onedrop/errors.log')
         ->not->toContain('/old')
         ->and($this->project->fresh()->status)->toBe(ProjectStatus::Working)
         ->and($this->provider->executed[0]['command'][2])->toContain('http://127.0.0.1:${PROXY_PORT:-8081}/');
@@ -104,7 +104,7 @@ test('a successful turn schedules the check, a failed one does not', function (i
     $this->project->update(['status' => ProjectStatus::Working]);
 
     $this->withToken($this->sandbox->issueEventsToken())
-        ->postJson(route('sandbox-events.store', $this->sandbox), ['events' => [['type' => 'zap.exit', 'code' => $code, 'stderr' => '']]])
+        ->postJson(route('sandbox-events.store', $this->sandbox), ['events' => [['type' => 'onedrop.exit', 'code' => $code, 'stderr' => '']]])
         ->assertOk();
 
     $scheduled

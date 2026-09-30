@@ -128,7 +128,7 @@ class WorkspaceFiles
     public function write(Sandbox $sandbox, string $path, string $content): void
     {
         $target = self::ROOT.'/'.$path;
-        $temp = $target.'.zap-tmp';
+        $temp = $target.'.onedrop-tmp';
 
         $this->writeChunks($sandbox, $temp, $content, "Couldn't save {$path}.");
 
@@ -179,7 +179,7 @@ class WorkspaceFiles
     public function upload(Sandbox $sandbox, string $path, string $bytes): void
     {
         $target = self::ROOT.'/'.$path;
-        $temp = $target.'.zap-upload';
+        $temp = $target.'.onedrop-upload';
         $error = "Couldn't upload {$path}.";
 
         $result = $this->provider->exec($sandbox->external_id, ['mkdir', '-p', '--', dirname($target)]);
@@ -207,7 +207,7 @@ class WorkspaceFiles
      */
     public function zip(Sandbox $sandbox): string
     {
-        $temp = '/tmp/zap-download-'.bin2hex(random_bytes(6)).'.zip';
+        $temp = '/tmp/onedrop-download-'.bin2hex(random_bytes(6)).'.zip';
 
         $build = $this->provider->exec($sandbox->external_id, ['php', '-r', self::ZIP_SCRIPT, '--', $temp, ...self::COLLAPSED]);
 

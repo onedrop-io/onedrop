@@ -48,20 +48,20 @@ RUN npm install -g opencode-ai@1.18.32 @anthropic-ai/claude-code@2.1.284 @openai
 RUN useradd --create-home --shell /bin/bash sandbox \
     && mkdir -p /workspace /data/storage && chown sandbox:sandbox /workspace /data/storage
 
-COPY placeholder /opt/zap/placeholder
+COPY placeholder /opt/onedrop/placeholder
 # fork copies the app for a task and merges its work back (TASK-003). file-watcher.mjs tells the Files panel when files come and go (FILE-004). share-card makes share cards (SHARE-001). db.php backs the Tools → Database panel (SQLite, Postgres and MySQL through PDO); auth.php backs Users & Auth; secrets.php backs Secrets; storage.php backs App Storage; git.php backs Git.
-COPY start.sh restart stop-agent shell-entry checkpoint fork share-card forwarder.mjs file-watcher.mjs host-proxy.mjs db.php auth.php secrets.php storage.php git.php instructions.md opencode.json /opt/zap/
+COPY start.sh restart stop-agent shell-entry checkpoint fork share-card forwarder.mjs file-watcher.mjs host-proxy.mjs db.php auth.php secrets.php storage.php git.php instructions.md opencode.json /opt/onedrop/
 # Task guides the agent follows (e.g. guides/auth.md for adding sign-in).
-COPY guides /opt/zap/guides
-# Shell setup lives in /opt/zap (not the home folder, which updates carry over) so image changes reach every sandbox; ~/.bashrc only loads it.
-COPY bashrc home-bashrc starship.toml /opt/zap/
+COPY guides /opt/onedrop/guides
+# Shell setup lives in /opt/onedrop (not the home folder, which updates carry over) so image changes reach every sandbox; ~/.bashrc only loads it.
+COPY bashrc home-bashrc starship.toml /opt/onedrop/
 COPY --chown=sandbox:sandbox home-bashrc /home/sandbox/.bashrc
 # sshd for Tools → Developer → SSH (key-only, as the sandbox user; see sshd_config).
-COPY sshd_config /opt/zap/sshd_config
+COPY sshd_config /opt/onedrop/sshd_config
 
 USER sandbox
 WORKDIR /workspace
 ENV LANG=C.UTF-8 PORT=8000 SHELL_PORT=7681 PROXY_PORT=8081 SSH_PORT=2222 APP_STORAGE_DIR=/data/storage
 EXPOSE 8000 7681 2222
 
-CMD ["/opt/zap/start.sh"]
+CMD ["/opt/onedrop/start.sh"]

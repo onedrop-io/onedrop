@@ -88,7 +88,7 @@ test('it tells browsers and devices apart', function (string $userAgent, array $
 test('the endpoint returns analytics, signed-in users and the latest seo scan', function () {
     $workspace = authWorkspace();
     $database = fakeDatabaseSandbox($workspace);
-    file_put_contents($workspace.'/.zap/seo.json', json_encode([
+    file_put_contents($workspace.'/.onedrop/seo.json', json_encode([
         'version' => 1,
         'scanned_at' => '2026-09-27T14:05:00Z',
         'score' => 104.4,
@@ -107,7 +107,7 @@ test('the endpoint returns analytics, signed-in users and the latest seo scan', 
 
         return match (true) {
             str_contains($script, 'access.log') => new ExecResult(0, json_encode(visit_(time() - 60, '1.1.1.1'))),
-            str_contains($script, 'seo.json') => new ExecResult(0, (string) file_get_contents($workspace.'/.zap/seo.json')),
+            str_contains($script, 'seo.json') => new ExecResult(0, (string) file_get_contents($workspace.'/.onedrop/seo.json')),
             str_contains($script, 'events.log') => new ExecResult(0, json_encode(['t' => (time() - 60) * 1000, 'n' => 'signed_up', 'ip' => '1.1.1.1', 'pub' => true])),
             str_contains($script, 'analytics.json') => new ExecResult(0, json_encode(['events' => [['name' => 'signed_up', 'description' => 'Someone created an account.']]])),
             default => ($database->execUsing)($command, $env),
@@ -159,7 +159,7 @@ test('running a scan asks the agent in the chat, queued while it works', functio
         ->assertJsonPath('queued', false);
 
     expect($this->project->messages()->latest('id')->value('content'))
-        ->toBe("Check my app's SEO and tell me what to improve. Don't change the app yet. Follow the guide at /opt/zap/guides/seo.md.");
+        ->toBe("Check my app's SEO and tell me what to improve. Don't change the app yet. Follow the guide at /opt/onedrop/guides/seo.md.");
 
     $this->project->update(['status' => ProjectStatus::Working]);
 
@@ -169,7 +169,7 @@ test('running a scan asks the agent in the chat, queued while it works', functio
         ->assertJsonPath('queued', true);
 
     expect($this->project->queuedMessages()->value('content'))
-        ->toBe("Check my app's SEO and fix the problems you find. Follow the guide at /opt/zap/guides/seo.md.");
+        ->toBe("Check my app's SEO and fix the problems you find. Follow the guide at /opt/onedrop/guides/seo.md.");
 })->group('GROW-001');
 
 test('growth validates the range, requires access, and explains a stopped sandbox', function () {
@@ -240,7 +240,7 @@ test('setting up events asks the agent in the chat, with the events the user des
         ->assertJsonPath('queued', false);
 
     expect($this->project->messages()->latest('id')->value('content'))
-        ->toBe('Add custom analytics events to my project. Follow the guide at /opt/zap/guides/analytics.md.');
+        ->toBe('Add custom analytics events to my project. Follow the guide at /opt/onedrop/guides/analytics.md.');
 
     $this->project->update(['status' => ProjectStatus::Working]);
 
@@ -250,7 +250,7 @@ test('setting up events asks the agent in the chat, with the events the user des
         ->assertJsonPath('queued', true);
 
     expect($this->project->queuedMessages()->value('content'))
-        ->toBe('Add these custom analytics events to my project: when someone shares a project. Follow the guide at /opt/zap/guides/analytics.md.');
+        ->toBe('Add these custom analytics events to my project: when someone shares a project. Follow the guide at /opt/onedrop/guides/analytics.md.');
 })->group('GROW-002');
 
 test('adding events validates the request, requires access, and explains a stopped sandbox', function () {

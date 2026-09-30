@@ -23,7 +23,7 @@ use Throwable;
 class BlaxelSandboxProvider implements SandboxProvider
 {
     /** Label holding the image a sandbox was made from (for isOutdated()). */
-    public const IMAGE_LABEL = 'zap-image';
+    public const IMAGE_LABEL = 'onedrop-image';
 
     /** How long a private preview token lasts; ProjectController renews the links daily. */
     public const PREVIEW_TOKEN_DAYS = 7;
@@ -65,7 +65,7 @@ class BlaxelSandboxProvider implements SandboxProvider
                     // Secret values are never shown back by the API or the console.
                     'envs' => collect([
                         // Blaxel sets PORT=80 in every process; the entrypoint gives start.sh this one instead.
-                        'ZAP_PORT' => (string) $spec->port,
+                        'ONEDROP_PORT' => (string) $spec->port,
                         ...($spec->proxyPort ? ['PROXY_PORT' => (string) $spec->proxyPort] : []),
                         ...($spec->shellPort ? ['SHELL_PORT' => (string) $spec->shellPort] : []),
                         ...$spec->env,
@@ -143,6 +143,14 @@ class BlaxelSandboxProvider implements SandboxProvider
      * Blaxel puts idle sandboxes on standby by itself within seconds: nothing to do.
      */
     public function suspend(string $id): void {}
+
+    /**
+     * Blaxel wakes a sandbox on standby by itself on the next request: nothing to do.
+     */
+    public function wake(string $id): bool
+    {
+        return false;
+    }
 
     public function exec(string $id, array $command, array $env = [], bool $detach = false): ExecResult
     {
@@ -225,7 +233,7 @@ class BlaxelSandboxProvider implements SandboxProvider
 
     public function copyOut(string $id, string $path, string $directory): void
     {
-        $archive = '/tmp/zap-copy-'.Str::random(8).'.tgz';
+        $archive = '/tmp/onedrop-copy-'.Str::random(8).'.tgz';
         $packed = $this->exec($id, ['bash', '-c', 'test -d "$1" || exit 3; tar -czf "$2" -C "$1" .', 'pack', $path, $archive]);
 
         // A path the sandbox never created (e.g. no App Storage yet) has nothing to copy.
@@ -237,7 +245,7 @@ class BlaxelSandboxProvider implements SandboxProvider
             throw new SandboxException("Couldn't copy {$path} out of the sandbox: ".(strtok(trim($packed->errorOutput), "\n") ?: 'tar failed'));
         }
 
-        $local = tempnam(sys_get_temp_dir(), 'zap-copy-');
+        $local = tempnam(sys_get_temp_dir(), 'onedrop-copy-');
 
         try {
             $this->throwUnlessOk($this->sandboxClient($id)->timeout(600)->sink($local)
@@ -257,8 +265,8 @@ class BlaxelSandboxProvider implements SandboxProvider
 
     public function copyIn(string $id, string $directory, string $path): void
     {
-        $local = tempnam(sys_get_temp_dir(), 'zap-copy-');
-        $archive = '/tmp/zap-copy-'.Str::random(8).'.tgz';
+        $local = tempnam(sys_get_temp_dir(), 'onedrop-copy-');
+        $archive = '/tmp/onedrop-copy-'.Str::random(8).'.tgz';
 
         try {
             $result = Process::forever()->run(['tar', '-czf', $local, '-C', $directory, '.']);

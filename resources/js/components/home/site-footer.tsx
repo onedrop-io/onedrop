@@ -52,6 +52,13 @@ export function SiteFooter() {
                 >
                     Jeff Schmaltz, MODIS Land Rapid Response Team, NASA GSFC
                 </a>
+                . Apollo 11 moonwalk footage by{' '}
+                <a
+                    href="https://commons.wikimedia.org/wiki/File:Apollo_11_Moonwalk_Montage.webm"
+                    className="underline-offset-2 hover:text-[#B3A69C] hover:underline"
+                >
+                    NASA
+                </a>
                 . Voyager and Pioneer models and the Golden Record photo by{' '}
                 <a
                     href="https://science.nasa.gov/3d-resources/"

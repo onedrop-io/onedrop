@@ -59,7 +59,7 @@ function laravelSnippets(bucket: string): Snippet[] {
             code: `'${bucket}' => [
     'driver' => 'local',
     // APP_STORAGE_DIR is set in the sandbox; buckets are folders inside it.
-    'root' => rtrim(env('APP_STORAGE_DIR', storage_path('app/zap-storage')), '/').'/${bucket}',
+    'root' => rtrim(env('APP_STORAGE_DIR', storage_path('app/onedrop-storage')), '/').'/${bucket}',
     'throw' => true,
 ],`,
         },

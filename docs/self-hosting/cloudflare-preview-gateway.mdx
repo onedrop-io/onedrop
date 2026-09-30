@@ -22,7 +22,7 @@ Through the Worker, the browser only deals with addresses and cookies under your
 
 ## How a request is checked
 
-1. Opening a project's preview sends the browser to `preview-<id>.<domain>/__zap/enter` with a short-lived token. The Worker asks OneDrop to check it, and OneDrop sets that address's own cookie. The app's login cookie never reaches these addresses.
+1. Opening a project's preview sends the browser to `preview-<id>.<domain>/__onedrop/enter` with a short-lived token. The Worker asks OneDrop to check it, and OneDrop sets that address's own cookie. The app's login cookie never reaches these addresses.
 2. On every other request, the Worker asks OneDrop whether that cookie may see the project, and where the sandbox lives. Answers are reused for a minute per cookie, so a page's assets don't each cost a request.
 3. The Worker forwards the request to the provider with the private preview token in a header, and points links to the provider's address back at the gateway address. WebSockets (the Shell tab, hot reload) pass through.
 

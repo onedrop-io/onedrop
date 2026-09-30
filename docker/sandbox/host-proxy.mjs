@@ -24,11 +24,11 @@ const listenPort = Number(process.env.PROXY_PORT || 8081);
 const appHost = `localhost:${appPort}`;
 
 // Extra servers behind the same address (a realtime server like Laravel Reverb, a separate WebSocket
-// server): /workspace/.zap/routes.json maps path prefixes to local ports, e.g. {"/app": 8080}. Requests
+// server): /workspace/.onedrop/routes.json maps path prefixes to local ports, e.g. {"/app": 8080}. Requests
 // and WebSockets under a prefix go to its port instead of the app's. The sandbox's own services
 // (this proxy, the web terminal, SSH) can never be routed to, so they stay behind the platform's auth.
 const ROUTES_FILE =
-    process.env.ZAP_ROUTES_FILE || '/workspace/.zap/routes.json';
+    process.env.ONEDROP_ROUTES_FILE || '/workspace/.onedrop/routes.json';
 const RESERVED_PORTS = new Set(
     [
         listenPort,
@@ -244,7 +244,7 @@ const starting = `<!doctype html><meta charset="utf-8"><meta http-equiv="refresh
 
 // Monitoring: one JSON line per request, and a CPU/memory sample every minute. Kept in the
 // workspace so they survive sandbox recreation; each file is rotated once it gets large.
-const MONITOR_DIR = '/workspace/.zap';
+const MONITOR_DIR = '/workspace/.onedrop';
 const ACCESS_LOG = `${MONITOR_DIR}/access.log`;
 const METRICS_LOG = `${MONITOR_DIR}/metrics.log`;
 const EVENTS_LOG = `${MONITOR_DIR}/events.log`;
@@ -336,10 +336,10 @@ function country(headers) {
 }
 
 // Custom analytics events (docker/sandbox/guides/analytics.md): the app POSTs
-// {"name": "signed_up", "props": {"plan": "pro"}} to its own /__zap/event, and it's logged here,
+// {"name": "signed_up", "props": {"plan": "pro"}} to its own /__onedrop/event, and it's logged here,
 // never passed on to the app. Names and property keys are snake_case; values are short strings,
 // numbers or booleans. Anything else is dropped.
-const EVENT_PATH = '/__zap/event';
+const EVENT_PATH = '/__onedrop/event';
 const EVENT_NAME = /^[a-z][a-z0-9_]{0,63}$/;
 const MAX_EVENT_BYTES = 4096;
 const MAX_EVENT_PROPS = 10;
@@ -424,9 +424,9 @@ function recordEvent(req, res) {
 // to preview pages), and the app not answering. The agent reads them in errors.log; the app builder shows the
 // browser's over the preview. Browser reports are only taken from the preview, which is behind the platform's auth.
 const ERRORS_LOG = `${MONITOR_DIR}/errors.log`;
-const ERROR_PATH = '/__zap/error';
-const ERROR_SCRIPT_PATH = '/__zap/errors.js';
-const SERVER_LOG = '/tmp/zap-server.log';
+const ERROR_PATH = '/__onedrop/error';
+const ERROR_SCRIPT_PATH = '/__onedrop/errors.js';
+const SERVER_LOG = '/tmp/onedrop-server.log';
 const BROWSER_ERROR_TYPES = new Set([
     'error',
     'rejection',
@@ -448,8 +448,8 @@ const lastErrors = new Map();
 // Added to preview pages. Reports to the proxy (for errors.log) and to the app builder around the preview.
 // Server errors (the page itself, or fetch/XHR answers) are already logged by the proxy, so they're only shown.
 const ERROR_REPORTER = `(() => {
-    if (window.__zapErrors) return;
-    window.__zapErrors = true;
+    if (window.__onedropErrors) return;
+    window.__onedropErrors = true;
     const script = document.currentScript;
     const seen = new Set();
     let count = 0;
@@ -468,7 +468,7 @@ const ERROR_REPORTER = `(() => {
             try { navigator.sendBeacon('${ERROR_PATH}', JSON.stringify(error)); } catch {}
         }
         if (type !== 'console' && window.parent !== window) {
-            try { window.parent.postMessage({ zap: 'error', error }, '*'); } catch {}
+            try { window.parent.postMessage({ onedrop: 'error', error }, '*'); } catch {}
         }
     };
     const status = Number(script && script.dataset.status);

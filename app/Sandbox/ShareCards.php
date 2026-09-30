@@ -50,7 +50,7 @@ class ShareCards
             throw new SandboxException(__("The project's sandbox isn't running."));
         }
 
-        $result = $this->provider->exec($sandbox->external_id, ['/opt/zap/share-card', $share->page_path], [
+        $result = $this->provider->exec($sandbox->external_id, ['/opt/onedrop/share-card', $share->page_path], [
             'CARD_HTML' => $this->cardHtml($share),
         ]);
 

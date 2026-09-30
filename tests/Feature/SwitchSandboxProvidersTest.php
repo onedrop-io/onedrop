@@ -41,7 +41,7 @@ test('each sandbox is driven by the provider it was created on', function () {
 test('new sandboxes are created on the configured provider and remembered there', function () {
     $router = ($this->route)('runtime');
 
-    $id = $router->create(new SandboxSpec('zap-project-1-x'));
+    $id = $router->create(new SandboxSpec('onedrop-project-1-x'));
     $router->exec($id, ['ls']);
 
     expect($this->runtime->created)->toHaveKey($id)
@@ -58,7 +58,7 @@ test('a sandbox on a provider that is not set up says so', function () {
 
 test('switching providers moves a project to the new one with its files, and removes the old sandbox there', function () {
     $sandbox = Sandbox::factory()->for($this->project)->create(['provider' => 'blaxel', 'external_id' => 'bl-1']);
-    $this->blaxel->created['bl-1'] = new SandboxSpec('zap-project-old');
+    $this->blaxel->created['bl-1'] = new SandboxSpec('onedrop-project-old');
     config(['sandbox.provider' => 'runtime']);
     app()->instance(SandboxProvider::class, ($this->route)('runtime'));
     app()->instance(Publisher::class, new FakePublisher);
@@ -91,8 +91,8 @@ test('a sandbox already on the configured provider is not moved', function () {
 
 test('deleting a project removes its sandbox on the provider it was created on, not the configured one', function () {
     Sandbox::factory()->for($this->project)->create(['provider' => 'blaxel', 'external_id' => 'bl-1']);
-    $this->blaxel->created['bl-1'] = new SandboxSpec('zap-project-old');
-    $this->runtime->created['bl-1'] = new SandboxSpec('zap-project-other');
+    $this->blaxel->created['bl-1'] = new SandboxSpec('onedrop-project-old');
+    $this->runtime->created['bl-1'] = new SandboxSpec('onedrop-project-other');
     app()->instance(SandboxProvider::class, ($this->route)('runtime'));
 
     $this->actingAs($this->user)->delete(route('projects.destroy', $this->project));

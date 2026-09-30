@@ -6,13 +6,13 @@ use App\Models\Sandbox;
 
 /**
  * Turns the sandbox's own request log and resource samples (written by
- * docker/sandbox/host-proxy.mjs into /workspace/.zap) into chart-ready series.
+ * docker/sandbox/host-proxy.mjs into /workspace/.onedrop) into chart-ready series.
  */
 class SandboxMonitoring
 {
-    public const ACCESS_LOG = '/workspace/.zap/access.log';
+    public const ACCESS_LOG = '/workspace/.onedrop/access.log';
 
-    public const METRICS_LOG = '/workspace/.zap/metrics.log';
+    public const METRICS_LOG = '/workspace/.onedrop/metrics.log';
 
     /** Most log bytes read per request (newest kept). */
     public const MAX_BYTES = 8_000_000;

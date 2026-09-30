@@ -10,8 +10,8 @@ test('sandboxes can reach the host on linux and use an optional runtime', functi
     Process::preventStrayProcesses();
     Process::fake(['*' => Process::result('abc')]);
 
-    (new DockerSandboxProvider(['image' => 'zap-sandbox:latest', 'memory' => '2g', 'cpus' => '2', 'host' => '127.0.0.1', 'runtime' => 'runsc']))
-        ->create(new SandboxSpec('zap-project-1-x'));
+    (new DockerSandboxProvider(['image' => 'onedrop-sandbox:latest', 'memory' => '2g', 'cpus' => '2', 'host' => '127.0.0.1', 'runtime' => 'runsc']))
+        ->create(new SandboxSpec('onedrop-project-1-x'));
 
     Process::assertRan(function (PendingProcess $process) {
         $command = implode(' ', $process->command);
@@ -49,16 +49,16 @@ test('email verification defaults to off only for local installs', function (?bo
     'off, production' => [false, 'production', false],
 ])->group('DEP-001');
 
-test('zap:admin makes a user an admin', function () {
+test('onedrop:admin makes a user an admin', function () {
     $user = User::factory()->create(['email' => 'boss@example.com']);
 
-    $this->artisan('zap:admin', ['email' => 'boss@example.com'])->assertSuccessful();
+    $this->artisan('onedrop:admin', ['email' => 'boss@example.com'])->assertSuccessful();
 
     expect($user->fresh()->is_admin)->toBeTrue();
 })->group('DEP-001');
 
-test('zap:admin explains a missing user', function () {
-    $this->artisan('zap:admin', ['email' => 'nobody@example.com'])
+test('onedrop:admin explains a missing user', function () {
+    $this->artisan('onedrop:admin', ['email' => 'nobody@example.com'])
         ->expectsOutputToContain('No user with the email nobody@example.com')
         ->assertFailed();
 })->group('DEP-001');

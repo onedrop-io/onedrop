@@ -46,7 +46,7 @@ test('starts the forwarder detached with the prompt, model, key and a callback',
     $env = $this->provider->envs[0];
 
     expect($call['id'])->toBe('ctr-1')
-        ->and($call['command'])->toBe(['node', '/opt/zap/forwarder.mjs'])
+        ->and($call['command'])->toBe(['node', '/opt/onedrop/forwarder.mjs'])
         ->and($call['detach'])->toBeTrue()
         ->and($env['APP_PROMPT'])->toBe('build a timer')
         ->and($env['APP_MODEL'])->toBe('openrouter/anthropic/claude-sonnet-5')

@@ -9,9 +9,11 @@ use App\Jobs\SyncGitRemote;
 use App\Models\GitHubInstallation;
 use App\Models\Project;
 use App\Models\Sandbox;
+use App\Sandbox\CommitMessageWriter;
 use App\Sandbox\GitException;
 use App\Sandbox\GitHubApp;
 use App\Sandbox\GitRemote;
+use App\Sandbox\PullRequestWriter;
 use App\Sandbox\SandboxException;
 use App\Sandbox\WorkspaceGit;
 use Closure;
@@ -75,20 +77,133 @@ class ProjectGitController extends Controller
     }
 
     /**
-     * Commit every change, as the signed-in user.
+     * The commits that would be combined, with a message for the combined commit.
      */
-    public function commit(Request $request, Project $project, WorkspaceGit $git): JsonResponse
+    public function combineDraft(Project $project, WorkspaceGit $git, CommitMessageWriter $writer): JsonResponse
+    {
+        Gate::authorize('update', $project);
+
+        return $this->fromSandbox($project, function (Sandbox $sandbox) use ($git, $writer, $project) {
+            $preview = $git->combinePreview($sandbox);
+
+            return ['commits' => $preview['commits'], 'message' => $writer->forCombining($project, $preview)];
+        });
+    }
+
+    /**
+     * Combine the commits no remote has yet into one, as the signed-in user.
+     */
+    public function combine(Request $request, Project $project, WorkspaceGit $git): JsonResponse
     {
         Gate::authorize('update', $project);
 
         $message = $request->validate(['message' => ['required', 'string', 'max:5000']])['message'];
 
+        if (in_array($project->git_sync_status, [GitSyncStatus::Pushing, GitSyncStatus::Pulling], true)) {
+            return response()->json(['message' => __('Wait for the push or pull to finish first.')], 409);
+        }
+
         return $this->changing($project, function (Sandbox $sandbox) use ($git, $message, $request, $project) {
-            $status = $git->commit($sandbox, $message, $request->user());
+            $status = $git->combine($sandbox, $message, $request->user());
             BackupProject::dispatch($project);
 
             return ['status' => $status, 'commits' => $git->log($sandbox)];
         });
+    }
+
+    /**
+     * A title and description for a pull request from the current branch into $base, and GitHub's page for it.
+     */
+    public function pullRequest(Request $request, Project $project, WorkspaceGit $git, PullRequestWriter $writer): JsonResponse
+    {
+        Gate::authorize('update', $project);
+
+        $base = $request->validate(['base' => ['required', 'string', 'max:100']])['base'];
+        $repository = $project->git_remote_url === null ? null : GitRemote::gitHubRepository($project->git_remote_url);
+
+        if ($repository === null) {
+            return response()->json(['message' => __('Pull requests need a GitHub repository.')], 422);
+        }
+
+        return $this->fromSandbox($project, function (Sandbox $sandbox) use ($git, $writer, $project, $base, $repository) {
+            $branch = $git->status($sandbox)['branch'];
+
+            if ($branch === null || $branch === $base) {
+                throw new GitException(__('Commit on a new branch first, then open a pull request into :base.', ['base' => $base]));
+            }
+
+            return [
+                ...$writer->write($project, $sandbox, $branch, $base),
+                'url' => "https://github.com/{$repository}/compare/".rawurlencode($base).'...'.rawurlencode($branch),
+            ];
+        });
+    }
+
+    /**
+     * The diff of one uncommitted change, for reviewing it before committing.
+     */
+    public function changeDiff(Request $request, Project $project, WorkspaceGit $git): JsonResponse
+    {
+        Gate::authorize('view', $project);
+
+        $path = $request->validate(['path' => ['required', 'string', 'max:1000']])['path'];
+
+        return $this->fromSandbox($project, fn (Sandbox $sandbox) => $git->changeDiff($sandbox, $path));
+    }
+
+    /**
+     * Commit every change, or only the chosen files, as the signed-in user; optionally on a new branch, and with a
+     * message written for them when they leave it blank.
+     */
+    public function commit(Request $request, Project $project, WorkspaceGit $git, CommitMessageWriter $writer): JsonResponse
+    {
+        Gate::authorize('update', $project);
+
+        $validated = $request->validate([
+            'message' => ['nullable', 'string', 'max:5000'],
+            'paths' => ['nullable', 'array', 'min:1', 'max:500'],
+            'paths.*' => ['string', 'max:1000'],
+            'branch' => ['nullable', 'string', 'max:100'],
+            'partials' => ['nullable', 'array', 'max:500'],
+            'partials.*.path' => ['required', 'string', 'max:1000'],
+            'partials.*.hash' => ['required', 'string', 'size:40'],
+            'partials.*.excluded' => ['present', 'array', 'max:100000'],
+            'partials.*.excluded.*' => ['integer', 'min:0'],
+        ]);
+        $paths = $validated['paths'] ?? null;
+        $partials = array_map(fn (array $partial) => [
+            'path' => $partial['path'],
+            'hash' => $partial['hash'],
+            'excluded' => array_map(intval(...), $partial['excluded']),
+        ], $validated['partials'] ?? []);
+
+        return $this->changing($project, function (Sandbox $sandbox) use ($git, $writer, $validated, $paths, $partials, $request, $project) {
+            if (($validated['branch'] ?? null) !== null) {
+                $git->switch($sandbox, $validated['branch'], create: true);
+            }
+
+            $message = trim($validated['message'] ?? '') ?: $writer->write($project, $sandbox, $partials === [] ? $paths : [...($paths ?? []), ...array_column($partials, 'path')]);
+            $status = $git->commit($sandbox, $message, $request->user(), $partials === [] ? $paths : ($paths ?? []), $partials);
+            BackupProject::dispatch($project);
+
+            return ['status' => $status, 'commits' => $git->log($sandbox), 'message' => $message];
+        });
+    }
+
+    /**
+     * Throw away one hunk of an uncommitted file (the hash says which version of its diff was shown).
+     */
+    public function discardHunk(Request $request, Project $project, WorkspaceGit $git): JsonResponse
+    {
+        Gate::authorize('update', $project);
+
+        $validated = $request->validate([
+            'path' => ['required', 'string', 'max:1000'],
+            'hash' => ['required', 'string', 'size:40'],
+            'hunk' => ['required', 'integer', 'min:0'],
+        ]);
+
+        return $this->changing($project, fn (Sandbox $sandbox) => ['status' => $git->discardHunk($sandbox, $validated['path'], $validated['hash'], $validated['hunk'])]);
     }
 
     /**

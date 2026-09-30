@@ -7,11 +7,11 @@ use Illuminate\Support\Str;
 
 /**
  * The app's errors, whatever its stack, as docker/sandbox/host-proxy.mjs records them in
- * /workspace/.zap/errors.log (ERR-001): 5xx answers, errors in the preview's browser, and the app not answering.
+ * /workspace/.onedrop/errors.log (ERR-001): 5xx answers, errors in the preview's browser, and the app not answering.
  */
 class PreviewErrors
 {
-    public const PATH = '/workspace/.zap/errors.log';
+    public const PATH = '/workspace/.onedrop/errors.log';
 
     /** Most log bytes read (newest kept). */
     public const MAX_BYTES = 200_000;

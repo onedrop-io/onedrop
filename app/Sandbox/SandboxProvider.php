@@ -38,6 +38,14 @@ interface SandboxProvider
     public function suspend(string $id): void;
 
     /**
+     * Wake a suspended (or stopped) sandbox now, carrying on where it was, and say whether it had to: its addresses
+     * may have changed. Providers that wake sandboxes by themselves on the next request do nothing.
+     *
+     * @throws SandboxException
+     */
+    public function wake(string $id): bool;
+
+    /**
      * Run a short command. Use $detach for anything long-running (agents, servers).
      *
      * @param  list<string>  $command

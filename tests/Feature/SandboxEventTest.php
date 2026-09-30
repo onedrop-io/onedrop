@@ -29,7 +29,7 @@ test('events without the sandbox token are rejected', function (?string $token) 
 
 test('a full agent run becomes chat messages in order', function () {
     sendEvents($this->sandbox, $this->token, [
-        ['type' => 'zap.start'],
+        ['type' => 'onedrop.start'],
         ['type' => 'step_start', 'sessionID' => 'ses_1', 'part' => ['type' => 'step-start']],
         ['type' => 'reasoning', 'sessionID' => 'ses_1', 'part' => ['type' => 'reasoning', 'text' => 'hmm']],
         ['type' => 'text', 'sessionID' => 'ses_1', 'part' => ['type' => 'text', 'text' => "I'll build a timer."]],
@@ -37,7 +37,7 @@ test('a full agent run becomes chat messages in order', function () {
         ['type' => 'tool_use', 'sessionID' => 'ses_1', 'part' => ['type' => 'tool', 'tool' => 'bash', 'state' => ['status' => 'completed', 'input' => ['command' => 'npm install', 'description' => 'Install dependencies']]]],
         ['type' => 'step_finish', 'sessionID' => 'ses_1', 'part' => ['type' => 'step-finish']],
         ['type' => 'text', 'sessionID' => 'ses_1', 'part' => ['type' => 'text', 'text' => 'Done! Press Start to begin timing.']],
-        ['type' => 'zap.exit', 'code' => 0, 'stderr' => ''],
+        ['type' => 'onedrop.exit', 'code' => 0, 'stderr' => ''],
     ])->assertOk();
 
     $this->project->refresh();
@@ -56,7 +56,7 @@ test('a full agent run becomes chat messages in order', function () {
 test('the agent shows as working as soon as it starts', function () {
     $this->project->update(['status' => ProjectStatus::Idle]);
 
-    sendEvents($this->sandbox, $this->token, [['type' => 'zap.start']]);
+    sendEvents($this->sandbox, $this->token, [['type' => 'onedrop.start']]);
 
     expect($this->project->fresh()->status)->toBe(ProjectStatus::Working);
 })->group('AGT-001');
@@ -71,17 +71,17 @@ test('repeated thinking lines collapse into one', function () {
 })->group('AGT-001');
 
 test('agent errors and failed exits are explained', function (array $event, string $expected) {
-    sendEvents($this->sandbox, $this->token, [$event, ['type' => 'zap.exit', 'code' => 0]]);
+    sendEvents($this->sandbox, $this->token, [$event, ['type' => 'onedrop.exit', 'code' => 0]]);
 
     expect($this->project->messages()->sole()->content)->toContain($expected)
         ->and($this->project->fresh()->status)->toBe(ProjectStatus::Idle);
 })->with([
     'api error' => [['type' => 'error', 'error' => ['name' => 'APIError', 'data' => ['message' => 'Rate limited']]], 'Something went wrong: Rate limited'],
     'low balance' => [['type' => 'error', 'error' => ['data' => ['message' => 'This request would exceed your available credits given your current in-flight requests.']]], 'Your AI provider says your balance is too low'],
-    'bad key' => [['type' => 'zap.exit', 'code' => 1, 'stderr' => "boom\nError: 401 Unauthorized"], 'rejected the key'],
-    'no credits' => [['type' => 'zap.exit', 'code' => 1, 'stderr' => '402 insufficient credits'], 'out of credits'],
-    'other crash' => [['type' => 'zap.exit', 'code' => 1, 'stderr' => "trace\nSegfault"], 'Error: Segfault'],
-    'crash banner skipped' => [['type' => 'zap.exit', 'code' => 1, 'stderr' => "EACCES: permission denied, mkdir '/home/sandbox/.local/state'\n    code: \"EACCES\"\n\nBun v1.3.14 (Linux arm64)"], "Error: EACCES: permission denied, mkdir '/home/sandbox/.local/state'"],
+    'bad key' => [['type' => 'onedrop.exit', 'code' => 1, 'stderr' => "boom\nError: 401 Unauthorized"], 'rejected the key'],
+    'no credits' => [['type' => 'onedrop.exit', 'code' => 1, 'stderr' => '402 insufficient credits'], 'out of credits'],
+    'other crash' => [['type' => 'onedrop.exit', 'code' => 1, 'stderr' => "trace\nSegfault"], 'Error: Segfault'],
+    'crash banner skipped' => [['type' => 'onedrop.exit', 'code' => 1, 'stderr' => "EACCES: permission denied, mkdir '/home/sandbox/.local/state'\n    code: \"EACCES\"\n\nBun v1.3.14 (Linux arm64)"], "Error: EACCES: permission denied, mkdir '/home/sandbox/.local/state'"],
 ])->group('AGT-001');
 
 test('tool lines read naturally', function (array $part, string $line) {
@@ -94,3 +94,9 @@ test('tool lines read naturally', function (array $part, string $line) {
     'search' => [['tool' => 'grep', 'state' => []], 'Looking through the code'],
     'unknown' => [['tool' => 'mystery', 'state' => []], 'Using mystery'],
 ])->group('AGT-001');
+
+test('agent events count as use of the sandbox, so it isn\'t suspended as idle', function () {
+    sendEvents($this->sandbox, $this->token, [['type' => 'text', 'sessionID' => 'ses_1', 'part' => ['type' => 'text', 'text' => 'hi']]])->assertOk();
+
+    expect($this->sandbox->fresh()->last_active_at?->isAfter(now()->subMinute()))->toBeTrue();
+})->group('SBX-007');

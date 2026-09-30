@@ -6,14 +6,14 @@ import * as pulumi from '@pulumi/pulumi';
  * Caddy (HTTPS) and Docker sandboxes. Releases are uploaded to S3 by
  * scripts/release.sh; the server installs itself from the first one.
  */
-const config = new pulumi.Config('zap');
+const config = new pulumi.Config('onedrop');
 const instanceType = config.get('instanceType') ?? 't4g.large';
 const diskGb = config.getNumber('diskGb') ?? 100;
 // Leave unset to use <elastic-ip>.sslip.io, which needs no DNS setup.
 const customDomain = config.get('domain');
 
-const name = `zap-${pulumi.getStack()}`;
-const tags = { Project: 'zap', Stack: pulumi.getStack() };
+const name = `onedrop-${pulumi.getStack()}`;
+const tags = { Project: 'onedrop', Stack: pulumi.getStack() };
 
 // Ubuntu 24.04 LTS, looked up from Canonical's public parameter.
 const arch = instanceType.match(/^[a-z]+\d+g/) ? 'arm64' : 'amd64';
@@ -68,7 +68,7 @@ const profile = new aws.iam.InstanceProfile(`${name}-server`, {
 
 // Only HTTPS (and HTTP for certificate issuance / redirects) from the internet.
 const firewall = new aws.ec2.SecurityGroup(`${name}-web`, {
-    description: 'Zap: HTTP and HTTPS in, everything out',
+    description: 'OneDrop: HTTP and HTTPS in, everything out',
     ingress: [
         {
             protocol: 'tcp',
@@ -106,16 +106,16 @@ const releaseUrl = pulumi.interpolate`s3://${releases.bucket}/releases/latest.ta
 
 const userData = pulumi.interpolate`#!/bin/bash
 set -euo pipefail
-exec > >(tee -a /var/log/zap-bootstrap.log) 2>&1
+exec > >(tee -a /var/log/onedrop-bootstrap.log) 2>&1
 export AWS_DEFAULT_REGION=${aws.getRegionOutput().name}
 snap install aws-cli --classic
-echo "export AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION" > /etc/profile.d/zap-aws.sh
+echo "export AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION" > /etc/profile.d/onedrop-aws.sh
 echo "Waiting for the first release at ${releaseUrl} (upload it with: npm run release)"
 until aws s3 ls "${releaseUrl}" >/dev/null 2>&1; do sleep 15; done
-mkdir -p /tmp/zap-release
-aws s3 cp "${releaseUrl}" /tmp/zap-release.tar.gz
-tar -xzf /tmp/zap-release.tar.gz -C /tmp/zap-release infra/server
-APP_DOMAIN="${domain}" APP_RELEASE="${releaseUrl}" bash /tmp/zap-release/infra/server/bootstrap.sh
+mkdir -p /tmp/onedrop-release
+aws s3 cp "${releaseUrl}" /tmp/onedrop-release.tar.gz
+tar -xzf /tmp/onedrop-release.tar.gz -C /tmp/onedrop-release infra/server
+APP_DOMAIN="${domain}" APP_RELEASE="${releaseUrl}" bash /tmp/onedrop-release/infra/server/bootstrap.sh
 `;
 
 const server = new aws.ec2.Instance(
@@ -137,7 +137,7 @@ const server = new aws.ec2.Instance(
     },
     {
         // The bootstrap script only runs on first boot; changing it (e.g. a new domain) must not
-        // stop the instance. Switch domains on the server with /opt/zap/bin/set-domain instead.
+        // stop the instance. Switch domains on the server with /opt/onedrop/bin/set-domain instead.
         ignoreChanges: ['userData'],
     },
 );
@@ -148,7 +148,7 @@ new aws.ec2.EipAssociation(`${name}-ip`, {
 });
 
 export const url = pulumi.interpolate`https://${domain}`;
-export const zapDomain = domain;
+export const onedropDomain = domain;
 export const publicIp = ip.publicIp;
 export const instanceId = server.id;
 export const releaseBucket = releases.bucket;

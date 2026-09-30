@@ -9,7 +9,7 @@ use App\Enums\ProjectStatus;
 use Illuminate\Support\Str;
 
 /**
- * Turns OpenCode `run --format json` events (plus the forwarder's zap.* events)
+ * Turns OpenCode `run --format json` events (plus the forwarder's onedrop.* events)
  * into chat messages. Unknown events are ignored so OpenCode upgrades degrade gracefully.
  *
  * @see https://github.com/sst/opencode/blob/dev/packages/opencode/src/cli/cmd/run.ts
@@ -26,13 +26,13 @@ class OpenCodeEvents extends AgentEvents
         $part = is_array($event['part'] ?? null) ? $event['part'] : [];
 
         match ($event['type'] ?? null) {
-            'zap.start' => $conversation->update(['status' => ProjectStatus::Working]),
+            'onedrop.start' => $conversation->update(['status' => ProjectStatus::Working]),
             'reasoning' => $this->say($conversation, MessageRole::Activity, 'Thinking'),
             'text' => $this->say($conversation, MessageRole::Assistant, trim((string) ($part['text'] ?? ''))),
             'tool_use' => $this->say($conversation, MessageRole::Activity, $this->describeTool($part)),
             'step_finish' => $this->stepFinished($conversation, $part, $event['model'] ?? null),
             'error' => $this->say($conversation, MessageRole::Assistant, $this->explainError($this->errorMessage($event['error'] ?? null))),
-            'zap.exit' => $this->finish($conversation, (int) ($event['code'] ?? 0), (string) ($event['stderr'] ?? '')),
+            'onedrop.exit' => $this->finish($conversation, (int) ($event['code'] ?? 0), (string) ($event['stderr'] ?? '')),
             default => null,
         };
     }

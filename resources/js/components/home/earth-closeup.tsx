@@ -12,7 +12,9 @@
  * elevation maps (NASA's Scientific Visualization Studio, CGI Moon Kit), and
  * the hurricane is NASA's MODIS photo of Hurricane Isabel (Jeff Schmaltz,
  * MODIS Land Rapid Response Team, NASA GSFC). The home page's footer credits
- * them all.
+ * them all. Hovering over the Moon flies in to it for the Apollo 11 moonwalk
+ * (see `moonwalk`), and soon after it's zoomed in a Starship launches from
+ * Florida and flies out to orbit the Moon (see `starship`).
  */
 
 import {
@@ -23,6 +25,19 @@ import {
     smoothstep,
 } from '@/components/home/closeup-gl';
 import type { ShaderCanvas } from '@/components/home/closeup-gl';
+import {
+    drawMoonwalk,
+    isMoonwalkReady,
+    loadMoonwalk,
+    moonwalkLength,
+    moonwalkPhases,
+    stopMoonwalk,
+} from '@/components/home/moonwalk';
+import {
+    drawStarship,
+    drawStarshipTrail,
+    placeStarship,
+} from '@/components/home/starship';
 
 /** Size of the close-up's canvas, and the Earth's radius in it (CSS pixels). */
 export const EARTH_CLOSEUP_SIZE = 780;
@@ -60,6 +75,9 @@ const CLOUD_DRIFT = 4;
 /** How far the north pole leans right, and how far it tips toward us (radians). */
 const AXIAL_TILT = 0.41;
 const VIEW_LATITUDE = 0.3;
+
+/** Starship's launch pad at the Kennedy Space Center, Florida (degrees). */
+const LAUNCH_PAD = { lat: 28.6, lon: -80.6 };
 
 /** Where the sunlight comes from: the left, a little above and in front (x right, y up, z toward us). */
 const SUN = normalize(-0.88, 0.25, 0.42);
@@ -368,6 +386,7 @@ type Orbiter = {
     radius: number;
     open: number;
     tilt: number;
+    /** Seconds per orbit: negative ones go round the other way. */
     period: number;
     phase: number;
     size: number;
@@ -382,6 +401,39 @@ let moon: ShaderCanvas | null = null;
 /** How the Moon is being drawn this frame: `drawMoon` is called as an orbiter, so it reads these. */
 let moonFrame = { pixelScale: 1, seconds: 0 };
 let isLoading = false;
+
+/**
+ * How far into the moonwalk it is (seconds), or null when there isn't one. The
+ * Moon stops in its orbit while it plays, falling `moonLag` seconds behind.
+ */
+let moonwalkSeconds: number | null = null;
+let moonLag = 0;
+let lastDrawnAt: number | null = null;
+
+/** Where the Moon was last drawn in the close-up's canvas (CSS pixels), unless it was behind the Earth. */
+let moonAt: { x: number; y: number; radius: number } | null = null;
+
+/** Where the Moon is in the close-up's canvas (CSS pixels), or null while it's behind the Earth or faded. */
+export function moonInCloseup() {
+    return moonAt;
+}
+
+/** Flies in to the Moon for the Apollo 11 moonwalk, if its footage is in. */
+export function startMoonwalk() {
+    if (moonwalkSeconds === null && isMoonwalkReady()) {
+        moonwalkSeconds = 0;
+    }
+}
+
+/** Ends the moonwalk straight away (when the close-up goes away mid-way). */
+export function endMoonwalk() {
+    moonwalkSeconds = null;
+    stopMoonwalk();
+}
+
+export function isMoonwalkPlaying(): boolean {
+    return moonwalkSeconds !== null;
+}
 
 function createGlobe(images: HTMLImageElement[]): Globe {
     const { canvas, gl, uniform } = createShaderCanvas(
@@ -433,6 +485,7 @@ export function loadEarthCloseup() {
     }
 
     isLoading = true;
+    loadMoonwalk();
 
     Promise.all([...MAPS, ...MOON_MAPS].map(loadImage))
         .then((images) => {
@@ -460,6 +513,30 @@ export function loadEarthCloseup() {
 
 export function isEarthCloseupReady(): boolean {
     return globe !== null;
+}
+
+/**
+ * A spot on the Earth `seconds` into the show (degrees), as a unit vector on
+ * screen (x right, y up, z toward us): the reverse of the globe shader's
+ * turn, tip, and lean.
+ */
+function spotOnScreen(lat: number, lon: number, seconds: number) {
+    const facing = START_LONGITUDE - TURN_SPEED * seconds;
+    const latitude = (lat * Math.PI) / 180;
+    const longitude = ((lon - facing) * Math.PI) / 180;
+    const leanCos = Math.cos(AXIAL_TILT);
+    const leanSin = Math.sin(AXIAL_TILT);
+    const tipCos = Math.cos(VIEW_LATITUDE);
+    const tipSin = Math.sin(VIEW_LATITUDE);
+    const x = Math.cos(latitude) * Math.sin(longitude);
+    const y = Math.sin(latitude);
+    const z = Math.cos(latitude) * Math.cos(longitude);
+
+    return {
+        x: x * leanCos + y * leanSin * tipCos - z * leanSin * tipSin,
+        y: -x * leanSin + y * leanCos * tipCos - z * leanCos * tipSin,
+        z: y * tipSin + z * tipCos,
+    };
 }
 
 /** Renders the globe as it looks `seconds` into the show, `size` device pixels across. */
@@ -835,8 +912,8 @@ const ORBITERS: Orbiter[] = [
         name: 'ISS',
         draw: drawIss,
         radius: 1.24,
-        open: 0.36,
-        tilt: -0.22,
+        open: 0.46,
+        tilt: -0.5,
         period: 9,
         phase: 1.9,
         size: 0.8,
@@ -847,8 +924,8 @@ const ORBITERS: Orbiter[] = [
         draw: drawShuttle,
         radius: 1.38,
         open: 0.28,
-        tilt: 0.18,
-        period: 11,
+        tilt: 0.3,
+        period: -11,
         phase: 0.7,
         size: 0.95,
         showsOrbit: true,
@@ -857,8 +934,8 @@ const ORBITERS: Orbiter[] = [
         name: 'Hubble',
         draw: drawHubble,
         radius: 1.52,
-        open: 0.5,
-        tilt: 0.55,
+        open: 0.3,
+        tilt: 1.35,
         period: 13,
         phase: 4,
         size: 0.85,
@@ -868,15 +945,15 @@ const ORBITERS: Orbiter[] = [
         radius: 1.64,
         open: 0.6,
         tilt: -0.7,
-        period: 16,
+        period: -16,
         phase: 2.6,
         size: 0.75,
     },
     {
         draw: drawSatellite,
         radius: 1.8,
-        open: 0.18,
-        tilt: 0.04,
+        open: 0.24,
+        tilt: -1.45,
         period: 19,
         phase: 5.1,
         size: 0.7,
@@ -884,9 +961,9 @@ const ORBITERS: Orbiter[] = [
     {
         draw: drawSatellite,
         radius: 1.46,
-        open: 0.85,
-        tilt: 1.25,
-        period: 14,
+        open: 0.7,
+        tilt: 2.3,
+        period: -14,
         phase: 0.2,
         size: 0.7,
     },
@@ -906,8 +983,8 @@ const ORBITERS: Orbiter[] = [
         draw: drawRoadster,
         radius: 1.95,
         open: 0.34,
-        tilt: -0.12,
-        period: 24,
+        tilt: -0.55,
+        period: -24,
         phase: 1.1,
         size: 0.95,
         tumble: 0.7,
@@ -917,10 +994,10 @@ const ORBITERS: Orbiter[] = [
         name: index === 0 ? 'Starlink' : undefined,
         draw: drawStarlinkSatellite,
         radius: 1.13,
-        open: 0.46,
-        tilt: 0.38,
-        period: 8,
-        phase: 3.4 - index * 0.07,
+        open: 0.4,
+        tilt: -1.1,
+        period: -8,
+        phase: 3.4 + index * 0.07,
         size: 1,
     })),
 ];
@@ -951,18 +1028,39 @@ export function drawEarthCloseup(
         return;
     }
 
-    moonFrame = { pixelScale, seconds };
+    // Callers' clocks can jump, so only small steps count.
+    const step =
+        lastDrawnAt === null
+            ? 0
+            : Math.min(Math.max(seconds - lastDrawnAt, 0), 0.1);
+    lastDrawnAt = seconds;
 
+    if (moonwalkSeconds !== null) {
+        moonLag += step;
+        moonwalkSeconds += step;
+
+        if (moonwalkSeconds > moonwalkLength()) {
+            endMoonwalk();
+        }
+    }
+
+    const moonwalk = moonwalkPhases(moonwalkSeconds ?? -1);
     const center = EARTH_CLOSEUP_SIZE / 2;
     const radius = EARTH_CLOSEUP_RADIUS;
     const orbitAlpha = smoothstep(0.55, 1, reveal);
+    // Flying in to the Moon, everything else fades away.
+    const othersAlpha = 1 - smoothstep(0.1, 0.7, moonwalk.approach);
 
     drawSpaceBackdrop(context, EARTH_CLOSEUP_SIZE, smoothstep(0, 0.6, reveal));
 
     const placed = ORBITERS.map((orbiter) => {
-        const angle = orbiter.phase + (seconds / orbiter.period) * Math.PI * 2;
+        const time = orbiter.draw === drawMoon ? seconds - moonLag : seconds;
+        const angle = orbiter.phase + (time / orbiter.period) * Math.PI * 2;
         const point = orbitPoint(orbiter, angle);
-        const ahead = orbitPoint(orbiter, angle + 0.01);
+        const ahead = orbitPoint(
+            orbiter,
+            angle + 0.01 * Math.sign(orbiter.period),
+        );
         const depth = Math.sin(angle);
         const nearness =
             depth * orbiter.radius * Math.sqrt(1 - orbiter.open ** 2);
@@ -981,11 +1079,58 @@ export function drawEarthCloseup(
         };
     });
 
+    const placedMoon = placed.find(({ orbiter }) => orbiter.draw === drawMoon)!;
+    const moonRadius =
+        MOON_RADIUS * placedMoon.orbiter.size * (1 + 0.12 * placedMoon.depth);
+    const isMoonBehind =
+        placedMoon.depth <= 0 &&
+        Math.hypot(placedMoon.x - center, placedMoon.y - center) <
+            radius + moonRadius;
+    moonAt =
+        isMoonBehind || orbitAlpha < 1 || moonwalkSeconds !== null
+            ? null
+            : { x: placedMoon.x, y: placedMoon.y, radius: moonRadius };
+
+    const launchPad = spotOnScreen(LAUNCH_PAD.lat, LAUNCH_PAD.lon, seconds);
+    const starship = placeStarship({
+        seconds,
+        center,
+        earthRadius: radius,
+        pad: launchPad,
+        moon: {
+            x: placedMoon.x,
+            y: placedMoon.y,
+            radius: moonRadius,
+            depth: placedMoon.depth,
+        },
+        canLaunch: reveal >= 1 && moonwalkSeconds === null,
+    });
+    const starshipAlpha = orbitAlpha * othersAlpha;
+    const moonDepth = starship.ship?.moonDepth ?? null;
+
+    // Flying in, the Moon slides to the middle and grows to the Earth's size,
+    // then rushes up on the dive through to the footage.
+    const flyIn =
+        (radius / moonRadius) ** moonwalk.approach *
+        (1 + 7 * moonwalk.down ** 2);
+    const flyTo = {
+        x: placedMoon.x + (center - placedMoon.x) * moonwalk.approach,
+        y: placedMoon.y + (center - placedMoon.y) * moonwalk.approach,
+    };
+    moonFrame = {
+        pixelScale: pixelScale * Math.min(flyIn, radius / moonRadius),
+        seconds: seconds - moonLag,
+    };
+    context.save();
+    context.translate(flyTo.x, flyTo.y);
+    context.scale(flyIn, flyIn);
+    context.translate(-placedMoon.x, -placedMoon.y);
+
     const drawOrbitLines = (half: 'back' | 'front') => {
         const [from, to] =
             half === 'back' ? [Math.PI, Math.PI * 2] : [0, Math.PI];
 
-        context.globalAlpha = 0.14 * orbitAlpha;
+        context.globalAlpha = 0.14 * orbitAlpha * othersAlpha;
         context.strokeStyle = '#BFD8FF';
         context.lineWidth = 0.7;
 
@@ -1012,19 +1157,37 @@ export function drawEarthCloseup(
                 continue;
             }
 
+            const isMoon = orbiter.draw === drawMoon;
+            const alpha = isMoon
+                ? 1 - smoothstep(0.3, 0.9, moonwalk.down)
+                : othersAlpha;
+
+            if (alpha <= 0) {
+                continue;
+            }
+
+            // Round the Moon, Starship passes behind it and in front of it.
+            if (isMoon && moonDepth !== null && moonDepth < 0) {
+                drawStarship(context, starship, starshipAlpha);
+            }
+
             // Passing through the Earth's shadow, it goes dark.
             context.save();
-            context.globalAlpha = orbitAlpha * (0.12 + 0.88 * sunlight);
+            context.globalAlpha = orbitAlpha * alpha * (0.12 + 0.88 * sunlight);
             context.translate(x, y);
             context.rotate(heading);
             orbiter.draw(context, orbiter.size * (1 + 0.12 * depth));
             context.restore();
 
+            if (isMoon && moonDepth !== null && moonDepth >= 0) {
+                drawStarship(context, starship, starshipAlpha);
+            }
+
             const isHidden =
                 !inFront && Math.hypot(x - center, y - center) < radius * 1.05;
 
             if (orbiter.name && !isHidden) {
-                context.globalAlpha = 0.75 * orbitAlpha;
+                context.globalAlpha = 0.75 * orbitAlpha * othersAlpha;
                 context.font = '500 10px "Instrument Sans", sans-serif';
                 context.textAlign = 'left';
                 context.fillStyle = '#DCEBFF';
@@ -1036,7 +1199,7 @@ export function drawEarthCloseup(
     drawOrbitLines('back');
     drawOrbiters(false);
 
-    context.globalAlpha = 1;
+    context.globalAlpha = othersAlpha;
     const extent = radius * GLOBE_EXTENT;
     renderGlobe(globe, Math.ceil(extent * 2 * pixelScale), seconds);
     context.drawImage(
@@ -1060,6 +1223,7 @@ export function drawEarthCloseup(
     halo.addColorStop(0.35, 'rgba(70, 140, 255, 0.07)');
     halo.addColorStop(1, 'rgba(60, 120, 255, 0)');
     context.save();
+    context.globalAlpha = othersAlpha;
     context.globalCompositeOperation = 'lighter';
     context.fillStyle = halo;
     context.beginPath();
@@ -1070,7 +1234,24 @@ export function drawEarthCloseup(
 
     drawOrbitLines('front');
     drawOrbiters(true);
+    drawStarshipTrail(context, starship, starshipAlpha);
+
+    if (moonDepth === null) {
+        drawStarship(context, starship, starshipAlpha);
+    }
+
     context.globalAlpha = 1;
+    context.restore();
+
+    if (moonwalkSeconds !== null) {
+        drawMoonwalk(
+            context,
+            EARTH_CLOSEUP_SIZE,
+            moonwalk.watch,
+            smoothstep(0.35, 1, moonwalk.down),
+            0.7 + 0.3 * moonwalk.down,
+        );
+    }
 }
 
 /** How big the Earth is during the show, from 0 (its usual dot) to 1 (fully zoomed in), `seconds` after it starts. Null once it's over. */

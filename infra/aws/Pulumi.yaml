@@ -1,5 +1,5 @@
-name: zap-aws
-description: A single-server Zap deployment on AWS (EC2 + S3 releases).
+name: onedrop-aws
+description: A single-server OneDrop deployment on AWS (EC2 + S3 releases).
 runtime:
     name: nodejs
     options:

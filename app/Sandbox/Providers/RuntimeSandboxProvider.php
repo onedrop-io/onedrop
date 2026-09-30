@@ -11,6 +11,7 @@ use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Sleep;
 use Illuminate\Support\Str;
@@ -23,19 +24,22 @@ use Throwable;
 class RuntimeSandboxProvider implements SandboxProvider
 {
     /** Label holding the id of the image version a sandbox was made from (for isOutdated()). */
-    public const IMAGE_LABEL = 'zap.image';
+    public const IMAGE_LABEL = 'onedrop.image';
 
     /** The sandbox user's home (Runtime itself starts commands in /workspace with HOME set to it). */
     public const HOME = '/home/sandbox';
 
     /** Settings file start.sh and the shell source: Runtime can't set a sandbox's env at create. */
-    public const ENV_FILE = self::HOME.'/.zap-env';
+    public const ENV_FILE = self::HOME.'/.onedrop-env';
 
     /** How long pause() may leave the app frozen if start() is never called: the longest an update may run. */
     public const THAW_AFTER_SECONDS = 900;
 
     /** How long create() waits for a free slot while the trial's running limit is reached. */
     public const CAPACITY_WAIT_SECONDS = 120;
+
+    /** Refusals that clear by themselves (e.g. waking a paused sandbox while the trial's running limit is reached). */
+    public const TEMPORARY_REFUSALS = ['trial_busy', 'no_capacity', 'sandbox_not_ready'];
 
     /** Longest a preview token lasts (7 days); ProjectController renews the links daily. */
     public const PREVIEW_TTL_SECONDS = 604800;
@@ -73,7 +77,7 @@ class RuntimeSandboxProvider implements SandboxProvider
             ]);
 
             // The image's start.sh is already serving the placeholder; restart it so it reads the settings.
-            $this->exec($id, ['/opt/zap/restart']);
+            $this->exec($id, ['/opt/onedrop/restart']);
         } catch (SandboxException $e) {
             $this->destroy($id);
 
@@ -130,7 +134,7 @@ class RuntimeSandboxProvider implements SandboxProvider
 
         // If whoever paused it dies before calling start() (e.g. a deploy replaced the worker), the app still
         // carries on by itself once an update could no longer be running.
-        $this->exec($id, ['bash', '-c', 'sleep '.self::THAW_AFTER_SECONDS.'; pkill -CONT -u "$(id -u)"', 'zap-thaw-watchdog'], detach: true);
+        $this->exec($id, ['bash', '-c', 'sleep '.self::THAW_AFTER_SECONDS.'; pkill -CONT -u "$(id -u)"', 'onedrop-thaw-watchdog'], detach: true);
     }
 
     /**
@@ -146,6 +150,14 @@ class RuntimeSandboxProvider implements SandboxProvider
         }
 
         $this->throwUnlessOk($response);
+    }
+
+    /**
+     * Runtime wakes a paused sandbox by itself on the next request (autoWake): nothing to do.
+     */
+    public function wake(string $id): bool
+    {
+        return false;
     }
 
     public function exec(string $id, array $command, array $env = [], bool $detach = false): ExecResult
@@ -200,7 +212,7 @@ class RuntimeSandboxProvider implements SandboxProvider
 
     public function copyOut(string $id, string $path, string $directory): void
     {
-        $archive = '/tmp/zap-copy-'.Str::random(8).'.tgz';
+        $archive = '/tmp/onedrop-copy-'.Str::random(8).'.tgz';
 
         // As root, like docker cp, so files the app's processes own come along. A missing path has nothing to copy.
         $packed = $this->exec($id, ['sudo', 'bash', '-c', 'test -d "$1" || exit 3; tar -czf "$2" -C "$1" .', 'pack', $path, $archive]);
@@ -213,7 +225,7 @@ class RuntimeSandboxProvider implements SandboxProvider
             throw new SandboxException("Couldn't copy {$path} out of the sandbox: ".(strtok(trim($packed->errorOutput), "\n") ?: 'tar failed'));
         }
 
-        $local = tempnam(sys_get_temp_dir(), 'zap-copy-');
+        $local = tempnam(sys_get_temp_dir(), 'onedrop-copy-');
 
         try {
             $this->throwUnlessOk($this->client()->timeout(600)->sink($local)
@@ -232,9 +244,9 @@ class RuntimeSandboxProvider implements SandboxProvider
 
     public function copyIn(string $id, string $directory, string $path): void
     {
-        $local = tempnam(sys_get_temp_dir(), 'zap-copy-');
+        $local = tempnam(sys_get_temp_dir(), 'onedrop-copy-');
         // Large uploads may only go under /workspace; the unpack below removes it again.
-        $archive = '/workspace/.zap-copy-'.Str::random(8).'.tgz';
+        $archive = '/workspace/.onedrop-copy-'.Str::random(8).'.tgz';
 
         try {
             $result = Process::forever()->run(['tar', '-czf', $local, '-C', $directory, '.']);
@@ -351,9 +363,13 @@ class RuntimeSandboxProvider implements SandboxProvider
      */
     protected function request(string $method, string $path, array $data = [], ?int $wait = null, int $timeout = 30): Response
     {
+        // create() waits for room itself, for longer than a request should.
+        $retriesRefusals = $path !== 'sandboxes';
+
         $client = $this->client()->timeout($timeout + ($wait ?? 0))
-            ->retry(3, fn (int $attempt) => min(8000, 500 * 2 ** $attempt), fn (Throwable $e) => $e instanceof ConnectionException
-                || ($e instanceof RequestException && in_array($e->response->status(), [429, 502, 503, 504], true)), throw: false);
+            ->retry(4, fn (int $attempt) => min(8000, 500 * 2 ** $attempt), fn (Throwable $e) => $e instanceof ConnectionException
+                || ($e instanceof RequestException && (in_array($e->response->status(), [429, 502, 503, 504], true)
+                    || ($retriesRefusals && self::isTemporaryRefusal($e->response)))), throw: false);
 
         if ($method !== 'get') {
             $client->withHeaders(['Idempotency-Key' => (string) Str::uuid()]);
@@ -391,6 +407,25 @@ class RuntimeSandboxProvider implements SandboxProvider
         $error = $response->json('error') ?? [];
         $message = $error['message'] ?? "Runtime Cloud answered HTTP {$response->status()}.";
 
+        Log::warning('Runtime Cloud refused a request.', [
+            'status' => $response->status(),
+            'code' => $error['code'] ?? null,
+            'message' => $message,
+            'request_id' => $error['requestId'] ?? null,
+        ]);
+
+        if (self::isTemporaryRefusal($response)) {
+            throw new SandboxException(trim("Runtime has no room for the sandbox right now ({$message}). Try again in a moment."));
+        }
+
         throw new SandboxException(trim("Runtime: {$message} ".($error['hint'] ?? '').(isset($error['requestId']) ? " ({$error['requestId']})" : '')));
+    }
+
+    /**
+     * A refusal Runtime says clears by itself, such as no free trial slot to wake a paused sandbox in.
+     */
+    protected static function isTemporaryRefusal(Response $response): bool
+    {
+        return $response->status() === 409 && in_array($response->json('error.code'), self::TEMPORARY_REFUSALS, true);
     }
 }

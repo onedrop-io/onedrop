@@ -7,7 +7,7 @@ test('new apps default to the Laravel starter kit unless the user names a stack'
 
     expect($instructions)
         ->toContain("Unless the user names another stack, build every new app with Laravel's React starter kit")
-        ->toContain('/opt/zap/guides/laravel.md')
+        ->toContain('/opt/onedrop/guides/laravel.md')
         ->toContain('Asking for React, TypeScript, Tailwind, shadcn, "a website" or "a landing page" still means the starter kit')
         ->and("{$sandbox}/guides/laravel.md")->toBeFile();
 })->group('AGT-008');
@@ -25,7 +25,7 @@ test('the Laravel guide serves the app, its queue and Reverb through the preview
 
 test('apps with a second server route it through the preview address', function () use ($sandbox) {
     expect(file_get_contents("{$sandbox}/instructions.md"))
-        ->toContain('/workspace/.zap/routes.json');
+        ->toContain('/workspace/.onedrop/routes.json');
 })->group('RT-001');
 
 test('the agent knows the platform commits its turns and keeps history intact', function () use ($sandbox) {
@@ -44,7 +44,7 @@ test('the agent puts a new favicon where the sidebar picks it up', function () u
 
 test('the agent knows where the app\'s errors are recorded and to check them', function () use ($sandbox) {
     expect(file_get_contents("{$sandbox}/instructions.md"))
-        ->toContain('/workspace/.zap/errors.log')
+        ->toContain('/workspace/.onedrop/errors.log')
         ->toContain('Check it before you finish and whenever the user says something is broken')
         ->toContain('"pub": true');
 })->group('ERR-001');

@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
 # Commits everything in the workspace as one checkpoint after an agent turn (forwarder.mjs), so the platform
 # can back the code up (BackupProject). The commit message comes on stdin. Starts a repository if there's none.
-# The author is OneDrop unless ZAP_GIT_AUTHOR_NAME/EMAIL say otherwise (commits from Tools → Git; see git.php).
+# The author is OneDrop unless ONEDROP_GIT_AUTHOR_NAME/EMAIL say otherwise (commits from Tools → Git; see git.php).
 # Never fails the caller: a checkpoint that can't be made is skipped.
 set -uo pipefail
 
 # Git may run as another user than the one owning the workspace.
 export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0="*"
 
-cd "${ZAP_WORKSPACE:-/workspace}" 2>/dev/null || exit 0
+cd "${ONEDROP_WORKSPACE:-/workspace}" 2>/dev/null || exit 0
 
 if [ ! -d .git ]; then
     git init -q -b main || exit 0
 fi
 
-# Dependencies, caches, database files (.zap/data) and secrets stay out, whatever the app's .gitignore says.
+# Dependencies, caches, database files (.onedrop/data) and secrets stay out, whatever the app's .gitignore says.
 mkdir -p .git/info
-for pattern in node_modules/ vendor/ .cache/ .zap/data/ .env '.env.*' '!.env.example'; do
+for pattern in node_modules/ vendor/ .cache/ .onedrop/data/ .env '.env.*' '!.env.example'; do
     grep -qxF -- "$pattern" .git/info/exclude 2>/dev/null || echo "$pattern" >> .git/info/exclude
 done
 
@@ -25,7 +25,27 @@ if [ -e .git/MERGE_HEAD ] || [ -d .git/rebase-merge ] || [ -d .git/rebase-apply 
     exit 0
 fi
 
-git add -A . 2>/dev/null || exit 0
+# Tools → Git can commit only some files (NUL-separated paths in ONEDROP_GIT_PATHS_FILE) and parts of others (a
+# patch in ONEDROP_GIT_PATCH_FILE): start the index from the last commit, then add just those. A patch that no
+# longer applies exits 3, so git.php can say the file changed.
+if [ -n "${ONEDROP_GIT_PATHS_FILE:-}" ]; then
+    if git rev-parse --verify -q HEAD >/dev/null; then
+        git read-tree HEAD 2>/dev/null || exit 0
+    else
+        git read-tree --empty 2>/dev/null || exit 0
+    fi
+
+    # An empty list would mean "everything" to git add.
+    if [ -s "$ONEDROP_GIT_PATHS_FILE" ]; then
+        git add -A --pathspec-from-file="$ONEDROP_GIT_PATHS_FILE" --pathspec-file-nul 2>/dev/null || exit 0
+    fi
+
+    if [ -n "${ONEDROP_GIT_PATCH_FILE:-}" ]; then
+        git apply --cached --recount --whitespace=nowarn "$ONEDROP_GIT_PATCH_FILE" 2>/dev/null || exit 3
+    fi
+else
+    git add -A . 2>/dev/null || exit 0
+fi
 
 if git diff --cached --quiet 2>/dev/null; then
     exit 0
@@ -33,5 +53,5 @@ fi
 
 message="$(cat)"
 
-git -c user.name="${ZAP_GIT_AUTHOR_NAME:-OneDrop}" -c user.email="${ZAP_GIT_AUTHOR_EMAIL:-agent@onedrop.io}" -c commit.gpgsign=false \
+git -c user.name="${ONEDROP_GIT_AUTHOR_NAME:-OneDrop}" -c user.email="${ONEDROP_GIT_AUTHOR_EMAIL:-agent@onedrop.io}" -c commit.gpgsign=false \
     commit -q --no-verify -m "${message:-Checkpoint}" >/dev/null 2>&1 || exit 0

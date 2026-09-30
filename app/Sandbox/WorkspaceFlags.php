@@ -5,14 +5,14 @@ namespace App\Sandbox;
 use App\Models\Sandbox;
 
 /**
- * The app's feature flags. They live in .zap/flags.json, which the app reads each time it checks a flag
+ * The app's feature flags. They live in .onedrop/flags.json, which the app reads each time it checks a flag
  * (the agent sets that up following docker/sandbox/guides/flags.md), so switching one here applies right away.
  */
 class WorkspaceFlags
 {
-    public const FILE = '/workspace/.zap/flags.json';
+    public const FILE = '/workspace/.onedrop/flags.json';
 
-    public const GUIDE = '/opt/zap/guides/flags.md';
+    public const GUIDE = '/opt/onedrop/guides/flags.md';
 
     public const KEY_PATTERN = '/^[a-z0-9][a-z0-9_.-]{0,63}$/';
 
@@ -36,7 +36,7 @@ class WorkspaceFlags
         }
         unset($flag);
         $found || exit(3);
-        $temp = $path.'.zap-tmp';
+        $temp = $path.'.onedrop-tmp';
         $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)."\n";
         file_put_contents($temp, $json) !== false && rename($temp, $path) || exit(1);
         PHP;

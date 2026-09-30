@@ -234,7 +234,7 @@ test('it gets one-time sign-in links from helpers that declare them', function (
     $workspace = withUsersHelper(authWorkspace(['helper' => ['sign-in-link']]));
 
     expect(runAuthTool($workspace, ['op' => 'capabilities'])['data']['sign_in_as'])->toBeTrue()
-        ->and(runAuthTool($workspace, ['op' => 'sign-in-link', 'id' => '1'])['data'])->toBe(['path' => '/auth/zap-sign-in?token=one-time-1']);
+        ->and(runAuthTool($workspace, ['op' => 'sign-in-link', 'id' => '1'])['data'])->toBe(['path' => '/auth/onedrop-sign-in?token=one-time-1']);
 })->group('APPAUTH-001');
 
 test('it writes OneDrop sign-in settings, even before sign-in is set up', function () {
@@ -242,7 +242,7 @@ test('it writes OneDrop sign-in settings, even before sign-in is set up', functi
         'op' => 'onedrop',
         'client_id' => 'od_abc123',
         'client_secret' => 'Secret123',
-        'authorize_url' => 'http://zap.test/oauth/authorize',
+        'authorize_url' => 'http://onedrop.test/oauth/authorize',
         'token_url' => 'http://host.docker.internal:8000/oauth/token',
         'userinfo_url' => 'http://host.docker.internal:8000/oauth/userinfo',
     ];

@@ -6,13 +6,13 @@ use App\Models\Sandbox;
 
 /**
  * The app's SEO rating. The agent checks the app (following docker/sandbox/guides/seo.md)
- * and writes the result to .zap/seo.json, which this reads for Tools → Growth.
+ * and writes the result to .onedrop/seo.json, which this reads for Tools → Growth.
  */
 class WorkspaceSeo
 {
-    public const REPORT = '/workspace/.zap/seo.json';
+    public const REPORT = '/workspace/.onedrop/seo.json';
 
-    public const GUIDE = '/opt/zap/guides/seo.md';
+    public const GUIDE = '/opt/onedrop/guides/seo.md';
 
     public const STATUSES = ['pass', 'warn', 'fail'];
 

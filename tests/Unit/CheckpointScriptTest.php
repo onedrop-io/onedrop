@@ -7,11 +7,11 @@ use Tests\TestCase;
 uses(TestCase::class);
 
 beforeEach(function () {
-    $this->workspace = sys_get_temp_dir().'/zap-checkpoint-'.uniqid();
+    $this->workspace = sys_get_temp_dir().'/onedrop-checkpoint-'.uniqid();
     File::ensureDirectoryExists($this->workspace);
 
     $this->checkpoint = fn (string $message = 'Build a timer') => Process::path($this->workspace)
-        ->env(['ZAP_WORKSPACE' => $this->workspace])
+        ->env(['ONEDROP_WORKSPACE' => $this->workspace])
         ->input($message)
         ->run([dirname(__DIR__, 2).'/docker/sandbox/checkpoint']);
 

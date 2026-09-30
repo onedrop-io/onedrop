@@ -3,7 +3,7 @@ name: runtime image
 # Rebuilds the project sandbox image on Runtime Cloud (what `php artisan sandbox:build-image` does with
 # SANDBOX_PROVIDER=runtime) when docker/sandbox changes on main. Only then: each build is a new image,
 # and every sandbox moves to it (files kept) the next time its project is opened.
-# Needs the RUNTIME_API_KEY secret; RUNTIME_IMAGE (a repository variable) defaults to zap-sandbox:latest.
+# Needs the RUNTIME_API_KEY secret; RUNTIME_IMAGE (a repository variable) defaults to onedrop-sandbox:latest.
 
 on:
   push:
@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RUNTIME_API_KEY: ${{ secrets.RUNTIME_API_KEY }}
-      RUNTIME_IMAGE: ${{ vars.RUNTIME_IMAGE || 'zap-sandbox:latest' }}
+      RUNTIME_IMAGE: ${{ vars.RUNTIME_IMAGE || 'onedrop-sandbox:latest' }}
     steps:
       - name: Skip without a Runtime key
         if: env.RUNTIME_API_KEY == ''

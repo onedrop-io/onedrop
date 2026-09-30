@@ -47,7 +47,7 @@ function shareSandbox(?string $error = null): FakeSandboxProvider
 
 function shareCardCall(FakeSandboxProvider $provider): ?array
 {
-    return collect($provider->executed)->firstWhere(fn ($call) => $call['command'][0] === '/opt/zap/share-card');
+    return collect($provider->executed)->firstWhere(fn ($call) => $call['command'][0] === '/opt/onedrop/share-card');
 }
 
 beforeEach(function () {
@@ -131,7 +131,7 @@ test('making the card screenshots the chosen page in the sandbox and keeps both 
     $share->refresh();
 
     expect($call['id'])->toBe('sbx-1')
-        ->and($call['command'])->toBe(['/opt/zap/share-card', '/deals'])
+        ->and($call['command'])->toBe(['/opt/onedrop/share-card', '/deals'])
         ->and($call['env']['CARD_HTML'])->toContain('A CRM &lt;with&gt; &quot;quotes&quot;')
         ->and($call['env']['CARD_HTML'])->toContain('Team CRM')
         ->and($call['env']['CARD_HTML'])->toContain('by Jeff')

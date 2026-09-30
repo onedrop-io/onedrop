@@ -1,0 +1,16 @@
+[Unit]
+Description=OneDrop live updates (Laravel Reverb, behind Caddy at /app)
+After=network.target
+
+[Service]
+User=onedrop
+Group=onedrop
+WorkingDirectory=/opt/onedrop/current
+ExecStart=/usr/bin/php artisan reverb:start
+Restart=always
+RestartSec=3
+# One connection per open page.
+LimitNOFILE=10000
+
+[Install]
+WantedBy=multi-user.target

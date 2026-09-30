@@ -11,9 +11,9 @@ use App\Models\Sandbox;
  */
 class WorkspaceStorage
 {
-    public const SCRIPT = '/opt/zap/storage.php';
+    public const SCRIPT = '/opt/onedrop/storage.php';
 
-    public const GUIDE = '/opt/zap/guides/storage.md';
+    public const GUIDE = '/opt/onedrop/guides/storage.md';
 
     public const BUCKET_PATTERN = '/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/';
 
