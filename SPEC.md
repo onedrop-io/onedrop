@@ -1128,4 +1128,3 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - A step that no longer matches the page (because the user changed it) should show as that step failing, with Playwright's reason, and the page should stay open.
 - A test paused for longer than its usual timeout should still carry on when resumed.
 - The agent should be able to carry on with the test too (`/opt/onedrop/browser resume step|end`) and see where it is.
-

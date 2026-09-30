@@ -75,9 +75,27 @@ class WorkspaceBrowser
             'open' => (bool) ($status['open'] ?? false),
             'starting' => (bool) ($status['starting'] ?? false),
             'error' => isset($status['error']) ? mb_substr((string) $status['error'], 0, 4000) : null,
-            'url' => $status['url'] ?? null,
-            'title' => $status['title'] ?? null,
-            'playback' => is_array($status['playback'] ?? null) ? $status['playback'] : null,
+            'url' => is_string($status['url'] ?? null) ? $status['url'] : null,
+            'title' => is_string($status['title'] ?? null) ? $status['title'] : null,
+            'playback' => is_array($status['playback'] ?? null) ? self::playback($status['playback']) : null,
+        ];
+    }
+
+    /**
+     * Where a taken-over test is (TEST-006), as the browser script reports it.
+     *
+     * @param  array<mixed>  $playback
+     * @return array{paused: bool, playing: bool, step: int, next: string|null, ended: bool, error: string|null}
+     */
+    protected static function playback(array $playback): array
+    {
+        return [
+            'paused' => (bool) ($playback['paused'] ?? false),
+            'playing' => (bool) ($playback['playing'] ?? false),
+            'step' => (int) ($playback['step'] ?? 0),
+            'next' => is_string($playback['next'] ?? null) ? $playback['next'] : null,
+            'ended' => (bool) ($playback['ended'] ?? false),
+            'error' => is_string($playback['error'] ?? null) ? mb_substr($playback['error'], 0, 4000) : null,
         ];
     }
 

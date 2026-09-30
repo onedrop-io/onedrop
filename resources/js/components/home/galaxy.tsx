@@ -1511,7 +1511,7 @@ export function Galaxy({ children }: { children: ReactNode }) {
                     data-closeup={closeup.name}
                     data-state="idle"
                     aria-hidden="true"
-                    className="pointer-events-none absolute top-1/2 left-1/2 size-8 rounded-full transition-shadow duration-500 motion-reduce:hidden data-[hinted=true]:shadow-[0_0_0_2px_#FFB27A,0_0_24px_6px_rgba(255,154,92,0.7)]"
+                    className="pointer-events-none absolute top-1/2 left-1/2 size-8 rounded-full transition-shadow duration-500 data-[hinted=true]:shadow-[0_0_0_2px_#FFB27A,0_0_24px_6px_rgba(255,154,92,0.7)] motion-reduce:hidden"
                 />
             ))}
         </>

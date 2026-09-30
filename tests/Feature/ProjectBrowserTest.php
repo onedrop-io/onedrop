@@ -76,6 +76,19 @@ test('reports whether the browser is starting, open, or failed', function (array
     'failed' => [['open' => false, 'starting' => false, 'error' => 'The test ended before reaching that step'], ['open' => false, 'error' => 'The test ended before reaching that step']],
 ])->group('TEST-005');
 
+test('reports where a taken-over test is paused, and nothing the browser script adds', function () {
+    $this->provider->execUsing = fn () => new ExecResult(0, json_encode(['open' => true, 'playback' => [
+        'paused' => true, 'playing' => false, 'step' => 2, 'next' => 'Pay', 'ended' => false, 'error' => null, 'extra' => 'x',
+    ]]));
+
+    $this->actingAs($this->user)
+        ->getJson(route('projects.browser.show', $this->project))
+        ->assertOk()
+        ->assertExactJson(['open' => true, 'starting' => false, 'error' => null, 'url' => null, 'title' => null, 'playback' => [
+            'paused' => true, 'playing' => false, 'step' => 2, 'next' => 'Pay', 'ended' => false, 'error' => null,
+        ]]);
+})->group('TEST-006');
+
 test('while the browser is open the agent is told which page the user is on, and not once it closes', function () {
     $this->provider->execUsing = fn () => new ExecResult(0, json_encode(['token' => $this->token]));
     $this->actingAs($this->user)->postJson(route('projects.browser.store', $this->project), takeOver())->assertOk();

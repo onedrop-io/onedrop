@@ -84,9 +84,10 @@ USER sandbox
 WORKDIR /workspace
 ENV LANG=C.UTF-8 PORT=8000 SHELL_PORT=7681 PROXY_PORT=8081 SSH_PORT=2222 APP_STORAGE_DIR=/data/storage
 # Playwright's ffmpeg records the tests' videos; it's fetched for the version the tests guide pins, so runs don't
-# download it. Tests use the Chromium installed above, not one of Playwright's.
+# download it. Tests use the Chromium installed above, not one of Playwright's. HOME is set for this step only:
+# Runtime's builder keeps HOME=/root after USER, so npm's cache would be unwritable there.
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/onedrop/playwright
-RUN npx --yes playwright@1.63.0 install ffmpeg && rm -rf ~/.npm/_npx
+RUN HOME=/home/sandbox npx --yes playwright@1.63.0 install ffmpeg && rm -rf /home/sandbox/.npm
 EXPOSE 8000 7681 2222
 
 CMD ["/opt/onedrop/start.sh"]
