@@ -16,6 +16,7 @@ use App\Jobs\RegenerateProjectName;
 use App\Jobs\RunAgentTask;
 use App\Models\Attachment;
 use App\Models\Project;
+use App\Models\Task;
 use App\Sandbox\Agents\ModelCatalog;
 use App\Sandbox\Agents\ProjectNamer;
 use Illuminate\Http\RedirectResponse;
@@ -133,6 +134,11 @@ class ProjectController extends Controller
         }
 
         Project::withoutTimestamps(fn () => $project->update($changes));
+
+        // Marking read clears its tasks' dots too, since they make the project unread (PRJ-008).
+        if ($request->has('unread') && ! $request->boolean('unread')) {
+            Task::withoutTimestamps(fn () => $project->tasks()->update(['read_at' => now()]));
+        }
 
         // Opening the project marks it read again, so leave it for the new-project page.
         if ($request->boolean('unread') && $this->cameFrom($project)) {

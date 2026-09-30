@@ -20,6 +20,7 @@ import {
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import { desktopNotificationStatus } from '@/hooks/use-desktop-notifications';
 import { isProjectPath } from '@/lib/open-project';
+import { isTabSeen } from '@/lib/unseen-reloads';
 import { useWorkspaceLinks } from '@/lib/workspace-view';
 import { show } from '@/routes/projects';
 import {
@@ -68,6 +69,41 @@ export function useSidebarUpdates(
     }, [naming, working, drawing, start, stop]);
 
     useReadyNotifications(all);
+    useRefreshWhenSeen(all, open);
+}
+
+/**
+ * Replies that arrived while the user was in another tab or app stay unread (PRJ-008); coming back to
+ * the chat they're on reloads it, which marks it read and clears its dot.
+ */
+function useRefreshWhenSeen(
+    projects: SidebarProject[],
+    open: OpenProject | null,
+) {
+    const unreadHere = useRef(false);
+    const path = typeof window === 'undefined' ? '' : window.location.pathname;
+    unreadHere.current = open
+        ? isProjectPath(path, open.id) &&
+          (open.unread || open.tasks.some((task) => task.unread))
+        : projects.some(
+              (project) => project.unread && isProjectPath(path, project.id),
+          );
+
+    useEffect(() => {
+        const refresh = () => {
+            if (unreadHere.current && isTabSeen()) {
+                router.reload({ only: ['sidebarProjects', 'openProject'] });
+            }
+        };
+
+        window.addEventListener('focus', refresh);
+        document.addEventListener('visibilitychange', refresh);
+
+        return () => {
+            window.removeEventListener('focus', refresh);
+            document.removeEventListener('visibilitychange', refresh);
+        };
+    }, []);
 }
 
 export function NavProjects({ projects }: { projects: SidebarProjects }) {
@@ -242,11 +278,7 @@ function ProjectList({ projects }: { projects: SidebarProject[] }) {
                                     />
                                 ) : (
                                     project.unread && (
-                                        <span
-                                            className="ml-auto size-2 shrink-0 rounded-full bg-sky-500 group-data-[collapsible=icon]:hidden"
-                                            aria-label="Unread"
-                                            data-test="sidebar-project-unread"
-                                        />
+                                        <UnreadDot data-test="sidebar-project-unread" />
                                     )
                                 )}
                             </Link>
@@ -299,7 +331,16 @@ function ProjectList({ projects }: { projects: SidebarProject[] }) {
                                                     stage={task.stage}
                                                     working={task.working}
                                                 />
-                                                <span>{task.title}</span>
+                                                <span
+                                                    className={
+                                                        task.unread
+                                                            ? 'font-semibold'
+                                                            : ''
+                                                    }
+                                                >
+                                                    {task.title}
+                                                </span>
+                                                {task.unread && <UnreadDot />}
                                             </Link>
                                         </SidebarMenuSubButton>
                                     </SidebarMenuSubItem>
@@ -361,5 +402,20 @@ function isExpanded(
     return (
         project.tasks.length > 0 &&
         (expanded[project.id] ?? isProjectPath(currentUrl, project.id))
+    );
+}
+
+/** A blue dot for a chat with a reply the user hasn't seen yet (PRJ-003, PRJ-008). */
+export function UnreadDot({
+    'data-test': dataTest = 'sidebar-task-unread',
+}: {
+    'data-test'?: string;
+}) {
+    return (
+        <span
+            className="ml-auto size-2 shrink-0 rounded-full bg-sky-500 group-data-[collapsible=icon]:hidden"
+            aria-label="Unread"
+            data-test={dataTest}
+        />
     );
 }

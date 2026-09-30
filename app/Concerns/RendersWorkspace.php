@@ -37,14 +37,17 @@ trait RendersWorkspace
         $catalog = app(ModelCatalog::class);
         $gateway = app(Gateway::class);
 
-        if ($project->user_id === $request->user()->id) {
-            Project::withoutTimestamps(fn () => $project->update(['read_at' => now()]));
+        $task = $conversation instanceof Task ? $conversation : null;
+
+        // Reloads from a tab the owner isn't looking at leave replies unread, so a finished agent still shows as waiting (PRJ-008).
+        if ($project->user_id === $request->user()->id && ! $newTask && ! $request->hasHeader('X-Onedrop-Unseen')) {
+            $read = $task ?? $project;
+            $read::withoutTimestamps(fn () => $read->update(['read_at' => now()]));
         }
 
         $this->updateOutdatedSandbox($project, app(SandboxUpdater::class));
         $this->renewSandboxAddresses($project, app(SandboxProvider::class));
 
-        $task = $conversation instanceof Task ? $conversation : null;
         // A task with its own copy of the app shows that copy's preview, shell and files (TASK-003).
         $sandbox = $task && Task::getsCopies() ? $task->sandbox()->first() : $project->sandbox;
         $sandbox?->wake(app(SandboxProvider::class));

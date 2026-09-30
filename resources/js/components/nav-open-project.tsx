@@ -1,5 +1,6 @@
 import { Link } from '@inertiajs/react';
 import { ArrowLeft, CircleDot, Kanban, Plus } from 'lucide-react';
+import { UnreadDot } from '@/components/nav-projects';
 import { TaskStatusIcon } from '@/components/task-status-icon';
 import {
     SidebarGroup,
@@ -67,7 +68,14 @@ export function NavOpenProject({ project }: { project: OpenProject }) {
                                 ) : (
                                     <CircleDot />
                                 )}
-                                <span className="truncate">Main</span>
+                                <span
+                                    className={`truncate ${project.unread ? 'font-semibold' : ''}`}
+                                >
+                                    Main
+                                </span>
+                                {project.unread && (
+                                    <UnreadDot data-test="open-project-main-unread" />
+                                )}
                             </Link>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -168,7 +176,9 @@ function TaskGroup({
                                         working={task.working}
                                     />
                                     <span className="flex min-w-0 flex-1 flex-col">
-                                        <span className="truncate">
+                                        <span
+                                            className={`truncate ${task.unread ? 'font-semibold' : ''}`}
+                                        >
                                             {task.title}
                                         </span>
                                         {task.activity && (
@@ -177,6 +187,7 @@ function TaskGroup({
                                             </span>
                                         )}
                                     </span>
+                                    {task.unread && <UnreadDot />}
                                 </Link>
                             </SidebarMenuButton>
                         </SidebarMenuItem>

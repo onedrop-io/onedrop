@@ -97,10 +97,10 @@ class HandleInertiaRequests extends Middleware
             ->select(['id', 'name', 'status', 'pinned_at', 'read_at', 'archived_at', 'publish_status', 'published_url', 'icon_path', 'icon_hash'])
             ->with([
                 'sandbox:id,project_id,status',
-                'tasks' => fn ($query) => $query->where('stage', '!=', TaskStage::Done)->select(['id', 'project_id', 'title', 'stage', 'status', 'position']),
+                'tasks' => fn ($query) => $query->where('stage', '!=', TaskStage::Done)->select(['id', 'project_id', 'title', 'stage', 'status', 'position', 'read_at'])->withLastReply(),
             ])
             ->withExists(['tasks as task_working' => fn (Builder $query) => $query->where('status', ProjectStatus::Working)])
-            ->withMax(['allMessages as last_reply_at' => fn (Builder $query) => $query->where('role', MessageRole::Assistant)], 'created_at');
+            ->withMax(['messages as last_reply_at' => fn (Builder $query) => $query->where('role', MessageRole::Assistant)], 'created_at');
 
         $lists = [
             'pinned' => $query()->whereNull('archived_at')->whereNotNull('pinned_at')->oldest('pinned_at')->get(),
@@ -117,8 +117,8 @@ class HandleInertiaRequests extends Middleware
             'name' => $project->name,
             'pinned' => $project->pinned_at !== null,
             'archived' => $project->archived_at !== null,
-            'unread' => $project->read_at === null
-                || ($project->last_reply_at && Carbon::parse($project->last_reply_at)->greaterThan($project->read_at)),
+            // The main chat or one of its open tasks has a reply the owner hasn't seen (PRJ-003, PRJ-008).
+            'unread' => $this->mainChatUnread($project) || $project->tasks->contains(fn (Task $task): bool => $this->taskUnread($task)),
             'naming' => in_array($project->id, $naming, true),
             'published_url' => $project->publish_status === PublishStatus::Live ? $project->published_url : null,
             'working' => $project->status === ProjectStatus::Working || $project->task_working,
@@ -135,7 +135,7 @@ class HandleInertiaRequests extends Middleware
     /**
      * The opened project with every task, for the sidebar's project view; null when none is open or it isn't the user's.
      *
-     * @return array{id: int, name: string, working: bool, tasks: list<array<string, mixed>>}|null
+     * @return array{id: int, name: string, working: bool, unread: bool, tasks: list<array<string, mixed>>}|null
      */
     protected function openProject(User $user, int $projectId): ?array
     {
@@ -149,12 +149,13 @@ class HandleInertiaRequests extends Middleware
             'id' => $project->id,
             'name' => $project->name,
             'working' => $project->status === ProjectStatus::Working,
-            'tasks' => array_values($project->tasks()->get()->map($this->summarizeTask(...))->all()),
+            'unread' => $this->mainChatUnread($project->loadMax(['messages as last_reply_at' => fn (Builder $query) => $query->where('role', MessageRole::Assistant)], 'created_at')),
+            'tasks' => array_values($project->tasks()->withLastReply()->get()->map($this->summarizeTask(...))->all()),
         ];
     }
 
     /**
-     * @return array{id: int, title: string, stage: TaskStage, working: bool, activity: string|null}
+     * @return array{id: int, title: string, stage: TaskStage, working: bool, unread: bool, activity: string|null}
      */
     protected function summarizeTask(Task $task): array
     {
@@ -163,8 +164,27 @@ class HandleInertiaRequests extends Middleware
             'title' => $task->title,
             'stage' => $task->stage,
             'working' => $task->isWorking(),
+            'unread' => $this->taskUnread($task),
             'activity' => $task->isWorking() ? $task->currentActivity() : null,
         ];
+    }
+
+    /**
+     * The main chat has never been opened, was marked unread, or the agent replied there since (PRJ-003).
+     */
+    protected function mainChatUnread(Project $project): bool
+    {
+        return $project->read_at === null
+            || ($project->last_reply_at && Carbon::parse($project->last_reply_at)->greaterThan($project->read_at));
+    }
+
+    /**
+     * The task's agent replied since the owner last opened it (PRJ-008). Needs `withLastReply()`.
+     */
+    protected function taskUnread(Task $task): bool
+    {
+        return $task->last_reply_at !== null
+            && ($task->read_at === null || Carbon::parse($task->last_reply_at)->greaterThan($task->read_at));
     }
 
     /**

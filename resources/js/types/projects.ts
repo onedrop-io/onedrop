@@ -41,6 +41,8 @@ export type SidebarTask = Pick<Task, 'id' | 'title' | 'stage'> & {
     working: boolean;
     /** The agent's latest step in its current run. */
     activity: string | null;
+    /** The agent replied since the owner last opened the task (PRJ-008). */
+    unread: boolean;
 };
 
 /** A card on the board (TASK-002). */
@@ -52,6 +54,8 @@ export type BoardTask = Task & {
 /** The project the user opened: the sidebar shows just it, with all its tasks. */
 export type OpenProject = ProjectSummary & {
     working: boolean;
+    /** The main chat has a reply the owner hasn't seen. */
+    unread: boolean;
     tasks: SidebarTask[];
 };
 
@@ -67,7 +71,7 @@ export type AppTemplate = {
 export type SidebarProject = ProjectSummary & {
     pinned: boolean;
     archived: boolean;
-    /** The agent replied since the owner last opened it, or it was marked unread. */
+    /** The agent replied in its main chat or one of its open tasks since the owner last opened it, or it was marked unread. */
     unread: boolean;
     /** Its AI is coming up with a new title. */
     naming: boolean;

@@ -200,6 +200,14 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Projects whose AI can't be asked (sandbox not running, no usable AI) should keep the initial until an icon is added.
 - User should only be able to see and change icons of projects they can see and change.
 
+## PRJ-008: See which chats are done and waiting
+
+- User should see a blue dot and a bold title on a task in the sidebar when its agent replied since they last opened that task; opening the task clears it.
+- User should see the project's dot while its main chat or any of its open tasks has an unseen reply; opening the main chat doesn't clear a task's dot, or the other way round.
+- User should see the same dots in an opened project's sidebar, on "Main" and on each task.
+- A reply that arrives while the user is in another tab or app should stay unread, even on the chat that's open; coming back to that chat clears it.
+- Marking a project read (U) clears its tasks' dots too.
+
 ## SBX-001: A sandbox per project
 
 - Each new project should get its own sandbox, started automatically.

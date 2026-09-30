@@ -13,6 +13,7 @@ use App\Sandbox\Agents\Conversation;
 use Database\Factories\TaskFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -39,10 +40,12 @@ use Illuminate\Support\Str;
  * @property TaskSyncStatus|null $sync_status
  * @property string|null $sync_error
  * @property Carbon|null $applied_at
+ * @property Carbon|null $read_at
+ * @property string|null $last_reply_at From withLastReply().
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['title', 'description', 'stage', 'position', 'status', 'agent_session_id', 'sign_in_retry_message_id', 'events_token_hash', 'base_commit', 'sync_status', 'sync_error', 'applied_at'])]
+#[Fillable(['title', 'description', 'stage', 'position', 'status', 'agent_session_id', 'sign_in_retry_message_id', 'events_token_hash', 'base_commit', 'sync_status', 'sync_error', 'applied_at', 'read_at'])]
 #[Hidden(['events_token_hash'])]
 class Task extends Model implements Conversation
 {
@@ -69,6 +72,7 @@ class Task extends Model implements Conversation
             'position' => 'integer',
             'sync_status' => TaskSyncStatus::class,
             'applied_at' => 'datetime',
+            'read_at' => 'datetime',
         ];
     }
 
@@ -164,6 +168,16 @@ class Task extends Model implements Conversation
     public function messages(): HasMany
     {
         return $this->hasMany(Message::class)->where('queued', false)->orderBy('id');
+    }
+
+    /**
+     * Adds `last_reply_at`: when the task's agent last replied, for its unread dot (PRJ-008).
+     *
+     * @param  Builder<Task>  $query
+     */
+    public function scopeWithLastReply(Builder $query): void
+    {
+        $query->withMax(['messages as last_reply_at' => fn (Builder $query) => $query->where('role', MessageRole::Assistant)], 'created_at');
     }
 
     /**

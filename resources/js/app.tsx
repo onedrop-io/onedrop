@@ -6,6 +6,7 @@ import AppLayout from '@/layouts/app-layout';
 import AuthLayout from '@/layouts/auth-layout';
 import SettingsLayout from '@/layouts/settings/layout';
 import { isSettingsPage } from '@/lib/settings';
+import { markUnseenReloads } from '@/lib/unseen-reloads';
 
 const fallbackName = import.meta.env.VITE_APP_NAME || 'OneDrop';
 
@@ -47,3 +48,5 @@ void createInertiaApp({
 
 // This will set light / dark mode on load...
 initializeTheme();
+
+markUnseenReloads();

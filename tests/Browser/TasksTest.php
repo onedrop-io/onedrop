@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\MessageRole;
 use App\Enums\TaskStage;
 use App\Models\AgentConnection;
 use App\Models\Project;
@@ -114,3 +115,17 @@ test('switching between Main and tasks keeps the workspace on the same tool', fu
     $page->navigate("/projects/{$this->project->id}/tasks/{$task->id}?tab=tools&tool=secrets")
         ->assertAttribute('@tool-secrets', 'aria-current', 'page');
 })->group('TASK-004');
+
+test('a task the agent finished shows a dot until it is opened', function () {
+    $task = Task::factory()->for($this->project)->create(['title' => 'Write the docs', 'stage' => TaskStage::Review]);
+    $task->messages()->create(['project_id' => $this->project->id, 'role' => MessageRole::Assistant, 'content' => 'The docs are written.']);
+
+    visit("/projects/{$this->project->id}")
+        ->assertVisible('@sidebar-task-unread')
+        ->assertVisible('@sidebar-project-unread')
+        ->click('@sidebar-task')
+        ->assertSeeIn('@task-title', 'Write the docs')
+        ->assertMissing('@sidebar-task-unread')
+        ->assertMissing('@sidebar-project-unread')
+        ->assertNoJavaScriptErrors();
+})->group('PRJ-008');
