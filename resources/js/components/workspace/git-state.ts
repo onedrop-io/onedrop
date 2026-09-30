@@ -20,6 +20,8 @@ export type GitState = {
         unpushed?: number | null;
         state: 'merging' | 'rebasing' | null;
     };
+    /** The newest commits, newest first. */
+    commits: { sha: string; subject: string }[];
     remote: {
         url: string;
         host: string | null;

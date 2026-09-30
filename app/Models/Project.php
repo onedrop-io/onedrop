@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
@@ -48,6 +49,7 @@ use Illuminate\Support\Str;
  * @property string|null $onedrop_callback_path
  * @property list<int>|null $onedrop_group_ids
  * @property string|null $publish_login_url
+ * @property string|null $publish_waiting_for
  * @property Carbon|null $pinned_at
  * @property Carbon|null $read_at
  * @property Carbon|null $archived_at
@@ -68,7 +70,7 @@ use Illuminate\Support\Str;
  * @property-read string|null $last_reply_at When the agent last replied (loaded with withMax, for the sidebar).
  * @property-read bool|null $task_working Whether any of its tasks' agents is running (loaded with withExists, for the sidebar).
  */
-#[Fillable(['name', 'prompt', 'status', 'agent_session_id', 'sign_in_retry_message_id', 'agent_harness', 'agent_provider', 'agent_model', 'agent_variant', 'publish_status', 'publish_visibility', 'publish_target', 'published_url', 'published_at', 'published_by', 'publish_error', 'publish_login_url', 'onedrop_enabled', 'onedrop_client_id', 'onedrop_client_secret', 'onedrop_callback_path', 'onedrop_group_ids', 'pinned_at', 'read_at', 'archived_at', 'backup_commit', 'backed_up_at', 'icon_path', 'icon_mime', 'icon_hash', 'git_remote_url', 'git_remote_username', 'git_remote_token', 'git_sync_status', 'git_sync_error', 'git_synced_at', 'github_installation_id', 'autofix'])]
+#[Fillable(['name', 'prompt', 'status', 'agent_session_id', 'sign_in_retry_message_id', 'agent_harness', 'agent_provider', 'agent_model', 'agent_variant', 'publish_status', 'publish_visibility', 'publish_target', 'published_url', 'published_at', 'published_by', 'publish_error', 'publish_login_url', 'publish_waiting_for', 'onedrop_enabled', 'onedrop_client_id', 'onedrop_client_secret', 'onedrop_callback_path', 'onedrop_group_ids', 'pinned_at', 'read_at', 'archived_at', 'backup_commit', 'backed_up_at', 'icon_path', 'icon_mime', 'icon_hash', 'git_remote_url', 'git_remote_username', 'git_remote_token', 'git_sync_status', 'git_sync_error', 'git_synced_at', 'github_installation_id', 'autofix', 'track_requirements'])]
 #[Hidden(['onedrop_client_secret', 'git_remote_token'])]
 class Project extends Model implements Conversation
 {
@@ -78,11 +80,12 @@ class Project extends Model implements Conversation
     use HasFactory;
 
     /**
-     * Errors the preview shows after a turn go back to the agent unless turned off (ERR-001).
+     * Errors the preview shows after a turn go back to the agent unless turned off (ERR-001), and the agent
+     * keeps the project's requirements unless turned off (REQ-001).
      *
      * @var array<string, mixed>
      */
-    protected $attributes = ['autofix' => true];
+    protected $attributes = ['autofix' => true, 'track_requirements' => true];
 
     /**
      * Get the attributes that should be cast.
@@ -94,6 +97,7 @@ class Project extends Model implements Conversation
         return [
             'status' => ProjectStatus::class,
             'autofix' => 'boolean',
+            'track_requirements' => 'boolean',
             'agent_harness' => AgentHarness::class,
             'agent_provider' => AgentProvider::class,
             'publish_status' => PublishStatus::class,
@@ -162,6 +166,16 @@ class Project extends Model implements Conversation
     public function allMessages(): HasMany
     {
         return $this->hasMany(Message::class);
+    }
+
+    /**
+     * The agent skills turned on in the project, in the order they were turned on (SKILL-001).
+     *
+     * @return BelongsToMany<Skill, $this>
+     */
+    public function skills(): BelongsToMany
+    {
+        return $this->belongsToMany(Skill::class)->withTimestamps()->orderByPivot('id');
     }
 
     /**

@@ -29,11 +29,14 @@ class DockerSandboxProvider implements SandboxProvider
      */
     public const CLAUDE_MOUNT = '/data/claude';
 
+    /** Where the sandbox's own Docker keeps its data (SBX-008): a volume of its own, deleted with the container. */
+    public const DOCKER_MOUNT = '/var/lib/docker';
+
     /** Seconds a stopping container gets to exit by itself before it's killed. */
     public const STOP_SECONDS = 5;
 
     /**
-     * @param  array{image: string, memory: string, cpus: string, host: string, runtime?: ?string, network?: ?string, reach?: ?string, storage_path?: ?string}  $config
+     * @param  array{image: string, memory: string, cpus: string, host: string, runtime?: ?string, nested_docker?: ?string, network?: ?string, reach?: ?string, storage_path?: ?string}  $config
      */
     public function __construct(protected array $config) {}
 
@@ -55,6 +58,10 @@ class DockerSandboxProvider implements SandboxProvider
 
         if (filled($this->config['runtime'] ?? null)) {
             array_push($command, '--runtime', $this->config['runtime']);
+        }
+
+        if ($this->runsDocker()) {
+            array_push($command, ...$this->dockerArgs());
         }
 
         if (filled($this->config['network'] ?? null)) {
@@ -227,7 +234,9 @@ class DockerSandboxProvider implements SandboxProvider
         }
 
         // Made before App Storage (or Claude's sign-in) moved to a host folder: recreate it to move them there.
+        // Docker inside sandboxes turned on or off (SBX-008): recreate it with (or without) its own Docker.
         return trim($current->output()) !== trim($used->output())
+            || $this->mounts($id, self::DOCKER_MOUNT) !== $this->runsDocker()
             || (filled($this->config['storage_path'] ?? null) && (! $this->mounts($id, self::STORAGE_MOUNT) || ! $this->mounts($id, self::CLAUDE_MOUNT)));
     }
 
@@ -262,11 +271,44 @@ class DockerSandboxProvider implements SandboxProvider
 
     public function destroy(string $id): void
     {
-        $result = Process::timeout(30)->run(['docker', 'rm', '--force', $id]);
+        // --volumes deletes the sandbox's own Docker data with it (SBX-008).
+        $result = Process::timeout(30)->run(['docker', 'rm', '--force', '--volumes', $id]);
 
         if ($result->failed() && ! str_contains($result->errorOutput(), 'No such container')) {
             throw new SandboxException($this->explain($result));
         }
+    }
+
+    /**
+     * Whether sandboxes get Docker inside them, for projects that run their own Docker Compose (SBX-008).
+     */
+    protected function runsDocker(): bool
+    {
+        return in_array($this->config['nested_docker'] ?? 'off', ['privileged', 'runtime'], true);
+    }
+
+    /**
+     * What `docker run` needs for Docker inside the sandbox: its own volume for Docker's data (overlay on overlay
+     * won't unpack images), the signal for start.sh to start it, and --privileged when that's the chosen isolation,
+     * which only a local install may use.
+     *
+     * @return list<string>
+     *
+     * @throws SandboxException
+     */
+    protected function dockerArgs(): array
+    {
+        $args = ['--mount', 'type=volume,target='.self::DOCKER_MOUNT, '--env', 'ONEDROP_DOCKER=1'];
+
+        if (($this->config['nested_docker'] ?? null) !== 'privileged') {
+            return $args;
+        }
+
+        if (! app()->environment(['local', 'testing'])) {
+            throw new SandboxException('Docker inside sandboxes can only run privileged on a local install. On a server, set a container runtime that makes Docker in a container safe (such as sysbox-runc) and choose "runtime" in Settings → Sandboxes.');
+        }
+
+        return ['--privileged', ...$args];
     }
 
     /**

@@ -14,6 +14,9 @@ use Illuminate\Support\Facades\Queue;
 /** A stylesheet edited in two places: lines 1–3 (index 4–8) and 20–22 (index 10–13). */
 const GIT_HEADER_TWO_HUNKS = "diff --git a/resources/css/app.css b/resources/css/app.css\nindex 1111111..2222222 100644\n--- a/resources/css/app.css\n+++ b/resources/css/app.css\n@@ -1,3 +1,4 @@\n .timer {\n-  color: black;\n+  color: blue;\n+  font-weight: bold;\n@@ -20,2 +21,2 @@ .button {\n   padding: 4px;\n-  margin: 0;\n+  margin: 8px;\n";
 
+/** A stylesheet whose only change is indentation. */
+const GIT_HEADER_SPACING = "diff --git a/resources/css/spacing.css b/resources/css/spacing.css\n--- a/resources/css/spacing.css\n+++ b/resources/css/spacing.css\n@@ -3,3 +3,3 @@\n .grid {\n-  gap: 2px;\n+    gap: 2px;\n }\n";
+
 /**
  * The dev user's project, whose sandbox's git reports $changes and $tracking, and records each request in $requests.
  *
@@ -23,8 +26,12 @@ const GIT_HEADER_TWO_HUNKS = "diff --git a/resources/css/app.css b/resources/css
  */
 function gitHeaderProject(array $changes, ?array $tracking, array &$requests, ?string $remote = null, string $branch = 'main', ?int $unpushed = null): Project
 {
+    $commits = [
+        ['sha' => str_repeat('b', 40), 'subject' => 'Make the timer blue', 'author' => 'OneDrop', 'email' => 'agent@onedrop.io', 'date' => now()->toIso8601String(), 'agent' => true],
+        ['sha' => str_repeat('a', 40), 'subject' => 'Build a timer', 'author' => 'OneDrop', 'email' => 'agent@onedrop.io', 'date' => now()->toIso8601String(), 'agent' => true],
+    ];
     $provider = new FakeSandboxProvider;
-    $provider->execUsing = function (array $command, array $env) use (&$changes, &$requests, &$branch, &$unpushed, $tracking) {
+    $provider->execUsing = function (array $command, array $env) use (&$changes, &$requests, &$branch, &$unpushed, &$commits, $tracking) {
         if (! isset($env['APP_GIT_REQUEST'])) {
             return new ExecResult(0, '');
         }
@@ -40,6 +47,10 @@ function gitHeaderProject(array $changes, ?array $tracking, array &$requests, ?s
             $changes = array_map(fn (array $change) => $change['path'] === $request['path'] ? [...$change, 'additions' => 1, 'deletions' => 1] : $change, $changes);
         }
 
+        if ($request['op'] === 'undo_commit') {
+            array_shift($commits);
+        }
+
         if ($request['op'] === 'combine') {
             $unpushed = 1;
         }
@@ -49,7 +60,7 @@ function gitHeaderProject(array $changes, ?array $tracking, array &$requests, ?s
         }
 
         $data = match ($request['op']) {
-            'log' => ['commits' => [], 'more' => false],
+            'log' => ['commits' => $commits, 'more' => false],
             'combine_preview' => ['commits' => [
                 ['sha' => str_repeat('c', 40), 'subject' => 'Add plans', 'author' => 'OneDrop', 'email' => 'agent@onedrop.io', 'date' => now()->toIso8601String(), 'agent' => true],
                 ['sha' => str_repeat('b', 40), 'subject' => 'Add a pricing page', 'author' => 'OneDrop', 'email' => 'agent@onedrop.io', 'date' => now()->toIso8601String(), 'agent' => true],
@@ -59,6 +70,7 @@ function gitHeaderProject(array $changes, ?array $tracking, array &$requests, ?s
             'change_diff' => ['path' => $request['path'], 'truncated' => false, 'files' => null, ...match ($request['path']) {
                 'public/logo.png' => ['patch' => '', 'binary' => true],
                 'resources/css/app.css' => ['patch' => GIT_HEADER_TWO_HUNKS, 'hash' => sha1(GIT_HEADER_TWO_HUNKS), 'binary' => false],
+                'resources/css/spacing.css' => ['patch' => GIT_HEADER_SPACING, 'hash' => sha1(GIT_HEADER_SPACING), 'binary' => false],
                 default => ['patch' => "diff --git a/x b/x\n@@ -1,2 +1,2 @@\n const start = 0;\n-color: black;\n+color: blue;\n", 'binary' => false],
             }],
             default => [
@@ -288,3 +300,53 @@ test('lines and parts of a file are left out of the commit, and a part is discar
             'partials' => [['path' => 'resources/css/app.css', 'hash' => sha1(GIT_HEADER_TWO_HUNKS), 'excluded' => [11]]],
         ]);
 })->group('GIT-009');
+
+test('the last commit is undone from the header, after showing which one', function () {
+    Queue::fake();
+    $requests = [];
+    $project = gitHeaderProject([], null, $requests);
+
+    visit("/projects/{$project->id}")
+        ->resize(1500, 1000)
+        ->click('@git-actions-menu')
+        ->assertSeeIn('@git-actions-undo', 'Make the timer blue')
+        ->click('@git-actions-undo')
+        ->assertSeeIn('@git-undo-commit', 'Make the timer blue')
+        ->click('@git-undo-confirm')
+        ->assertMissing('@git-undo-dialog')
+        ->assertSee('Undid “Make the timer blue”')
+        ->click('@git-actions-menu')
+        ->assertAttribute('@git-actions-undo', 'data-disabled', '')
+        ->assertNoJavaScriptErrors();
+
+    expect(collect($requests)->firstWhere('op', 'undo_commit'))->toBe(['op' => 'undo_commit', 'sha' => str_repeat('b', 40)]);
+})->group('GIT-010');
+
+test('diffs show line numbers and the words that changed, hide spacing, and send a part to the chat to ask about', function () {
+    $requests = [];
+    $project = gitHeaderProject([
+        ['path' => 'resources/css/app.css', 'status' => 'M', 'additions' => 3, 'deletions' => 2, 'binary' => false],
+        ['path' => 'resources/css/spacing.css', 'status' => 'M', 'additions' => 1, 'deletions' => 1, 'binary' => false],
+    ], null, $requests);
+
+    visit("/projects/{$project->id}")
+        ->resize(1500, 1000)
+        ->click('@git-actions-primary')
+        ->click('[data-test="git-actions-file"]:first-child [data-test="git-actions-file-open"]')
+        ->assertSeeIn('[data-test="git-actions-line"]:has-text("margin: 8px;")', '22')
+        ->assertSeeIn('[data-test="git-actions-line"]:has-text("color: blue;") [data-test="git-diff-word"]', 'blue')
+        ->assertSeeIn('[data-test="git-actions-line"]:has-text("margin: 0;") [data-test="git-diff-word"]', '0')
+        ->assertPresent('[data-test="git-diff"] [class*="tok-"]')
+        ->click('[data-test="git-actions-file"]:last-child [data-test="git-actions-file-open"]')
+        ->assertCount('@git-actions-line', 2)
+        ->click('@git-actions-hide-whitespace')
+        ->assertCount('@git-actions-line', 0)
+        ->assertSeeIn('@git-diff', 'gap: 2px;')
+        ->assertSee('Show whitespace to pick or discard parts.')
+        ->click('[data-test="git-actions-file"]:first-child [data-test="git-actions-file-open"]')
+        ->click('[data-test="git-actions-hunk"]:first-child [data-test="git-actions-hunk-ask"]')
+        ->assertMissing('@git-actions-dialog')
+        ->assertScript('document.activeElement?.id', 'composer-content')
+        ->assertValue('#composer-content', "About this uncommitted change to `resources/css/app.css`:\n\n```diff\n@@ -1,3 +1,4 @@\n .timer {\n-  color: black;\n+  color: blue;\n+  font-weight: bold;\n```\n\n")
+        ->assertNoJavaScriptErrors();
+})->group('GIT-011', 'GIT-012');

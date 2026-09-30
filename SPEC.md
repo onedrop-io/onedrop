@@ -283,6 +283,16 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - A sandbox whose container was removed outside the app should show as failed, with an error saying so.
 - A Docker sandbox stopped outside the app (Docker Desktop, a restart) should start again when its project is opened or its workspace is open, and its preview and shell links should keep working: each container keeps its host ports across restarts, and links are refreshed for containers made before that.
 
+## SBX-008: Run a project's own Docker Compose
+
+- With Docker inside sandboxes turned on (Settings → Sandboxes → Docker), each sandbox should have its own Docker, so a project's own `docker-compose.yml` runs in it unmodified, and the agent and the Shell tab can use `docker` and `docker compose`.
+- Sandboxes should only get `--privileged` for this on a local install; a server needs a container runtime that makes Docker in a container safe (such as Sysbox), and a privileged setting there should fail with a message saying so.
+- Each sandbox's Docker should keep its images, containers and volumes on its own volume, deleted with the sandbox.
+- Turning Docker inside sandboxes on or off should update existing sandboxes (files kept), as other sandbox changes do.
+- `/opt/onedrop/compose init` should set a project up to start with its compose stack: it picks the compose files (the base file, its override, and an `arm64` overlay on arm64 machines), the web port the preview shows (or the one given), writes `.onedrop/dev`, and restarts the preview.
+- User should see the chosen service in the preview; restarting the preview restarts the stack.
+- `init` should say why a stack can't start (no compose file, a missing env file, a port the sandbox already uses).
+
 ## AGT-001: Real coding agent
 
 - When user sends a message, OpenCode should run inside the project's sandbox using the user's default AI (Anthropic key, OpenAI key, or OpenRouter).
@@ -344,25 +354,55 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see a "Search files" box at the top of the files panel that filters the tree to file and folder names containing what they type, with their folders open; Escape clears it.
 - User should be able to search inside one folder from its menu; the box shows that folder, and clearing it searches the whole project again.
 - User should be able to add a file (opened in the editor) or a folder inside a folder, and to collapse all its child folders.
-- User should be able to open the Shell in a folder (a file's own folder, for files); the Shell only starts in folders inside the workspace.
+- User should be able to open a new Shell in a folder (a file's own folder, for files); the Shell only starts in folders inside the workspace.
 - User should be able to copy a file's or folder's path, and a link to the project with a file open.
 - User should be able to download one file as it is, or one folder as a zip named after it (without `node_modules`, `.git`, `vendor` and `.cache`).
 - User should be able to delete a file, or a folder and everything in it, after confirming; an open file that's deleted closes.
 - Only the project's owner (or an admin) should be able to rename, delete or download files, and only inside the project's workspace, never the workspace itself.
 
+## FILE-006: Go to a file by name
+
+- User should be able to press Cmd+P (Ctrl+P on Windows and Linux) anywhere in the workspace, including in the editor, or choose "Go to file…" from the files menu, to open a "Go to file" box with the cursor in it.
+- User should be able to type letters of a file's name or path in order (e.g. `usctl` for `UserController.php`) and see matching files, best first: letters at word starts and in the file's own name rank highest, with the matched letters highlighted.
+- User should see the files they opened most recently first before typing anything.
+- User should be able to move through the results with the arrow keys and open one with Enter or a click; Escape closes the box.
+- It should work with the files panel closed, list hidden files, and never list files inside `node_modules`, `vendor`, `.git` or `.cache`.
+- User should see a message instead of results while the sandbox isn't running.
+
 ## TAB-001: Workspace tabs
 
 - User should be able to add tabs next to Preview from a "+" menu, and close them.
-- User should be able to drag Console, Shell and file tabs into a different order; Tools and Preview stay first.
+- User should be able to drag Console, Shell, Requirements, Tests and file tabs into a different order; Tools and Preview stay first.
 - User should be able to open a Console tab showing the app's dev-server output as it happens.
 - User should be able to clear the console view.
-- User should be able to open a Shell tab with an interactive terminal in the project's workspace.
+- User should be able to open a Shell tab with an interactive terminal in the project's workspace, and open more Shells next to it (Shell 2, Shell 3…), each its own session.
 - A Shell tab should keep its session while the user switches tabs.
 - User should be able to type in the Shell tab straight away: the terminal gets the cursor when the tab opens or is switched back to.
 - User should see a OneDrop banner with the project's name and a few shell tips when a Shell tab (or SSH session) starts, once per terminal.
 - User should have modern command-line tools in the Shell tab: `bat` (view files with highlighting), `rg` (search), `fd` (find files), `z` (jump to directories), `jq` (JSON), `btop` (processes), `lazygit` (git), `micro` (editor, also used for commit messages), `vim` and `ncdu` (what's using disk space).
 - User should see file listings (`ls`, `ll`, `la`, `tree`) with folders first, colours, a git column and relative times; `ls` with GNU-only flags (e.g. `-ltr`) should still work.
 - User should see a clear notice when the console or shell isn't available (e.g. sandbox not running, or an older sandbox without a shell).
+
+## LAYOUT-001: Hide the chat
+
+- User should be able to hide the chat with a button at the left of the workspace's tab bar, so the workspace takes the whole width, and show it again with the same button.
+- User's choice should be remembered in their browser across reloads and projects.
+- A draft in the chat box should still be there when the chat is shown again.
+
+## LAYOUT-002: Split the workspace into panes
+
+- User should be able to split the workspace from a pane's split menu, side by side ("Split right") or one above the other ("Split down"), up to four panes; the new pane opens a new Shell.
+- Each pane should have its own tabs, "+" menu and status; tabs added from a pane's "+" menu open in that pane, and anything else that opens a tab (a file, "Open shell here", the Tests of a requirement) opens it in the pane last used.
+- User should be able to drag a tab onto another pane's tab bar to move it there; Tools and Preview move too but can't be closed and stay first in their pane.
+- Moving a tab between panes should keep it as it was: a Shell keeps its session and the preview doesn't reload.
+- User should be able to resize panes by dragging the line between them; double-clicking it makes them equal.
+- User should be able to close a pane (when there's more than one); its tabs move into the pane next to it. A pane whose last tab is closed or moved away closes.
+- "Open shell here" and "Sign in to Claude" should open a new Shell instead of restarting one that's open.
+
+## LAYOUT-003: Put panes under the chat or the preview (planned)
+
+- User should be able to drag a tab (e.g. a Shell) into a pane under the chat, or under the preview, and resize it.
+- User's layout should be remembered for each project.
 
 ## LAYOUT-004: See the preview at phone and tablet sizes
 
@@ -384,6 +424,8 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Without a Tailscale auth key, user should be able to approve the project in Tailscale through a sign-in link in the Publish panel; publishing continues once approved.
 - Approval should only be needed once per project (republishing reuses it).
 - User should see a clear explanation if publishing fails (e.g. key rejected, Funnel not allowed for the tailnet).
+- If Funnel (public) or HTTPS certificates are off for the tailnet, user should see a link to turn them on in the Publish panel; publishing continues by itself once they're on.
+- Publishing should never stay "Publishing…" forever: if it stops unexpectedly, user should see it failed and can try again.
 
 ## SHARE-001: Share a project to show it off
 
@@ -729,7 +771,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 ## GIT-002: Commit, discard and branches
 
 - User should see uncommitted changes (made in the Shell, the Files panel, or while the agent was stopped) with their state: modified, added, deleted, renamed, new or conflicted.
-- User should be able to write a message and commit every change (⌘/Ctrl+Enter or the button) as themselves; dependencies and secrets stay out as with checkpoints. Committing with no changes or no message should say why it can't.
+- User should be able to click "Review and commit" (or a changed file) to open the same Commit changes dialog as the header's (GIT-006), and commit as themselves; dependencies and secrets stay out as with checkpoints. Committing with no changes should say why it can't.
 - User should be able to discard the changes to one file, or all of them, after confirming; new files are deleted, ignored files (`node_modules`, `.env`) are kept.
 - User should be able to switch branches and create a new one from the current commit; invalid branch names are refused, and the app restarts on the new branch.
 - Committing, discarding, switching and restoring should wait while the agent is working.
@@ -796,6 +838,21 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Committing should commit only the chosen parts of each file; what was left out stays uncommitted in the file.
 - If a file changed after its diff was shown, the commit should be refused with "This file changed. Review it again." rather than committing something else.
 - User should be able to discard one hunk of an uncommitted file after confirming, putting just that part back as it was in the last commit.
+
+## GIT-010: Undo the last commit
+
+- User should be able to pick "Undo last commit" from the header's git menu, or "Undo this commit" on the newest commit in Tools → Git, and see its message first; its changes come back as uncommitted, and the files don't change.
+- Only a commit that isn't pushed yet should be undoable, so pushing never has to overwrite the remote; the first commit and merges can't be undone, and if the newest commit changed since it was shown, the undo is refused.
+- Undoing should wait while the agent is working or a push or pull is running.
+
+## GIT-011: Ask the agent about a change
+
+- In a diff of uncommitted changes, user should be able to pick "Ask" on a hunk to put it, with the file's name, into the chat box, ready to type a question and send; the dialog closes and the cursor is in the chat box.
+
+## GIT-012: Readable diffs
+
+- Diffs (uncommitted changes and commits' files) should show the old and new line numbers, color the code by its language, and highlight the words that changed within an edited line.
+- User should be able to hide whitespace-only changes in a diff; lines that only changed in spacing then read as unchanged, and picking or discarding parts waits until they're shown again.
 
 ## STORE-001: App Storage
 
@@ -933,10 +990,11 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## ADMIN-002: Sandbox providers
 
-- Admin should see every sandbox provider (Docker, Blaxel, Runtime Cloud) in Settings → Sandboxes, which one is active (where new projects run), and how many sandboxes each one holds.
-- Admin should be able to turn a provider on or off and change its settings (image, CPU and memory, idle timeouts, region, and its API key); keys are stored encrypted and never shown again, and leaving a key blank keeps the saved one.
-- Admin should be able to make any turned-on provider the active one; existing projects move to it the next time they're opened (their files kept), as when SANDBOX_PROVIDER changes.
-- Admin should not be able to turn off the active provider, or make a provider active without the settings it needs (an API key, and a workspace for Blaxel).
+- Admin should see every sandbox provider (Docker, Blaxel, Runtime Cloud) in Settings → Sandboxes as a list, each with an on/off switch and how many sandboxes it holds, next to a details pane for the selected one.
+- Admin should be able to put the providers in order by dragging them (or with the arrow keys on a provider's handle); new projects run on the first provider that is turned on and has the settings it needs, marked Active. Existing projects move to it the next time they're opened (their files kept), as when SANDBOX_PROVIDER changes.
+- Admin should be able to change a provider's settings in the details pane (image, CPU and memory, idle timeouts, region, and its API key); keys are stored encrypted and never shown again, and leaving a key blank keeps the saved one.
+- Admin should see what a turned-on provider still needs (an API key, and a workspace for Blaxel) before new projects can run on it.
+- Admin should not be able to turn off the last provider that is on and set up.
 - Settings saved here should win over the ones in `.env`, and running queue workers should pick them up without a restart by hand.
 
 ## ADMIN-003: Server monitoring
@@ -961,3 +1019,89 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Admin should be able to run a backup now, see the list of backups (newest first, with size and date), download one, and delete one.
 - Admin should see when the last backup ran and whether it failed, with the error.
 - Admin should be able to restore a backup after typing the file's name to confirm; the current database is backed up first, and a restore replaces all of the app's data.
+
+## SKILL-001: Agent Skills in Tools
+
+- User should see an Agent Skills section under Tools listing the skills they can use in this project: their own, the ones others shared, and the project's own skills.
+- User should be able to filter the list by All, Enabled (on in this project), Created by you, Shared with you, and Project skills, and switch between a grid and a list (remembered).
+- User should be able to turn each of their own or shared skills on or off for this project; the agent uses the change on its next run, and the sandbox doesn't need to be running to switch.
+- User should be able to open a skill to read its instructions and see its other files.
+- User should be able to edit and delete their own skills (deleting asks first and turns it off everywhere); an admin can edit and delete anyone's.
+- User should be able to share a skill with everyone on the server, or stop sharing it (which turns it off in other people's projects). Others can turn a shared skill on in their projects but can't change it.
+- Two skills with the same name can't both be on in one project; a project skill wins over one of the user's skills with the same name, and the list says so.
+- User should see "No skills yet" when there are none, and a link to learn more about skills.
+
+## SKILL-002: Add a skill
+
+- User should be able to add a skill from the Add menu by writing one (name, description and instructions), importing one from a GitHub link (a skill folder, a SKILL.md, or a repository with one skill), or uploading a SKILL.md or a .zip of a skill folder. It's added to their skills and turned on in this project.
+- User should be able to describe a skill and click "Create with agent", which asks the agent in the chat (queued if it's working) to write it as a project skill, following a platform guide.
+- Names should be lowercase letters, digits and single hyphens, up to 64 characters, and not one the user already has; descriptions are required, up to 1024 characters. Imported and uploaded skills keep their files and SKILL.md as they are.
+- Imports from GitHub use the user's GitHub sign-in when they have one, so private repositories work; a link to a folder with several skills should say to pick one.
+- User should see a clear message when a link, file or skill isn't valid, or is too big (over 50 files or 1 MB).
+
+## SKILL-003: Project skills
+
+- User should see the skills in the project's repository (`.agents/skills`, `.claude/skills`, `.opencode/skills`) under Project skills, when the sandbox is running.
+- User should be able to open a project skill to read it, and save a copy to their own skills (to share it or use it in other projects).
+
+## SKILL-004: The agent uses the skills
+
+- Before each run, the project's skills that are on should be put where the project's agent (OpenCode, Claude Code or Codex) looks for them, outside the project's files, so they never end up in its repository.
+- Every agent should see every project skill, whichever of the three folders it's in.
+- Skills the user turned off or deleted should be gone from the sandbox on the next run; skills the user put in the sandbox by hand stay.
+- A problem putting skills in place should never stop the run.
+
+## REQ-001: Requirements tab
+
+- User should be able to open a Requirements tab from the "+" menu, next to Console and Shell.
+- User should see there what they've asked the app to do, grouped by area, as "User should be able to…" items with IDs, plus the decisions made along the way with their date and reason.
+- User should see the tab update after the agent works.
+- User should see a short explanation when there are no requirements yet, and a notice when the sandbox isn't running.
+- The agent keeps them in `.onedrop/REQ.md`, so an app's own `REQ.md` or `SPEC.md` is never overwritten.
+
+## REQ-002: Turn requirements tracking on or off
+
+- Requirements tracking should be on for every project unless turned off.
+- While it's on, the agent (OpenCode, Claude Code or Codex) should record each change the user asks for and each decision (including ones stated in passing), before finishing its turn, and check new requests against earlier decisions.
+- User should be able to turn it off or on from the Requirements tab or Tools → Agent Skills; the agent follows it from its next run. Turning it off keeps the file, and also stops the agent writing tests for them (TEST-002).
+
+## TEST-001: Tests tab
+
+- User should be able to open a Tests tab from the "+" menu, listing the app's browser tests (Playwright, in `tests/e2e`) grouped by the requirement each checks, with its name, then the tests not linked to one.
+- User should see each test's latest result (passed, failed, not run yet) and how long it took, and a count of passed, failed and not run.
+- User should be able to run all the tests, one requirement's tests, or a single test; the tab shows they're running and updates when they finish. Only one run goes at a time.
+- User should be able to pick a test to watch the video of its last run, read why it failed, and download its Playwright trace.
+- User should see a short explanation when there are no tests yet, the reason when the tests can't be listed or started (e.g. a syntax error, or Playwright missing), and a notice when the sandbox isn't running.
+- Recordings stay in the sandbox and are never committed; only the latest run of each test is kept.
+
+## TEST-002: The agent writes and runs tests for each requirement
+
+- While requirements tracking is on (REQ-002), the agent should write a Playwright test for each "User should be able to…" a browser can check, titled with it and tagged with its requirement's ID (`@REQ-001`), and update or remove them when the requirement changes.
+- The agent should run the tests of the requirements it touched before finishing its turn, fix what fails (never deleting or skipping a test to make it pass), and say in one line if one still fails.
+- The agent should treat tests as part of every turn that changes what the app does, however small, and add tests for any requirement that has none yet (e.g. ones written before tests existed).
+- User should see in the Tests tab which requirements have no tests yet, and be able to click "Write them with agent" to ask the agent in the chat (queued if it's working) to write and run them.
+- Every agent (OpenCode, Claude Code or Codex) and every stack should use the same setup: `@playwright/test` as a dev dependency, run by the platform's own config against the preview's dev server, one test at a time, with the sandbox's Chromium.
+
+## TEST-003: Requirements show their tests
+
+- User should see next to each requirement in the Requirements tab whether its tests pass, fail or haven't run.
+- User should be able to click that to open the Tests tab on that requirement's tests.
+
+## TEST-004: Watch and interact with tests in the test runner
+
+- User should be able to click "Open test runner" in the Tests tab to open Playwright's UI mode in its own large window.
+- User should be able to run all tests, a file or one test there and watch each step as it happens: the page at every action (before and after), the action list with timings, the test's source, console, network and errors.
+- User should be able to inspect the page at any step, pick locators, and turn on watch mode so tests rerun when the agent (or anyone) changes them.
+- Only people who can change the project should be able to open it; the runner should only open on the app's preview address with the token the app hands out, never on the published address.
+- The runner should stop by itself after 30 minutes without use.
+- User should see why the runner couldn't open (no tests, Playwright missing, it failed to start), and that it only opens on the machine running the app builder when the preview isn't reachable from theirs.
+
+## TEST-005: Take over a test's page at a step
+
+- User should see the steps of each test's last run (each action and check, with what it acted on) in the Tests tab.
+- User should be able to click "Take over" on a step: the test runs up to and including that step, stops, and its page opens in a Browser tab, exactly as it was (form input, open dialogs, in-page state).
+- User should be able to click, type, scroll, paste, and go back, forward or reload in the Browser tab, and open it in a bigger window.
+- User should see the agent's changes arrive on that page through hot reload, keeping what's on it, while they chat about it; the agent should be told which test and step the page came from, and be able to look at it.
+- User should see "Running the test up to that step…" while it gets there, and why when it can't (the test failed or ended first, or took too long).
+- Closing the Browser tab should close the browser; it should also close itself after 30 minutes unwatched.
+- Only people who can change the project should be able to take over a test; the page should only open on the app's preview address with the token the app hands out, never on the published address.

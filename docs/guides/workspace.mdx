@@ -5,6 +5,8 @@ description: 'Tools, preview, files, console, and shell: everything next to the 
 
 The right side of a project holds tabs and a files panel.
 
+To give the workspace the whole width, click the chat button at the far left of the tab bar to hide the chat; click it again to bring the chat back, with anything you'd typed still in the box. Your browser remembers whether the chat is hidden.
+
 Drag the divider between the chat and the workspace to make either one wider, or drag the files panel's left edge. The left sidebar's right edge can be dragged the same way on every page. You can also focus a divider and use the arrow keys. Double-click a divider to reset it. Your browser remembers the widths.
 
 ## Tabs
@@ -15,9 +17,20 @@ Drag the divider between the chat and the workspace to make either one wider, or
 | **Preview** | Your running app, with size, reload and open-in-new-tab buttons | No        |
 | **Console** | The app's dev server output as it happens                 | Yes       |
 | **Shell**   | An interactive terminal in the project's workspace        | Yes       |
+| **Requirements** | What you've asked the app to do, and why ([Requirements](/guides/requirements)) | Yes |
+| **Tests**   | The agent's browser tests, with a recording of each ([Tests](/guides/tests)) | Yes |
 | File tabs   | An editor for a file you opened                           | Yes       |
 
-Add Console or Shell from the **+** button. Drag the tabs you can close to put them in a different order; Tools and Preview always stay first. The shell keeps its session while you switch tabs, and the cursor lands in it whenever you open the tab, so you can start typing right away. It opens with a OneDrop banner showing the project's name and a few shortcuts.
+Add Console, Shell, Requirements or Tests from the **+** button. Each time you choose **Shell** you get another one (**Shell 2**, **Shell 3**…), each with its own session. Drag the tabs you can close to put them in a different order; Tools and Preview always stay first. A shell keeps its session while you switch tabs, and the cursor lands in it whenever you open the tab, so you can start typing right away. It opens with a OneDrop banner showing the project's name and a few shortcuts.
+
+### Panes
+
+Split the workspace to see two things at once, like the preview next to a Shell, or two Shells. Click the split button in a pane's tab bar and choose **Split right** (side by side) or **Split down** (one above the other). The new pane opens a new Shell. You can have up to four panes; choosing the other direction lays them all out that way.
+
+- Each pane has its own tabs and **+** button. Tabs you add from a pane's **+** open in that pane; files, **Open shell here** and other tabs opened from elsewhere open in the pane you used last.
+- Drag a tab onto another pane's tab bar to move it there. Tools and Preview can move too, but they can't be closed. A Shell keeps its session when you move it, and the preview doesn't reload.
+- Drag the line between two panes to resize them, or double-click it to make them all the same size.
+- Click **×** at the right of a pane's tab bar to close the pane; its tabs move into the pane next to it. A pane also closes when its last tab is closed or moved away.
 
 To see how the app looks on a smaller screen, click the size button in the Preview's header and choose **Tablet** (768px wide) or **Mobile** (390px wide). The app shows at that width in the middle of the pane, so its own responsive styles kick in. **Desktop** fills the pane again. Your choice is remembered in this browser for every project.
 
@@ -148,7 +161,19 @@ The files panel on the right shows the project's folder tree, with a colored ico
 - Folders like `node_modules`, `vendor`, and `.git` are listed but not expanded
 - Binary files and files over 200 KB show a notice instead of their contents
 - Type in **Search files** at the top of the panel to show only files and folders whose names contain it; press Escape to clear it
+- Press <kbd>⌘</kbd> <kbd>P</kbd> (<kbd>Ctrl</kbd> <kbd>P</kbd> on Windows and Linux) to [go to a file](#go-to-a-file) by name
 - Hide or show the panel with the button in the tab bar; it opens by default on wide screens, and your browser remembers whether you last left it open or closed
+
+### Go to a file
+
+Press <kbd>⌘</kbd> <kbd>P</kbd> on a Mac or <kbd>Ctrl</kbd> <kbd>P</kbd> on Windows and Linux anywhere in the workspace, even while editing a file, or choose **Go to file…** from the files menu. Type a few letters of the file's name or path, in order: `usctl` finds `UserController.php`, and `comp/btn` finds `components/ui/button.tsx`. Letters that start words, and letters in the file's own name, rank highest. Use the arrow keys and press Enter to open the file, or press Escape to close the box. Before you type, the files you opened most recently come first.
+
+It works with the files panel closed, and it includes hidden files like `.env`. Files inside `node_modules`, `vendor`, `.git` and `.cache` aren't listed.
+
+<Tip>
+  Your browser keeps <kbd>⌘</kbd> <kbd>T</kbd> for a new tab, so the workspace
+  uses <kbd>⌘</kbd> <kbd>P</kbd>, like VS Code.
+</Tip>
 
 ### The files menu
 
@@ -156,6 +181,7 @@ Click **⋮** at the top of the files panel for more actions:
 
 | Action                | What it does                                                                                                                                                                                                               |
 | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Go to file…**       | Opens [Go to file](#go-to-a-file), the same as <kbd>⌘</kbd> <kbd>P</kbd> / <kbd>Ctrl</kbd> <kbd>P</kbd>.                                                                                                                    |
 | **New file**          | Creates an empty file and opens it in the editor. Type a name, or a path like `src/utils.ts`; missing folders are created.                                                                                                 |
 | **New folder**        | Creates a folder, including any missing parent folders.                                                                                                                                                                    |
 | **Upload folder**     | Copies a folder from your computer into the project, keeping its structure. `node_modules`, `.git`, `vendor`, and `.cache` inside it are skipped, and each file can be up to 10 MB. Files with the same path are replaced. |
@@ -175,7 +201,7 @@ Hover over a file or folder and click its **⋮**, or right-click it:
 | **Search this folder** | Limits the **Search files** box to this folder. Click **×** on the folder's name in the box to search the whole project again. Folders only. |
 | **Add file** / **Add folder**           | Creates an empty file (opened in the editor) or folder inside it. Folders only.                                                                                                                             |
 | **Collapse child folders**              | Closes every folder inside it. Folders only.                                                                                                                                                                |
-| **Open shell here**                     | Opens the Shell tab in that folder (a file's own folder, for files). This starts a new Shell session.                                                                                                       |
+| **Open shell here**                     | Opens a new Shell in that folder (a file's own folder, for files).                                                                                                       |
 | **Copy path**                           | Copies its path in the project, like `src/App.tsx`.                                                                                                                                                         |
 | **Copy link**                           | Copies a link to this project with the file open. Files only.                                                                                                                                               |
 | **Download file** / **Download folder** | Downloads the file as it is, or the folder as a zip, without `node_modules`, `.git`, `vendor`, and `.cache`.                                                                                                |

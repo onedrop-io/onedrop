@@ -60,6 +60,7 @@ class ProjectPublicationController extends Controller
             'published_by' => $request->user()->id,
             'publish_error' => null,
             'publish_login_url' => null,
+            'publish_waiting_for' => null,
         ]);
 
         PublishProject::dispatch($project);
@@ -85,6 +86,7 @@ class ProjectPublicationController extends Controller
             'published_url' => null,
             'publish_error' => null,
             'publish_login_url' => null,
+            'publish_waiting_for' => null,
         ]);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Unpublished.')]);

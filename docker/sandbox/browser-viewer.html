@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Browser</title>
+        <style>
+            html,
+            body {
+                margin: 0;
+                height: 100%;
+                background: #0a0a0a;
+                color: #d4d4d4;
+                font:
+                    13px system-ui,
+                    sans-serif;
+                overflow: hidden;
+            }
+            body {
+                display: flex;
+                flex-direction: column;
+            }
+            #bar {
+                display: flex;
+                align-items: center;
+                gap: 4px;
+                padding: 4px 8px;
+                border-bottom: 1px solid #262626;
+            }
+            #bar button {
+                display: inline-flex;
+                background: none;
+                border: 0;
+                color: inherit;
+                padding: 4px;
+                border-radius: 4px;
+                cursor: pointer;
+            }
+            #bar button:hover {
+                background: #262626;
+            }
+            #url {
+                flex: 1;
+                min-width: 0;
+                padding: 4px 8px;
+                border-radius: 6px;
+                background: #171717;
+                color: #a3a3a3;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            #stage {
+                position: relative;
+                flex: 1;
+                min-height: 0;
+            }
+            canvas {
+                position: absolute;
+                inset: 0;
+                width: 100%;
+                height: 100%;
+                outline: none;
+                background: #fff;
+                cursor: default;
+            }
+            #notice {
+                position: absolute;
+                inset: 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: #0a0a0acc;
+                text-align: center;
+                padding: 2rem;
+            }
+            #notice[hidden] {
+                display: none;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="bar">
+            <button id="back" title="Back" aria-label="Back">
+                <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <path d="m12 19-7-7 7-7" />
+                    <path d="M19 12H5" />
+                </svg>
+            </button>
+            <button id="forward" title="Forward" aria-label="Forward">
+                <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <path d="M5 12h14" />
+                    <path d="m12 5 7 7-7 7" />
+                </svg>
+            </button>
+            <button
+                id="reload"
+                title="Reload (the page's in-memory state is lost)"
+                aria-label="Reload"
+            >
+                <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <path
+                        d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"
+                    />
+                    <path d="M3 3v5h5" />
+                </svg>
+            </button>
+            <div id="url" data-test="browser-url"></div>
+        </div>
+        <div id="stage">
+            <canvas
+                id="screen"
+                tabindex="0"
+                data-test="browser-screen"
+            ></canvas>
+            <div id="notice" data-test="browser-notice">
+                Connecting to the browser…
+            </div>
+        </div>
+        <script>
+            // The browser's viewer (TEST-005): draws the frames browser.mjs streams, and sends back the mouse and keyboard.
+            (() => {
+                const canvas = document.getElementById('screen');
+                const context = canvas.getContext('2d');
+                const notice = document.getElementById('notice');
+                const address = document.getElementById('url');
+                const socketUrl = new URL(
+                    'ws' + location.search,
+                    location.href,
+                );
+                socketUrl.protocol =
+                    location.protocol === 'https:' ? 'wss:' : 'ws:';
+
+                const socket = new WebSocket(socketUrl);
+                socket.binaryType = 'blob';
+
+                const send = (message) =>
+                    socket.readyState === 1 &&
+                    socket.send(JSON.stringify(message));
+                const say = (text) => {
+                    notice.textContent = text;
+                    notice.hidden = !text;
+                };
+
+                socket.onopen = () => {
+                    say('');
+                    fit();
+                    canvas.focus();
+                };
+                socket.onclose = () =>
+                    say(
+                        'The browser has closed. Start it again from a step in the Tests tab.',
+                    );
+                socket.onmessage = async (event) => {
+                    if (typeof event.data === 'string') {
+                        const message = JSON.parse(event.data);
+
+                        if (message.type === 'page') {
+                            address.textContent = message.url;
+                            address.title = message.title || message.url;
+                            parent !== window &&
+                                parent.postMessage(
+                                    {
+                                        type: 'onedrop-browser',
+                                        url: message.url,
+                                        title: message.title,
+                                    },
+                                    '*',
+                                );
+                        }
+
+                        return;
+                    }
+
+                    const frame = await createImageBitmap(event.data);
+
+                    if (
+                        canvas.width !== frame.width ||
+                        canvas.height !== frame.height
+                    ) {
+                        canvas.width = frame.width;
+                        canvas.height = frame.height;
+                    }
+
+                    context.drawImage(frame, 0, 0);
+                    frame.close();
+                };
+
+                // The page takes the viewer's size, so it's drawn one to one.
+                let resizing = null;
+                const fit = () => {
+                    clearTimeout(resizing);
+                    resizing = setTimeout(
+                        () =>
+                            send({
+                                type: 'resize',
+                                width: canvas.clientWidth,
+                                height: canvas.clientHeight,
+                            }),
+                        200,
+                    );
+                };
+                new ResizeObserver(fit).observe(canvas);
+
+                const point = (event) => {
+                    const box = canvas.getBoundingClientRect();
+
+                    return {
+                        x:
+                            (event.clientX - box.left) *
+                            (canvas.width / box.width),
+                        y:
+                            (event.clientY - box.top) *
+                            (canvas.height / box.height),
+                    };
+                };
+                const keys = (event) => ({
+                    alt: event.altKey,
+                    ctrl: event.ctrlKey,
+                    meta: event.metaKey,
+                    shift: event.shiftKey,
+                });
+                const BUTTONS = ['left', 'middle', 'right'];
+
+                canvas.addEventListener('mousedown', (event) => {
+                    canvas.focus();
+                    send({
+                        type: 'mouse',
+                        event: 'mousePressed',
+                        ...point(event),
+                        button: BUTTONS[event.button] ?? 'left',
+                        buttons: event.buttons,
+                        clickCount: event.detail || 1,
+                        ...keys(event),
+                    });
+                    event.preventDefault();
+                });
+                canvas.addEventListener('mouseup', (event) => {
+                    send({
+                        type: 'mouse',
+                        event: 'mouseReleased',
+                        ...point(event),
+                        button: BUTTONS[event.button] ?? 'left',
+                        buttons: event.buttons,
+                        clickCount: event.detail || 1,
+                        ...keys(event),
+                    });
+                });
+
+                let moving = null;
+                canvas.addEventListener('mousemove', (event) => {
+                    const at = {
+                        ...point(event),
+                        buttons: event.buttons,
+                        ...keys(event),
+                    };
+
+                    if (!moving) {
+                        requestAnimationFrame(() => {
+                            send({
+                                type: 'mouse',
+                                event: 'mouseMoved',
+                                ...moving,
+                                button: moving.buttons & 1 ? 'left' : 'none',
+                            });
+                            moving = null;
+                        });
+                    }
+
+                    moving = at;
+                });
+                canvas.addEventListener(
+                    'wheel',
+                    (event) => {
+                        send({
+                            type: 'wheel',
+                            ...point(event),
+                            deltaX: event.deltaX,
+                            deltaY: event.deltaY,
+                            ...keys(event),
+                        });
+                        event.preventDefault();
+                    },
+                    { passive: false },
+                );
+                canvas.addEventListener('contextmenu', (event) =>
+                    event.preventDefault(),
+                );
+
+                // Keys go to the page. Paste (Cmd/Ctrl+V) is left to the browser so its paste event brings the text.
+                const isPaste = (event) =>
+                    (event.metaKey || event.ctrlKey) &&
+                    event.key.toLowerCase() === 'v';
+                canvas.addEventListener('keydown', (event) => {
+                    if (isPaste(event)) {
+                        return;
+                    }
+
+                    send({
+                        type: 'key',
+                        event: 'keyDown',
+                        key: event.key,
+                        code: event.code,
+                        keyCode: event.keyCode,
+                        ...keys(event),
+                    });
+                    event.preventDefault();
+                });
+                canvas.addEventListener('keyup', (event) => {
+                    if (!isPaste(event)) {
+                        send({
+                            type: 'key',
+                            event: 'keyUp',
+                            key: event.key,
+                            code: event.code,
+                            keyCode: event.keyCode,
+                            ...keys(event),
+                        });
+                    }
+                });
+                window.addEventListener('paste', (event) => {
+                    const text = event.clipboardData?.getData('text');
+
+                    if (text) {
+                        send({ type: 'text', text });
+                        event.preventDefault();
+                    }
+                });
+
+                for (const action of ['back', 'forward', 'reload']) {
+                    document
+                        .getElementById(action)
+                        .addEventListener('click', () => {
+                            send({ type: action });
+                            canvas.focus();
+                        });
+                }
+            })();
+        </script>
+    </body>
+</html>

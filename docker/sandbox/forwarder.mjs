@@ -8,12 +8,19 @@
 // APP_FILES (JSON list of image paths the model should see with the prompt). For Claude Code,
 // APP_CLAUDE_AUTH is "subscription" when it runs on the user's own `claude auth login` (AI-005).
 // For Codex, CODEX_AUTH_CONTENT is its auth.json (the ChatGPT sign-in or OpenAI key), written before it starts.
+// APP_REQUIREMENTS is "1" when the agent keeps the project's requirements and their tests (REQ-002, TEST-002): those
+// guides join the instructions.
 // Provider keys (ANTHROPIC_API_KEY, OPENAI_API_KEY, ...) are read by the agent; a Claude subscription is Claude Code's own sign-in.
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 
 const INSTRUCTIONS = '/opt/onedrop/instructions.md';
+const REQUIREMENTS_GUIDES = [
+    '/opt/onedrop/guides/requirements.md',
+    '/opt/onedrop/guides/tests.md',
+];
+const OPENCODE_CONFIG = '/opt/onedrop/opencode.json';
 const CHECKPOINT = '/opt/onedrop/checkpoint';
 
 const {
@@ -27,8 +34,37 @@ const {
     APP_FILES,
     APP_RUN = 'main',
     APP_CLAUDE_AUTH,
+    APP_REQUIREMENTS,
     CODEX_AUTH_CONTENT,
 } = process.env;
+
+const requirements = APP_REQUIREMENTS === '1';
+
+// The agent's instructions: the platform's, plus the requirements and tests guides when that's on.
+function instructions() {
+    return [INSTRUCTIONS, ...(requirements ? REQUIREMENTS_GUIDES : [])]
+        .map((file) => readFileSync(file, 'utf8'))
+        .join('\n');
+}
+
+// OpenCode reads its instructions from its config, so the guides go in a copy that lists them too.
+function opencodeConfig() {
+    if (!requirements) {
+        return OPENCODE_CONFIG;
+    }
+
+    const config = JSON.parse(readFileSync(OPENCODE_CONFIG, 'utf8'));
+    // One per run: several runs may start at once.
+    const path = `/tmp/onedrop-opencode-${APP_RUN.replace(/[^a-z0-9-]/g, '')}.json`;
+
+    config.instructions = [
+        ...(config.instructions ?? []),
+        ...REQUIREMENTS_GUIDES,
+    ];
+    writeFileSync(path, JSON.stringify(config));
+
+    return path;
+}
 
 // /opt/onedrop/stop-agent signals this process to end the run. The project's main chat and each of its
 // tasks run separately (APP_RUN is "main" or "task-<id>"), so each run has its own PID file.
@@ -71,7 +107,7 @@ function opencodeCommand() {
     return {
         command: 'opencode',
         args,
-        env: { OPENCODE_CONFIG: '/opt/onedrop/opencode.json' },
+        env: { OPENCODE_CONFIG: opencodeConfig() },
     };
 }
 
@@ -87,7 +123,7 @@ function claudeCommand(resume) {
         '--permission-mode',
         'bypassPermissions',
         '--append-system-prompt',
-        readFileSync(INSTRUCTIONS, 'utf8'),
+        instructions(),
     ];
 
     if (resume && APP_SESSION_ID) {
@@ -134,7 +170,7 @@ function codexCommand(resume) {
         APP_MODEL,
         // TOML string: JSON's escaping is valid TOML.
         '--config',
-        `developer_instructions=${JSON.stringify(readFileSync(INSTRUCTIONS, 'utf8'))}`,
+        `developer_instructions=${JSON.stringify(instructions())}`,
     ];
 
     if (APP_VARIANT) {

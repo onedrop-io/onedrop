@@ -157,6 +157,16 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     }
 
     /**
+     * The agent skills the user made (SKILL-001).
+     *
+     * @return HasMany<Skill, $this>
+     */
+    public function skills(): HasMany
+    {
+        return $this->hasMany(Skill::class);
+    }
+
+    /**
      * The identity provider accounts (Google, GitHub, ...) the user logs in with.
      *
      * @return HasMany<SocialAccount, $this>

@@ -40,6 +40,15 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends chromium fonts-liberation2 fonts-noto-color-emoji \
     && rm -rf /var/lib/apt/lists/*
 
+# Docker inside the sandbox, for projects that run their own Docker Compose (SBX-008). Only started (see dockerd) when
+# the provider gives the sandbox its own volume for Docker's data and sets ONEDROP_DOCKER=1.
+RUN install -m 0755 -d /etc/apt/keyrings \
+    && curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian bookworm stable" > /etc/apt/sources.list.d/docker.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends docker-ce docker-ce-cli containerd.io docker-compose-plugin docker-buildx-plugin iptables sudo \
+    && rm -rf /var/lib/apt/lists/*
+
 # Agent CLIs. OpenCode is the default agent, Claude Code and Codex the alternatives (all pinned: their
 # JSON events are parsed by the platform). Credentials arrive as env vars at run time, never at build time.
 RUN npm install -g opencode-ai@1.18.32 @anthropic-ai/claude-code@2.1.284 @openai/codex@0.159.2
@@ -50,7 +59,7 @@ RUN useradd --create-home --shell /bin/bash sandbox \
 
 COPY placeholder /opt/onedrop/placeholder
 # fork copies the app for a task and merges its work back (TASK-003). file-watcher.mjs tells the Files panel when files come and go (FILE-004). share-card makes share cards (SHARE-001). db.php backs the Tools → Database panel (SQLite, Postgres and MySQL through PDO); auth.php backs Users & Auth; secrets.php backs Secrets; storage.php backs App Storage; git.php backs Git.
-COPY start.sh restart stop-agent shell-entry checkpoint fork share-card forwarder.mjs file-watcher.mjs host-proxy.mjs db.php auth.php secrets.php storage.php git.php instructions.md opencode.json /opt/onedrop/
+COPY start.sh restart stop-agent shell-entry checkpoint fork share-card forwarder.mjs file-watcher.mjs host-proxy.mjs db.php auth.php secrets.php storage.php git.php skills.php instructions.md opencode.json /opt/onedrop/
 # Task guides the agent follows (e.g. guides/auth.md for adding sign-in).
 COPY guides /opt/onedrop/guides
 # Shell setup lives in /opt/onedrop (not the home folder, which updates carry over) so image changes reach every sandbox; ~/.bashrc only loads it.
@@ -58,10 +67,26 @@ COPY bashrc home-bashrc starship.toml /opt/onedrop/
 COPY --chown=sandbox:sandbox home-bashrc /home/sandbox/.bashrc
 # sshd for Tools → Developer → SSH (key-only, as the sandbox user; see sshd_config).
 COPY sshd_config /opt/onedrop/sshd_config
+# compose runs a project's own Docker Compose stack; dockerd starts Docker for it, as root through the sandbox
+# user's only sudo rule; the docker group lets the sandbox user (and the agent) use it (SBX-008).
+COPY compose dockerd forward.mjs /opt/onedrop/
+# tests.mjs runs the app's Playwright tests with playwright.config.mjs, recording each, for the Tests tab; run-tests
+# is the agent's way in (TEST-001..003). test-steps.mjs, loaded into the test workers, records each test's steps and
+# stops one at a step for browser.mjs, the browser the user takes over (with browser-viewer.html, and `browser` for
+# the agent; TEST-005).
+COPY tests.mjs playwright.config.mjs run-tests test-steps.mjs browser.mjs browser-viewer.html browser /opt/onedrop/
+RUN mkdir -p /opt/onedrop/playwright && chown sandbox:sandbox /opt/onedrop/playwright
+RUN usermod -aG docker sandbox \
+    && echo 'sandbox ALL=(root) NOPASSWD: /opt/onedrop/dockerd' > /etc/sudoers.d/onedrop-dockerd \
+    && chmod 0440 /etc/sudoers.d/onedrop-dockerd
 
 USER sandbox
 WORKDIR /workspace
 ENV LANG=C.UTF-8 PORT=8000 SHELL_PORT=7681 PROXY_PORT=8081 SSH_PORT=2222 APP_STORAGE_DIR=/data/storage
+# Playwright's ffmpeg records the tests' videos; it's fetched for the version the tests guide pins, so runs don't
+# download it. Tests use the Chromium installed above, not one of Playwright's.
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/onedrop/playwright
+RUN npx --yes playwright@1.63.0 install ffmpeg && rm -rf ~/.npm/_npx
 EXPOSE 8000 7681 2222
 
 CMD ["/opt/onedrop/start.sh"]

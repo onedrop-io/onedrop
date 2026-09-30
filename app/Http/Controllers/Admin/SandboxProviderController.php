@@ -13,7 +13,8 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * Turn sandbox providers on and off, configure them, and choose where new projects run (ADMIN-002).
+ * Turn sandbox providers on and off, configure them, and put them in order: new projects run on the first one that's
+ * on and set up (ADMIN-002).
  */
 class SandboxProviderController extends Controller
 {
@@ -47,39 +48,46 @@ class SandboxProviderController extends Controller
             }])->all(),
         ]);
 
-        if (! $validated['enabled'] && $provider === $providers->active()) {
-            throw ValidationException::withMessages(['enabled' => __('Make another provider active before turning this one off.')]);
+        if (! $validated['enabled'] && in_array($provider, $providers->enabled(), true) && $providers->isLastUsable($provider)) {
+            throw ValidationException::withMessages(['enabled' => __('Turn on and set up another provider before turning this one off.')]);
         }
 
+        $active = $providers->active();
         $providers->update($provider, $validated['enabled'], $validated);
 
-        Inertia::flash('toast', ['type' => 'success', 'message' => __(':provider saved.', ['provider' => SandboxProviders::PROVIDERS[$provider]['label']])]);
+        $this->toast($providers, $active, __(':provider saved.', ['provider' => SandboxProviders::PROVIDERS[$provider]['label']]));
 
         return to_route('admin.sandboxes.index');
     }
 
     /**
-     * Make a provider the one new projects run on; existing ones move when they're next opened.
+     * Put the providers in order; existing projects move to the new first one when they're next opened.
      */
-    public function activate(SandboxProviders $providers, string $provider): RedirectResponse
+    public function reorder(Request $request, SandboxProviders $providers): RedirectResponse
     {
-        abort_unless(isset(SandboxProviders::PROVIDERS[$provider]), 404);
+        $names = array_keys(SandboxProviders::PROVIDERS);
+        $validated = $request->validate([
+            'providers' => ['required', 'array', 'size:'.count($names)],
+            'providers.*' => ['required', 'string', 'distinct', Rule::in($names)],
+        ]);
 
-        if (! in_array($provider, $providers->enabled(), true)) {
-            throw ValidationException::withMessages(['provider' => __('Turn this provider on first.')]);
-        }
+        $active = $providers->active();
+        $providers->reorder($validated['providers']);
 
-        if (($missing = $providers->missing($provider)) !== []) {
-            throw ValidationException::withMessages(['provider' => __(':provider needs its :fields first.', [
-                'provider' => SandboxProviders::PROVIDERS[$provider]['label'],
-                'fields' => implode(', ', array_map(fn (string $key) => strtolower(SandboxProviders::PROVIDERS[$provider]['fields'][$key]['label']), $missing)),
-            ])]);
-        }
-
-        $providers->activate($provider);
-
-        Inertia::flash('toast', ['type' => 'success', 'message' => __('New projects now run on :provider.', ['provider' => SandboxProviders::PROVIDERS[$provider]['label']])]);
+        $this->toast($providers, $active, __('Order saved.'));
 
         return to_route('admin.sandboxes.index');
+    }
+
+    /**
+     * Say where new projects run when that changed, otherwise the given message.
+     */
+    protected function toast(SandboxProviders $providers, string $before, string $message): void
+    {
+        $after = $providers->active();
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => $after !== $before && isset(SandboxProviders::PROVIDERS[$after])
+            ? __('New projects now run on :provider.', ['provider' => SandboxProviders::PROVIDERS[$after]['label']])
+            : $message]);
     }
 }

@@ -408,3 +408,33 @@ test('one hunk is discarded, putting just that part back', function () {
         ->and(($this->tool)(['op' => 'discard_hunk', 'path' => 'a.txt', 'hash' => $diff['hash'], 'hunk' => 1]))
         ->toBe(['ok' => false, 'error' => 'This file changed. Review it again.']);
 })->group('GIT-009');
+
+test('the last commit is undone, its changes coming back uncommitted, unless it is pushed', function () {
+    ($this->write)('a.txt', "one\n");
+    ($this->data)(['op' => 'commit', 'message' => 'Start']);
+
+    expect(($this->tool)(['op' => 'undo_commit', 'sha' => ($this->git)('rev-parse', 'HEAD')])['error'])->toBe("That's the first commit, so there's nothing before it to go back to.");
+
+    $start = ($this->git)('rev-parse', 'HEAD');
+    ($this->write)('a.txt', "two\n");
+    ($this->write)('b.txt', "bee\n");
+    ($this->data)(['op' => 'commit', 'message' => 'Oops']);
+    $oops = ($this->git)('rev-parse', 'HEAD');
+
+    expect(($this->tool)(['op' => 'undo_commit', 'sha' => $start])['error'])->toBe('The last commit changed. Look again before undoing it.');
+
+    $status = ($this->data)(['op' => 'undo_commit', 'sha' => substr($oops, 0, 12)]);
+
+    expect(($this->git)('rev-parse', 'HEAD'))->toBe($start)
+        ->and($status['changes'])->toEqualCanonicalizing([
+            ['path' => 'a.txt', 'status' => 'M', 'additions' => 1, 'deletions' => 1, 'binary' => false],
+            ['path' => 'b.txt', 'status' => '?', 'additions' => 1, 'deletions' => 0, 'binary' => false],
+        ])
+        ->and(File::get("{$this->workspace}/a.txt"))->toBe("two\n");
+
+    ($this->data)(['op' => 'commit', 'message' => 'Again']);
+    $again = ($this->git)('rev-parse', 'HEAD');
+    ($this->data)(['op' => 'pushed', 'branch' => 'main', 'sha' => $again]);
+
+    expect(($this->tool)(['op' => 'undo_commit', 'sha' => $again])['error'])->toStartWith('That commit is already pushed');
+})->group('GIT-010');

@@ -1,0 +1,49 @@
+---
+title: "Run a project's Docker Compose"
+sidebarTitle: "Docker Compose"
+description: "Run a project that brings its own docker-compose.yml, with its databases, workers and app containers, in its sandbox."
+---
+
+Some projects already say how they run: a `docker-compose.yml` with the app's own image, its databases (Mongo, Redis, Elasticsearch, Postgres) and its workers. OneDrop can run that file as it is, with Docker inside the project's sandbox.
+
+<Info>
+An admin turns this on first: **Settings → Sandboxes → Docker → Docker inside sandboxes**. See [Docker inside sandboxes](/self-hosting/sandboxes#docker-inside-sandboxes). It works with the Docker provider for now.
+</Info>
+
+## Start the stack
+
+In the project's **Shell** tab, or by asking the agent, run:
+
+```bash
+/opt/onedrop/compose init
+```
+
+`init` reads the compose files and:
+
+- Uses the base file (`compose.yaml`, `compose.yml`, `docker-compose.yaml` or `docker-compose.yml`) and its `.override` file, the same ones `docker compose` loads by itself. On an arm64 machine (an Apple Silicon Mac) it also adds a `.arm64` overlay if the project has one.
+- Picks the port the preview shows: a web port of a service built from the repo, such as `app` on `8080`. Pick another with `--preview <port>`.
+- Writes `.onedrop/dev`, which runs the stack, and restarts the preview.
+
+Restarting the preview restarts the stack. To use other compose files, edit the `COMPOSE_FILE` line in `.onedrop/dev`.
+
+If the stack can't start, `init` says why: no compose file, a missing env file (projects often keep `.env` out of git; create it in the Files panel), or a port the sandbox already uses (`8081`, `7681` or `2222`).
+
+## Work with the stack
+
+`docker` and `docker compose` work in the Shell tab and for the agent:
+
+```bash
+docker compose ps
+docker compose logs -f worker_emails
+docker compose exec app php -v
+```
+
+Run the app's commands and tests inside its container: its PHP or Node are the app's, not the sandbox's. Edits you or the agent make in `/workspace` reach containers that mount it.
+
+Private images need a login first, such as `docker login ghcr.io` with a token that can read the package.
+
+## Size
+
+A stack with Elasticsearch and Mongo uses about 2.5 GB of memory and 10 GB of disk before its data. Raise the sandbox's **Memory limit** (for example to `6g`) in **Settings → Sandboxes → Docker**.
+
+The sandbox's Docker keeps its images and containers on a volume of its own. Updating or recreating the sandbox starts it with an empty one, so images download or build again on the next start. Data the stack keeps in the project folder (such as `./tmp/mongo`) is kept.

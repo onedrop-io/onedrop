@@ -8,7 +8,7 @@ import type { ReactNode } from 'react';
 /**
  * Code with syntax highlighting for the given language name (e.g. "php", "tsx").
  * Shows plain text until the language loads, or if it's unknown. Tokens get
- * `tok-*` classes, colored in app.css.
+ * `tok-*` classes, colored in app.css. Diffs use the same colors (patch-view.tsx).
  */
 export default function CodeHighlight({
     code,
@@ -17,19 +17,43 @@ export default function CodeHighlight({
     code: string;
     language: string;
 }) {
+    const loaded = useLanguage(language, 'name');
+
+    return loaded ? highlight(code, loaded) : code;
+}
+
+/**
+ * The language for a name ("php", "tsx") or a file's name ("app/Models/User.php"), once it has loaded; null
+ * until then, or if it's unknown.
+ */
+export function useLanguage(
+    nameOrPath: string,
+    by: 'name' | 'filename',
+): Language | null {
     const [loaded, setLoaded] = useState<{
-        name: string;
+        key: string;
         language: Language;
     } | null>(null);
 
     useEffect(() => {
         let cancelled = false;
+        const description =
+            by === 'name'
+                ? LanguageDescription.matchLanguageName(
+                      languages,
+                      nameOrPath,
+                      true,
+                  )
+                : LanguageDescription.matchFilename(
+                      languages,
+                      nameOrPath.split('/').pop() ?? nameOrPath,
+                  );
 
-        LanguageDescription.matchLanguageName(languages, language, true)
+        description
             ?.load()
             .then((support) => {
                 if (!cancelled) {
-                    setLoaded({ name: language, language: support.language });
+                    setLoaded({ key: nameOrPath, language: support.language });
                 }
             })
             .catch(() => {});
@@ -37,16 +61,13 @@ export default function CodeHighlight({
         return () => {
             cancelled = true;
         };
-    }, [language]);
+    }, [nameOrPath, by]);
 
-    if (loaded?.name !== language) {
-        return code;
-    }
-
-    return highlight(code, loaded.language);
+    return loaded?.key === nameOrPath ? loaded.language : null;
 }
 
-function highlight(code: string, language: Language): ReactNode[] {
+/** Code as highlighted text: spans with `tok-*` classes. */
+export function highlight(code: string, language: Language): ReactNode[] {
     const nodes: ReactNode[] = [];
     // PHP's grammar treats text before `<?php` as HTML; snippets usually leave it out.
     const prefix =

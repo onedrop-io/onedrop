@@ -34,6 +34,20 @@ Each container gets:
 - The `onedrop.sandbox` label, so you can find all sandboxes
 - The owner's default AI key as an environment variable, passed by name so it never appears in the process list
 
+## Docker inside sandboxes
+
+Projects that bring their own `docker-compose.yml` (see [Run a project's Docker Compose](/guides/docker-compose)) need Docker inside their sandbox. Turn it on in **Settings → Sandboxes → Docker → Docker inside sandboxes**, or with `SANDBOX_DOCKER_NESTED`:
+
+| Value | What it does |
+| --- | --- |
+| `off` | No Docker in sandboxes (the default). |
+| `privileged` | Containers run with `--privileged`. For a local install only: a sandbox that runs privileged can reach the machine it runs on. OneDrop refuses it outside `APP_ENV=local`. |
+| `runtime` | For servers. Set **Container runtime** to one that makes Docker in a container safe, such as [Sysbox](https://github.com/nestybox/sysbox) (`sysbox-runc`). |
+
+Each sandbox gets its own volume at `/var/lib/docker`, deleted with the sandbox. Docker can't unpack images onto the container's own filesystem. The sandbox starts Docker (`/opt/onedrop/dockerd`, the sandbox user's only `sudo` rule), and the sandbox user is in the `docker` group, so the agent can use it.
+
+Turning it on or off updates existing sandboxes, with their files, the next time their projects are opened.
+
 ## Idle sandboxes are suspended
 
 Blaxel and Runtime pause idle sandboxes by themselves. Docker doesn't, so the app does it: a Docker sandbox nobody has used for a minute is suspended with `docker pause`, as Runtime pauses its sandboxes after a minute. Its processes are frozen with their memory kept, and it uses no CPU.

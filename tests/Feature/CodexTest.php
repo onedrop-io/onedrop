@@ -25,7 +25,10 @@ beforeEach(function () {
 
         public function exec(string $id, array $command, array $env = [], bool $detach = false): ExecResult
         {
-            $this->envs[] = $env;
+            // Only the forwarder's: the skills sync (SandboxSkills) runs first.
+            if ($command !== ['php', '/opt/onedrop/skills.php']) {
+                $this->envs[] = $env;
+            }
 
             return parent::exec($id, $command, $env, $detach);
         }
@@ -113,7 +116,7 @@ test('Codex runs on the ChatGPT sign-in without its refresh token, with the chos
     app(HarnessRunner::class)->start($project, $message);
 
     $env = $this->provider->envs[0];
-    expect($this->provider->executed[0]['command'])->toBe(['node', '/opt/onedrop/forwarder.mjs'])
+    expect(collect($this->provider->executed)->last()['command'])->toBe(['node', '/opt/onedrop/forwarder.mjs'])
         ->and($env)->toMatchArray([
             'APP_AGENT' => 'codex',
             'APP_PROMPT' => 'build a timer',

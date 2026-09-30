@@ -11,7 +11,13 @@ The history lists the project's commits, newest first, with who made each one (t
 
 Search the history with the box next to **History**: it looks through every commit's message and author (type `agent` for the agent's turns), or finds a commit by its id. **Show more** lists older commits, 50 at a time.
 
-Click a commit to see its full message, author and email, the exact date and time, and its full id (with a copy button), plus the files it changed with the lines added and removed. Click a file to see its diff: added lines in green, removed in red. Click the commit again to close it.
+Click a commit to see its full message, author and email, the exact date and time, and its full id (with a copy button), plus the files it changed with the lines added and removed. Click a file to see its diff (see [Reading a diff](#reading-a-diff)). Click the commit again to close it.
+
+### Undo the last commit
+
+Open the **⋮** menu on the newest commit and choose **Undo this commit** (or pick **Undo last commit** in the header's git menu). After you confirm, the commit is gone and its changes are back as uncommitted, so you can change them or commit them differently. Your files don't change.
+
+Only a commit that isn't pushed yet can be undone, so your repository never has to be overwritten. For a pushed commit, restore the version before it instead. The very first commit and merges can't be undone.
 
 ### Restore an earlier version
 
@@ -23,7 +29,7 @@ A restore is saved as a new commit, so nothing is lost: to undo it, restore the 
 
 Changes you make in the Shell or the Files panel, or that the agent made before you stopped it, show up under **Commit** with their state: **M** modified, **A** added, **D** deleted, **R** renamed, **U** new (untracked), **!** conflicted.
 
-Write a summary and click **Commit all changes**, or press ⌘/Ctrl+Enter. The commit is made as you. As with the agent's commits, `node_modules`, `vendor`, `.cache` and `.env` files (except `.env.example`) are never committed.
+Click **Review and commit**, or a file's name, to open **Commit changes**, the same dialog as the header's [Commit & push](#commit-and-push-from-the-header) button. The commit is made as you. As with the agent's commits, `node_modules`, `vendor`, `.cache` and `.env` files (except `.env.example`) are never committed.
 
 To throw changes away, click the undo icon next to a file, or **Discard all**. Files go back to the last commit and new files are deleted. Ignored files like `node_modules` and `.env` are kept. This can't be undone.
 
@@ -40,12 +46,14 @@ In **Commit changes**:
 - Click a file to see its changes beside the list: added lines in green, removed in red (a new file is all green, and a new folder lists its files). Use ↑/↓ to go through the files one by one, and Space to tick or untick the one you're on while editing. Click the file again or press Esc to close it.
 - To commit only part of a file, untick a part (the checkbox by each `@@` line) or click single lines to leave them out; they're struck through, the file shows **part**, and the totals count only what's left in. What you left out stays uncommitted in the file. If the file changes before you commit (say, the agent starts working), the commit is refused with **This file changed. Review it again.**
 - **Discard** on a part of an edited file puts just that part back as it was in the last commit, after you confirm. This can't be undone.
+- **Ask** on a part puts it, with the file's name, in the chat box and closes the dialog. Type your question ("why did you change this?", "undo just this") and send it.
 - **Commit message** is optional. Leave it blank and your project's AI writes one from the changes (if it can't, the message names the files). Press ⌘/Ctrl+Enter to commit.
 
 The arrow next to it opens a menu:
 
 - **Commit** commits without pushing.
 - **Push** pushes the commits your repository doesn't have yet. With no repository connected, this is **Connect a repository…**, which opens **Tools → Git** (and the button itself just says **Commit**).
+- **Undo last commit** shows the newest commit's message; see [Undo the last commit](#undo-the-last-commit).
 - **Combine N commits** appears when more than one commit is waiting to be pushed (the agent commits after every turn, so they add up). It turns them into one commit with a message your project's AI writes from them, listing the original messages underneath; edit it before combining. Only commits that aren't pushed yet are combined, so pushing never has to overwrite your repository, and your files don't change. Commit or discard your changes first.
 - **Create PR** opens a pull request for the current branch (see below).
 
@@ -56,6 +64,10 @@ The buttons wait while the agent is working or the sandbox isn't running.
 On a branch other than `main` or `master` that's pushed to a GitHub repository, **Create PR** opens a dialog. Pick the branch it goes into (`main` or `master` to start with), and your project's AI writes a title and description from the branch's commits and changes. Edit them, then click **Open on GitHub**: GitHub's new pull request page opens with both filled in, ready to create. Without an AI, the title is the branch's only commit message (or the branch name) and the description lists its commits.
 
 When Create PR isn't available, the menu says why: **Commit on a new branch first**, **Push the branch first**, or **Needs a GitHub repository**.
+
+### Reading a diff
+
+Diffs show the old and new line numbers, color the code by its language, and highlight the words that changed within an edited line. In **Commit changes**, tick **Hide whitespace** to read lines whose only change is spacing (like re-indenting) as unchanged; untick it again to pick or discard parts.
 
 ## Branches
 

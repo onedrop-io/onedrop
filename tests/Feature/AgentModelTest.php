@@ -177,7 +177,10 @@ test('the agent runs the chosen model and reasoning level with that provider key
 
         public function exec(string $id, array $command, array $env = [], bool $detach = false): ExecResult
         {
-            $this->envs[] = $env;
+            // Only the forwarder's: the skills sync (SandboxSkills) runs first.
+            if ($command !== ['php', '/opt/onedrop/skills.php']) {
+                $this->envs[] = $env;
+            }
 
             return parent::exec($id, $command, $env, $detach);
         }
@@ -254,7 +257,10 @@ test('a Gemini key runs Google models through OpenCode with that key', function 
 
         public function exec(string $id, array $command, array $env = [], bool $detach = false): ExecResult
         {
-            $this->envs[] = $env;
+            // Only the forwarder's: the skills sync (SandboxSkills) runs first.
+            if ($command !== ['php', '/opt/onedrop/skills.php']) {
+                $this->envs[] = $env;
+            }
 
             return parent::exec($id, $command, $env, $detach);
         }
@@ -287,7 +293,10 @@ test('an Ollama key runs Ollama Cloud models through OpenCode with that key', fu
 
         public function exec(string $id, array $command, array $env = [], bool $detach = false): ExecResult
         {
-            $this->envs[] = $env;
+            // Only the forwarder's: the skills sync (SandboxSkills) runs first.
+            if ($command !== ['php', '/opt/onedrop/skills.php']) {
+                $this->envs[] = $env;
+            }
 
             return parent::exec($id, $command, $env, $detach);
         }

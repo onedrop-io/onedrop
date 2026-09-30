@@ -115,3 +115,20 @@ export function onOpenWorkspaceTool(open: (tool: string) => void): () => void {
 
     return () => window.removeEventListener(OPEN_TOOL_EVENT, listener);
 }
+
+const ASK_AGENT_EVENT = 'workspace:ask-agent';
+
+/** Put text in the chat box, ready for the user's question (e.g. a hunk of a diff, GIT-011). */
+export function askAgent(text: string): void {
+    window.dispatchEvent(new CustomEvent(ASK_AGENT_EVENT, { detail: text }));
+}
+
+/** Calls `ask` with the text whenever something asks to put text in the chat box. */
+export function onAskAgent(ask: (text: string) => void): () => void {
+    const listener = (event: Event) =>
+        ask((event as CustomEvent<string>).detail);
+
+    window.addEventListener(ASK_AGENT_EVENT, listener);
+
+    return () => window.removeEventListener(ASK_AGENT_EVENT, listener);
+}

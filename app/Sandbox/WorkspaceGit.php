@@ -90,6 +90,18 @@ class WorkspaceGit
     }
 
     /**
+     * Undo the last commit ($sha, the one that was shown), bringing its changes back as uncommitted.
+     *
+     * @return array<string, mixed>
+     *
+     * @throws SandboxException|GitException
+     */
+    public function undoCommit(Sandbox $sandbox, string $sha): array
+    {
+        return $this->call($sandbox, ['op' => 'undo_commit', 'sha' => $sha]);
+    }
+
+    /**
      * Put one hunk of an edited file back as it was in the last commit.
      *
      * @return array<string, mixed>

@@ -1,4 +1,10 @@
-import { GitBranch, GitBranchPlus, Undo2, X } from 'lucide-react';
+import {
+    GitBranch,
+    GitBranchPlus,
+    MessageSquare,
+    Undo2,
+    X,
+} from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent, KeyboardEvent } from 'react';
 import { toast } from 'sonner';
@@ -15,9 +21,17 @@ import {
 import { Input } from '@/components/ui/input';
 import { DEFAULT_BRANCHES } from '@/components/workspace/git-state';
 import type { Change, GitState } from '@/components/workspace/git-state';
-import PatchView from '@/components/workspace/patch-view';
+import PatchView, { changeLines } from '@/components/workspace/patch-view';
+import type { Hunk } from '@/components/workspace/patch-view';
+import { askAgent } from '@/lib/workspace-view';
 import { jsonRequest } from '@/lib/json-request';
 import { cn } from '@/lib/utils';
+
+/** What committing returns: the new status, the newest commits, and the message used. */
+export type CommitResult = Pick<GitState, 'status'> & {
+    commits: unknown[];
+    message: string;
+};
 
 const STATUS_STYLES: Record<string, { label: string; className: string }> = {
     M: { label: 'Modified', className: 'text-amber-500' },
@@ -39,6 +53,7 @@ export default function CommitDialog({
     moreChanges,
     push,
     working,
+    initialPath = null,
     onCancel,
     onCommitted,
     onStatusChanged,
@@ -51,7 +66,9 @@ export default function CommitDialog({
     push: boolean;
     working: boolean;
     onCancel: () => void;
-    onCommitted: (changed: Pick<GitState, 'status'>) => void;
+    /** Open with this file's diff showing (e.g. clicked in Tools → Git). */
+    initialPath?: string | null;
+    onCommitted: (changed: CommitResult) => void;
     /** The changes moved without a commit (a hunk was discarded). */
     onStatusChanged: (status: GitState['status']) => void;
 }) {
@@ -65,7 +82,9 @@ export default function CommitDialog({
     const messageField = useRef<HTMLTextAreaElement>(null);
     const branchField = useRef<HTMLInputElement>(null);
     // The file whose diff is open beside the list (the changes explorer), or null for the compact dialog.
-    const [openPath, setOpenPath] = useState<string | null>(null);
+    const [openPath, setOpenPath] = useState<string | null>(initialPath);
+    // Closed to ask the agent about a hunk: the chat box keeps the focus.
+    const askedAgent = useRef(false);
     const rows = useRef(new Map<string, HTMLButtonElement>());
     // Diffs already loaded, so moving between files doesn't fetch them again.
     const [diffs, setDiffs] = useState<Record<string, ChangeDiff>>({});
@@ -200,27 +219,24 @@ export default function CommitDialog({
 
         setCommitting(true);
         setError(null);
-        jsonRequest<Pick<GitState, 'status'> & { message: string }>(
-            ProjectGitController.commit.url(projectId),
-            {
-                message: message.trim() || null,
-                // Only the chosen files when some are left out ("more" changes beyond the list are left out too).
-                paths:
-                    excluded.size > 0 || partlyChosen
-                        ? chosen
-                              .filter((change) => inclusion(change) === 'all')
-                              .map((change) => change.path)
-                        : null,
-                partials: chosen
-                    .filter((change) => inclusion(change) === 'some')
-                    .map((change) => ({
-                        path: change.path,
-                        hash: diffs[change.path].hash,
-                        excluded: [...lineExclusions[change.path]],
-                    })),
-                branch: newBranch?.trim() || null,
-            },
-        )
+        jsonRequest<CommitResult>(ProjectGitController.commit.url(projectId), {
+            message: message.trim() || null,
+            // Only the chosen files when some are left out ("more" changes beyond the list are left out too).
+            paths:
+                excluded.size > 0 || partlyChosen
+                    ? chosen
+                          .filter((change) => inclusion(change) === 'all')
+                          .map((change) => change.path)
+                    : null,
+            partials: chosen
+                .filter((change) => inclusion(change) === 'some')
+                .map((change) => ({
+                    path: change.path,
+                    hash: diffs[change.path].hash,
+                    excluded: [...lineExclusions[change.path]],
+                })),
+            branch: newBranch?.trim() || null,
+        })
             .then((changed) => {
                 toast.success(`Committed “${changed.message}”`);
                 onCommitted(changed);
@@ -262,6 +278,11 @@ export default function CommitDialog({
             onOpenAutoFocus={(event) => {
                 event.preventDefault();
                 messageField.current?.focus();
+            }}
+            onCloseAutoFocus={(event) => {
+                if (askedAgent.current) {
+                    event.preventDefault();
+                }
             }}
             // Esc closes the open diff first, then the dialog.
             onEscapeKeyDown={(event) => {
@@ -511,6 +532,10 @@ export default function CommitDialog({
                             onDiscarded={(status) =>
                                 discarded(openChange.path, status)
                             }
+                            onAsked={() => {
+                                askedAgent.current = true;
+                                onCancel();
+                            }}
                             onClose={() => {
                                 rows.current.get(openChange.path)?.focus();
                                 setOpenPath(null);
@@ -630,44 +655,23 @@ type ChangeDiff = {
     files: string[] | null;
 };
 
-type PatchLine = { index: number; text: string; kind: string };
-type Hunk = { number: number; header: string; lines: PatchLine[] };
-
-/** A patch's hunks, each line with its index in the whole patch (what the sandbox's git tool counts). */
-function parseHunks(patch: string): Hunk[] {
-    const hunks: Hunk[] = [];
-
-    patch.split('\n').forEach((text, index, all) => {
-        if (text.startsWith('@@')) {
-            hunks.push({ number: hunks.length, header: text, lines: [] });
-        } else if (
-            hunks.length > 0 &&
-            (index < all.length - 1 || text !== '')
-        ) {
-            hunks[hunks.length - 1].lines.push({
-                index,
-                text,
-                kind: text[0] ?? ' ',
-            });
-        }
-    });
-
-    return hunks;
-}
-
-/** The added and removed lines of a patch. */
-function changeLines(patch: string): PatchLine[] {
-    return parseHunks(patch).flatMap((hunk) =>
-        hunk.lines.filter((line) => line.kind === '+' || line.kind === '-'),
-    );
-}
-
 /** Files whose lines can be picked: edited or new text files (not deleted, renamed or binary ones). */
 const PARTIAL_STATUSES = ['M', 'A', '?'];
 
+/** The chat message asking the agent about one hunk of a file (GIT-011), before the user's question. */
+export function askAbout(path: string, hunk: Hunk): string {
+    const lines = [hunk.header, ...hunk.lines.map((line) => line.text)]
+        .join('\n')
+        .replaceAll('```', "'''");
+    const excerpt = lines.length > 4000 ? `${lines.slice(0, 4000)}\n…` : lines;
+
+    return `About this uncommitted change to \`${path}\`:\n\n\`\`\`diff\n${excerpt}\n\`\`\`\n\n`;
+}
+
 /**
  * The open file's changes since the last commit, beside the list of files (GIT-006). Hunks and single lines can be
- * left out of the commit, and a hunk of an edited file discarded (GIT-009).
+ * left out of the commit, a hunk of an edited file discarded (GIT-009), and any hunk sent to the agent to ask
+ * about (GIT-011).
  */
 function ChangeDiffPane({
     projectId,
@@ -678,6 +682,7 @@ function ChangeDiffPane({
     onLeaveOut,
     working,
     onDiscarded,
+    onAsked,
     onClose,
 }: {
     projectId: number;
@@ -689,13 +694,15 @@ function ChangeDiffPane({
     onLeaveOut: (update: (left: Set<number>) => void) => void;
     working: boolean;
     onDiscarded: (status: GitState['status']) => void;
+    /** A hunk went to the chat box: the dialog makes way for it. */
+    onAsked: () => void;
     onClose: () => void;
 }) {
     const [error, setError] = useState<string | null>(null);
     // The hunk waiting for "Discard" to be confirmed, and the one being discarded.
     const [confirming, setConfirming] = useState<number | null>(null);
     const [discarding, setDiscarding] = useState(false);
-
+    const [hideWhitespace, setHideWhitespace] = useState(false);
     // The latest callback, so a new one each render doesn't fetch the diff again.
     const onLoadedRef = useRef(onLoaded);
     onLoadedRef.current = onLoaded;
@@ -721,12 +728,10 @@ function ChangeDiffPane({
     }, [projectId, change.path, diff]);
 
     const style = STATUS_STYLES[change.status] ?? STATUS_STYLES.M;
-    const pickable =
-        !!diff?.hash &&
-        !diff.truncated &&
-        PARTIAL_STATUSES.includes(change.status);
-    const discardable =
-        !!diff?.hash && !diff.truncated && change.status === 'M' && !working;
+    // Picking and discarding need the diff as the sandbox sees it: all of it, with spacing shown.
+    const exact = !!diff?.hash && !diff.truncated && !hideWhitespace;
+    const pickable = exact && PARTIAL_STATUSES.includes(change.status);
+    const discardable = exact && change.status === 'M' && !working;
     const isLeftOut = (index: number) =>
         leftOut === 'all' || (leftOut?.has(index) ?? false);
 
@@ -748,6 +753,67 @@ function ChangeDiffPane({
             });
     };
 
+    const hunkActions = (hunk: Hunk) => (
+        <>
+            <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-6 px-2 text-xs text-muted-foreground"
+                onClick={() => {
+                    askAgent(askAbout(change.path, hunk));
+                    onAsked();
+                }}
+                title="Ask the agent about this part"
+                data-test="git-actions-hunk-ask"
+            >
+                <MessageSquare className="size-3.5" />
+                Ask
+            </Button>
+            {discardable &&
+                (confirming === hunk.number ? (
+                    <>
+                        <span className="text-muted-foreground">
+                            Discard this part?
+                        </span>
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="destructive"
+                            className="h-6 px-2 text-xs"
+                            disabled={discarding}
+                            onClick={() => discard(hunk.number)}
+                            data-test="git-actions-hunk-discard-confirm"
+                        >
+                            Discard
+                        </Button>
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 px-2 text-xs"
+                            onClick={() => setConfirming(null)}
+                        >
+                            Keep
+                        </Button>
+                    </>
+                ) : (
+                    <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 px-2 text-xs text-muted-foreground"
+                        onClick={() => setConfirming(hunk.number)}
+                        title="Put this part back as it was in the last commit"
+                        data-test="git-actions-hunk-discard"
+                    >
+                        <Undo2 className="size-3.5" />
+                        Discard
+                    </Button>
+                ))}
+        </>
+    );
+
     return (
         <section
             className="flex h-[32rem] min-w-0 flex-col overflow-hidden rounded-xl border"
@@ -766,6 +832,18 @@ function ChangeDiffPane({
                     {change.path}
                 </span>
                 <LineCounts change={change} />
+                {!!diff?.patch && (
+                    <label className="flex shrink-0 cursor-pointer items-center gap-1.5 font-sans text-muted-foreground">
+                        <Checkbox
+                            checked={hideWhitespace}
+                            onCheckedChange={(checked) =>
+                                setHideWhitespace(checked === true)
+                            }
+                            data-test="git-actions-hide-whitespace"
+                        />
+                        Hide whitespace
+                    </label>
+                )}
                 <Button
                     type="button"
                     size="icon"
@@ -812,187 +890,50 @@ function ChangeDiffPane({
                             ))}
                         </ul>
                     </div>
-                ) : !pickable && !discardable ? (
+                ) : (
                     <PatchView
                         patch={diff.patch}
                         truncated={diff.truncated}
+                        path={change.path}
+                        hideWhitespace={hideWhitespace}
+                        picking={
+                            pickable
+                                ? {
+                                      isLeftOut,
+                                      toggleLine: (index) =>
+                                          onLeaveOut((set) => {
+                                              if (!set.delete(index)) {
+                                                  set.add(index);
+                                              }
+                                          }),
+                                      toggleHunk: (lines, leaveOut) =>
+                                          onLeaveOut((set) =>
+                                              lines.forEach((line) =>
+                                                  leaveOut
+                                                      ? set.add(line.index)
+                                                      : set.delete(line.index),
+                                              ),
+                                          ),
+                                  }
+                                : null
+                        }
+                        hunkActions={hunkActions}
                         className="min-h-full overflow-visible bg-transparent"
                     />
-                ) : (
-                    <div
-                        className="min-h-full bg-muted/30 py-1 font-mono text-xs leading-5"
-                        data-test="git-diff"
-                    >
-                        {parseHunks(diff.patch).map((hunk) => {
-                            const changed = hunk.lines.filter(
-                                (line) =>
-                                    line.kind === '+' || line.kind === '-',
-                            );
-                            const left = changed.filter((line) =>
-                                isLeftOut(line.index),
-                            ).length;
-
-                            return (
-                                <div
-                                    key={hunk.number}
-                                    data-test="git-actions-hunk"
-                                >
-                                    <div className="sticky top-0 z-10 flex items-center gap-2 bg-background/95 px-3 py-1 text-sky-600 dark:text-sky-400">
-                                        {pickable && (
-                                            <Checkbox
-                                                checked={
-                                                    left === 0
-                                                        ? true
-                                                        : left ===
-                                                            changed.length
-                                                          ? false
-                                                          : 'indeterminate'
-                                                }
-                                                onCheckedChange={() =>
-                                                    onLeaveOut((set) => {
-                                                        changed.forEach(
-                                                            (line) =>
-                                                                left === 0
-                                                                    ? set.add(
-                                                                          line.index,
-                                                                      )
-                                                                    : set.delete(
-                                                                          line.index,
-                                                                      ),
-                                                        );
-                                                    })
-                                                }
-                                                aria-label="Include this part"
-                                                data-test="git-actions-hunk-toggle"
-                                            />
-                                        )}
-                                        <span className="min-w-0 flex-1 truncate whitespace-pre">
-                                            {hunk.header}
-                                        </span>
-                                        {discardable &&
-                                            (confirming === hunk.number ? (
-                                                <>
-                                                    <span className="text-muted-foreground">
-                                                        Discard this part?
-                                                    </span>
-                                                    <Button
-                                                        type="button"
-                                                        size="sm"
-                                                        variant="destructive"
-                                                        className="h-6 px-2 text-xs"
-                                                        disabled={discarding}
-                                                        onClick={() =>
-                                                            discard(hunk.number)
-                                                        }
-                                                        data-test="git-actions-hunk-discard-confirm"
-                                                    >
-                                                        Discard
-                                                    </Button>
-                                                    <Button
-                                                        type="button"
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        className="h-6 px-2 text-xs"
-                                                        onClick={() =>
-                                                            setConfirming(null)
-                                                        }
-                                                    >
-                                                        Keep
-                                                    </Button>
-                                                </>
-                                            ) : (
-                                                <Button
-                                                    type="button"
-                                                    size="sm"
-                                                    variant="ghost"
-                                                    className="h-6 px-2 text-xs text-muted-foreground"
-                                                    onClick={() =>
-                                                        setConfirming(
-                                                            hunk.number,
-                                                        )
-                                                    }
-                                                    title="Put this part back as it was in the last commit"
-                                                    data-test="git-actions-hunk-discard"
-                                                >
-                                                    <Undo2 className="size-3.5" />
-                                                    Discard
-                                                </Button>
-                                            ))}
-                                    </div>
-                                    {hunk.lines.map((line) => {
-                                        const isChange =
-                                            line.kind === '+' ||
-                                            line.kind === '-';
-                                        const out =
-                                            isChange && isLeftOut(line.index);
-
-                                        return (
-                                            <div
-                                                key={line.index}
-                                                role={
-                                                    pickable && isChange
-                                                        ? 'checkbox'
-                                                        : undefined
-                                                }
-                                                aria-checked={
-                                                    pickable && isChange
-                                                        ? !out
-                                                        : undefined
-                                                }
-                                                title={
-                                                    pickable && isChange
-                                                        ? out
-                                                            ? 'Left out: click to include this line'
-                                                            : 'Click to leave this line out'
-                                                        : undefined
-                                                }
-                                                onClick={() =>
-                                                    pickable &&
-                                                    isChange &&
-                                                    onLeaveOut((set) => {
-                                                        if (
-                                                            !set.delete(
-                                                                line.index,
-                                                            )
-                                                        ) {
-                                                            set.add(line.index);
-                                                        }
-                                                    })
-                                                }
-                                                className={cn(
-                                                    'px-3 whitespace-pre',
-                                                    pickable &&
-                                                        isChange &&
-                                                        'cursor-pointer hover:brightness-125',
-                                                    line.kind === '+'
-                                                        ? 'bg-green-500/10 text-green-700 dark:text-green-400'
-                                                        : line.kind === '-'
-                                                          ? 'bg-red-500/10 text-red-700 dark:text-red-400'
-                                                          : 'text-muted-foreground',
-                                                    out &&
-                                                        'bg-transparent line-through opacity-40',
-                                                )}
-                                                data-test={
-                                                    isChange
-                                                        ? 'git-actions-line'
-                                                        : undefined
-                                                }
-                                            >
-                                                {line.text || ' '}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            );
-                        })}
-                    </div>
                 )}
             </div>
-            {pickable && (
+            {pickable ? (
                 <p className="border-t px-3 py-1.5 text-xs text-muted-foreground">
                     Click lines or untick parts to leave them out of this
                     commit.
                 </p>
+            ) : (
+                hideWhitespace &&
+                PARTIAL_STATUSES.includes(change.status) && (
+                    <p className="border-t px-3 py-1.5 text-xs text-muted-foreground">
+                        Show whitespace to pick or discard parts.
+                    </p>
+                )
             )}
         </section>
     );

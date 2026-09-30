@@ -77,6 +77,27 @@ class ProjectGitController extends Controller
     }
 
     /**
+     * Undo the last commit when it isn't pushed yet: its changes come back as uncommitted.
+     */
+    public function undoCommit(Request $request, Project $project, WorkspaceGit $git): JsonResponse
+    {
+        Gate::authorize('update', $project);
+
+        $sha = $request->validate(['sha' => ['required', 'string', 'regex:/^[0-9a-f]{7,40}$/']])['sha'];
+
+        if (in_array($project->git_sync_status, [GitSyncStatus::Pushing, GitSyncStatus::Pulling], true)) {
+            return response()->json(['message' => __('Wait for the push or pull to finish first.')], 409);
+        }
+
+        return $this->changing($project, function (Sandbox $sandbox) use ($git, $sha, $project) {
+            $status = $git->undoCommit($sandbox, $sha);
+            BackupProject::dispatch($project);
+
+            return ['status' => $status, 'commits' => $git->log($sandbox)];
+        });
+    }
+
+    /**
      * The commits that would be combined, with a message for the combined commit.
      */
     public function combineDraft(Project $project, WorkspaceGit $git, CommitMessageWriter $writer): JsonResponse

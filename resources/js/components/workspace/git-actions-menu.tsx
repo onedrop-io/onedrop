@@ -3,6 +3,7 @@ import {
     CloudUpload,
     Combine,
     GitCommitHorizontal,
+    Undo2,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -21,13 +22,15 @@ import CommitDialog from '@/components/workspace/commit-dialog';
 import { DEFAULT_BRANCHES } from '@/components/workspace/git-state';
 import type { GitState } from '@/components/workspace/git-state';
 import PullRequestDialog from '@/components/workspace/pull-request-dialog';
+import UndoCommitDialog from '@/components/workspace/undo-commit-dialog';
 import { jsonRequest } from '@/lib/json-request';
 import { openWorkspaceTool } from '@/lib/workspace-view';
 
 type OpenDialog =
     | { kind: 'commit'; push: boolean }
     | { kind: 'pull-request' }
-    | { kind: 'combine' };
+    | { kind: 'combine' }
+    | { kind: 'undo' };
 
 /**
  * Commit, push and open a pull request from the header (GIT-006), next to Share. The same git as Tools → Git.
@@ -142,6 +145,13 @@ export default function GitActionsMenu({
 
     // More than one commit waiting to be pushed can be combined into one first (GIT-008).
     const combinable = remote ? (status?.unpushed ?? 0) : 0;
+    // The last commit can be undone when it isn't pushed yet and isn't the first (GIT-010).
+    const lastCommit = git?.commits[0] ?? null;
+    const canUndo =
+        !busy &&
+        !!lastCommit &&
+        (git?.commits.length ?? 0) > 1 &&
+        (status?.unpushed == null || status.unpushed > 0);
 
     const openDialog = (next: OpenDialog) => {
         pendingDialog.current = next;
@@ -229,6 +239,21 @@ export default function GitActionsMenu({
                             <CloudUpload className="size-4" />
                             {remote ? 'Push' : 'Connect a repository…'}
                         </DropdownMenuItem>
+                        {lastCommit && (
+                            <DropdownMenuItem
+                                disabled={!canUndo}
+                                onSelect={() => openDialog({ kind: 'undo' })}
+                                data-test="git-actions-undo"
+                            >
+                                <Undo2 className="size-4" />
+                                <span className="flex min-w-0 flex-col">
+                                    Undo last commit
+                                    <span className="truncate text-xs text-muted-foreground">
+                                        {lastCommit.subject}
+                                    </span>
+                                </span>
+                            </DropdownMenuItem>
+                        )}
                         {combinable > 1 && (
                             <DropdownMenuItem
                                 disabled={busy || changes > 0}
@@ -304,6 +329,19 @@ export default function GitActionsMenu({
                         working={working}
                         onClose={() => setDialog(null)}
                         onCombined={(changed) => {
+                            setGit((current) =>
+                                current ? { ...current, ...changed } : current,
+                            );
+                            setDialog(null);
+                        }}
+                    />
+                )}
+                {dialog?.kind === 'undo' && lastCommit && (
+                    <UndoCommitDialog
+                        projectId={projectId}
+                        commit={lastCommit}
+                        onClose={() => setDialog(null)}
+                        onUndone={(changed) => {
                             setGit((current) =>
                                 current ? { ...current, ...changed } : current,
                             );

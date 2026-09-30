@@ -4,10 +4,15 @@ use App\Enums\PublishVisibility;
 use App\Models\Project;
 use App\Models\Sandbox;
 use App\Sandbox\Publishing\PublishException;
+use App\Sandbox\Publishing\PublishNeedsFeature;
 use App\Sandbox\Publishing\PublishNeedsLogin;
 use App\Sandbox\Publishing\TailscalePublisher;
+use Illuminate\Process\Exceptions\ProcessTimedOutException;
+use Illuminate\Process\FakeProcessResult;
 use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\Process;
+use Symfony\Component\Process\Exception\ProcessTimedOutException as SymfonyTimeout;
+use Symfony\Component\Process\Process as SymfonyProcess;
 
 beforeEach(function () {
     Process::preventStrayProcesses();
@@ -130,6 +135,48 @@ test('funnel not allowed for the tailnet is explained', function () {
 
     expect(fn () => $this->tailscale->confirm($this->project, PublishVisibility::Public))
         ->toThrow(PublishException::class, 'needs Tailscale Funnel enabled');
+})->group('PUB-001');
+
+test('confirm waits for funnel when it is off for the tailnet, without running the blocking funnel command', function () {
+    Process::fake([
+        '*status*' => Process::result(json_encode(['BackendState' => 'Running', 'Self' => ['DNSName' => 'a.ts.net.', 'CapMap' => ['https' => null]]])),
+        '*' => Process::result(''),
+    ]);
+
+    expect(fn () => $this->tailscale->confirm($this->project, PublishVisibility::Public))
+        ->toThrow(fn (PublishNeedsFeature $e) => expect($e->feature)->toBe('funnel'));
+
+    Process::assertDidntRun(fn (PendingProcess $process) => in_array('funnel', (array) $process->command, true));
+})->group('PUB-001');
+
+test('confirm publishes once funnel is on', function () {
+    Process::fake([
+        '*status*' => Process::result(json_encode(['BackendState' => 'Running', 'Self' => ['DNSName' => 'a.ts.net.', 'CapMap' => ['https' => null, 'funnel' => null]]])),
+        '*' => Process::result(''),
+    ]);
+
+    expect($this->tailscale->confirm($this->project, PublishVisibility::Public))->toBe('https://a.ts.net');
+})->group('PUB-001');
+
+test('confirm waits for https certificates, even for private', function () {
+    Process::fake([
+        '*status*' => Process::result(json_encode(['BackendState' => 'Running', 'Self' => ['DNSName' => 'a.ts.net.', 'Capabilities' => ['funnel']]])),
+        '*' => Process::result(''),
+    ]);
+
+    expect(fn () => $this->tailscale->confirm($this->project, PublishVisibility::Private))
+        ->toThrow(fn (PublishNeedsFeature $e) => expect($e->feature)->toBe('https'));
+})->group('PUB-001');
+
+test('a funnel or serve command that hangs is explained', function () {
+    Process::fake([
+        '*status*' => Process::result(json_encode(['BackendState' => 'Running', 'Self' => ['DNSName' => 'a.ts.net.']])),
+        '*--bg*' => fn () => throw new ProcessTimedOutException(new SymfonyTimeout(new SymfonyProcess(['x']), 1), new FakeProcessResult),
+        '*' => Process::result(''),
+    ]);
+
+    expect(fn () => $this->tailscale->confirm($this->project, PublishVisibility::Public))
+        ->toThrow(PublishException::class, 'took too long');
 })->group('PUB-001');
 
 test('stop removes the sidecar', function () {

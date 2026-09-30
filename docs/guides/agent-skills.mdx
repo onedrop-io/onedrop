@@ -1,0 +1,72 @@
+---
+title: 'Agent Skills'
+description: 'Give the agent reusable instructions for how your team does things.'
+---
+
+A skill is a set of instructions the agent loads when a task calls for it: how your team writes release notes, reviews code, or names database migrations. **Tools → Agent Skills** lists the skills you can use in a project and lets you turn each one on or off.
+
+Skills use the open [Agent Skills](https://agentskills.io) format: a folder with a `SKILL.md` file, plus any scripts or reference files it needs. OpenCode, Claude Code and Codex all read the same format, so a skill works whichever agent the project uses.
+
+There are two kinds:
+
+- **Your skills** are kept by OneDrop. You turn them on per project, and you can share them with everyone on the server.
+- **Project skills** live in the project's repository, in `.agents/skills`, `.claude/skills` or `.opencode/skills`. They're always on for that project and travel with its code.
+
+## Add a skill
+
+Click **Add** and pick one:
+
+- **Write a skill**: give it a name (lowercase letters, digits and hyphens), a description, and instructions in Markdown. The agent reads the description to decide when to use the skill, so say what the skill does and when to use it.
+- **Create with agent**: describe what the skill is for. The agent writes it as a project skill in `.agents/skills`, following the platform's guide. If the agent is busy, the request is queued and runs next.
+- **Import from GitHub**: paste a link to a skill's folder or its `SKILL.md`, for example `https://github.com/anthropics/skills/tree/main/skills/pdf`. If you've connected GitHub in **Tools → Git**, private repositories work too.
+- **Upload**: a `SKILL.md`, or a `.zip` of a skill folder.
+
+Written, imported and uploaded skills are added to your skills and turned on in the project you're in. A skill can have up to 50 files and 1 MB.
+
+## Turn skills on and off
+
+Each of your skills, and each one someone shared, has a switch that turns it on or off for this project. The agent picks up the change on its next run, and the sandbox doesn't need to be running when you switch.
+
+Use the filters to see **All**, **Enabled** (on in this project), **Created by you**, **Shared with you**, or **Project skills**. Switch between a grid and a list with the buttons next to **Add**.
+
+Two skills with the same name can't both be on in a project. If a project skill has the same name as one of yours, the project's skill is used, and the panel says so.
+
+## Share a skill
+
+Open a skill's menu (⋮) and choose **Share with everyone**. Everyone on the server can then see it under **Shared with you** and turn it on in their projects. Only you (or an admin) can change it.
+
+**Stop sharing** turns the skill off in other people's projects. **Delete** removes it everywhere.
+
+<Warning>
+  Don't put secrets or personal data in a skill you share. Point to environment variables instead, and add the values in **Tools → Secrets**.
+</Warning>
+
+## Project skills
+
+Project skills show under **Project skills** while the sandbox is running. Open one to read it, or choose **Save to your skills** to keep a copy you can share or turn on in other projects.
+
+## For developers
+
+Before each run, OneDrop puts the skills that are on where the project's agent looks for them, outside the project's files, so they never end up in the repository:
+
+| Agent | Your skills go to | Also copied there |
+| --- | --- | --- |
+| Claude Code | `~/.claude/skills` | Project skills from `.agents/skills` and `.opencode/skills` |
+| Codex | `~/.agents/skills` | Project skills from `.claude/skills` and `.opencode/skills` |
+| OpenCode | `~/.agents/skills` | Nothing: OpenCode reads every project folder |
+
+Skills you put in those folders yourself are left alone, and they win over one of yours with the same name. The sandbox keeps a list of what OneDrop copied (`~/.onedrop/skills/installed.json`) and only removes those.
+
+A minimal `SKILL.md`:
+
+```markdown .agents/skills/release-notes/SKILL.md
+---
+name: release-notes
+description: Writes release notes from the git log in our format. Use when asked for release notes or a changelog entry.
+---
+
+# Release notes
+
+1. Run `git log --oneline <last tag>..HEAD`.
+2. Group the changes under Added, Changed and Fixed.
+```

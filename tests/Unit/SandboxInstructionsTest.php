@@ -52,3 +52,10 @@ test('the agent knows where the app\'s errors are recorded and to check them', f
 test('Laravel asset rebuilds keep the old build until the new one is written', function () use ($sandbox) {
     expect(file_get_contents("{$sandbox}/guides/laravel.md"))->toContain('npx vite build --watch --emptyOutDir=false');
 })->group('ERR-001');
+
+test('the agent runs a project\'s own Docker Compose as it is', function () use ($sandbox) {
+    expect(file_get_contents("{$sandbox}/instructions.md"))
+        ->toContain('/opt/onedrop/compose init')
+        ->toContain('docker compose exec <service> <command>')
+        ->and("{$sandbox}/compose")->toBeFile();
+})->group('SBX-008');

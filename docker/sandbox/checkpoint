@@ -14,9 +14,10 @@ if [ ! -d .git ]; then
     git init -q -b main || exit 0
 fi
 
-# Dependencies, caches, database files (.onedrop/data) and secrets stay out, whatever the app's .gitignore says.
+# Dependencies, caches, database files (.onedrop/data), test recordings (.onedrop/tests) and secrets stay out,
+# whatever the app's .gitignore says.
 mkdir -p .git/info
-for pattern in node_modules/ vendor/ .cache/ .onedrop/data/ .env '.env.*' '!.env.example'; do
+for pattern in node_modules/ vendor/ .cache/ .onedrop/data/ .onedrop/tests/ .env '.env.*' '!.env.example'; do
     grep -qxF -- "$pattern" .git/info/exclude 2>/dev/null || echo "$pattern" >> .git/info/exclude
 done
 

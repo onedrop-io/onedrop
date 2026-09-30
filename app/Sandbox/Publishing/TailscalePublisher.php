@@ -5,6 +5,7 @@ namespace App\Sandbox\Publishing;
 use App\Enums\PublishVisibility;
 use App\Models\Project;
 use Illuminate\Contracts\Process\ProcessResult;
+use Illuminate\Process\Exceptions\ProcessTimedOutException;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Str;
 
@@ -90,10 +91,17 @@ class TailscalePublisher implements Publisher
             return null;
         }
 
+        $this->ensureFeatures($state['Self'], $visibility);
+
         Process::timeout(15)->run(['docker', 'exec', $name, 'tailscale', 'serve', 'reset']);
 
         $command = $visibility === PublishVisibility::Public ? 'funnel' : 'serve';
-        $result = Process::timeout(30)->run(['docker', 'exec', $name, 'tailscale', $command, '--bg', (string) $this->targetPort]);
+
+        try {
+            $result = Process::timeout(30)->run(['docker', 'exec', $name, 'tailscale', $command, '--bg', (string) $this->targetPort]);
+        } catch (ProcessTimedOutException) {
+            throw new PublishException('Tailscale took too long to set up the URL. Try again.');
+        }
 
         if ($result->failed()) {
             throw new PublishException($this->explain($result));
@@ -121,6 +129,29 @@ class TailscalePublisher implements Publisher
     public function containerName(Project $project): string
     {
         return "onedrop-publish-{$project->id}";
+    }
+
+    /**
+     * With Funnel or HTTPS certificates off for the tailnet, `tailscale funnel`/`serve` print an "enable it" link and
+     * block until someone does, so check the node's capabilities first and wait for them instead.
+     *
+     * @param  array<string, mixed>  $self  the node's `Self` from `tailscale status --json`
+     */
+    protected function ensureFeatures(array $self, PublishVisibility $visibility): void
+    {
+        if (! isset($self['Capabilities']) && ! isset($self['CapMap'])) {
+            return;
+        }
+
+        $capabilities = [...($self['Capabilities'] ?? []), ...array_keys($self['CapMap'] ?? [])];
+
+        if (! in_array('https', $capabilities, true)) {
+            throw new PublishNeedsFeature(PublishNeedsFeature::Https, 'https://login.tailscale.com/admin/dns');
+        }
+
+        if ($visibility === PublishVisibility::Public && ! in_array('funnel', $capabilities, true)) {
+            throw new PublishNeedsFeature(PublishNeedsFeature::Funnel, 'https://login.tailscale.com/admin/acls/file');
+        }
     }
 
     protected function isRunning(string $name): bool

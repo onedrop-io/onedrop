@@ -4,6 +4,7 @@ use App\Enums\PublishStatus;
 use App\Enums\PublishVisibility;
 use App\Enums\SandboxStatus;
 use App\Jobs\ConfirmPublication;
+use App\Jobs\PublishProject;
 use App\Models\AgentConnection;
 use App\Models\Project;
 use App\Models\Sandbox;
@@ -145,6 +146,45 @@ test('waiting for approval eventually gives up', function () {
 
     expect($this->project->fresh()->publish_status)->toBe(PublishStatus::Failed)
         ->and($this->project->fresh()->publish_error)->toContain('Nobody approved');
+})->group('PUB-001');
+
+test('publishing waits for funnel to be turned on, shows the link, then goes live', function () {
+    Queue::fake();
+    $this->publisher->featureOff = 'funnel';
+    $this->project->update(['publish_status' => PublishStatus::Publishing, 'publish_visibility' => PublishVisibility::Public]);
+
+    (new ConfirmPublication($this->project))->handle(app(Publishers::class));
+
+    Queue::assertPushed(ConfirmPublication::class, fn ($job) => $job->attempt === 2);
+    $this->actingAs($this->user)
+        ->get(route('projects.show', $this->project))
+        ->assertInertia(fn ($page) => $page
+            ->where('publication.status', 'publishing')
+            ->where('publication.waiting_for', 'funnel')
+            ->where('publication.login_url', 'https://login.tailscale.com/admin/acls/file'));
+
+    $this->publisher->featureOff = null;
+    (new ConfirmPublication($this->project, 2))->handle(app(Publishers::class));
+
+    $project = $this->project->fresh();
+    expect($project->publish_status)->toBe(PublishStatus::Live)
+        ->and($project->publish_waiting_for)->toBeNull()
+        ->and($project->publish_login_url)->toBeNull();
+})->group('PUB-001');
+
+test('a publishing job that crashes marks publishing failed instead of leaving it stuck', function (string $job) {
+    $this->project->update(['publish_status' => PublishStatus::Publishing, 'publish_visibility' => PublishVisibility::Public]);
+
+    (new $job($this->project))->failed(new RuntimeException('timed out'));
+
+    expect($this->project->fresh()->publish_status)->toBe(PublishStatus::Failed)
+        ->and($this->project->fresh()->publish_error)->toContain('Try again');
+})->with([ConfirmPublication::class, PublishProject::class])->group('PUB-001');
+
+test('a crashed job after unpublishing leaves the project alone', function () {
+    (new ConfirmPublication($this->project))->failed(new RuntimeException('timed out'));
+
+    expect($this->project->fresh()->publish_status)->toBeNull();
 })->group('PUB-001');
 
 test('a stale confirmation does nothing after unpublishing', function () {

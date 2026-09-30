@@ -1,0 +1,44 @@
+---
+title: 'Requirements'
+description: 'A running list of what you asked the app to do, and the decisions behind it.'
+---
+
+As you chat, the agent writes down what you ask for and why. Open the **Requirements** tab from the **+** button next to Preview to check the agent understood you, or to remember why the app works the way it does.
+
+The agent also reads the list before changing the app. If a new request contradicts an earlier decision, it points that out and asks before going ahead, so a later change doesn't undo an earlier choice by accident.
+
+## What's in it
+
+The list is grouped by area of the app, such as Sign-in, Orders or Admin. Each area has:
+
+- **Features**, each with an ID and "User should be able to…" items in plain language, for example "User should be able to sign in with their Google account."
+- **Decisions**, each with its date and the reason, including things you said in passing ("only admins can delete orders") and options that were ruled out.
+
+```md .onedrop/REQ.md
+## Sign-in
+
+REQ-001. People sign in with Google; only staff emails get in.
+
+### REQ-001: Sign in with Google
+- User should be able to sign in with their Google account.
+- User should see an error when their email isn't a company one.
+
+### Decisions
+- **2026-09-30: Only @acme.com emails can sign in.** The app is for staff.
+```
+
+The agent updates the list during the same turn as the change it describes. It doesn't add questions or behind-the-scenes changes such as a refactor. For an app that already existed, it starts from the requests you make from now on.
+
+## Tests for each requirement
+
+The agent also writes a browser test for each requirement it can check in a browser, and runs them before it finishes. Each requirement shows a badge with how its tests did; click it to watch them in the [Tests](/guides/tests) tab.
+
+## Turn it on or off
+
+Requirements tracking is on for every project. Use the switch at the top of the Requirements tab, or in **Tools → Agent Skills**, to turn it off or back on. The agent follows the change from its next run. Turning it off keeps the list; the agent just stops adding to it, and stops writing and running tests.
+
+## For developers
+
+The list lives in the app's repository at `.onedrop/REQ.md`, OneDrop's own folder, so it's committed and backed up with the app. An app's own `REQ.md` or `SPEC.md` is never touched. When tracking is on, the agent follows a guide (`/opt/onedrop/guides/requirements.md` in the sandbox) added to its instructions, whichever agent the project uses.
+
+Tasks write to their own copy of the app; their additions show in the tab once you apply the task to Main.

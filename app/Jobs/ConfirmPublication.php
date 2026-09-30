@@ -6,9 +6,11 @@ use App\Enums\PublishStatus;
 use App\Models\Project;
 use App\Sandbox\Publishing\Publishers;
 use App\Sandbox\Publishing\PublishException;
+use App\Sandbox\Publishing\PublishNeedsFeature;
 use App\Sandbox\Publishing\PublishNeedsLogin;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Throwable;
 
 /**
  * Polls the publisher until the endpoint is up (a node joining a tailnet takes a few seconds).
@@ -20,7 +22,7 @@ class ConfirmPublication implements ShouldQueue
 
     public const ATTEMPTS = 20;
 
-    /** How long to wait for someone to approve the node in the browser (at RETRY_SECONDS each). */
+    /** How long to wait for someone to approve the node, or turn on Funnel or HTTPS, in the browser (at RETRY_SECONDS each). */
     public const LOGIN_ATTEMPTS = 300;
 
     public const RETRY_SECONDS = 2;
@@ -42,11 +44,15 @@ class ConfirmPublication implements ShouldQueue
         try {
             $url = $publishers->forProject($project)->confirm($project, $project->publish_visibility);
         } catch (PublishNeedsLogin $e) {
-            if ($project->publish_login_url !== $e->loginUrl) {
-                $project->update(['publish_login_url' => $e->loginUrl]);
-            }
-
+            $this->waitFor($project, 'login', $e->loginUrl);
             $this->retryOrGiveUp($project, self::LOGIN_ATTEMPTS, 'Nobody approved the project in Tailscale in time. Publish again to get a new sign-in link.');
+
+            return;
+        } catch (PublishNeedsFeature $e) {
+            $this->waitFor($project, $e->feature, $e->url);
+            $this->retryOrGiveUp($project, self::LOGIN_ATTEMPTS, $e->feature === PublishNeedsFeature::Funnel
+                ? 'Tailscale Funnel still isn\'t on for this tailnet. Turn it on and publish again, or publish privately.'
+                : 'HTTPS certificates still aren\'t on for this tailnet. Turn them on in the Tailscale admin console and publish again.');
 
             return;
         } catch (PublishException $e) {
@@ -62,12 +68,42 @@ class ConfirmPublication implements ShouldQueue
                 'published_at' => now(),
                 'publish_error' => null,
                 'publish_login_url' => null,
+                'publish_waiting_for' => null,
             ]);
 
             return;
         }
 
         $this->retryOrGiveUp($project, self::ATTEMPTS, 'Tailscale took too long to come up. Try again.');
+    }
+
+    /**
+     * Something crashed mid-check (e.g. a command timed out): fail visibly rather than stay "Publishing…" forever.
+     */
+    public function failed(?Throwable $exception): void
+    {
+        $project = $this->project->fresh();
+
+        if ($project?->publish_status !== PublishStatus::Publishing) {
+            return;
+        }
+
+        $project->update([
+            'publish_status' => PublishStatus::Failed,
+            'publish_error' => 'Publishing stopped unexpectedly. Try again.',
+            'publish_login_url' => null,
+            'publish_waiting_for' => null,
+        ]);
+    }
+
+    /**
+     * Show what publishing is waiting on (someone approving the node, or turning on a tailnet feature) and its link.
+     */
+    protected function waitFor(Project $project, string $what, string $url): void
+    {
+        if ($project->publish_login_url !== $url || $project->publish_waiting_for !== $what) {
+            $project->update(['publish_login_url' => $url, 'publish_waiting_for' => $what]);
+        }
     }
 
     /**
@@ -80,6 +116,7 @@ class ConfirmPublication implements ShouldQueue
                 'publish_status' => PublishStatus::Failed,
                 'publish_error' => $reason,
                 'publish_login_url' => null,
+                'publish_waiting_for' => null,
             ]);
 
             return;

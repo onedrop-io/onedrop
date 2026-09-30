@@ -414,3 +414,23 @@ test('one hunk of a file is discarded, waiting for the agent', function () {
     $this->project->update(['status' => ProjectStatus::Working]);
     $this->postJson(route('projects.git.discard-hunk', $this->project), ['path' => 'index.html', 'hash' => $hash, 'hunk' => 1])->assertStatus(409);
 })->group('GIT-009');
+
+test('the last commit is undone as the user asked, waiting for the agent and for pushes', function () {
+    $sha = str_repeat('a', 40);
+
+    $this->postJson(route('projects.git.undo-commit', $this->project), ['sha' => $sha])
+        ->assertOk()
+        ->assertJsonPath('status.branch', 'main')
+        ->assertJsonPath('commits.0.subject', 'Build a timer');
+
+    expect(collect($this->requests)->firstWhere('op', 'undo_commit'))->toBe(['op' => 'undo_commit', 'sha' => $sha]);
+    Queue::assertPushed(BackupProject::class);
+
+    $this->postJson(route('projects.git.undo-commit', $this->project), ['sha' => 'not a sha'])->assertUnprocessable();
+
+    $this->project->update(['git_remote_url' => 'https://github.com/dev/timer.git', 'git_sync_status' => GitSyncStatus::Pulling]);
+    $this->postJson(route('projects.git.undo-commit', $this->project), ['sha' => $sha])->assertStatus(409);
+
+    $this->project->update(['git_sync_status' => null, 'status' => ProjectStatus::Working]);
+    $this->postJson(route('projects.git.undo-commit', $this->project), ['sha' => $sha])->assertStatus(409);
+})->group('GIT-010');

@@ -243,3 +243,45 @@ test('each file and folder has a menu to rename, search, open the shell in, and 
         ->toContain('/workspace/src/App.tsx', '/workspace/src/Main.tsx')
         ->and($commands)->toContain(['rm', '-rf', '--', '/workspace/package.json']);
 })->group('FILE-005');
+
+test('cmd+p goes to a file by typing letters of its name', function () {
+    $provider = new FakeSandboxProvider;
+    $provider->execUsing = fn (array $command) => $command[0] === 'find'
+        ? new ExecResult(0, "d app\nd app/Http\nf app/Http/UserController.php\nf app/User.php\nf .env\nf package.json\n")
+        : new ExecResult(0, "<?php // the controller\n");
+    app()->instance(SandboxProvider::class, $provider);
+
+    $user = User::factory()->has(AgentConnection::factory())->create();
+    $project = Project::factory()->for($user)->create();
+    Sandbox::factory()->for($project)->create(['preview_url' => null]);
+    $this->actingAs($user);
+
+    visit("/projects/{$project->id}")
+        ->resize(1600, 900)
+        ->navigate("/projects/{$project->id}")
+        ->assertSeeIn('@files-panel', 'package.json')
+        ->click('@toggle-files')
+        ->assertMissing('@files-panel')
+        ->keys('@toggle-files', 'Meta+p')
+        ->assertVisible('@quick-open')
+        ->assertScript('document.activeElement?.dataset.test', 'quick-open-input')
+        ->assertPresent('[data-test="quick-open-.env"]')
+        ->type('@quick-open-input', 'usctl')
+        ->assertPresent('[data-test="quick-open-app/Http/UserController.php"]')
+        ->assertMissing('[data-test="quick-open-app/User.php"]')
+        ->keys('@quick-open-input', 'Enter')
+        ->assertMissing('@quick-open')
+        ->assertSeeIn('@file-viewer', 'the controller')
+        ->assertSeeIn('@sandbox-status', 'app/Http/UserController.php')
+        ->keys('[data-test="file-viewer"] .cm-content', 'Control+p')
+        ->assertVisible('@quick-open')
+        ->assertScript(
+            'document.querySelector(\'[role="option"]\')?.dataset.test',
+            'quick-open-app/Http/UserController.php',
+        )
+        ->type('@quick-open-input', 'zzz')
+        ->assertSeeIn('@quick-open', 'No files match.')
+        ->keys('@quick-open-input', 'Escape')
+        ->assertMissing('@quick-open')
+        ->assertNoJavaScriptErrors();
+})->group('FILE-006');

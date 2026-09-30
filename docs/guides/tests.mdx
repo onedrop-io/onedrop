@@ -1,0 +1,90 @@
+---
+title: 'Tests'
+description: 'Watch recordings of the browser tests the agent writes for each requirement.'
+---
+
+While it builds what you ask for, the agent writes a browser test for each of your [requirements](/guides/requirements): a script that opens the app, clicks through it the way a person would, and checks that the result is right. It runs them before it finishes, and fixes what broke. Each run is recorded, so you can watch exactly what was checked.
+
+If some requirements don't have tests yet (for example, ones written before OneDrop added tests), the Tests tab says so. Click **Write them with agent** to ask the agent in the chat to write and run them; it's queued if the agent is busy.
+
+Open the **Tests** tab from the **+** button next to Preview, or click the badge next to a requirement in the Requirements tab to go straight to its tests.
+
+## What you see
+
+Tests are grouped by the requirement they check, with each requirement's name. Each shows whether it passed or failed on its last run, or hasn't run yet, and how long it took. Tests not linked to a requirement are listed at the end.
+
+Pick a test to:
+
+- **Watch** the video of its last run.
+- **Read why it failed**, when it did.
+- **Download its trace**, a step-by-step record of every action and what the page looked like. Open it at [trace.playwright.dev](https://trace.playwright.dev) (the file stays in your browser).
+
+In the Requirements tab, each requirement with tests shows a badge: **Test passes**, **Test failing** (or how many of its tests fail), or how many haven't run yet.
+
+## Run tests
+
+| Button | Runs |
+| --- | --- |
+| **Run all** | Every test |
+| ▶ next to a requirement | That requirement's tests |
+| **Run**, on a test | Only that test |
+
+Tests run in the sandbox, one at a time, against the app the preview shows. Only one run goes at a time. The tab updates when it finishes. Only the latest recording of each test is kept.
+
+## Watch tests run
+
+Click **Open test runner** to open Playwright's test runner in its own, larger window. There you can:
+
+- Run all the tests, a file, or one test, and follow each step as it happens.
+- Scrub through a test's steps and see the page **before** and **after** each action, with how long it took.
+- Read the test's source, and the page's console output, network requests and errors at each step.
+- **Pick a locator**: point at part of the page to see how a test would find it.
+- Turn on **watch mode** (the eye icon) to rerun tests whenever they change, for example while the agent works on them.
+
+Only people who can change the project can open the runner. It stops by itself after 30 minutes without use; click **Open test runner** again to start it. Runs in the runner don't change the results shown in the Tests tab.
+
+<Note>
+  On a laptop install, the test runner opens only on the machine running OneDrop, like the preview.
+</Note>
+
+## Take over a test's page
+
+Sometimes you want to get the app to a certain point (signed in, three things in the cart, on the checkout page), then look around, try things, and ask the agent to change what you see. A test that already does those steps can take you there.
+
+<Steps>
+    <Step title="Pick a step">
+        In the Tests tab, pick a test. Its **Steps** list every action and check from its last run. Hover the step you want to stop after and click **Take over**.
+    </Step>
+    <Step title="Use the page">
+        The test runs up to and including that step, then stops, and its page opens in a **Browser** tab exactly as the test left it, with any form input or open dialog. Click, type, scroll and paste as usual; **Bigger window** opens the same page in its own window.
+    </Step>
+    <Step title="Ask the agent">
+        Chat as usual ("make this button bigger", "why is this total wrong?"). The agent is told which test and step your page came from, and can look at it. Its changes appear on the page as it works, without losing what's on it.
+    </Step>
+</Steps>
+
+The page uses the app's own dev server and database, like the preview: whatever you do there really happens. Close the Browser tab to close it; it also closes after 30 minutes unwatched. Only people who can change the project can take over a test.
+
+## Turn it on or off
+
+Tests come with requirements tracking: the switch at the top of the Requirements tab, or in **Tools → Agent Skills**, turns both on or off. With it off, the agent's turns are shorter, but it doesn't write or run tests. Tests it already wrote stay, and you can still run them from the tab.
+
+## For developers
+
+The tests are [Playwright Test](https://playwright.dev/docs/writing-tests) files in `tests/e2e`, committed with the app. Each is tagged with the requirement it checks:
+
+```ts tests/e2e/sign-in.spec.ts
+import { expect, test } from '@playwright/test';
+
+test('User should see an error when their email isn\'t a company one', { tag: '@REQ-001' }, async ({ page }) => {
+    await page.goto('/login');
+    await page.getByLabel('Email').fill('someone@gmail.com');
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(page.getByText('Use your company email')).toBeVisible();
+});
+```
+
+- The app needs `@playwright/test` as a dev dependency (the agent adds version 1.63.0). You don't need to install a browser: the sandbox has Chromium.
+- OneDrop runs them with its own Playwright config, not the app's: against the dev server on `$PORT`, one worker, with a video and trace of each test. Use relative URLs in `page.goto`.
+- In the [Shell](/guides/workspace), `/opt/onedrop/run-tests` runs them all; pass a file, `file:line`, or a tag such as `@REQ-003` to run some. Runs from the Shell show in the tab too.
+- Results and recordings are kept in `.onedrop/tests`, which is never committed.

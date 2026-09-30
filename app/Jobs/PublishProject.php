@@ -8,6 +8,7 @@ use App\Sandbox\Publishing\Publishers;
 use App\Sandbox\Publishing\PublishException;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Throwable;
 
 class PublishProject implements ShouldQueue
 {
@@ -32,5 +33,22 @@ class PublishProject implements ShouldQueue
         }
 
         ConfirmPublication::dispatch($this->project)->delay(now()->addSeconds(2));
+    }
+
+    /**
+     * Something crashed while starting (e.g. a command timed out): fail visibly rather than stay "Publishing…" forever.
+     */
+    public function failed(?Throwable $exception): void
+    {
+        $project = $this->project->fresh();
+
+        if ($project?->publish_status !== PublishStatus::Publishing) {
+            return;
+        }
+
+        $project->update([
+            'publish_status' => PublishStatus::Failed,
+            'publish_error' => 'Publishing stopped unexpectedly. Try again.',
+        ]);
     }
 }

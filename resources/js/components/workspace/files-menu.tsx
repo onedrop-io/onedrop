@@ -7,6 +7,7 @@ import {
     FolderPlus,
     FolderUp,
     PanelRightClose,
+    Search,
 } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -25,6 +26,7 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuSeparator,
+    DropdownMenuShortcut,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
@@ -39,7 +41,7 @@ import type { WorkspaceEntry } from '@/types';
 const SKIPPED = new Set(['node_modules', '.git', 'vendor', '.cache']);
 
 /**
- * The "⋮" menu in the files panel header: create, upload, download, filter, close.
+ * The "⋮" menu in the files panel header: go to a file, create, upload, download, filter, close.
  */
 export default function FilesMenu({
     projectId,
@@ -49,6 +51,7 @@ export default function FilesMenu({
     onClose,
     onChanged,
     onCreatedFile,
+    onGoToFile,
 }: {
     projectId: number;
     /** The sandbox isn't running, so nothing can be read or written. */
@@ -59,12 +62,14 @@ export default function FilesMenu({
     /** Files changed; refresh the tree. */
     onChanged: () => void;
     onCreatedFile: (path: string) => void;
+    /** Open the "Go to file" palette (FILE-006). */
+    onGoToFile: () => void;
 }) {
     const [creating, setCreating] = useState<WorkspaceEntry['type'] | null>(
         null,
     );
     /** Chosen from the menu; the dialog opens once the menu has fully closed. */
-    const pendingCreate = useRef<WorkspaceEntry['type'] | null>(null);
+    const pendingCreate = useRef<WorkspaceEntry['type'] | 'go' | null>(null);
     const folderInput = useRef<HTMLInputElement>(null);
 
     const upload = async (list: FileList) => {
@@ -134,12 +139,26 @@ export default function FilesMenu({
                     onCloseAutoFocus={(event) => {
                         event.preventDefault();
 
-                        if (pendingCreate.current) {
-                            setCreating(pendingCreate.current);
-                            pendingCreate.current = null;
+                        const pending = pendingCreate.current;
+                        pendingCreate.current = null;
+
+                        if (pending === 'go') {
+                            onGoToFile();
+                        } else if (pending) {
+                            setCreating(pending);
                         }
                     }}
                 >
+                    <DropdownMenuItem
+                        disabled={disabled}
+                        onSelect={() => (pendingCreate.current = 'go')}
+                        data-test="files-go-to-file"
+                    >
+                        <Search />
+                        Go to file…
+                        <DropdownMenuShortcut>⌘/Ctrl P</DropdownMenuShortcut>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
                     <DropdownMenuItem
                         disabled={disabled}
                         onSelect={() => (pendingCreate.current = 'file')}

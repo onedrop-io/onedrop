@@ -9,9 +9,11 @@ use App\Sandbox\Providers\DockerSandboxProvider;
 use App\Sandbox\SandboxInspector;
 use App\Sandbox\SandboxSpec;
 use App\Sandbox\SandboxUpdater;
+use App\Sandbox\WorkspaceBrowser;
 use App\Sandbox\WorkspaceFiles;
 use App\Sandbox\WorkspaceGit;
 use App\Sandbox\WorkspaceSsh;
+use App\Sandbox\WorkspaceTests;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Storage;
@@ -631,3 +633,172 @@ test('the git tool commits, lists and restores in a real container', function ()
         $docker->destroy($id);
     }
 })->group('GIT-003');
+
+test('the app\'s browser tests run in the sandbox, each recorded, and their results are kept', function () {
+    $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
+    $id = $docker->create(new SandboxSpec('onedrop-test-'.bin2hex(random_bytes(3))));
+    $sandbox = new Sandbox(['external_id' => $id]);
+    $tests = new WorkspaceTests($docker, new WorkspaceFiles($docker));
+
+    try {
+        $spec = <<<'TS'
+            import { expect, test } from '@playwright/test';
+            test('User should be able to press Go', { tag: '@REQ-001' }, async ({ page }) => {
+                await page.goto('/');
+                await page.getByRole('button', { name: 'Go' }).click();
+                await expect(page.getByRole('button')).toHaveText('1');
+            });
+            test('User should see a greeting @REQ-002', async ({ page }) => {
+                await page.goto('/');
+                await expect(page.getByRole('heading')).toHaveText('Goodbye', { timeout: 1000 });
+            });
+            TS;
+        $script = 'mkdir -p /workspace/.onedrop /workspace/public /workspace/tests/e2e'
+            .' && echo \'<h1>Hello</h1><button onclick="this.textContent=1">Go</button>\' > /workspace/public/index.html'
+            .' && printf "#!/usr/bin/env bash\nexec php -S 0.0.0.0:\$PORT -t /workspace/public\n" > /workspace/.onedrop/dev'
+            .' && chmod +x /workspace/.onedrop/dev && /opt/onedrop/restart'
+            .' && cd /workspace && npm init -y >/dev/null && npm install --save-dev @playwright/test@1.63.0 >/dev/null 2>&1';
+        expect($docker->exec($id, ['bash', '-c', $script])->successful())->toBeTrue()
+            ->and($docker->exec($id, ['bash', '-c', 'printf "%s" "$SPEC" > /workspace/tests/e2e/home.spec.ts'], ['SPEC' => $spec])->successful())->toBeTrue();
+
+        $listed = $tests->status($sandbox);
+        expect(collect($listed['tests'])->pluck('title')->sort()->values()->all())->toBe(['User should be able to press Go', 'User should see a greeting'])
+            ->and(collect($listed['tests'])->pluck('result')->filter()->all())->toBe([]);
+
+        // What the agent runs: one requirement's tests, with Playwright's output.
+        $agentRun = $docker->exec($id, ['/opt/onedrop/run-tests', '@REQ-001']);
+        expect($agentRun->successful())->toBeTrue()
+            ->and($agentRun->output)->toContain('1 passed');
+
+        // What the Tests tab does: all of them, in the background.
+        expect($tests->run($sandbox))->toBeTrue();
+        $done = retry(60, function () use ($tests, $sandbox) {
+            $state = $tests->status($sandbox, cached: true);
+            throw_if($state['running'], new RuntimeException('still running'));
+
+            return $state;
+        }, 1000);
+
+        $results = collect($done['tests'])->keyBy(fn (array $test) => $test['tags'][0]);
+        expect($results['REQ-001']['result']['status'])->toBe('passed')
+            ->and($results['REQ-002']['result']['status'])->toBe('failed')
+            ->and($results['REQ-002']['result']['error'])->toContain('Goodbye')
+            ->and($results['REQ-001']['result']['video'])->toMatch(WorkspaceTests::RECORDING_PATTERN)
+            ->and(strlen($tests->recording($sandbox, $results['REQ-001']['result']['video'])))->toBeGreaterThan(1000)
+            ->and($docker->exec($id, ['bash', '-c', 'ls /workspace/.onedrop/tests/runs | wc -l'])->output)->toContain('1');
+    } finally {
+        $docker->destroy($id);
+    }
+})->group('TEST-001', 'TEST-002');
+
+test('the test runner opens on the preview only for holders of its token, and closes', function () {
+    $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
+    // Like CreateSandbox: the preview goes through the host proxy, which serves the runner.
+    $id = $docker->create(new SandboxSpec('onedrop-test-'.bin2hex(random_bytes(3)), proxyPort: config('sandbox.proxy_port')));
+    $sandbox = new Sandbox(['external_id' => $id]);
+    $tests = new WorkspaceTests($docker, new WorkspaceFiles($docker));
+
+    try {
+        $spec = "import { expect, test } from '@playwright/test';\ntest('User should see Hello', async ({ page }) => { await page.goto('/'); await expect(page.getByText('Hello')).toBeVisible(); });\n";
+        $script = 'mkdir -p /workspace/tests/e2e && cd /workspace && npm init -y >/dev/null && npm install --save-dev @playwright/test@1.63.0 >/dev/null 2>&1'
+            .' && printf "%s" "$SPEC" > tests/e2e/home.spec.ts';
+        expect($docker->exec($id, ['bash', '-c', $script], ['SPEC' => $spec])->successful())->toBeTrue();
+
+        $preview = $docker->previewUrl($id, config('sandbox.proxy_port'));
+        retry(20, fn () => Http::timeout(2)->get($preview)->throw(), 250);
+        expect(Http::get($preview.'/__onedrop/tests-ui/')->status())->toBe(404);
+
+        $path = $tests->openRunner($sandbox);
+        expect($path)->toMatch('/^\/__onedrop\/tests-ui\/\?onedrop_tests_ui=[a-f0-9]{64}$/')
+            ->and(Http::get($preview.'/__onedrop/tests-ui/')->status())->toBe(403)
+            ->and(Http::withoutRedirecting()->get($preview.'/__onedrop/tests-ui/?onedrop_tests_ui='.str_repeat('0', 64))->status())->toBe(403)
+            ->and(Http::withoutRedirecting()->withHeaders(['Host' => 'myapp.tail1.ts.net'])->get($preview.$path)->status())->toBe(404);
+
+        $entered = Http::withoutRedirecting()->get($preview.$path);
+        expect($entered->status())->toBe(302)
+            ->and($entered->header('Set-Cookie'))->toContain('HttpOnly');
+
+        $cookie = explode(';', $entered->header('Set-Cookie'))[0];
+        $ui = Http::withoutRedirecting()->withHeaders(['Cookie' => $cookie])->get($preview.'/__onedrop/tests-ui/');
+        expect($ui->status())->toBe(302)
+            ->and($ui->header('Location'))->toContain('trace/uiMode.html')
+            ->and(Http::withHeaders(['Cookie' => $cookie])->get($preview.'/__onedrop/tests-ui/trace/uiMode.html')->body())->toContain('Playwright');
+
+        $tests->closeRunner($sandbox);
+        expect(retry(20, function () use ($preview, $cookie) {
+            $status = Http::withHeaders(['Cookie' => $cookie])->get($preview.'/__onedrop/tests-ui/')->status();
+            throw_unless($status === 404, new RuntimeException("still {$status}"));
+
+            return $status;
+        }, 250))->toBe(404);
+    } finally {
+        $docker->destroy($id);
+    }
+})->group('TEST-004');
+
+test('a test taken over at a step keeps its page open for the Browser tab, only for holders of its token', function () {
+    $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
+    $id = $docker->create(new SandboxSpec('onedrop-test-'.bin2hex(random_bytes(3)), proxyPort: config('sandbox.proxy_port')));
+    $sandbox = new Sandbox(['external_id' => $id]);
+    $tests = new WorkspaceTests($docker, new WorkspaceFiles($docker));
+    $browser = new WorkspaceBrowser($docker);
+
+    try {
+        $spec = <<<'TS'
+            import { expect, test } from '@playwright/test';
+            test('User should be able to count', async ({ page }) => {
+                await page.goto('/');
+                await page.getByPlaceholder('Name').fill('Ada');
+                await page.getByRole('button').click();
+                await page.getByRole('button').click();
+                await expect(page.getByRole('button')).toHaveText('2');
+            });
+            TS;
+        $script = 'mkdir -p /workspace/.onedrop /workspace/public /workspace/tests/e2e'
+            .' && echo \'<input placeholder="Name"><button onclick="this.textContent=Number(this.textContent)+1">0</button>\' > /workspace/public/index.html'
+            .' && printf "#!/usr/bin/env bash\nexec php -S 0.0.0.0:\$PORT -t /workspace/public\n" > /workspace/.onedrop/dev'
+            .' && chmod +x /workspace/.onedrop/dev && /opt/onedrop/restart'
+            .' && cd /workspace && npm init -y >/dev/null && npm install --save-dev @playwright/test@1.63.0 >/dev/null 2>&1'
+            .' && printf "%s" "$SPEC" > tests/e2e/count.spec.ts';
+        expect($docker->exec($id, ['bash', '-c', $script], ['SPEC' => $spec])->successful())->toBeTrue();
+
+        // A run records the test's steps.
+        $docker->exec($id, ['/opt/onedrop/run-tests']);
+        $steps = $tests->status($sandbox, cached: true)['tests'][0]['result']['steps'];
+        expect(collect($steps)->pluck('title')->all())->toBe(['Navigate', 'Fill "Ada"', 'Click', 'Click', 'Expect "toHaveText"']);
+
+        // Take over after the first click.
+        $path = $browser->open($sandbox, 'tests/e2e/count.spec.ts:2', 3, ['test' => 'User should be able to count', 'step' => 'Click']);
+        $status = retry(80, function () use ($browser, $sandbox) {
+            $status = $browser->status($sandbox);
+            throw_unless($status['open'] || $status['error'], new RuntimeException('starting'));
+
+            return $status;
+        }, 500);
+        expect($status['open'])->toBeTrue()
+            ->and($status['url'])->toContain('127.0.0.1:8000');
+
+        // The page is exactly where the test stopped: the name filled in, clicked once.
+        $docker->exec($id, ['/opt/onedrop/browser', 'screenshot', '/tmp/seen.png']);
+        $seen = $docker->exec($id, ['bash', '-c', 'node -e \'const s=JSON.parse(require("fs").readFileSync("/tmp/onedrop-browser.json"));const pw=require("module").createRequire("/workspace/package.json")("playwright-core");pw.chromium.connectOverCDP("http://127.0.0.1:"+s.cdpPort).then(async b=>{const p=b.contexts().flatMap(c=>c.pages()).at(-1);console.log(await p.getByPlaceholder("Name").inputValue(),await p.getByRole("button").textContent());process.exit(0)})\'']);
+        expect(trim($seen->output))->toBe('Ada 1')
+            ->and((int) trim($docker->exec($id, ['stat', '-c', '%s', '/tmp/seen.png'])->output))->toBeGreaterThan(500);
+
+        $preview = $docker->previewUrl($id, config('sandbox.proxy_port'));
+        expect(Http::get($preview.'/__onedrop/browser/')->status())->toBe(404)
+            ->and(Http::get($preview.'/__onedrop/browser/?token='.str_repeat('0', 64))->status())->toBe(404)
+            ->and(Http::withHeaders(['Host' => 'myapp.tail1.ts.net'])->get($preview.$path)->status())->toBe(404)
+            ->and(Http::get($preview.$path)->body())->toContain('<title>Browser</title>');
+
+        $browser->close($sandbox);
+        expect(retry(20, function () use ($browser, $sandbox) {
+            $open = $browser->status($sandbox)['open'];
+            throw_if($open, new RuntimeException('still open'));
+
+            return $open;
+        }, 250))->toBeFalse()
+            ->and(Http::get($preview.$path)->status())->toBe(404);
+    } finally {
+        $docker->destroy($id);
+    }
+})->group('TEST-005');

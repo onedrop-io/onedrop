@@ -33,6 +33,7 @@ test('an admin renames the app, sees the providers, monitoring, server and backu
         ->assertPathIs('/admin/sandboxes')
         ->assertTitleContains('Acme Builder')
         ->assertSeeIn('@provider-docker', 'Active')
+        ->click('@provider-blaxel-select')
         ->assertSeeIn('@provider-blaxel', 'Needs api key and workspace')
         ->click('[data-test="settings-modal"] a:has-text("Monitoring")')
         ->assertPathIs('/admin/monitoring')
@@ -46,6 +47,32 @@ test('an admin renames the app, sees the providers, monitoring, server and backu
         ->assertSee('No backups at this destination yet.')
         ->assertNoJavaScriptErrors();
 })->group('ADMIN-001', 'ADMIN-002', 'ADMIN-003', 'ADMIN-004', 'ADMIN-005');
+
+test('an admin sets up a provider, turns it on and drags it first', function () {
+    visit('/login')
+        ->fill('email', 'dev@example.com')
+        ->fill('password', 'password')
+        ->press('@login-button')
+        ->assertPathIs('/dashboard')
+        ->navigate('/admin/sandboxes')
+        ->assertSeeIn('@provider-docker-item', 'Active')
+        ->click('@provider-blaxel-select')
+        ->fill('#blaxel-api_key', 'bl-key')
+        ->fill('#blaxel-workspace', 'acme')
+        ->press('@provider-blaxel-save')
+        ->assertSee('Blaxel saved.')
+        ->click('@provider-blaxel-enabled')
+        ->assertSee('Blaxel saved.')
+        ->drag('@provider-blaxel-handle', '@provider-docker-item')
+        ->assertSee('New projects now run on Blaxel.')
+        ->assertSeeIn('@provider-blaxel-item', 'Active')
+        ->assertDontSeeIn('@provider-docker-item', 'Active')
+        // The arrow keys on a handle move it too.
+        ->keys('@provider-docker-handle', 'ArrowUp')
+        ->assertSee('New projects now run on Docker.')
+        ->assertSeeIn('@provider-docker-item', 'Active')
+        ->assertNoJavaScriptErrors();
+})->group('ADMIN-002');
 
 test('members do not see the admin settings', function () {
     AgentConnection::factory()->for(User::where('email', 'sam@example.com')->sole())->create();

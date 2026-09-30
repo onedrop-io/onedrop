@@ -20,6 +20,28 @@ const VISIBILITY: Record<Visibility, { label: string; icon: typeof Globe }> = {
     public: { label: 'Public', icon: Globe },
 };
 
+/** What publishing is waiting on in Tailscale, and the button that goes there. */
+const WAITING: Record<
+    NonNullable<Publication['waiting_for']>,
+    { message: string; action: string }
+> = {
+    login: {
+        message:
+            'Approve this project in Tailscale to give it a URL. You only need to do this once per project.',
+        action: 'Approve in Tailscale',
+    },
+    funnel: {
+        message:
+            'Public links need Tailscale Funnel, which is off for this tailnet. Turn it on (add the "funnel" node attribute in your access controls), or publish privately.',
+        action: 'Turn on Funnel',
+    },
+    https: {
+        message:
+            'Tailscale links need HTTPS certificates, which are off for this tailnet. Turn them on in the DNS settings.',
+        action: 'Turn on HTTPS',
+    },
+};
+
 function timeAgo(iso: string): string {
     const seconds = Math.round((new Date(iso).getTime() - Date.now()) / 1000);
     const format = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
@@ -297,9 +319,11 @@ export default function PublishMenu({
                                 data-test="publish-login"
                             >
                                 <p>
-                                    Approve this project in Tailscale to give it
-                                    a URL. You only need to do this once per
-                                    project.
+                                    {
+                                        WAITING[
+                                            publication.waiting_for ?? 'login'
+                                        ].message
+                                    }
                                 </p>
                                 <Button asChild size="sm" variant="outline">
                                     <a
@@ -308,13 +332,18 @@ export default function PublishMenu({
                                         rel="noreferrer"
                                         data-test="publish-login-link"
                                     >
-                                        Approve in Tailscale
+                                        {
+                                            WAITING[
+                                                publication.waiting_for ??
+                                                    'login'
+                                            ].action
+                                        }
                                         <ExternalLink className="size-3.5" />
                                     </a>
                                 </Button>
                                 <p className="text-muted-foreground">
-                                    This panel updates by itself once you've
-                                    approved it.
+                                    This panel updates by itself once you're
+                                    done.
                                 </p>
                             </div>
                         )}

@@ -1,0 +1,149 @@
+#!/usr/bin/env bash
+# Runs a project's own Docker Compose stack in its sandbox (SBX-008), with the Docker that start.sh starts here.
+#   compose init [--preview PORT]  pick the compose files and the port the preview shows, write .onedrop/dev
+#                                  (which runs `compose up`), and restart the preview
+#   compose up [--preview PORT]    run the stack in the foreground (what .onedrop/dev runs), forwarding $PORT to
+#                                  the preview port
+set -uo pipefail
+
+WORKSPACE="${ONEDROP_WORKSPACE:-/workspace}"
+ARCH="${ONEDROP_ARCH:-$(uname -m)}"
+PORT="${PORT:-8000}"
+# Ports the sandbox's own servers use; a stack that publishes one can't start.
+RESERVED="${PROXY_PORT:-8081}:host proxy
+${SHELL_PORT:-7681}:Shell tab
+${SSH_PORT:-2222}:SSH server"
+# Web ports, most likely first, for guessing which service the preview shows.
+WEB_PORTS='[80, 8080, 3000, 8000, 5173, 4200, 5000, 443, 8443]'
+
+fail() {
+    echo "$*" >&2
+    exit 1
+}
+
+# The compose files to use, joined by ":" (COMPOSE_FILE's format): the base file, its override, and on arm64
+# machines an arm64 overlay, which compose never loads by itself. A COMPOSE_FILE already set wins.
+compose_files() {
+    if [ -n "${COMPOSE_FILE:-}" ]; then
+        echo "$COMPOSE_FILE"
+        return
+    fi
+
+    local base='' stem ext file files
+    for file in compose.yaml compose.yml docker-compose.yaml docker-compose.yml; do
+        if [ -f "$WORKSPACE/$file" ]; then
+            base="$file"
+            break
+        fi
+    done
+
+    [ -n "$base" ] || return 1
+
+    stem="${base%.*}"
+    files="$base"
+    for ext in yaml yml; do
+        [ -f "$WORKSPACE/$stem.override.$ext" ] && files="$files:$stem.override.$ext"
+    done
+
+    case "$ARCH" in
+        arm64 | aarch64)
+            for ext in yaml yml; do
+                [ -f "$WORKSPACE/$stem.arm64.$ext" ] && files="$files:$stem.arm64.$ext"
+            done
+            ;;
+    esac
+
+    echo "$files"
+}
+
+init() {
+    local preview='' files config errors choice port service reserved
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --preview) preview="${2:-}"; shift 2 ;;
+            *) fail "Unknown option: $1" ;;
+        esac
+    done
+
+    cd "$WORKSPACE" || fail "No workspace at $WORKSPACE."
+    files="$(compose_files)" || fail "No compose file here (compose.yaml, compose.yml, docker-compose.yaml or docker-compose.yml)."
+
+    errors="$(mktemp)"
+    if ! config="$(COMPOSE_FILE="$files" docker compose config --format json 2>"$errors")"; then
+        cat "$errors" >&2
+        rm -f "$errors"
+        fail "The compose files ($files) can't be read; fix the error above (e.g. create a missing env file) and run this again."
+    fi
+    rm -f "$errors"
+
+    # Every published port, as "port service", so none clashes with the sandbox's own.
+    while IFS= read -r reserved; do
+        port="${reserved%%:*}"
+        service="$(jq -r --arg port "$port" '.services | to_entries[] | select(any(.value.ports[]?; (.published // "") == $port)) | .key' <<<"$config" | head -1)"
+        [ -z "$service" ] || fail "Service $service publishes port $port, which the sandbox uses for its ${reserved#*:}. Publish it on another port."
+    done <<<"$RESERVED"
+
+    if [ -z "$preview" ]; then
+        # Services built from the repo first (the app), then the most likely web port.
+        choice="$(jq -r --argjson web "$WEB_PORTS" '
+            [.services | to_entries[] | .key as $name | (.value.build != null) as $built
+                | .value.ports[]? | select(.published != null) | .target as $target
+                | {name: $name, port: (.published | tonumber), built: $built, rank: ($web | index($target) // 99)}]
+            | sort_by([(if .built then 0 else 1 end), .rank]) | first // empty | "\(.port) \(.name)"' <<<"$config")"
+        [ -n "$choice" ] || fail "No service publishes a port for the preview. Run this again with --preview <port>."
+        preview="${choice%% *}"
+        service="${choice#* }"
+    else
+        service="$(jq -r --arg port "$preview" '.services | to_entries[] | select(any(.value.ports[]?; (.published // "") == $port)) | .key' <<<"$config" | head -1)"
+    fi
+
+    mkdir -p .onedrop
+    cat >.onedrop/dev <<EOF
+#!/usr/bin/env bash
+# Written by /opt/onedrop/compose init: runs this project's Docker Compose stack; the preview shows port $preview.
+export COMPOSE_FILE='$files'
+exec /opt/onedrop/compose up --preview $preview
+EOF
+    chmod +x .onedrop/dev
+
+    echo "Compose files: ${files//:/, }"
+    echo "Preview: port $preview${service:+ (service $service)}"
+    echo "Services: $(jq -r '.services | keys | join(", ")' <<<"$config")"
+    echo "Wrote .onedrop/dev."
+
+    if [ -x /opt/onedrop/restart ]; then
+        /opt/onedrop/restart
+    fi
+}
+
+up() {
+    local preview='' tries=0
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --preview) preview="${2:-}"; shift 2 ;;
+            *) fail "Unknown option: $1" ;;
+        esac
+    done
+
+    cd "$WORKSPACE" || fail "No workspace at $WORKSPACE."
+
+    until docker info >/dev/null 2>&1; do
+        tries=$((tries + 1))
+        [ "$tries" -lt 60 ] || fail "Docker isn't running in this sandbox. Turn on Docker inside sandboxes in Settings → Sandboxes; its log is /tmp/onedrop-dockerd.log."
+        sleep 1
+    done
+
+    if [ -n "$preview" ] && [ "$preview" != "$PORT" ]; then
+        node /opt/onedrop/forward.mjs "$PORT" "$preview" &
+    fi
+
+    exec docker compose --ansi never up --remove-orphans
+}
+
+case "${1:-}" in
+    init) shift; init "$@" ;;
+    up) shift; up "$@" ;;
+    *) fail "Usage: compose init [--preview PORT] | compose up [--preview PORT]" ;;
+esac

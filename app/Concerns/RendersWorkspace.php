@@ -56,7 +56,7 @@ trait RendersWorkspace
         $queued = $newTask ? collect() : $conversation->queuedMessages()->with('attachments')->get();
 
         return Inertia::render('projects/show', [
-            'project' => $project->only('id', 'name', 'status', 'autofix'),
+            'project' => $project->only('id', 'name', 'status', 'autofix', 'track_requirements'),
             'task' => $task ? [
                 ...$task->only('id', 'title', 'description', 'stage', 'status', 'sync_status', 'sync_error'),
                 'own_copy' => Task::getsCopies(),
@@ -78,6 +78,8 @@ trait RendersWorkspace
                 'published_by' => $project->publisher?->name,
                 'error' => $project->publish_error,
                 'login_url' => $project->publish_status === PublishStatus::Publishing ? $project->publish_login_url : null,
+                // What login_url is for: approving the node ("login"), or turning on Funnel or HTTPS for the tailnet.
+                'waiting_for' => $project->publish_status === PublishStatus::Publishing ? ($project->publish_waiting_for ?? 'login') : null,
                 'target' => $project->publish_target,
                 'audience' => app(Publishers::class)->audience($project),
                 'targets' => app(Publishers::class)->options(),

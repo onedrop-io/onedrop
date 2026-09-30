@@ -41,6 +41,10 @@ test('the git section commits changes, restores a version and connects a remote 
             array_unshift($state['commits'], $commit('c', $request['message'], $request['name']));
         }
 
+        if ($request['op'] === 'undo_commit') {
+            array_shift($state['commits']);
+        }
+
         if ($request['op'] === 'restore') {
             array_unshift($state['commits'], $commit('d', 'Restore "Build a timer" (aaaaaaa)', $request['name']));
         }
@@ -50,6 +54,14 @@ test('the git section commits changes, restores a version and connects a remote 
                 ...collect($state['commits'])->firstWhere('sha', $request['sha']),
                 'body' => 'Asked for: make the timer blue.', 'parents' => [str_repeat('a', 40)], 'more_files' => false,
                 'files' => [['path' => 'resources/css/app.css', 'status' => 'M', 'additions' => 3, 'deletions' => 1, 'binary' => false]],
+            ]]));
+        }
+
+        if ($request['op'] === 'change_diff') {
+            $patch = "diff --git a/{$request['path']} b/{$request['path']}\n@@ -1 +1 @@\n-const start = 0;\n+const start = 1;\n";
+
+            return new ExecResult(0, json_encode(['ok' => true, 'data' => [
+                'path' => $request['path'], 'patch' => $patch, 'hash' => sha1($patch), 'truncated' => false, 'binary' => false, 'files' => null,
             ]]));
         }
 
@@ -103,8 +115,12 @@ test('the git section commits changes, restores a version and connects a remote 
         ->assertDontSeeIn('@git-diff', 'diff --git')
         ->click('[data-test="git-commit-row"]:first-child [data-test="git-commit-toggle"]')
         ->assertMissing('@git-commit-details')
-        ->type('@git-message', 'Tweak the start button')
-        ->click('@git-commit-button')
+        ->click('@git-change-open')
+        ->assertVisible('@git-actions-dialog')
+        ->assertSeeIn('@git-actions-diff-path', 'resources/js/app.tsx')
+        ->type('@git-actions-message', 'Tweak the start button')
+        ->click('@git-actions-submit')
+        ->assertMissing('@git-actions-dialog')
         ->assertSeeIn('@git-change-count', 'No changes')
         ->assertSeeIn('@git-history', 'Tweak the start button')
         ->assertSeeIn('@git-history', 'Dev User')
@@ -114,6 +130,12 @@ test('the git section commits changes, restores a version and connects a remote 
         ->assertSeeIn('@git-confirm', 'Restore this version?')
         ->click('@git-confirm-action')
         ->assertSeeIn('@git-history', 'Restore "Build a timer"')
+        ->click('[data-test="git-commit-row"]:first-child [data-test="git-commit-menu"]')
+        ->click('@git-undo')
+        ->assertSeeIn('@git-undo-commit', 'Restore "Build a timer"')
+        ->click('@git-undo-confirm')
+        ->assertMissing('@git-undo-dialog')
+        ->assertDontSeeIn('@git-history', 'Restore "Build a timer"')
         ->assertScript('new Set([...document.querySelectorAll(\'[data-test="git-commit-toggle"] > svg:last-child\')].map((arrow) => Math.round(arrow.getBoundingClientRect().right))).size', 1)
         ->click('@git-connect-existing')
         ->type('@git-remote-url', 'https://git.example.com/dev/timer.git')
@@ -128,7 +150,7 @@ test('the git section commits changes, restores a version and connects a remote 
     expect(collect($requests)->firstWhere('op', 'restore')['sha'])->toBe(str_repeat('a', 40))
         ->and($project->fresh()->git_remote_token)->toBe('secret-token');
     Queue::assertPushed(SyncGitRemote::class);
-})->group('GIT-001', 'GIT-002', 'GIT-003', 'GIT-004');
+})->group('GIT-001', 'GIT-002', 'GIT-003', 'GIT-004', 'GIT-010');
 
 /**
  * A GitHub App, a user signed in through it with their account and an organization, and a sandbox whose

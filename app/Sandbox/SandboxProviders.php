@@ -6,7 +6,8 @@ use App\Models\SystemSetting;
 use Illuminate\Support\Arr;
 
 /**
- * The sandbox providers an admin can turn on, configure and make active (ADMIN-002). Their settings are saved in
+ * The sandbox providers an admin can turn on, configure and put in order (ADMIN-002): new projects run on the first
+ * one that's on and set up. Their settings are saved in
  * the "sandboxes" SystemSetting and laid over config/sandbox.php by SystemConfig, so they win over `.env`.
  */
 class SandboxProviders
@@ -30,6 +31,7 @@ class SandboxProviders
                 'idle_seconds' => ['label' => 'Suspend after (seconds idle)', 'type' => 'number', 'help' => '0 never suspends.'],
                 'stop_after_minutes' => ['label' => 'Stop after (minutes suspended)', 'type' => 'number', 'help' => '0 never stops.'],
                 'runtime' => ['label' => 'Container runtime', 'type' => 'text', 'help' => 'Optional, e.g. runsc for gVisor.'],
+                'nested_docker' => ['label' => 'Docker inside sandboxes', 'type' => 'select', 'options' => ['off', 'privileged', 'runtime'], 'help' => 'For projects with their own Docker Compose. Privileged is for local installs only; on a server, set a runtime such as sysbox-runc and pick runtime.'],
             ],
         ],
         'blaxel' => [
@@ -69,7 +71,23 @@ class SandboxProviders
     }
 
     /**
-     * Providers that are turned on: the saved list, or (never saved) the active one and any with the settings it needs.
+     * Every provider, in the admin's order: the saved one, or (never saved) the active one first.
+     *
+     * @return list<string>
+     */
+    public function order(): array
+    {
+        $saved = SystemSetting::group(self::SETTING)['order'] ?? null;
+
+        return array_values(array_unique([
+            ...(is_array($saved) ? array_intersect($saved, array_keys(self::PROVIDERS)) : $this->activeIfReal()),
+            ...array_keys(self::PROVIDERS),
+        ]));
+    }
+
+    /**
+     * Providers that are turned on, in order: the saved list, or (never saved) the active one and any with the
+     * settings it needs.
      *
      * @return list<string>
      */
@@ -77,14 +95,17 @@ class SandboxProviders
     {
         $saved = SystemSetting::group(self::SETTING)['enabled'] ?? null;
 
-        if (is_array($saved)) {
-            return array_values(array_unique([...array_intersect(array_keys(self::PROVIDERS), $saved), ...$this->activeIfReal()]));
-        }
+        return array_values(array_filter($this->order(), fn (string $name): bool => is_array($saved)
+            ? in_array($name, $saved, true)
+            : $name === $this->active() || ($name !== 'docker' && $this->missing($name) === [])));
+    }
 
-        return array_values(array_filter(
-            array_keys(self::PROVIDERS),
-            fn (string $name): bool => $name === $this->active() || ($name !== 'docker' && $this->missing($name) === []),
-        ));
+    /**
+     * The first provider that's turned on and has the settings it needs: where new projects run.
+     */
+    public function first(): ?string
+    {
+        return Arr::first($this->enabled(), fn (string $name): bool => $this->missing($name) === []);
     }
 
     /**
@@ -122,7 +143,7 @@ class SandboxProviders
         }
 
         $settings['providers'][$name] = $saved;
-        $settings['enabled'] = array_values(array_unique($enabled
+        $settings['enabled'] = array_values(array_intersect($this->order(), $enabled
             ? [...$this->enabled(), $name]
             : array_diff($this->enabled(), [$name])));
 
@@ -131,17 +152,27 @@ class SandboxProviders
     }
 
     /**
-     * Make a provider the one new projects run on.
+     * Put the providers in this order; new projects run on the first one that's on and set up.
+     *
+     * @param  list<string>  $order
      */
-    public function activate(string $name): void
+    public function reorder(array $order): void
     {
-        SystemSetting::merge(self::SETTING, ['active' => $name]);
+        SystemSetting::merge(self::SETTING, ['order' => $order]);
         SystemConfig::saved();
     }
 
     /**
-     * Every provider for the admin page: its settings (secrets only as "set" or not), whether it's on, active,
-     * missing anything, and how many sandboxes it holds.
+     * Whether turning this provider off would leave no provider that's on and set up.
+     */
+    public function isLastUsable(string $name): bool
+    {
+        return array_filter($this->enabled(), fn (string $other): bool => $other !== $name && $this->missing($other) === []) === [];
+    }
+
+    /**
+     * Every provider for the admin page, in order: its settings (secrets only as "set" or not), whether it's on,
+     * active, missing anything, and how many sandboxes it holds.
      *
      * @param  array<string, int>  $counts  provider => sandboxes
      * @return list<array<string, mixed>>
@@ -150,7 +181,8 @@ class SandboxProviders
     {
         $enabled = $this->enabled();
 
-        return array_values(Arr::map(self::PROVIDERS, function (array $provider, string $name) use ($enabled, $counts): array {
+        return array_map(function (string $name) use ($enabled, $counts): array {
+            $provider = self::PROVIDERS[$name];
             $config = config("sandbox.providers.{$name}", []);
 
             return [
@@ -168,7 +200,7 @@ class SandboxProviders
                     'set' => filled($config[$key] ?? null),
                 ])),
             ];
-        }));
+        }, $this->order());
     }
 
     /**

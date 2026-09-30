@@ -16,11 +16,11 @@ Upload a logo (PNG, JPEG, WebP, or SVG, up to 1 MB) to replace the droplet in th
 
 ## Sandbox providers
 
-**Settings → Sandboxes** lists Docker, Blaxel, and Runtime Cloud, shows which one is active, and how many sandboxes each one holds.
+**Settings → Sandboxes** lists Docker, Blaxel, and Runtime Cloud, each with an on/off switch and how many sandboxes it holds. Click a provider to see its settings next to the list.
 
-- Turn a provider on, fill in its settings (image, CPU and memory, idle timeouts, region, API key), and click **Save**. API keys are stored encrypted and never shown again; leave the field empty to keep the saved key.
-- Click **Make active** to run new projects on that provider. Existing projects move to it the next time they're opened, with their files, the same as changing `SANDBOX_PROVIDER`. See [Sandboxes](/self-hosting/sandboxes).
-- A provider needs its required settings before it can be active: an API key for both managed providers, and a workspace for Blaxel. You can't turn off the active provider.
+- **Order:** drag a provider by its handle to move it up or down (or focus the handle and use the arrow keys). New projects run on the first provider that's on and has its required settings, marked **Active**. Existing projects move to it the next time they're opened, with their files, the same as changing `SANDBOX_PROVIDER`. See [Sandboxes](/self-hosting/sandboxes).
+- **Settings:** fill in a provider's settings (image, CPU and memory, idle timeouts, [Docker inside sandboxes](/self-hosting/sandboxes#docker-inside-sandboxes), region, API key) and click **Save**. API keys are stored encrypted and never shown again; leave the field empty to keep the saved key.
+- **Required settings:** a provider that's on but missing them (an API key for both managed providers, and a workspace for Blaxel) says what it needs and is skipped until it has them. You can't turn off the last provider that's on and set up.
 
 ## Monitoring
 

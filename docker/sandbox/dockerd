@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Docker inside the sandbox, for projects that run their own Docker Compose (SBX-008). start.sh runs this as root
+# (through the one sudo rule the sandbox user has) when the provider turned it on (ONEDROP_DOCKER=1).
+# Docker's data must be on its own volume: on the container's own filesystem (overlay on overlay) images won't unpack.
+set -euo pipefail
+
+if ! mountpoint -q /var/lib/docker; then
+    echo "Docker needs its own volume at /var/lib/docker; this sandbox wasn't given one." >&2
+    exit 1
+fi
+
+# The sandbox user runs docker through the socket (it's in the docker group).
+exec dockerd --group docker

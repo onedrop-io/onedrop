@@ -137,8 +137,8 @@ test('destroying a missing container is not an error', function () {
 
     $this->docker->destroy('abc123');
 
-    Process::assertRan(fn (PendingProcess $process) => $process->command === ['docker', 'rm', '--force', 'abc123']);
-})->group('SBX-001');
+    Process::assertRan(fn (PendingProcess $process) => $process->command === ['docker', 'rm', '--force', '--volumes', 'abc123']);
+})->group('SBX-001', 'SBX-008');
 
 test('exec can run detached with env vars by name', function () {
     Process::fake(['*' => Process::result('done')]);
@@ -352,3 +352,57 @@ test('starting a stopped container starts it, and a suspended one is woken, sinc
     'stopped' => ['exited', 'start'],
     'suspended' => ['paused', 'unpause'],
 ])->group('SBX-007');
+
+test('with Docker inside sandboxes, each sandbox gets its own volume for Docker\'s data, and runs privileged only when chosen', function (string $mode, bool $privileged) {
+    Process::fake(['*' => Process::result('abc123')]);
+
+    (new DockerSandboxProvider([...$this->dockerConfig, 'nested_docker' => $mode]))->create(new SandboxSpec('onedrop-project-1-x'));
+
+    Process::assertRan(fn (PendingProcess $process) => $process->command[1] === 'run'
+        && in_array('type=volume,target=/var/lib/docker', $process->command, true)
+        && in_array('ONEDROP_DOCKER=1', $process->command, true)
+        && in_array('--privileged', $process->command, true) === $privileged);
+})->with([
+    'privileged (local)' => ['privileged', true],
+    'a safe runtime (servers)' => ['runtime', false],
+])->group('SBX-008');
+
+test('without Docker inside sandboxes, sandboxes get no Docker and are never privileged', function () {
+    Process::fake(['*' => Process::result('abc123')]);
+
+    $this->docker->create(new SandboxSpec('onedrop-project-1-x'));
+
+    Process::assertRan(fn (PendingProcess $process) => $process->command[1] === 'run'
+        && ! in_array('--privileged', $process->command, true)
+        && ! in_array('ONEDROP_DOCKER=1', $process->command, true)
+        && ! in_array('type=volume,target=/var/lib/docker', $process->command, true));
+})->group('SBX-008');
+
+test('privileged Docker inside sandboxes is refused outside a local install', function () {
+    Process::fake();
+    app()->detectEnvironment(fn () => 'production');
+
+    try {
+        expect(fn () => (new DockerSandboxProvider([...$this->dockerConfig, 'nested_docker' => 'privileged']))->create(new SandboxSpec('onedrop-project-1-x')))
+            ->toThrow(SandboxException::class, 'only run privileged on a local install');
+    } finally {
+        app()->detectEnvironment(fn () => 'testing');
+    }
+
+    Process::assertNothingRan();
+})->group('SBX-008');
+
+test('turning Docker inside sandboxes on or off makes existing sandboxes outdated', function (string $mode, string $mounts, bool $outdated) {
+    Process::fake([
+        '*image*inspect*' => Process::result('sha256:current'),
+        '*Mounts*' => Process::result($mounts),
+        '*' => Process::result('sha256:current'),
+    ]);
+
+    expect((new DockerSandboxProvider([...$this->dockerConfig, 'nested_docker' => $mode]))->isOutdated('abc123'))->toBe($outdated);
+})->with([
+    'on, sandbox without it' => ['privileged', "/data/storage\n", true],
+    'on, sandbox with it' => ['privileged', "/var/lib/docker\n", false],
+    'off, sandbox with it' => ['off', "/var/lib/docker\n", true],
+    'off, sandbox without it' => ['off', '', false],
+])->group('SBX-008');

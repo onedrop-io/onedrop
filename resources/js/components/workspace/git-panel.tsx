@@ -14,7 +14,7 @@ import {
     User,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
-import type { FormEvent, KeyboardEvent, ReactNode } from 'react';
+import type { FormEvent, ReactNode } from 'react';
 import ProjectGitController from '@/actions/App/Http/Controllers/ProjectGitController';
 import SocialProviderIcon from '@/components/social-provider-icon';
 import { Button } from '@/components/ui/button';
@@ -34,13 +34,21 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
+import CommitDialog from '@/components/workspace/commit-dialog';
 import { GitHubConnect } from '@/components/workspace/github-connect';
 import PatchView from '@/components/workspace/patch-view';
+import UndoCommitDialog from '@/components/workspace/undo-commit-dialog';
 import type { GitHubInfo } from '@/components/workspace/github-connect';
 import { jsonRequest } from '@/lib/json-request';
 import { cn } from '@/lib/utils';
 
-type Change = { path: string; status: string };
+type Change = {
+    path: string;
+    status: string;
+    additions?: number | null;
+    deletions?: number | null;
+    binary?: boolean;
+};
 
 type Status = {
     initialized: boolean;
@@ -50,6 +58,8 @@ type Status = {
     changes: Change[];
     more_changes: boolean;
     tracking: { ahead: number; behind: number } | null;
+    /** Commits no remote branch has yet; null without a remote. */
+    unpushed?: number | null;
     state: 'merging' | 'rebasing' | null;
 };
 
@@ -201,6 +211,12 @@ export default function GitPanel({
         return <Empty>Loading…</Empty>;
     }
 
+    /** Take what a change returned (status, commits, remote) into the panel. */
+    const merge = (changed: Partial<GitData>) => {
+        setData((current) => (current ? { ...current, ...changed } : current));
+        setNotice(null);
+    };
+
     /** Send a change and merge what comes back (status, commits, remote) into the panel. */
     const send = (
         url: string,
@@ -303,6 +319,7 @@ export default function GitPanel({
                 status={data.status}
                 disabled={working}
                 send={send}
+                onChanged={merge}
             />
 
             <History
@@ -310,8 +327,14 @@ export default function GitPanel({
                 commits={data.commits}
                 more={data.more}
                 head={data.status.head}
+                // The newest commit can be undone when it isn't pushed yet and isn't the first (GIT-010).
+                undoable={
+                    (data.commits.length > 1 || data.more) &&
+                    (data.status.unpushed == null || data.status.unpushed > 0)
+                }
                 disabled={working}
                 send={send}
+                onChanged={merge}
             />
 
             <p className="text-xs text-muted-foreground">
@@ -794,51 +817,28 @@ function CommitCard({
     status,
     disabled,
     send,
+    onChanged,
 }: {
     projectId: number;
     status: Status;
     disabled: boolean;
     send: Send;
+    onChanged: (changed: Partial<GitData>) => void;
 }) {
-    const [message, setMessage] = useState('');
-    const [committing, setCommitting] = useState(false);
+    // The Commit changes dialog (the header's, GIT-006), open on a file or on none.
+    const [reviewing, setReviewing] = useState<{ path: string | null } | null>(
+        null,
+    );
     // The file whose changes to discard, or null for all of them. (A path can't mean "all": a file may be named that.)
     const [confirmDiscard, setConfirmDiscard] = useState<{
         path: string | null;
     } | null>(null);
     const count = status.changes.length;
 
-    const commit = (event?: FormEvent) => {
-        event?.preventDefault();
-
-        if (message.trim() === '' || count === 0) {
-            return;
-        }
-
-        setCommitting(true);
-        void send(ProjectGitController.commit.url(projectId), { message })
-            .then((ok) => ok && setMessage(''))
-            .finally(() => setCommitting(false));
-    };
-
-    const onKeyDown = (event: KeyboardEvent) => {
-        if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-            commit();
-        }
-    };
-
     return (
         <section className="space-y-3" data-test="git-commit">
             <h3 className="text-sm font-medium">Commit</h3>
-            <form onSubmit={commit} className="space-y-3">
-                <Input
-                    value={message}
-                    onChange={(event) => setMessage(event.target.value)}
-                    onKeyDown={onKeyDown}
-                    placeholder="Summary of your changes"
-                    disabled={disabled}
-                    data-test="git-message"
-                />
+            <div className="space-y-3">
                 <div className="rounded-xl border border-sidebar-border/70 dark:border-sidebar-border">
                     <div className="flex items-center gap-2 border-b border-sidebar-border/70 px-3 py-2 dark:border-sidebar-border">
                         <p
@@ -876,9 +876,17 @@ function CommitCard({
                                     className="flex items-center gap-2 px-3 py-1.5 text-sm"
                                     data-test="git-change"
                                 >
-                                    <span className="min-w-0 flex-1 truncate font-mono text-xs">
+                                    <button
+                                        type="button"
+                                        className="min-w-0 flex-1 truncate text-left font-mono text-xs underline-offset-4 hover:underline"
+                                        title={`Review the changes to ${change.path}`}
+                                        onClick={() =>
+                                            setReviewing({ path: change.path })
+                                        }
+                                        data-test="git-change-open"
+                                    >
                                         {change.path}
-                                    </span>
+                                    </button>
                                     <Button
                                         type="button"
                                         size="icon"
@@ -918,20 +926,44 @@ function CommitCard({
                     )}
                 </div>
                 <Button
-                    type="submit"
+                    type="button"
                     className="w-full"
-                    disabled={
-                        disabled ||
-                        committing ||
-                        count === 0 ||
-                        message.trim() === ''
-                    }
+                    disabled={disabled || count === 0}
+                    onClick={() => setReviewing({ path: null })}
                     data-test="git-commit-button"
                 >
                     <Check className="size-4" />
-                    Commit all changes
+                    Review and commit
                 </Button>
-            </form>
+            </div>
+
+            <Dialog
+                open={reviewing !== null}
+                onOpenChange={(open) => !open && setReviewing(null)}
+            >
+                {reviewing && (
+                    <CommitDialog
+                        projectId={projectId}
+                        branch={status.branch}
+                        changes={status.changes}
+                        moreChanges={status.more_changes}
+                        push={false}
+                        working={disabled}
+                        initialPath={reviewing.path}
+                        onCancel={() => setReviewing(null)}
+                        onCommitted={(changed) => {
+                            onChanged({
+                                status: changed.status as Status,
+                                commits: changed.commits as Commit[],
+                            });
+                            setReviewing(null);
+                        }}
+                        onStatusChanged={(changedStatus) =>
+                            onChanged({ status: changedStatus as Status })
+                        }
+                    />
+                )}
+            </Dialog>
 
             {confirmDiscard && (
                 <Confirm
@@ -964,17 +996,23 @@ function History({
     commits: latest,
     more: latestMore,
     head,
+    undoable,
     disabled,
     send,
+    onChanged,
 }: {
     projectId: number;
     commits: Commit[];
     more: boolean;
     head: string | null;
+    /** The newest commit can be undone (GIT-010). */
+    undoable: boolean;
     disabled: boolean;
     send: Send;
+    onChanged: (changed: Partial<GitData>) => void;
 }) {
     const [restoring, setRestoring] = useState<Commit | null>(null);
+    const [undoing, setUndoing] = useState<Commit | null>(null);
     const [open, setOpen] = useState<string | null>(null);
     const [query, setQuery] = useState('');
     // Search results, or older pages of the history; null shows the latest commits.
@@ -1146,26 +1184,32 @@ function History({
                                         )}
                                     />
                                 </button>
-                                {commit.sha === head ? (
-                                    // The current version: nothing to restore, but keep the column so the arrows line up.
-                                    <span
-                                        aria-hidden
-                                        className="mt-1.5 size-7 shrink-0"
-                                    />
-                                ) : (
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button
-                                                size="icon"
-                                                variant="ghost"
-                                                className="mt-1.5 size-7 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
-                                                aria-label={`More options for ${commit.subject}`}
-                                                data-test="git-commit-menu"
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            className="mt-1.5 size-7 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
+                                            aria-label={`More options for ${commit.subject}`}
+                                            data-test="git-commit-menu"
+                                        >
+                                            <EllipsisVertical />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        {commit.sha === head ? (
+                                            // The current version: nothing to restore, but it can be undone.
+                                            <DropdownMenuItem
+                                                disabled={disabled || !undoable}
+                                                onSelect={() =>
+                                                    setUndoing(commit)
+                                                }
+                                                data-test="git-undo"
                                             >
-                                                <EllipsisVertical />
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end">
+                                                <Undo2 className="size-4" />
+                                                Undo this commit
+                                            </DropdownMenuItem>
+                                        ) : (
                                             <DropdownMenuItem
                                                 disabled={disabled}
                                                 onSelect={() =>
@@ -1176,9 +1220,9 @@ function History({
                                                 <Undo2 className="size-4" />
                                                 Restore this version
                                             </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                )}
+                                        )}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             </div>
                             {open === commit.sha && (
                                 <CommitDetails
@@ -1203,6 +1247,26 @@ function History({
                 </Button>
             )}
 
+            <Dialog
+                open={undoing !== null}
+                onOpenChange={(isOpen) => !isOpen && setUndoing(null)}
+            >
+                {undoing && (
+                    <UndoCommitDialog
+                        projectId={projectId}
+                        commit={undoing}
+                        onClose={() => setUndoing(null)}
+                        onUndone={(changed) => {
+                            onChanged({
+                                status: changed.status as Status,
+                                commits: changed.commits as Commit[],
+                            });
+                            setPage(null);
+                            setUndoing(null);
+                        }}
+                    />
+                )}
+            </Dialog>
             {restoring && (
                 <Confirm
                     title="Restore this version?"
@@ -1465,6 +1529,7 @@ function FileDiff({
             <PatchView
                 patch={diff.patch}
                 truncated={diff.truncated}
+                path={path}
                 className="max-h-96"
             />
         </div>

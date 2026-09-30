@@ -6,6 +6,8 @@ export type Project = {
     status: ProjectStatus;
     /** Errors the preview shows after a turn go back to the agent automatically. */
     autofix: boolean;
+    /** The agent keeps what the user asks for, and why, in .onedrop/REQ.md (REQ-002). */
+    track_requirements: boolean;
 };
 
 export type ProjectSummary = Pick<Project, 'id' | 'name'>;
@@ -39,10 +41,10 @@ export type TaskDetail = Task & {
 /** A task as listed in the sidebar. */
 export type SidebarTask = Pick<Task, 'id' | 'title' | 'stage'> & {
     working: boolean;
-    /** The agent's latest step in its current run. */
-    activity: string | null;
     /** The agent replied since the owner last opened the task (PRJ-008). */
     unread: boolean;
+    /** The agent's latest step in its current run. */
+    activity: string | null;
 };
 
 /** A card on the board (TASK-002). */
@@ -146,8 +148,10 @@ export type Publication = {
     published_at: string | null;
     published_by: string | null;
     error: string | null;
-    /** Tailscale sign-in link to approve this project (no auth key configured). */
+    /** While publishing, the Tailscale link for what it's waiting on (see waiting_for). */
     login_url: string | null;
+    /** Approving the node (no auth key configured), or turning on Funnel or HTTPS certificates for the tailnet. */
+    waiting_for: 'login' | 'funnel' | 'https' | null;
     /** Why publishing can't be used here at all; each target's own reason is in targets. */
     unavailable: string | null;
     /** Who can open it where it's published, e.g. "People signed in to OneDrop". */

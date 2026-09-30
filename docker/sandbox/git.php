@@ -676,6 +676,41 @@ function combine(array $request): array
 }
 
 /**
+ * Undo the last commit (it must be "sha", the one that was shown): its changes come back as uncommitted, and the
+ * files stay exactly as they are. Only for a commit no remote has yet, so a push never has to overwrite it.
+ */
+function undoCommit(array $request): array
+{
+    $sha = validCommit($request['sha'] ?? null);
+
+    if (! isRepository() || head() === null || ! str_starts_with(head(), $sha)) {
+        throw new ToolError('The last commit changed. Look again before undoing it.');
+    }
+
+    if (status()['state'] !== null) {
+        throw new ToolError('Finish the merge or rebase first.');
+    }
+
+    $parents = array_values(array_filter(explode(' ', trim(gitOrFail(['log', '-1', '--format=%P', 'HEAD'])))));
+
+    if ($parents === []) {
+        throw new ToolError('That\'s the first commit, so there\'s nothing before it to go back to.');
+    }
+
+    if (count($parents) > 1) {
+        throw new ToolError('That\'s a merge, so it can\'t be undone here.');
+    }
+
+    if (hasRemoteBranches() && trim(git(['branch', '-r', '--contains', 'HEAD'])[1]) !== '') {
+        throw new ToolError('That commit is already pushed, so undoing it here would leave the repository behind. Restore the version before it instead.');
+    }
+
+    gitOrFail(['reset', '-q', 'HEAD~1']);
+
+    return status();
+}
+
+/**
  * The ref a base branch is compared against: what the platform last fetched or pushed of it, or else the local one.
  */
 function baseRef(mixed $base): string
@@ -1083,6 +1118,7 @@ try {
         'compare' => compare($request),
         'combine_preview' => combinePreview(),
         'combine' => combine($request),
+        'undo_commit' => undoCommit($request),
         'discard' => discard($request),
         'switch' => switchBranch($request),
         'restore' => restore($request),

@@ -24,7 +24,10 @@ beforeEach(function () {
 
         public function exec(string $id, array $command, array $env = [], bool $detach = false): ExecResult
         {
-            $this->envs[] = $env;
+            // Only the forwarder's: the skills sync (SandboxSkills) runs first.
+            if ($command !== ['php', '/opt/onedrop/skills.php']) {
+                $this->envs[] = $env;
+            }
 
             return parent::exec($id, $command, $env, $detach);
         }
@@ -42,7 +45,7 @@ test('starts the forwarder detached with the prompt, model, key and a callback',
 
     app(OpenCodeRunner::class)->start($this->project, $message);
 
-    $call = $this->provider->executed[0];
+    $call = collect($this->provider->executed)->last();
     $env = $this->provider->envs[0];
 
     expect($call['id'])->toBe('ctr-1')

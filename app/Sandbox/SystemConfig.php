@@ -29,11 +29,18 @@ class SystemConfig
             }
         }
 
-        // The test suite's fake provider is never swapped out.
-        $active = $sandboxes['active'] ?? null;
+        // New projects run on the first provider that's on and set up. Installs saved before providers had an
+        // order kept one "active" provider, which goes first. The test suite's fake provider is never swapped out.
+        if (config('sandbox.provider') !== 'fake') {
+            $legacy = $sandboxes['active'] ?? null;
 
-        if (isset(SandboxProviders::PROVIDERS[$active]) && config('sandbox.provider') !== 'fake') {
-            config(['sandbox.provider' => $active]);
+            if (isset(SandboxProviders::PROVIDERS[$legacy])) {
+                config(['sandbox.provider' => $legacy]);
+            }
+
+            if (isset($sandboxes['order']) || isset($sandboxes['enabled'])) {
+                config(['sandbox.provider' => app(SandboxProviders::class)->first() ?? config('sandbox.provider')]);
+            }
         }
 
         // Built from config when first used; make it again with the new settings.

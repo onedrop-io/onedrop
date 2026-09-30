@@ -32,6 +32,10 @@ return [
             'host' => env('SANDBOX_DOCKER_HOST', '127.0.0.1'),
             // Optional container runtime, e.g. "runsc" for gVisor isolation on Linux servers.
             'runtime' => env('SANDBOX_DOCKER_RUNTIME'),
+            // Docker inside each sandbox, for projects that run their own Docker Compose (SBX-008): "off", "privileged"
+            // (containers run with --privileged: local installs only), or "runtime" (the runtime above makes Docker in
+            // a container safe, e.g. sysbox-runc on a server).
+            'nested_docker' => env('SANDBOX_DOCKER_NESTED', 'off'),
             // Docker network to join, e.g. "drop" when the app itself runs in a container, so sandboxes reach it by name.
             'network' => env('SANDBOX_DOCKER_NETWORK'),
             // How the app reaches sandbox ports: "published" (their ports on `host`), or "network" (container name

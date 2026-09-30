@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# The browser the user may be looking at (TEST-005), for the agent. See guides/tests.md.
+#   browser status              is it open, on which page, stopped where
+#   browser screenshot <file>   save what the user sees, to look at it
+#   browser reload              reload the page (its in-memory state is lost)
+exec node /opt/onedrop/browser.mjs "$@"

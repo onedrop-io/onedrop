@@ -88,12 +88,13 @@ test('saved settings win over .env in every new process, and running queue worke
         ->and(config('sandbox.providers.docker.idle_seconds'))->toBe(120);
 })->group('ADMIN-002');
 
-test('admins can make a turned-on provider with its settings the active one', function () {
+test('new projects run on the first provider in the admin\'s order that is on and set up', function () {
     $admin = User::factory()->admin()->create();
     $this->actingAs($admin)->put(route('admin.sandboxes.update', 'blaxel'), ['enabled' => true, 'api_key' => 'key', 'workspace' => 'acme']);
 
-    $this->actingAs($admin)->post(route('admin.sandboxes.activate', 'blaxel'))
-        ->assertRedirect(route('admin.sandboxes.index'));
+    $this->actingAs($admin)->put(route('admin.sandboxes.reorder'), ['providers' => ['blaxel', 'docker', 'runtime']])
+        ->assertRedirect(route('admin.sandboxes.index'))
+        ->assertInertiaFlash('toast.message', 'New projects now run on Blaxel.');
 
     expect(config('sandbox.provider'))->toBe('blaxel');
 
@@ -101,29 +102,73 @@ test('admins can make a turned-on provider with its settings the active one', fu
     expect($provider)->toBeInstanceOf(RoutingSandboxProvider::class)
         ->and($provider->provider('blaxel'))->toBeInstanceOf(BlaxelSandboxProvider::class);
 
+    $this->actingAs($admin)->get(route('admin.sandboxes.index'))
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('providers.0.name', 'blaxel')
+            ->where('providers.0.active', true)
+            ->where('providers.1.name', 'docker')
+            ->where('providers.1.active', false));
+
+    // A fresh process (a worker, the next request) starts from .env, then applies the settings.
     config(['sandbox.provider' => 'docker']);
     SystemSetting::flush();
     SystemConfig::apply();
     expect(config('sandbox.provider'))->toBe('blaxel');
 })->group('ADMIN-002');
 
-test('a provider cannot be made active while it is off or missing settings', function () {
+test('providers that are off or missing settings are skipped', function () {
     $admin = User::factory()->admin()->create();
 
-    $this->actingAs($admin)->post(route('admin.sandboxes.activate', 'runtime'))->assertSessionHasErrors('provider');
+    // Runtime is first but off, then on without its key: Docker keeps new projects.
+    $this->actingAs($admin)->put(route('admin.sandboxes.reorder'), ['providers' => ['runtime', 'blaxel', 'docker']]);
+    expect(config('sandbox.provider'))->toBe('docker');
 
     $this->actingAs($admin)->put(route('admin.sandboxes.update', 'runtime'), ['enabled' => true]);
-    $this->actingAs($admin)->post(route('admin.sandboxes.activate', 'runtime'))->assertSessionHasErrors('provider');
+    expect(config('sandbox.provider'))->toBe('docker');
 
+    $this->actingAs($admin)->put(route('admin.sandboxes.update', 'runtime'), ['enabled' => true, 'api_key' => 'rt-key'])
+        ->assertInertiaFlash('toast.message', 'New projects now run on Runtime Cloud.');
+    expect(config('sandbox.provider'))->toBe('runtime');
+
+    // Turning the first one off hands new projects to the next.
+    $this->actingAs($admin)->put(route('admin.sandboxes.update', 'runtime'), ['enabled' => false]);
     expect(config('sandbox.provider'))->toBe('docker');
 })->group('ADMIN-002');
 
-test('the active provider cannot be turned off', function () {
+test('the order must list every provider once', function (array $order) {
     $this->actingAs(User::factory()->admin()->create())
+        ->put(route('admin.sandboxes.reorder'), ['providers' => $order])
+        ->assertSessionHasErrors();
+
+    expect(app(SandboxProviders::class)->order())->toBe(['docker', 'blaxel', 'runtime']);
+})->with([
+    'missing one' => [['blaxel', 'docker']],
+    'twice' => [['docker', 'docker', 'blaxel']],
+    'unknown' => [['docker', 'blaxel', 'e2b']],
+])->group('ADMIN-002');
+
+test('installs that chose an active provider before there was an order keep it first', function () {
+    SystemSetting::put('sandboxes', ['active' => 'runtime', 'enabled' => ['docker', 'runtime'], 'providers' => ['runtime' => ['api_key' => 'rt-key']]]);
+    SystemConfig::apply();
+
+    expect(config('sandbox.provider'))->toBe('runtime')
+        ->and(app(SandboxProviders::class)->order())->toBe(['runtime', 'docker', 'blaxel']);
+})->group('ADMIN-002');
+
+test('the last provider that is on and set up cannot be turned off', function () {
+    $admin = User::factory()->admin()->create();
+
+    $this->actingAs($admin)
         ->put(route('admin.sandboxes.update', 'docker'), ['enabled' => false])
         ->assertSessionHasErrors('enabled');
 
     expect(app(SandboxProviders::class)->enabled())->toContain('docker');
+
+    // A provider that's on but missing its key doesn't count.
+    $this->actingAs($admin)->put(route('admin.sandboxes.update', 'runtime'), ['enabled' => true]);
+    $this->actingAs($admin)
+        ->put(route('admin.sandboxes.update', 'docker'), ['enabled' => false])
+        ->assertSessionHasErrors('enabled');
 })->group('ADMIN-002');
 
 test('the test suite\'s fake provider is never replaced by saved settings', function () {
@@ -140,5 +185,17 @@ test('non-admins cannot see or change sandbox providers', function () {
 
     $this->actingAs($user)->get(route('admin.sandboxes.index'))->assertForbidden();
     $this->actingAs($user)->put(route('admin.sandboxes.update', 'docker'), ['enabled' => true])->assertForbidden();
-    $this->actingAs($user)->post(route('admin.sandboxes.activate', 'docker'))->assertForbidden();
+    $this->actingAs($user)->put(route('admin.sandboxes.reorder'), ['providers' => ['blaxel', 'docker', 'runtime']])->assertForbidden();
 })->group('ADMIN-002');
+
+test('admins can turn on Docker inside Docker sandboxes', function () {
+    $this->actingAs(User::factory()->admin()->create())
+        ->put(route('admin.sandboxes.update', 'docker'), ['enabled' => true, 'nested_docker' => 'privileged'])
+        ->assertSessionHasNoErrors();
+
+    expect(config('sandbox.providers.docker.nested_docker'))->toBe('privileged');
+
+    $this->actingAs(User::factory()->admin()->create())
+        ->put(route('admin.sandboxes.update', 'docker'), ['enabled' => true, 'nested_docker' => 'yes-please'])
+        ->assertSessionHasErrors('nested_docker');
+})->group('ADMIN-002', 'SBX-008');

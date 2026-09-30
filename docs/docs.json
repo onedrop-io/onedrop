@@ -57,6 +57,8 @@
                             "guides/set-up-ai",
                             "guides/build-a-project",
                             "guides/tasks",
+                            "guides/requirements",
+                            "guides/tests",
                             "guides/workspace",
                             "guides/users-and-auth",
                             "guides/secrets",
@@ -64,7 +66,9 @@
                             "guides/app-storage",
                             "guides/app-icon",
                             "guides/developer-tools",
+                            "guides/docker-compose",
                             "guides/git",
+                            "guides/agent-skills",
                             "guides/publish",
                             "guides/share"
                         ]

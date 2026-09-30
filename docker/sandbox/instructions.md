@@ -25,6 +25,16 @@ The app is opened through other hostnames (the preview and published `*.ts.net` 
 - Vite: set `server: { host: true, allowedHosts: true }` in vite.config.
 - Other dev servers: disable host checks / allow all hosts.
 
+### Projects with their own Docker Compose
+
+If the project has a `compose.yaml` / `docker-compose.yml`, run it as it is instead of installing its services
+yourself: `/opt/onedrop/compose init` writes .onedrop/dev (base file, override, an arm64 overlay if present, and the
+app's web port for the preview) and restarts the preview; add `--preview <port>` to pick the port. It says what's
+missing (e.g. an env file) if the stack can't start. Then use `docker compose ps`, `docker compose logs <service>`
+and `docker compose exec <service> <command>`: run the app's commands and tests inside its container, whose PHP,
+Node etc. are the app's, not the sandbox's. Edits in /workspace reach containers that mount it. If `docker` isn't
+available, tell the user to turn on Docker inside sandboxes in Settings → Sandboxes.
+
 ## When something breaks
 
 The platform records the app's errors in /workspace/.onedrop/errors.log, whatever its stack: one JSON line each, newest last, with `t` (Unix ms) and `k`:

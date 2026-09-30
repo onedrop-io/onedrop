@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Run the app's browser tests (tests/e2e), recording each for the Tests tab (TEST-002). See guides/tests.md.
+#   run-tests                      all of them
+#   run-tests tests/e2e/cart.spec.ts [tests/e2e/cart.spec.ts:12]
+#   run-tests @REQ-003             the tests of one requirement
+exec node /opt/onedrop/tests.mjs run "$@"

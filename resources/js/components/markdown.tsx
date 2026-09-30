@@ -79,15 +79,22 @@ const components: Components = {
 
 /**
  * Renders agent-written markdown (GitHub flavored). Raw HTML is shown as text, never rendered.
+ * `components` replaces how some elements render (e.g. the Requirements tab's headings with test results).
  */
 export default function Markdown({
     content,
     className,
+    components: overrides,
     ...props
-}: { content: string } & ComponentProps<'div'>) {
+}: { content: string; components?: Components } & ComponentProps<'div'>) {
     return (
         <div className={cn('min-w-0 break-words', className)} {...props}>
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+            <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={
+                    overrides ? { ...components, ...overrides } : components
+                }
+            >
                 {content}
             </ReactMarkdown>
         </div>

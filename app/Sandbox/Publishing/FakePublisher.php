@@ -20,6 +20,10 @@ class FakePublisher implements Publisher
 
     public bool $approved = false;
 
+    /** When set ('funnel' or 'https'), confirm() waits for that tailnet feature to be turned on. */
+    /** @var 'funnel'|'https'|null */
+    public ?string $featureOff = null;
+
     public function unavailableReason(): ?string
     {
         return $this->unavailable;
@@ -31,6 +35,10 @@ class FakePublisher implements Publisher
     {
         if ($this->loginUrl !== null && ! $this->approved) {
             throw new PublishNeedsLogin($this->loginUrl);
+        }
+
+        if ($this->featureOff !== null) {
+            throw new PublishNeedsFeature($this->featureOff, 'https://login.tailscale.com/admin/acls/file');
         }
 
         $this->published[$project->id] = $visibility;

@@ -26,6 +26,7 @@ import GrowthPanel from '@/components/workspace/growth-panel';
 import IconPanel from '@/components/workspace/icon-panel';
 import MonitoringPanel from '@/components/workspace/monitoring-panel';
 import SecretsPanel from '@/components/workspace/secrets-panel';
+import SkillsPanel from '@/components/workspace/skills-panel';
 import StoragePanel from '@/components/workspace/storage-panel';
 import { cn } from '@/lib/utils';
 import type { Publication } from '@/types';
@@ -288,6 +289,12 @@ export default function ToolsPanel({
                         <DeveloperPanel
                             projectId={projectId}
                             running={running}
+                        />
+                    ) : section.id === 'skills' ? (
+                        <SkillsPanel
+                            projectId={projectId}
+                            running={running}
+                            working={working}
                         />
                     ) : section.id === 'database' ? (
                         <DatabasePanel

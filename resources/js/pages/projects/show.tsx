@@ -10,15 +10,21 @@ import {
     Ban,
     Check,
     ChevronDown,
+    ClipboardList,
     Copy,
     ExternalLink,
+    FlaskConical,
+    Globe,
     FileText,
     GitMerge,
     Kanban,
     Pencil,
     Monitor,
+    Columns2,
+    PanelLeft,
     PanelRight,
     Plus,
+    Rows2,
     RefreshCw,
     RotateCw,
     Search,
@@ -30,7 +36,7 @@ import {
     Wrench,
     X,
 } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import ProjectAgentController from '@/actions/App/Http/Controllers/ProjectAgentController';
 import ProjectMessageController from '@/actions/App/Http/Controllers/ProjectMessageController';
@@ -54,12 +60,19 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { TaskStatusIcon } from '@/components/task-status-icon';
 import ConsoleView, { Notice } from '@/components/workspace/console-view';
+import RequirementsView from '@/components/workspace/requirements-view';
+import BrowserView, { closeBrowser } from '@/components/workspace/browser-view';
+import type { BrowserSession } from '@/components/workspace/browser-view';
+import TestsView from '@/components/workspace/tests-view';
 import FileIcon from '@/components/workspace/file-icon';
 import FileTree, {
     isWithin,
     searchEntries,
 } from '@/components/workspace/file-tree';
 import FilesMenu from '@/components/workspace/files-menu';
+import QuickOpen from '@/components/workspace/quick-open';
+import * as panes from '@/components/workspace/panes';
+import type { Layout, PaneTab, ShellTab } from '@/components/workspace/panes';
 import {
     fixRequest,
     PreviewErrorBar,
@@ -82,6 +95,7 @@ import {
 import { useLiveReload, useProjectChannel } from '@/lib/realtime';
 import { cn } from '@/lib/utils';
 import {
+    onAskAgent,
     onOpenWorkspaceTool,
     setWorkspaceView,
     viewFromUrl,
@@ -196,6 +210,17 @@ export default function ShowProject({
         CHAT_WIDTH_KEY,
         CHAT_WIDTH,
     );
+    // Hidden or shown, as last left in this browser (LAYOUT-001); read after mount so server and client HTML match.
+    const [chatOpen, setChatOpen] = useState(true);
+
+    useEffect(() => {
+        setChatOpen(localStorage.getItem(CHAT_OPEN_KEY) !== 'false');
+    }, []);
+
+    const toggleChat = () => {
+        localStorage.setItem(CHAT_OPEN_KEY, String(!chatOpen));
+        setChatOpen(!chatOpen);
+    };
 
     setLayoutProps({
         breadcrumbs: [
@@ -287,21 +312,24 @@ export default function ShowProject({
                     messages={messages}
                     working={working}
                     width={chatWidth}
+                    hidden={!chatOpen}
                     claudeSignIn={
                         claudeSubscription && agent?.harness === 'claude_code'
                             ? () => setClaudeSignIns((count) => count + 1)
                             : null
                     }
                 />
-                <ResizeHandle
-                    label="Resize chat"
-                    side="left"
-                    width={chatWidth}
-                    limits={CHAT_WIDTH}
-                    onResize={setChatWidth}
-                    className="hidden lg:block"
-                    data-test="chat-resize"
-                />
+                {chatOpen && (
+                    <ResizeHandle
+                        label="Resize chat"
+                        side="left"
+                        width={chatWidth}
+                        limits={CHAT_WIDTH}
+                        onResize={setChatWidth}
+                        className="hidden lg:block"
+                        data-test="chat-resize"
+                    />
+                )}
                 <WorkspacePanel
                     project={project}
                     sendMessage={routes.send.url}
@@ -314,6 +342,8 @@ export default function ShowProject({
                     live={live}
                     filesChanges={filesChanges}
                     wakes={wakes}
+                    chatOpen={chatOpen}
+                    onToggleChat={toggleChat}
                 />
             </div>
         </>
@@ -330,6 +360,7 @@ function ChatPanel({
     messages,
     working,
     width,
+    hidden,
     claudeSignIn,
 }: {
     project: Project;
@@ -341,6 +372,8 @@ function ChatPanel({
     messages: ChatMessage[];
     working: boolean;
     width: number;
+    /** Hidden by the user (LAYOUT-001); stays mounted so a draft survives. */
+    hidden: boolean;
     /** Open Claude Code's sign-in, when the agent runs on the user's Claude subscription. */
     claudeSignIn: (() => void) | null;
 }) {
@@ -367,6 +400,25 @@ function ChatPanel({
             },
         );
 
+    // "Ask" on a hunk of a diff (GIT-011): the hunk goes in the chat box, with the cursor after it for the question.
+    useEffect(
+        () =>
+            onAskAgent((text) => {
+                setDraft((current) =>
+                    current?.trim() ? `${current.trimEnd()}\n\n${text}` : text,
+                );
+                requestAnimationFrame(() => {
+                    const box = document.getElementById(
+                        'composer-content',
+                    ) as HTMLTextAreaElement | null;
+
+                    box?.focus();
+                    box?.setSelectionRange(box.value.length, box.value.length);
+                });
+            }),
+        [],
+    );
+
     useEffect(() => {
         bottom.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages.length, queued.length, working]);
@@ -374,7 +426,10 @@ function ChatPanel({
     return (
         <section
             aria-label="Chat"
-            className="flex min-h-0 flex-1 flex-col lg:w-(--chat-width) lg:max-w-[calc(100%-20rem)] lg:flex-none"
+            className={cn(
+                'flex min-h-0 flex-1 flex-col lg:w-(--chat-width) lg:max-w-[calc(100%-20rem)] lg:flex-none',
+                hidden && 'hidden',
+            )}
             style={{ '--chat-width': `${width}px` } as CSSProperties}
         >
             {(task || newTask) && (
@@ -600,6 +655,8 @@ function WorkspacePanel({
     live,
     filesChanges,
     wakes,
+    chatOpen,
+    onToggleChat,
 }: {
     project: Project;
     /** Where the chat on screen sends messages. */
@@ -619,6 +676,9 @@ function WorkspacePanel({
     filesChanges: number;
     /** Changes when the tab came back to the sandbox asleep: the preview reloads (SBX-007). */
     wakes: number;
+    /** The chat is showing next to the workspace (LAYOUT-001). */
+    chatOpen: boolean;
+    onToggleChat: () => void;
 }) {
     const running = sandbox?.status === 'running';
     const isRemoteBrowser = useIsRemote();
@@ -642,49 +702,86 @@ function WorkspacePanel({
     const [wasWorking, setWasWorking] = useState(working);
     const previewFrame = useRef<HTMLIFrameElement>(null);
     const previewErrors = usePreviewErrors(previewFrame);
-    const shellFrame = useRef<HTMLIFrameElement>(null);
+    const shellFrames = useRef<Partial<Record<ShellTab, HTMLIFrameElement>>>(
+        {},
+    );
     // The URL says what to show (TASK-004): `?tab=tools&tool=database`, `?tab=file&file=…`, `?tab=console`.
     // `?tool=git` alone (e.g. back from connecting GitHub) opens that Tools section.
     const { url: pageUrl } = usePage();
     const [initialView] = useState(() => viewFromUrl(pageUrl));
     const [tool, setTool] = useState<string | null>(initialView.tool);
-    const [tab, setTab] = useState<ActiveTab>(() => {
+    /** The panes and their tabs (LAYOUT-002); the URL follows the tab showing in the pane last used. */
+    const [layout, setLayout] = useState<Layout>(() => {
         const asked = initialView.tab ?? (initialView.tool ? 'tools' : null);
+        const first: PaneTab =
+            asked === 'file' && !initialView.file
+                ? 'preview'
+                : ACTIVE_TABS.includes(asked as PaneTab)
+                  ? (asked as PaneTab)
+                  : 'preview';
 
-        return asked === 'file' && !initialView.file
-            ? 'preview'
-            : ACTIVE_TABS.includes(asked as ActiveTab)
-              ? (asked as ActiveTab)
-              : 'preview';
+        return panes.initialLayout(panes.isPinned(first) ? [] : [first], first);
     });
-    const [extraTabs, setExtraTabs] = useState<MovableTab[]>(() =>
-        tab === 'console' || tab === 'shell' || tab === 'file' ? [tab] : [],
-    );
-    const [draggedTab, setDraggedTab] = useState<MovableTab | null>(null);
+    const tab = panes.focusedTab(layout);
+    const showTab = (kind: PaneTab, paneId?: number) =>
+        setLayout((current) => panes.showTab(current, kind, paneId));
+    const [draggedTab, setDraggedTab] = useState<PaneTab | null>(null);
+    /** How each open Shell started: in a folder (FILE-005) or on Claude Code's sign-in; missing is the usual start. */
+    const [shellStarts, setShellStarts] = useState<
+        Partial<
+            Record<ShellTab, { folder: string | null; claudeLogin: boolean }>
+        >
+    >({});
+    const panesArea = useRef<HTMLElement>(null);
 
-    // Put the cursor in the terminal whenever the Shell tab is shown.
+    // Put the cursor in the terminal whenever a Shell tab is shown; not when only the pane last used changes,
+    // which would take focus from a menu opened in that pane.
+    const shownTabs = layout.panes.map((pane) => pane.active).join();
+
     useEffect(() => {
-        if (tab === 'shell') {
-            shellFrame.current?.focus();
+        if (panes.isShell(tab)) {
+            shellFrames.current[tab]?.focus();
         }
-    }, [tab]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [shownTabs]);
+
+    // Clicking into a pane's preview or Shell (iframes, whose clicks the page never sees) makes it the pane last used.
+    useEffect(() => {
+        const onBlur = () =>
+            window.setTimeout(() => {
+                const pane =
+                    document.activeElement?.closest<HTMLElement>('[data-pane]')
+                        ?.dataset.pane;
+
+                if (pane) {
+                    setLayout((current) =>
+                        panes.focusPane(current, Number(pane)),
+                    );
+                }
+            });
+
+        window.addEventListener('blur', onBlur);
+
+        return () => window.removeEventListener('blur', onBlur);
+    }, []);
     const [consoleClears, setConsoleClears] = useState(0);
     const [filesOpen, setFilesOpen] = useState(false);
     const [hideHidden, setHideHidden] = useState(false);
     /** The files panel's name search, in the whole project ('') or a folder picked from its menu (FILE-005). */
     const [fileSearch, setFileSearch] = useState({ folder: '', query: '' });
     const fileSearchInput = useRef<HTMLInputElement>(null);
-    /** The folder the Shell was last opened in from the Files panel; null for its usual start (FILE-005). */
-    const [shellFolder, setShellFolder] = useState<string | null>(null);
     const [openPath, setOpenPath] = useState<string | null>(
         tab === 'file' ? initialView.file : null,
     );
+    /** Cmd/Ctrl+P's "Go to file" palette, and the files opened lately, newest first (FILE-006). */
+    const [quickOpen, setQuickOpen] = useState(false);
+    const [recentFiles, setRecentFiles] = useState<string[]>([]);
 
     // The header's git menu asks for Tools → Git to connect a repository (GIT-006).
     useEffect(
         () =>
             onOpenWorkspaceTool((section) => {
-                setTab('tools');
+                setLayout((current) => panes.showTab(current, 'tools'));
                 setTool(section);
             }),
         [],
@@ -692,7 +789,11 @@ function WorkspacePanel({
 
     // Keep the address bar (and links to the project's other pages) on what's showing.
     useEffect(() => {
-        setWorkspaceView(project.id, { tab, tool, file: openPath });
+        setWorkspaceView(project.id, {
+            tab: panes.isShell(tab) ? 'shell' : tab,
+            tool,
+            file: openPath,
+        });
     }, [project.id, tab, tool, openPath]);
     const [file, setFile] = useState<WorkspaceFile | null>(null);
     const [fileError, setFileError] = useState<string | null>(null);
@@ -850,27 +951,93 @@ function WorkspacePanel({
             return;
         }
 
+        setRecentFiles((recent) => [
+            path,
+            ...recent.filter((other) => other !== path).slice(0, 19),
+        ]);
+
         if (path !== openPath) {
             setFile(null);
             setFileError(null);
         }
 
         setOpenPath(path);
-        setExtraTabs((tabs) =>
-            tabs.includes('file') ? tabs : [...tabs, 'file'],
+        showTab('file');
+    };
+
+    // Cmd/Ctrl+P opens "Go to file" from anywhere in the workspace, even the editor (FILE-006).
+    useEffect(() => {
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (
+                (event.metaKey || event.ctrlKey) &&
+                !event.shiftKey &&
+                !event.altKey &&
+                event.key.toLowerCase() === 'p'
+            ) {
+                event.preventDefault();
+                event.stopPropagation();
+                setQuickOpen(true);
+            }
+        };
+
+        window.addEventListener('keydown', onKeyDown, true);
+
+        return () => window.removeEventListener('keydown', onKeyDown, true);
+    }, []);
+
+    // The tree may be stale or not loaded when the Files panel is closed.
+    useEffect(() => {
+        if (quickOpen && running) {
+            void files.refresh();
+        }
+    }, [quickOpen, running, files.refresh]);
+
+    /** Open a new Shell (LAYOUT-002), in `paneId` or the pane last used, or in a new pane split off `split.paneId`. */
+    const openShell = ({
+        folder = null,
+        claudeLogin = false,
+        paneId,
+        split,
+    }: {
+        folder?: string | null;
+        claudeLogin?: boolean;
+        paneId?: number;
+        split?: { paneId: number; direction: Layout['direction'] };
+    } = {}) => {
+        const shell = panes.nextShellTab(layout);
+
+        setShellStarts((starts) => ({
+            ...starts,
+            [shell]: { folder, claudeLogin },
+        }));
+        setLayout((current) =>
+            split
+                ? panes.splitPane(current, split.paneId, split.direction, shell)
+                : panes.showTab(current, shell, paneId),
         );
-        setTab('file');
     };
 
-    const addTab = (kind: ToolTab) => {
-        setExtraTabs((tabs) => (tabs.includes(kind) ? tabs : [...tabs, kind]));
-        setTab(kind);
-    };
+    /** A tab from the "+" menu: a new Shell every time, the others where they already are. */
+    const addTab = (kind: ToolTab, paneId?: number) =>
+        kind === 'shell' ? openShell({ paneId }) : showTab(kind, paneId);
 
-    const openShellIn = (folder: string) => {
-        setShellFolder(folder);
-        addTab('shell');
-    };
+    /** The test page the user took over at a step, shown in the Browser tab (TEST-005). */
+    const [browserSession, setBrowserSession] = useState<BrowserSession | null>(
+        null,
+    );
+    const showBrowser = useCallback((session: BrowserSession) => {
+        setBrowserSession(session);
+        setLayout((current) => panes.showTab(current, 'browser'));
+    }, []);
+
+    /** The requirement the Tests tab was last opened on from the Requirements tab (TEST-003). */
+    const [testsFocus, setTestsFocus] = useState<string | null>(null);
+    const showRequirementTests = useCallback((requirement: string) => {
+        setTestsFocus(requirement);
+        setLayout((current) => panes.showTab(current, 'tests'));
+    }, []);
+
+    const openShellIn = (folder: string) => openShell({ folder });
 
     // The open file (or a folder it's in) was renamed: keep it open under its new name.
     const followRename = (from: string, to: string) => {
@@ -888,21 +1055,21 @@ function WorkspacePanel({
         }
     };
 
-    useEffect(() => {
-        if (claudeSignIns > 0) {
-            setShellFolder(null);
-            setExtraTabs((tabs) =>
-                tabs.includes('shell') ? tabs : [...tabs, 'shell'],
-            );
-            setTab('shell');
-        }
-    }, [claudeSignIns]);
+    // "Sign in to Claude" opens a new Shell on Claude Code's own sign-in (AI-005).
+    const [seenClaudeSignIns, setSeenClaudeSignIns] = useState(claudeSignIns);
 
-    const closeTab = (kind: MovableTab) => {
-        setExtraTabs((tabs) => tabs.filter((t) => t !== kind));
+    if (seenClaudeSignIns !== claudeSignIns) {
+        setSeenClaudeSignIns(claudeSignIns);
+        openShell({ claudeLogin: true });
+    }
 
-        if (tab === kind) {
-            setTab('preview');
+    const closeTab = (kind: PaneTab) => {
+        setLayout((current) => panes.closeTab(current, kind));
+
+        // Closing the Browser tab closes the sandbox's browser too.
+        if (kind === 'browser' && browserSession) {
+            void closeBrowser(project.id);
+            setBrowserSession(null);
         }
     };
 
@@ -916,45 +1083,50 @@ function WorkspacePanel({
     };
 
     /**
-     * Drag-to-reorder props for a closable tab. The dragged tab takes a
-     * neighbour's place once the pointer passes that neighbour's middle,
-     * or when it's dropped on it.
+     * Drag props for a tab in pane `paneId`. Within a pane, the dragged tab takes a neighbour's place once
+     * the pointer passes that neighbour's middle, or when it's dropped on it; dropped on a tab in another
+     * pane, it moves there, before or after that tab by which half it's dropped on (LAYOUT-002).
      */
-    const sortable = (kind: MovableTab) => {
+    const draggableTab = (kind: PaneTab, paneId: number) => {
         const moveOnto = (
             event: React.DragEvent<HTMLElement>,
-            always: boolean,
+            dropped: boolean,
         ) => {
             if (!draggedTab) {
                 return;
             }
 
             event.preventDefault();
+            event.stopPropagation();
 
             if (draggedTab === kind) {
                 return;
             }
 
             const rect = event.currentTarget.getBoundingClientRect();
-            const middle = rect.left + rect.width / 2;
+            const after = event.clientX >= rect.left + rect.width / 2;
+            const from = panes.paneOf(layout, draggedTab);
 
-            setExtraTabs((tabs) => {
-                const from = tabs.indexOf(draggedTab);
-                const to = tabs.indexOf(kind);
-                const passed =
-                    from < to
-                        ? event.clientX >= middle
-                        : event.clientX <= middle;
+            if (from?.id === paneId) {
+                const forward =
+                    from.tabs.indexOf(draggedTab) < from.tabs.indexOf(kind);
 
-                if (from < 0 || to < 0 || !(passed || always)) {
-                    return tabs;
+                if (forward === after || dropped) {
+                    setLayout((current) =>
+                        panes.moveTab(
+                            current,
+                            draggedTab,
+                            paneId,
+                            kind,
+                            forward,
+                        ),
+                    );
                 }
-
-                const next = tabs.filter((t) => t !== draggedTab);
-                next.splice(to, 0, draggedTab);
-
-                return next;
-            });
+            } else if (dropped) {
+                setLayout((current) =>
+                    panes.moveTab(current, draggedTab, paneId, kind, after),
+                );
+            }
         };
 
         return {
@@ -973,6 +1145,20 @@ function WorkspacePanel({
         };
     };
 
+    /** Drop props for a pane's tab bar: a tab dropped past the tabs goes to the end of that pane. */
+    const tabBarDrop = (paneId: number) => ({
+        onDragOver: (event: React.DragEvent) =>
+            draggedTab && event.preventDefault(),
+        onDrop: (event: React.DragEvent) => {
+            if (draggedTab) {
+                event.preventDefault();
+                setLayout((current) =>
+                    panes.moveTab(current, draggedTab, paneId, null, false),
+                );
+            }
+        },
+    });
+
     const statusText = sandbox?.updating
         ? 'Updating sandbox…'
         : {
@@ -982,295 +1168,597 @@ function WorkspacePanel({
               failed: 'Sandbox failed to start',
           }[sandbox?.status ?? 'creating'];
 
+    const statusFor = (kind: PaneTab): string | null => {
+        if (panes.isShell(kind)) {
+            const folder = shellStarts[kind]?.folder;
+
+            return folder ? `~/workspace/${folder}` : '~/workspace';
+        }
+
+        return {
+            preview: statusText,
+            tools: '',
+            file: openPath,
+            console: 'App output',
+            requirements: '.onedrop/REQ.md',
+            tests: 'tests/e2e',
+            browser: '',
+        }[kind];
+    };
+
+    const shellSrc = (shell: ShellTab, sandbox: SandboxState): string => {
+        const start = shellStarts[shell];
+
+        if (start?.folder) {
+            return shellUrlIn(
+                sandbox.shell_url!,
+                sandbox.shell_via_gateway,
+                start.folder,
+            );
+        }
+
+        return start?.claudeLogin && sandbox.claude_login_url
+            ? sandbox.claude_login_url
+            : sandbox.shell_url!;
+    };
+
+    // Panes sit in one grid, side by side or stacked, with a 1px line between each. Every tab's content is a
+    // child of the grid in a fixed order, placed in its pane's cell, so moving a tab to another pane never
+    // moves it in the page: a Shell keeps its session and the preview doesn't reload.
+    const rowLayout = layout.direction === 'row';
+    const gridStyle: CSSProperties = rowLayout
+        ? {
+              gridTemplateColumns: layout.sizes
+                  .map((size) => `minmax(0, ${size}fr)`)
+                  .join(' 1px '),
+              gridTemplateRows: 'auto minmax(0, 1fr)',
+          }
+        : {
+              gridTemplateColumns: 'minmax(0, 1fr)',
+              gridTemplateRows: layout.sizes
+                  .map((size) => `auto minmax(0, ${size}fr)`)
+                  .join(' 1px '),
+          };
+    const cell = (index: number, part: 'bar' | 'content'): CSSProperties =>
+        rowLayout
+            ? { gridColumn: 2 * index + 1, gridRow: part === 'bar' ? 1 : 2 }
+            : { gridColumn: 1, gridRow: 3 * index + (part === 'bar' ? 1 : 2) };
+    const paneIndex = (kind: PaneTab) =>
+        layout.panes.findIndex((pane) => pane.tabs.includes(kind));
+    const shown = (kind: PaneTab) => panes.isShown(layout, kind);
+
+    /** The cell a tab's content goes in: its pane's, and only visible while it's the tab showing there. */
+    const content = (kind: PaneTab, children: React.ReactNode) => {
+        const index = paneIndex(kind);
+
+        return (
+            index !== -1 && (
+                <div
+                    key={kind}
+                    data-pane={layout.panes[index].id}
+                    style={cell(index, 'content')}
+                    onPointerDownCapture={() =>
+                        setLayout((current) =>
+                            panes.focusPane(current, layout.panes[index].id),
+                        )
+                    }
+                    className={cn(
+                        'flex min-h-0 min-w-0 flex-col',
+                        !shown(kind) && 'hidden',
+                    )}
+                >
+                    {children}
+                </div>
+            )
+        );
+    };
+
+    const shells = layout.panes
+        .flatMap((pane) => pane.tabs)
+        .filter(panes.isShell)
+        .sort(
+            (a, b) =>
+                Number(a.split('-')[1] ?? 1) - Number(b.split('-')[1] ?? 1),
+        );
+    const shellReady = running && !!sandbox.shell_url && !shellUnreachable;
+    const filesTogglePane = rowLayout ? layout.panes.length - 1 : 0;
+
+    const tabButton = (kind: PaneTab, paneId: number) => {
+        const active = panes.paneOf(layout, kind)?.active === kind;
+
+        if (kind === 'tools' || kind === 'preview') {
+            return (
+                <TabButton
+                    key={kind}
+                    active={active}
+                    onClick={() => showTab(kind)}
+                    testId={`tab-${kind}`}
+                    {...draggableTab(kind, paneId)}
+                >
+                    {kind === 'tools' ? (
+                        <Wrench className="size-4" />
+                    ) : (
+                        <Monitor className="size-4" />
+                    )}
+                    {kind === 'tools' ? 'Tools' : 'Preview'}
+                </TabButton>
+            );
+        }
+
+        if (kind === 'file') {
+            return (
+                openPath && (
+                    <TabButton
+                        key={kind}
+                        active={active}
+                        onClick={() => showTab('file')}
+                        onClose={closeFile}
+                        testId="tab-file"
+                        {...draggableTab(kind, paneId)}
+                    >
+                        <FileIcon name={openPath.split('/').pop() ?? ''} />
+                        <span className="max-w-48 truncate">
+                            {openPath.split('/').pop()}
+                        </span>
+                        {fileDirty && (
+                            <span
+                                className="size-1.5 rounded-full bg-current"
+                                aria-label="Unsaved changes"
+                                data-test="file-dirty"
+                            />
+                        )}
+                    </TabButton>
+                )
+            );
+        }
+
+        return (
+            <TabButton
+                key={kind}
+                active={active}
+                onClick={() => {
+                    showTab(kind);
+
+                    if (panes.isShell(kind)) {
+                        shellFrames.current[kind]?.focus();
+                    }
+                }}
+                onClose={() => closeTab(kind)}
+                testId={`tab-${kind}`}
+                {...draggableTab(kind, paneId)}
+            >
+                {panes.isShell(kind) ? (
+                    <>
+                        {TOOL_TABS.shell.icon}
+                        {panes.shellLabel(kind)}
+                    </>
+                ) : (
+                    <>
+                        {TOOL_TABS[kind].icon}
+                        {TOOL_TABS[kind].label}
+                    </>
+                )}
+            </TabButton>
+        );
+    };
+
     return (
         <div className="flex min-h-80 min-w-0 flex-1 border-t border-sidebar-border/70 lg:border-t-0 dark:border-sidebar-border">
             <section
+                ref={panesArea}
                 aria-label="Preview"
-                className="flex min-w-0 flex-1 flex-col"
+                className="grid min-w-0 flex-1"
+                style={gridStyle}
             >
-                <div className="flex items-center gap-1 border-b border-sidebar-border/70 px-2 py-1.5 text-sm dark:border-sidebar-border">
-                    <TabButton
-                        active={tab === 'tools'}
-                        onClick={() => setTab('tools')}
-                        testId="tab-tools"
-                    >
-                        <Wrench className="size-4" />
-                        Tools
-                    </TabButton>
-                    <TabButton
-                        active={tab === 'preview'}
-                        onClick={() => setTab('preview')}
-                        testId="tab-preview"
-                    >
-                        <Monitor className="size-4" />
-                        Preview
-                    </TabButton>
-                    {extraTabs.map((kind) =>
-                        kind === 'file' ? (
-                            openPath && (
-                                <TabButton
-                                    key={kind}
-                                    active={tab === 'file'}
-                                    onClick={() => setTab('file')}
-                                    onClose={closeFile}
-                                    testId="tab-file"
-                                    {...sortable(kind)}
-                                >
-                                    <FileIcon
-                                        name={openPath.split('/').pop() ?? ''}
-                                    />
-                                    <span className="max-w-48 truncate">
-                                        {openPath.split('/').pop()}
-                                    </span>
-                                    {fileDirty && (
-                                        <span
-                                            className="size-1.5 rounded-full bg-current"
-                                            aria-label="Unsaved changes"
-                                            data-test="file-dirty"
-                                        />
-                                    )}
-                                </TabButton>
-                            )
-                        ) : (
-                            <TabButton
-                                key={kind}
-                                active={tab === kind}
-                                onClick={() => setTab(kind)}
-                                onClose={() => closeTab(kind)}
-                                testId={`tab-${kind}`}
-                                {...sortable(kind)}
-                            >
-                                {TOOL_TABS[kind].icon}
-                                {TOOL_TABS[kind].label}
-                            </TabButton>
-                        ),
-                    )}
-                    <DropdownMenu modal={false}>
-                        <DropdownMenuTrigger asChild>
-                            <button
-                                type="button"
-                                aria-label="Add tab"
-                                title="Add tab"
-                                data-test="add-tab"
-                                className="rounded p-1 text-muted-foreground hover:bg-muted"
-                            >
-                                <Plus className="size-4" />
-                            </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent
-                            align="start"
-                            onFocusOutside={(event) => event.preventDefault()}
-                            onCloseAutoFocus={(event) => {
-                                // The menu hands focus back to "+" as it closes; keep it in the shell instead.
-                                if (tab === 'shell') {
-                                    event.preventDefault();
-                                    shellFrame.current?.focus();
+                {layout.panes.map((pane, index) => (
+                    <Fragment key={pane.id}>
+                        {index > 0 && (
+                            <PaneDivider
+                                direction={layout.direction}
+                                style={
+                                    rowLayout
+                                        ? {
+                                              gridColumn: 2 * index,
+                                              gridRow: '1 / span 2',
+                                          }
+                                        : { gridColumn: 1, gridRow: 3 * index }
                                 }
-                            }}
-                        >
-                            {(Object.keys(TOOL_TABS) as ToolTab[]).map(
-                                (kind) => (
-                                    <DropdownMenuItem
-                                        key={kind}
-                                        onSelect={() => addTab(kind)}
-                                        data-test={`add-tab-${kind}`}
-                                    >
-                                        {TOOL_TABS[kind].icon}
-                                        {TOOL_TABS[kind].label}
-                                    </DropdownMenuItem>
-                                ),
+                                area={panesArea}
+                                onResize={(delta) =>
+                                    setLayout((current) =>
+                                        panes.resizePanes(
+                                            current,
+                                            index - 1,
+                                            delta,
+                                        ),
+                                    )
+                                }
+                                onReset={() =>
+                                    setLayout((current) =>
+                                        panes.equalPanes(current),
+                                    )
+                                }
+                            />
+                        )}
+                        <div
+                            style={cell(index, 'bar')}
+                            data-pane={pane.id}
+                            data-test={`pane-${index + 1}`}
+                            onPointerDownCapture={() =>
+                                setLayout((current) =>
+                                    panes.focusPane(current, pane.id),
+                                )
+                            }
+                            {...tabBarDrop(pane.id)}
+                            className={cn(
+                                'flex min-w-0 [scrollbar-width:none] items-center gap-1 overflow-x-auto border-b border-sidebar-border/70 px-2 py-1.5 text-sm dark:border-sidebar-border',
+                                !rowLayout && index > 0 && 'border-t-0',
                             )}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                    <span
-                        className="ml-2 min-w-0 flex-1 truncate text-muted-foreground"
-                        data-test="sandbox-status"
-                    >
-                        {
-                            {
-                                preview: statusText,
-                                tools: '',
-                                file: openPath,
-                                console: 'App output',
-                                shell: '~/workspace',
-                            }[tab]
-                        }
-                    </span>
-                    {tab === 'preview' && url && (
-                        <>
+                        >
+                            {index === 0 && (
+                                <IconButton
+                                    label={chatOpen ? 'Hide chat' : 'Show chat'}
+                                    onClick={onToggleChat}
+                                    testId="toggle-chat"
+                                >
+                                    <PanelLeft className="size-4" />
+                                </IconButton>
+                            )}
+                            {pane.tabs.map((kind) => tabButton(kind, pane.id))}
                             <DropdownMenu modal={false}>
                                 <DropdownMenuTrigger asChild>
                                     <button
                                         type="button"
-                                        aria-label="Preview size"
-                                        title={`Preview size: ${PREVIEW_SIZES[previewSize].label}`}
-                                        data-test="preview-size"
-                                        className="rounded p-1 hover:bg-muted"
+                                        aria-label="Add tab"
+                                        title="Add tab"
+                                        data-test="add-tab"
+                                        className="rounded p-1 text-muted-foreground hover:bg-muted"
                                     >
-                                        {PREVIEW_SIZES[previewSize].icon}
+                                        <Plus className="size-4" />
                                     </button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                    {(
-                                        Object.keys(
-                                            PREVIEW_SIZES,
-                                        ) as PreviewSize[]
-                                    ).map((size) => (
-                                        <DropdownMenuItem
-                                            key={size}
-                                            onSelect={() =>
-                                                choosePreviewSize(size)
-                                            }
-                                            data-test={`preview-size-${size}`}
-                                        >
-                                            {PREVIEW_SIZES[size].icon}
-                                            <span className="flex-1">
-                                                {PREVIEW_SIZES[size].label}
-                                            </span>
-                                            {PREVIEW_SIZES[size].width && (
-                                                <span className="text-xs text-muted-foreground">
-                                                    {PREVIEW_SIZES[size].width}
-                                                    px
-                                                </span>
-                                            )}
-                                            {size === previewSize && (
-                                                <Check className="size-4" />
-                                            )}
-                                        </DropdownMenuItem>
-                                    ))}
+                                <DropdownMenuContent
+                                    align="start"
+                                    onFocusOutside={(event) =>
+                                        event.preventDefault()
+                                    }
+                                    onCloseAutoFocus={(event) => {
+                                        // The menu hands focus back to "+" as it closes; keep it in the shell instead.
+                                        if (panes.isShell(tab)) {
+                                            event.preventDefault();
+                                            shellFrames.current[tab]?.focus();
+                                        }
+                                    }}
+                                >
+                                    {(Object.keys(TOOL_TABS) as ToolTab[]).map(
+                                        (kind) => (
+                                            <DropdownMenuItem
+                                                key={kind}
+                                                onSelect={() =>
+                                                    addTab(kind, pane.id)
+                                                }
+                                                data-test={`add-tab-${kind}`}
+                                            >
+                                                {TOOL_TABS[kind].icon}
+                                                {TOOL_TABS[kind].label}
+                                            </DropdownMenuItem>
+                                        ),
+                                    )}
                                 </DropdownMenuContent>
                             </DropdownMenu>
-                            <IconButton
-                                label="Reload preview"
-                                onClick={reloadPreview}
+                            <span
+                                className="ml-2 min-w-0 flex-1 truncate text-muted-foreground"
+                                data-test="sandbox-status"
                             >
-                                <RotateCw className="size-4" />
-                            </IconButton>
-                            <a
-                                href={url}
-                                target="_blank"
-                                rel="noreferrer"
-                                aria-label="Open preview in a new tab"
-                                className="rounded p-1 hover:bg-muted"
-                            >
-                                <ExternalLink className="size-4" />
-                            </a>
-                        </>
-                    )}
-                    {tab === 'console' && (
-                        <IconButton
-                            label="Clear console"
-                            onClick={() => setConsoleClears((n) => n + 1)}
-                        >
-                            <Ban className="size-4" />
-                        </IconButton>
-                    )}
-                    <IconButton
-                        label={filesOpen ? 'Hide files' : 'Show files'}
-                        onClick={toggleFiles}
-                        testId="toggle-files"
-                    >
-                        <PanelRight className="size-4" />
-                    </IconButton>
-                </div>
+                                {statusFor(pane.active)}
+                            </span>
+                            {pane.active === 'preview' && url && (
+                                <>
+                                    <DropdownMenu modal={false}>
+                                        <DropdownMenuTrigger asChild>
+                                            <button
+                                                type="button"
+                                                aria-label="Preview size"
+                                                title={`Preview size: ${PREVIEW_SIZES[previewSize].label}`}
+                                                data-test="preview-size"
+                                                className="rounded p-1 hover:bg-muted"
+                                            >
+                                                {
+                                                    PREVIEW_SIZES[previewSize]
+                                                        .icon
+                                                }
+                                            </button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            {(
+                                                Object.keys(
+                                                    PREVIEW_SIZES,
+                                                ) as PreviewSize[]
+                                            ).map((size) => (
+                                                <DropdownMenuItem
+                                                    key={size}
+                                                    onSelect={() =>
+                                                        choosePreviewSize(size)
+                                                    }
+                                                    data-test={`preview-size-${size}`}
+                                                >
+                                                    {PREVIEW_SIZES[size].icon}
+                                                    <span className="flex-1">
+                                                        {
+                                                            PREVIEW_SIZES[size]
+                                                                .label
+                                                        }
+                                                    </span>
+                                                    {PREVIEW_SIZES[size]
+                                                        .width && (
+                                                        <span className="text-xs text-muted-foreground">
+                                                            {
+                                                                PREVIEW_SIZES[
+                                                                    size
+                                                                ].width
+                                                            }
+                                                            px
+                                                        </span>
+                                                    )}
+                                                    {size === previewSize && (
+                                                        <Check className="size-4" />
+                                                    )}
+                                                </DropdownMenuItem>
+                                            ))}
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                    <IconButton
+                                        label="Reload preview"
+                                        onClick={reloadPreview}
+                                    >
+                                        <RotateCw className="size-4" />
+                                    </IconButton>
+                                    <a
+                                        href={url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        aria-label="Open preview in a new tab"
+                                        className="rounded p-1 hover:bg-muted"
+                                    >
+                                        <ExternalLink className="size-4" />
+                                    </a>
+                                </>
+                            )}
+                            {pane.active === 'console' && (
+                                <IconButton
+                                    label="Clear console"
+                                    onClick={() =>
+                                        setConsoleClears((n) => n + 1)
+                                    }
+                                >
+                                    <Ban className="size-4" />
+                                </IconButton>
+                            )}
+                            {layout.panes.length < panes.MAX_PANES && (
+                                <DropdownMenu modal={false}>
+                                    <DropdownMenuTrigger asChild>
+                                        <button
+                                            type="button"
+                                            aria-label="Split pane"
+                                            title="Split pane"
+                                            data-test="split-menu"
+                                            className="rounded p-1 hover:bg-muted"
+                                        >
+                                            {rowLayout ? (
+                                                <Columns2 className="size-4" />
+                                            ) : (
+                                                <Rows2 className="size-4" />
+                                            )}
+                                        </button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent
+                                        align="end"
+                                        onFocusOutside={(event) =>
+                                            event.preventDefault()
+                                        }
+                                        onCloseAutoFocus={(event) => {
+                                            if (panes.isShell(tab)) {
+                                                event.preventDefault();
+                                                shellFrames.current[
+                                                    tab
+                                                ]?.focus();
+                                            }
+                                        }}
+                                    >
+                                        <DropdownMenuItem
+                                            onSelect={() =>
+                                                openShell({
+                                                    split: {
+                                                        paneId: pane.id,
+                                                        direction: 'row',
+                                                    },
+                                                })
+                                            }
+                                            data-test="split-right"
+                                        >
+                                            <Columns2 />
+                                            Split right
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                            onSelect={() =>
+                                                openShell({
+                                                    split: {
+                                                        paneId: pane.id,
+                                                        direction: 'column',
+                                                    },
+                                                })
+                                            }
+                                            data-test="split-down"
+                                        >
+                                            <Rows2 />
+                                            Split down
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            )}
+                            {layout.panes.length > 1 && (
+                                <IconButton
+                                    label="Close pane (its tabs move to the pane next to it)"
+                                    onClick={() =>
+                                        setLayout((current) =>
+                                            panes.closePane(current, pane.id),
+                                        )
+                                    }
+                                    testId="close-pane"
+                                >
+                                    <X className="size-4" />
+                                </IconButton>
+                            )}
+                            {index === filesTogglePane && (
+                                <IconButton
+                                    label={
+                                        filesOpen ? 'Hide files' : 'Show files'
+                                    }
+                                    onClick={toggleFiles}
+                                    testId="toggle-files"
+                                >
+                                    <PanelRight className="size-4" />
+                                </IconButton>
+                            )}
+                        </div>
+                    </Fragment>
+                ))}
 
-                {url ? (
-                    <div
-                        className={cn(
-                            'relative flex flex-1 flex-col',
-                            tab !== 'preview' && 'hidden',
-                            PREVIEW_SIZES[previewSize].width &&
-                                'overflow-auto bg-muted p-4',
-                        )}
-                    >
-                        <iframe
-                            ref={previewFrame}
-                            key={reloadKey}
-                            src={url}
-                            title="App preview"
-                            data-test="preview-frame"
-                            style={{
-                                width:
-                                    PREVIEW_SIZES[previewSize].width ??
-                                    undefined,
-                            }}
+                {content(
+                    'preview',
+                    url ? (
+                        <div
                             className={cn(
-                                'flex-1 bg-white',
+                                'relative flex flex-1 flex-col',
                                 PREVIEW_SIZES[previewSize].width &&
-                                    'mx-auto shrink-0 rounded-md border shadow-sm',
+                                    'overflow-auto bg-muted p-4',
                             )}
-                        />
-                        {!working && previewErrors.errors.length > 0 && (
-                            <PreviewErrorBar
-                                errors={previewErrors.errors}
-                                onFix={fixPreviewErrors}
-                                onDismiss={previewErrors.clear}
+                        >
+                            <iframe
+                                ref={previewFrame}
+                                key={reloadKey}
+                                src={url}
+                                title="App preview"
+                                data-test="preview-frame"
+                                style={{
+                                    width:
+                                        PREVIEW_SIZES[previewSize].width ??
+                                        undefined,
+                                }}
+                                className={cn(
+                                    'flex-1 bg-white',
+                                    PREVIEW_SIZES[previewSize].width &&
+                                        'mx-auto shrink-0 rounded-md border shadow-sm',
+                                )}
                             />
-                        )}
-                    </div>
-                ) : (
-                    tab === 'preview' && (
-                        <PreviewPlaceholder sandbox={sandbox} copy={copy} />
-                    )
-                )}
-                {tab === 'tools' && (
-                    <ToolsPanel
-                        projectId={project.id}
-                        running={running}
-                        working={working}
-                        publication={publication}
-                        initialSection={tool}
-                        onSectionChange={setTool}
-                    />
-                )}
-                {tab === 'file' && openPath && (
-                    <FileViewer
-                        key={openPath}
-                        projectId={project.id}
-                        file={file}
-                        error={fileError}
-                        onDirtyChange={setFileDirty}
-                    />
-                )}
-                {extraTabs.includes('console') && tab === 'console' && (
-                    <ConsoleView
-                        projectId={project.id}
-                        active
-                        running={running}
-                        clearSignal={consoleClears}
-                    />
-                )}
-                {extraTabs.includes('shell') &&
-                    (running && sandbox.shell_url && !shellUnreachable ? (
-                        // Stays mounted while the tab is open so the session survives tab switches.
-                        <iframe
-                            // A new sign-in restarts the terminal on Claude Code's own `claude auth login`.
-                            key={claudeSignIns}
-                            ref={shellFrame}
-                            src={
-                                shellFolder !== null
-                                    ? shellUrlIn(
-                                          sandbox.shell_url,
-                                          sandbox.shell_via_gateway,
-                                          shellFolder,
-                                      )
-                                    : claudeSignIns > 0 &&
-                                        sandbox.claude_login_url
-                                      ? sandbox.claude_login_url
-                                      : sandbox.shell_url
-                            }
-                            title="Shell"
-                            onLoad={() =>
-                                tab === 'shell' && shellFrame.current?.focus()
-                            }
-                            className={cn(
-                                'flex-1 bg-neutral-950',
-                                tab !== 'shell' && 'hidden',
+                            {!working && previewErrors.errors.length > 0 && (
+                                <PreviewErrorBar
+                                    errors={previewErrors.errors}
+                                    onFix={fixPreviewErrors}
+                                    onDismiss={previewErrors.clear}
+                                />
                             )}
-                            data-test="shell-frame"
-                        />
+                        </div>
                     ) : (
-                        tab === 'shell' && (
+                        <PreviewPlaceholder sandbox={sandbox} copy={copy} />
+                    ),
+                )}
+                {content(
+                    'tools',
+                    shown('tools') && (
+                        <ToolsPanel
+                            projectId={project.id}
+                            running={running}
+                            working={working}
+                            publication={publication}
+                            initialSection={tool}
+                            onSectionChange={setTool}
+                        />
+                    ),
+                )}
+                {content(
+                    'file',
+                    shown('file') && openPath && (
+                        <FileViewer
+                            key={openPath}
+                            projectId={project.id}
+                            file={file}
+                            error={fileError}
+                            onDirtyChange={setFileDirty}
+                        />
+                    ),
+                )}
+                {content(
+                    'console',
+                    shown('console') && (
+                        <ConsoleView
+                            projectId={project.id}
+                            active
+                            running={running}
+                            clearSignal={consoleClears}
+                        />
+                    ),
+                )}
+                {content(
+                    'requirements',
+                    shown('requirements') && (
+                        <RequirementsView
+                            projectId={project.id}
+                            running={running}
+                            refreshSignal={`${activity}-${working}-${filesChanges}`}
+                            onShowTests={showRequirementTests}
+                        />
+                    ),
+                )}
+                {content(
+                    'tests',
+                    shown('tests') && (
+                        <TestsView
+                            projectId={project.id}
+                            running={running}
+                            refreshSignal={`${activity}-${working}-${filesChanges}`}
+                            focus={testsFocus}
+                            runnerReachable={!remote}
+                            onTakeOver={showBrowser}
+                        />
+                    ),
+                )}
+                {content(
+                    'browser',
+                    // Stays mounted while the tab is open, so its stream doesn't reconnect on every switch or move.
+                    <BrowserView
+                        projectId={project.id}
+                        session={browserSession}
+                        onClose={() => closeTab('browser')}
+                    />,
+                )}
+                {shells.map((shell) =>
+                    content(
+                        shell,
+                        shellReady ? (
+                            // Stays mounted while the tab is open so the session survives tab switches and moves.
+                            <iframe
+                                ref={(frame) => {
+                                    if (frame) {
+                                        shellFrames.current[shell] = frame;
+                                    } else {
+                                        delete shellFrames.current[shell];
+                                    }
+                                }}
+                                src={shellSrc(shell, sandbox)}
+                                title={panes.shellLabel(shell)}
+                                onLoad={() =>
+                                    tab === shell &&
+                                    shellFrames.current[shell]?.focus()
+                                }
+                                className="flex-1 bg-neutral-950"
+                                data-test={
+                                    shell === 'shell'
+                                        ? 'shell-frame'
+                                        : `shell-frame-${shell.slice('shell-'.length)}`
+                                }
+                            />
+                        ) : (
                             <Notice>
                                 {shellUnreachable
                                     ? 'The shell only works on the machine running this app builder.'
@@ -1278,10 +1766,24 @@ function WorkspacePanel({
                                       ? "This sandbox doesn't have a shell. It was created before shells were added; recreate it to get one."
                                       : 'The shell starts when the sandbox is running.'}
                             </Notice>
-                        )
-                    ))}
+                        ),
+                    ),
+                )}
             </section>
 
+            <QuickOpen
+                open={quickOpen}
+                onOpenChange={setQuickOpen}
+                entries={files.entries}
+                recent={recentFiles}
+                loading={files.loading}
+                notice={
+                    !running
+                        ? 'Files appear once the sandbox is running.'
+                        : files.error
+                }
+                onOpenFile={openFile}
+            />
             {filesOpen && (
                 <ResizeHandle
                     label="Resize files"
@@ -1338,6 +1840,7 @@ function WorkspacePanel({
                                     setFileSearch({ folder: '', query: '' })
                                 }
                                 placeholder="Search files"
+                                title="Filter the tree by name; ⌘/Ctrl+P goes to any file"
                                 aria-label={`Search file names in ${fileSearch.folder || 'the project'}`}
                                 className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
                                 data-test="files-search"
@@ -1362,6 +1865,7 @@ function WorkspacePanel({
                             onClose={toggleFiles}
                             onChanged={() => void files.refresh()}
                             onCreatedFile={openFile}
+                            onGoToFile={() => setQuickOpen(true)}
                         />
                     </div>
                     <div className="flex-1 overflow-y-auto px-1">
@@ -1387,7 +1891,7 @@ function WorkspacePanel({
                             <FileTree
                                 projectId={project.id}
                                 entries={visibleEntries}
-                                selected={tab === 'file' ? openPath : null}
+                                selected={shown('file') ? openPath : null}
                                 onSelect={openFile}
                                 expandAll={searching}
                                 onChanged={() => void files.refresh()}
@@ -1435,16 +1939,18 @@ function shellUrlIn(
     return url.href;
 }
 
-type ToolTab = 'console' | 'shell';
-/** Tabs that can be closed and dragged into a different order; Tools and Preview stay put. */
-type MovableTab = ToolTab | 'file';
-type ActiveTab = 'tools' | 'preview' | MovableTab;
+/** Tabs the "+" menu adds. */
+type ToolTab = 'console' | 'shell' | 'requirements' | 'tests' | 'browser';
 
-const ACTIVE_TABS: ActiveTab[] = [
+/** Tabs the URL can ask for. */
+const ACTIVE_TABS: PaneTab[] = [
     'tools',
     'preview',
     'console',
     'shell',
+    'requirements',
+    'tests',
+    'browser',
     'file',
 ];
 
@@ -1462,6 +1968,9 @@ const LIVE_PROPS = [
 ];
 
 const FILES_OPEN_KEY = 'onedrop.files-open';
+
+/** localStorage key for whether the chat was last left showing (LAYOUT-001). */
+const CHAT_OPEN_KEY = 'onedrop.chat-open';
 
 /** localStorage keys and limits for the chat and files panel widths, in px. */
 const CHAT_WIDTH_KEY = 'onedrop.chat-width';
@@ -1502,6 +2011,12 @@ const HIDE_HIDDEN_KEY = 'onedrop.files-hide-hidden';
 const TOOL_TABS: Record<ToolTab, { label: string; icon: React.ReactNode }> = {
     console: { label: 'Console', icon: <Terminal className="size-4" /> },
     shell: { label: 'Shell', icon: <SquareTerminal className="size-4" /> },
+    requirements: {
+        label: 'Requirements',
+        icon: <ClipboardList className="size-4" />,
+    },
+    tests: { label: 'Tests', icon: <FlaskConical className="size-4" /> },
+    browser: { label: 'Browser', icon: <Globe className="size-4" /> },
 };
 
 function TabButton({
@@ -1527,7 +2042,7 @@ function TabButton({
         <div
             {...dragProps}
             className={cn(
-                'flex items-center rounded-md transition-colors',
+                'flex shrink-0 items-center rounded-md whitespace-nowrap transition-colors',
                 active
                     ? 'bg-muted font-medium'
                     : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
@@ -1585,6 +2100,105 @@ function AutofixToggle({ project }: { project: Project }) {
             <Wrench className="size-3.5" />
             Autofix
         </button>
+    );
+}
+
+/** Pixels moved per arrow key press on a pane divider. */
+const PANE_KEYBOARD_STEP = 16;
+
+/**
+ * The line between two panes (LAYOUT-002): dragging it moves space from one to the other, as a share of
+ * the whole `area`; double-clicking makes every pane the same size.
+ */
+function PaneDivider({
+    direction,
+    area,
+    style,
+    onResize,
+    onReset,
+}: {
+    direction: 'row' | 'column';
+    area: React.RefObject<HTMLElement | null>;
+    style: CSSProperties;
+    /** Move the line by this share of the whole area. */
+    onResize: (delta: number) => void;
+    onReset: () => void;
+}) {
+    const last = useRef<number | null>(null);
+    const [dragging, setDragging] = useState(false);
+    const row = direction === 'row';
+    const length = () => {
+        const rect = area.current?.getBoundingClientRect();
+
+        return (row ? rect?.width : rect?.height) || 1;
+    };
+
+    return (
+        <div
+            role="separator"
+            aria-label="Resize panes"
+            aria-orientation={row ? 'vertical' : 'horizontal'}
+            tabIndex={0}
+            data-test="pane-divider"
+            style={style}
+            onPointerDown={(event) => {
+                event.preventDefault();
+                event.currentTarget.setPointerCapture(event.pointerId);
+                last.current = row ? event.clientX : event.clientY;
+                setDragging(true);
+            }}
+            onPointerMove={(event) => {
+                if (last.current !== null) {
+                    const position = row ? event.clientX : event.clientY;
+                    onResize((position - last.current) / length());
+                    last.current = position;
+                }
+            }}
+            onPointerUp={() => {
+                last.current = null;
+                setDragging(false);
+            }}
+            onPointerCancel={() => {
+                last.current = null;
+                setDragging(false);
+            }}
+            onDoubleClick={onReset}
+            onKeyDown={(event) => {
+                const step = (
+                    row
+                        ? { ArrowRight: 1, ArrowLeft: -1 }
+                        : { ArrowDown: 1, ArrowUp: -1 }
+                )[event.key as 'ArrowRight'];
+
+                if (step) {
+                    event.preventDefault();
+                    onResize((step * PANE_KEYBOARD_STEP) / length());
+                }
+            }}
+            className={cn(
+                'group relative z-10 touch-none bg-sidebar-border/70 outline-none dark:bg-sidebar-border',
+                row ? 'cursor-col-resize' : 'cursor-row-resize',
+            )}
+        >
+            <span
+                className={cn(
+                    'absolute transition-colors group-hover:bg-primary/20 group-focus-visible:bg-primary/40',
+                    row
+                        ? 'inset-y-0 -right-1 -left-1'
+                        : 'inset-x-0 -top-1 -bottom-1',
+                    dragging && 'bg-primary/40',
+                )}
+            />
+            {/* Keeps previews and Shells (iframes) from swallowing the drag. */}
+            {dragging && (
+                <span
+                    className={cn(
+                        'fixed inset-0 select-none',
+                        row ? 'cursor-col-resize' : 'cursor-row-resize',
+                    )}
+                />
+            )}
+        </div>
     );
 }
 

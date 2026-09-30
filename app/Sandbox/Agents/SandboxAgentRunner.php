@@ -2,6 +2,7 @@
 
 namespace App\Sandbox\Agents;
 
+use App\Enums\AgentHarness;
 use App\Enums\AgentProvider;
 use App\Enums\MessageRole;
 use App\Enums\SandboxStatus;
@@ -12,6 +13,8 @@ use App\Models\Sandbox;
 use App\Models\Task;
 use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxProvider;
+use App\Sandbox\SandboxSkills;
+use App\Sandbox\WorkspaceBrowser;
 use App\Sandbox\WorkspaceFiles;
 use Illuminate\Support\Number;
 
@@ -96,6 +99,14 @@ abstract class SandboxAgentRunner implements AgentRunner
      */
     protected function prompt(Message $message, array $attached): string
     {
+        return $this->withBrowserNote($message, $this->withAttachments($message, $attached));
+    }
+
+    /**
+     * @param  array<string, Attachment>  $attached
+     */
+    protected function withAttachments(Message $message, array $attached): string
+    {
         if ($attached === []) {
             return $message->content;
         }
@@ -107,6 +118,18 @@ abstract class SandboxAgentRunner implements AgentRunner
         $text = $message->content !== '' ? $message->content : '(No message, just the attached files.)';
 
         return "{$text}\n\n---\nAttached files (see \"Attachments\" in your instructions):\n{$list}";
+    }
+
+    /**
+     * While the user has a test's page open in the Browser tab (TEST-005), tell the agent: "this" in their message
+     * is probably on that page.
+     */
+    protected function withBrowserNote(Message $message, string $prompt): string
+    {
+        $sandbox = $message->conversation()->agentSandbox();
+        $note = $sandbox ? WorkspaceBrowser::agentNote($sandbox) : null;
+
+        return $note ? "{$prompt}\n\n{$note}" : $prompt;
     }
 
     /**
@@ -158,8 +181,9 @@ abstract class SandboxAgentRunner implements AgentRunner
     }
 
     /**
-     * Start the forwarder with the run's environment, plus where to send events and which run it is,
-     * so the conversation's events come back to it and stopping it leaves other runs alone.
+     * Put the project's skills in place, then start the forwarder with the run's environment, plus where to send events and which run it is,
+     * so the conversation's events come back to it and stopping it leaves other runs alone. Whether the agent
+     * keeps the project's requirements (REQ-001) goes along too.
      *
      * @param  array<string, string>  $env
      */
@@ -175,7 +199,10 @@ abstract class SandboxAgentRunner implements AgentRunner
             'APP_EVENTS_TOKEN' => $conversation->issueEventsToken(),
             'APP_SESSION_ID' => $conversation->agent_session_id ?? '',
             'APP_RUN' => $conversation->runKey(),
+            'APP_REQUIREMENTS' => $conversation->ownerProject()->track_requirements ? '1' : '',
         ];
+
+        app(SandboxSkills::class)->install($sandbox, $conversation->ownerProject(), $env['APP_AGENT'] ?? AgentHarness::OpenCode->value);
 
         try {
             $result = $this->provider->exec($sandbox->external_id, ['node', '/opt/onedrop/forwarder.mjs'], $env, detach: true);

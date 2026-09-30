@@ -6,6 +6,7 @@
 // Apps that ignore X-Forwarded-Host write their own address as localhost into pages (asset URLs,
 // redirects); text responses get those links pointed back at the address the visitor used.
 import { spawn } from 'node:child_process';
+import { timingSafeEqual } from 'node:crypto';
 import {
     appendFile,
     closeSync,
@@ -16,6 +17,8 @@ import {
     readSync,
     renameSync,
     statSync,
+    utimesSync,
+    writeFileSync,
 } from 'node:fs';
 import http from 'node:http';
 import net from 'node:net';
@@ -36,6 +39,10 @@ const RESERVED_PORTS = new Set(
         listenPort,
         process.env.SHELL_PORT || 7681,
         process.env.SSH_PORT || 2222,
+        process.env.ONEDROP_TESTS_UI_PORT || 9323,
+        process.env.ONEDROP_BROWSER_PORT || 9331,
+        // The debugging ports browser.mjs gives the test's browser.
+        ...Array.from({ length: 10 }, (_, i) => 9224 + i),
     ].map(Number),
 );
 const ROUTES_TTL_MS = 1000;
@@ -858,8 +865,301 @@ setInterval(
     Number(process.env.APP_METRICS_INTERVAL || 60_000),
 ).unref();
 
+// The test runner (Playwright's UI mode, TEST-004), started by tests.mjs on a local port, is served under
+// /__onedrop/tests-ui/ on the preview's address, never the published one. Only a browser holding the runner's
+// token gets in: the Tests tab opens it with ?onedrop_tests_ui=<token>, traded here for a cookie. The runner
+// stops itself when no one has used it for a while; every request (and open socket) here counts as use.
+const TESTS_UI_PATH = '/__onedrop/tests-ui';
+const TESTS_UI_PORT = Number(process.env.ONEDROP_TESTS_UI_PORT || 9323);
+const TESTS_UI_STATE =
+    process.env.ONEDROP_TESTS_UI_STATE || '/tmp/onedrop-tests-ui.json';
+const TESTS_UI_SEEN = `${TESTS_UI_STATE}.seen`;
+const TESTS_UI_COOKIE = 'onedrop_tests_ui';
+
+function isTestsUi(path) {
+    return path === TESTS_UI_PATH || path.startsWith(`${TESTS_UI_PATH}/`);
+}
+
+function testsUiToken() {
+    try {
+        const token = JSON.parse(readFileSync(TESTS_UI_STATE, 'utf8')).token;
+
+        return typeof token === 'string' && token.length >= 32 ? token : null;
+    } catch {
+        return null;
+    }
+}
+
+function sameToken(given, token) {
+    const a = Buffer.from(String(given ?? ''));
+    const b = Buffer.from(token);
+
+    return a.length === b.length && timingSafeEqual(a, b);
+}
+
+function cookieValue(req, name) {
+    for (const part of String(req.headers.cookie ?? '').split(';')) {
+        const [key, ...value] = part.trim().split('=');
+
+        if (key === name) {
+            return value.join('=');
+        }
+    }
+
+    return null;
+}
+
+/** Why this request can't reach the test runner, or null when it can. */
+function testsUiRefusal(req) {
+    const token = testsUiToken();
+
+    if (!isPreview(String(req.headers.host ?? '')) || !token) {
+        return [404, "The test runner isn't open. Open it from the Tests tab."];
+    }
+
+    return sameToken(cookieValue(req, TESTS_UI_COOKIE), token)
+        ? null
+        : [403, 'Open the test runner from the Tests tab.'];
+}
+
+function touchTestsUi() {
+    const now = new Date();
+
+    try {
+        utimesSync(TESTS_UI_SEEN, now, now);
+    } catch {
+        try {
+            writeFileSync(TESTS_UI_SEEN, '');
+        } catch {
+            // Not being able to note the visit only lets the runner stop sooner.
+        }
+    }
+}
+
+/** The runner's own path for a request under TESTS_UI_PATH. */
+function testsUiPath(url) {
+    return String(url ?? '').slice(TESTS_UI_PATH.length) || '/';
+}
+
+/** Headers for the runner: it only takes requests for its own local address. */
+function testsUiHeaders(req) {
+    const headers = { ...req.headers, host: `127.0.0.1:${TESTS_UI_PORT}` };
+
+    delete headers.cookie;
+
+    if (headers.origin) {
+        headers.origin = `http://127.0.0.1:${TESTS_UI_PORT}`;
+    }
+
+    delete headers.referer;
+
+    return headers;
+}
+
+function serveTestsUi(req, res) {
+    const url = new URL(String(req.url ?? '/'), 'http://preview');
+    const given = url.searchParams.get(TESTS_UI_COOKIE);
+    const token = testsUiToken();
+
+    // Coming from the Tests tab: trade the token for a cookie and drop it from the address.
+    if (given !== null && token && isPreview(String(req.headers.host ?? ''))) {
+        if (!sameToken(given, token)) {
+            res.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' });
+            res.end(
+                'This test runner link has expired. Open it again from the Tests tab.',
+            );
+
+            return;
+        }
+
+        url.searchParams.delete(TESTS_UI_COOKIE);
+        const secure = visitorProto(req) === 'https' ? '; Secure' : '';
+        res.writeHead(302, {
+            'set-cookie': `${TESTS_UI_COOKIE}=${token}; Path=${TESTS_UI_PATH}; HttpOnly; SameSite=Lax${secure}`,
+            location: `${url.pathname === TESTS_UI_PATH ? `${TESTS_UI_PATH}/` : url.pathname}${url.search}`,
+            'cache-control': 'no-store',
+        });
+        res.end();
+
+        return;
+    }
+
+    const refusal = testsUiRefusal(req);
+
+    if (refusal) {
+        res.writeHead(refusal[0], {
+            'content-type': 'text/plain; charset=utf-8',
+        });
+        res.end(refusal[1]);
+
+        return;
+    }
+
+    if (url.pathname === TESTS_UI_PATH) {
+        res.writeHead(302, { location: `${TESTS_UI_PATH}/` });
+        res.end();
+
+        return;
+    }
+
+    touchTestsUi();
+
+    const upstream = http.request(
+        {
+            host: '127.0.0.1',
+            port: TESTS_UI_PORT,
+            method: req.method,
+            path: testsUiPath(req.url),
+            headers: testsUiHeaders(req),
+        },
+        (response) => {
+            res.writeHead(response.statusCode ?? 502, response.headers);
+            response.pipe(res);
+        },
+    );
+
+    upstream.on('error', () => {
+        if (!res.headersSent) {
+            res.writeHead(502, { 'content-type': 'text/plain; charset=utf-8' });
+        }
+
+        res.end(
+            "The test runner isn't running. Open it again from the Tests tab.",
+        );
+    });
+
+    req.pipe(upstream);
+}
+
+function upgradeTestsUi(req, socket, head) {
+    if (testsUiRefusal(req)) {
+        socket.end('HTTP/1.1 403 Forbidden\r\n\r\n');
+
+        return;
+    }
+
+    touchTestsUi();
+    // An open runner is in use: keep noting it while its socket stays open.
+    const keepAlive = setInterval(touchTestsUi, 60_000);
+
+    connectUpgrade(
+        req,
+        socket,
+        head,
+        TESTS_UI_PORT,
+        testsUiPath(req.url),
+        testsUiHeaders(req),
+    );
+    socket.on('close', () => clearInterval(keepAlive));
+}
+
+// The browser's viewer (browser.mjs, TEST-005) under /__onedrop/browser/, on the preview's address only. It's shown
+// in an iframe in the workspace, where a cookie from this address wouldn't be sent, so every request (the page and
+// its socket) carries the browser's token in the query instead, and is checked each time.
+const BROWSER_PATH = '/__onedrop/browser';
+const BROWSER_PORT = Number(process.env.ONEDROP_BROWSER_PORT || 9331);
+const BROWSER_STATE =
+    process.env.ONEDROP_BROWSER_STATE || '/tmp/onedrop-browser.json';
+
+function isBrowser(path) {
+    return path === BROWSER_PATH || path.startsWith(`${BROWSER_PATH}/`);
+}
+
+function browserAllowed(req) {
+    let token = null;
+
+    try {
+        const state = JSON.parse(readFileSync(BROWSER_STATE, 'utf8'));
+        token =
+            state.ready &&
+            typeof state.token === 'string' &&
+            state.token.length >= 32
+                ? state.token
+                : null;
+    } catch {
+        // Not open.
+    }
+
+    const given = new URL(
+        String(req.url ?? '/'),
+        'http://preview',
+    ).searchParams.get('token');
+
+    return (
+        !!token &&
+        isPreview(String(req.headers.host ?? '')) &&
+        sameToken(given, token)
+    );
+}
+
+function browserHeaders(req) {
+    const headers = {
+        ...req.headers,
+        host: `127.0.0.1:${BROWSER_PORT}`,
+        'x-onedrop-proxied': '1',
+    };
+
+    delete headers.cookie;
+    delete headers.origin;
+    delete headers.referer;
+
+    return headers;
+}
+
+function serveBrowser(req, res) {
+    if (!browserAllowed(req)) {
+        res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+        res.end(
+            "The browser isn't open. Start it from a step in the Tests tab.",
+        );
+
+        return;
+    }
+
+    const upstream = http.request(
+        {
+            host: '127.0.0.1',
+            port: BROWSER_PORT,
+            method: req.method,
+            path: String(req.url).slice(BROWSER_PATH.length) || '/',
+            headers: browserHeaders(req),
+        },
+        (response) => {
+            res.writeHead(response.statusCode ?? 502, {
+                ...response.headers,
+                'referrer-policy': 'no-referrer',
+            });
+            response.pipe(res);
+        },
+    );
+
+    upstream.on('error', () => {
+        if (!res.headersSent) {
+            res.writeHead(502, { 'content-type': 'text/plain; charset=utf-8' });
+        }
+
+        res.end(
+            "The browser isn't running. Start it again from the Tests tab.",
+        );
+    });
+
+    req.pipe(upstream);
+}
+
 const server = http.createServer((req, res) => {
     const path = String(req.url ?? '').split('?')[0];
+
+    if (isTestsUi(path)) {
+        serveTestsUi(req, res);
+
+        return;
+    }
+
+    if (isBrowser(path)) {
+        serveBrowser(req, res);
+
+        return;
+    }
 
     if (req.method === 'POST' && path === EVENT_PATH) {
         recordEvent(req, res);
@@ -917,12 +1217,12 @@ const server = http.createServer((req, res) => {
     req.pipe(upstream);
 });
 
-server.on('upgrade', (req, socket, head) => {
-    const port = targetPort(req.url);
+/** Pass a WebSocket (or other upgrade) through to a local port, as the given path with the given headers. */
+function connectUpgrade(req, socket, head, port, path, headers) {
     const upstream = net.connect(port, '127.0.0.1', () => {
-        const lines = [`${req.method} ${req.url} HTTP/${req.httpVersion}`];
+        const lines = [`${req.method} ${path} HTTP/${req.httpVersion}`];
 
-        for (const [name, value] of Object.entries(rewrite(req, port))) {
+        for (const [name, value] of Object.entries(headers)) {
             for (const item of Array.isArray(value) ? value : [value]) {
                 lines.push(`${name}: ${String(item)}`);
             }
@@ -939,6 +1239,35 @@ server.on('upgrade', (req, socket, head) => {
 
     upstream.on('error', () => socket.destroy());
     socket.on('error', () => upstream.destroy());
+}
+
+server.on('upgrade', (req, socket, head) => {
+    if (isTestsUi(String(req.url ?? '').split('?')[0])) {
+        upgradeTestsUi(req, socket, head);
+
+        return;
+    }
+
+    if (isBrowser(String(req.url ?? '').split('?')[0])) {
+        if (browserAllowed(req)) {
+            connectUpgrade(
+                req,
+                socket,
+                head,
+                BROWSER_PORT,
+                String(req.url).slice(BROWSER_PATH.length),
+                browserHeaders(req),
+            );
+        } else {
+            socket.end('HTTP/1.1 404 Not Found\r\n\r\n');
+        }
+
+        return;
+    }
+
+    const port = targetPort(req.url);
+
+    connectUpgrade(req, socket, head, port, req.url, rewrite(req, port));
 });
 
 server.listen(listenPort, '0.0.0.0');
