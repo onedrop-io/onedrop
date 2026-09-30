@@ -1,6 +1,6 @@
 # REQ
 
-Everything OneDrop has to be, in one place: the requirements (the stories in `SPEC.md`, summed up by area) and the decisions made along the way, with the reasons for them. `SPEC.md` says *what* users can do; this file also says *why it is that way* and what was ruled out, so a later change doesn't undo a choice by accident. See `AGENTS.md` for when and how to update it.
+Everything OneDrop has to be, in one place: the requirements (the stories in `SPEC.md`, summed up by area) and the decisions made along the way, with the reasons for them. `SPEC.md` says _what_ users can do; this file also says _why it is that way_ and what was ruled out, so a later change doesn't undo a choice by accident. See `AGENTS.md` for when and how to update it.
 
 ## Product
 

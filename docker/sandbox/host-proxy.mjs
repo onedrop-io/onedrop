@@ -426,7 +426,8 @@ function recordEvent(req, res) {
 // written or a PHP file changed. Dev servers with their own hot reload write neither, so they're left alone.
 const LIVE_PATH = '/__onedrop/live';
 const LIVE_CHANGE = /(\/public\/build\/|\.php$)/;
-const LIVE_EXCLUDE = '/(node_modules|\\.git|vendor|storage|bootstrap/cache|\\.onedrop)(/|$)';
+const LIVE_EXCLUDE =
+    '/(node_modules|\\.git|vendor|storage|bootstrap/cache|\\.onedrop)(/|$)';
 // Reload once writes have been quiet this long, so a build's files are all there.
 const LIVE_QUIET_MS = 300;
 const LIVE_PING_MS = 25_000;

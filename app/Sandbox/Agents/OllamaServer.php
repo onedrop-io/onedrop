@@ -70,7 +70,7 @@ class OllamaServer
         $key = "ollama-models:{$connection->id}:".md5($connection->credential);
         $cached = Cache::get($key);
 
-        if (is_array($cached)) {
+        if (is_array($cached) && array_is_list($cached)) {
             return $cached;
         }
 

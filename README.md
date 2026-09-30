@@ -62,13 +62,13 @@ That's it. OneDrop opens at **http://localhost:8000**, and the first account you
 
 Hosted app builders are great until you need to own the result. OneDrop gives you the same "type it and watch it appear" loop, on your terms.
 
-|                                  | OneDrop                                                           | Typical hosted builder     |
-| -------------------------------- | ----------------------------------------------------------------- | -------------------------- |
-| **Your AI**                      | Your ChatGPT, Claude, or API key. No credits, no markup.          | Their credits, their price |
-| **Where it runs**                | Your laptop, any Ubuntu server, or AWS                            | Their cloud                |
-| **What you get**                 | Standard React or Laravel code, with tests, in git                | Code tied to their stack   |
-| **Built-in production plumbing** | Sign-in, database, secrets, storage, feature flags, monitoring    | Varies, often add-ons      |
-| **Price to self-host**           | Free, [source available](#license)                                | n/a                        |
+|                                  | OneDrop                                                        | Typical hosted builder     |
+| -------------------------------- | -------------------------------------------------------------- | -------------------------- |
+| **Your AI**                      | Your ChatGPT, Claude, or API key. No credits, no markup.       | Their credits, their price |
+| **Where it runs**                | Your laptop, any Ubuntu server, or AWS                         | Their cloud                |
+| **What you get**                 | Standard React or Laravel code, with tests, in git             | Code tied to their stack   |
+| **Built-in production plumbing** | Sign-in, database, secrets, storage, feature flags, monitoring | Varies, often add-ons      |
+| **Price to self-host**           | Free, [source available](#license)                             | n/a                        |
 
 ## Features
 
@@ -183,15 +183,15 @@ Run the tests with `php artisan test`. Read [Contributing](https://docs.onedrop.
 <details>
 <summary><b>Where things live</b></summary>
 
-| Path                    | What's there                                                     |
-| ----------------------- | ---------------------------------------------------------------- |
-| `app/Sandbox/`          | Sandbox providers (Docker, Blaxel, Runtime), agent runners       |
-| `app/Jobs/`             | Creating sandboxes, running agents, publishing                   |
-| `resources/js/pages/`   | The React UI                                                     |
-| `docker/sandbox/`       | The sandbox image, event forwarder, and host proxy               |
-| `infra/`                | Server bootstrap and AWS (Pulumi)                                |
-| `docs/`                 | [docs.onedrop.io](https://docs.onedrop.io), in Mintlify          |
-| `docs/plans/`           | Plans, including the original [build plan](docs/plans/build-plan.md) |
+| Path                  | What's there                                                         |
+| --------------------- | -------------------------------------------------------------------- |
+| `app/Sandbox/`        | Sandbox providers (Docker, Blaxel, Runtime), agent runners           |
+| `app/Jobs/`           | Creating sandboxes, running agents, publishing                       |
+| `resources/js/pages/` | The React UI                                                         |
+| `docker/sandbox/`     | The sandbox image, event forwarder, and host proxy                   |
+| `infra/`              | Server bootstrap and AWS (Pulumi)                                    |
+| `docs/`               | [docs.onedrop.io](https://docs.onedrop.io), in Mintlify              |
+| `docs/plans/`         | Plans, including the original [build plan](docs/plans/build-plan.md) |
 
 </details>
 

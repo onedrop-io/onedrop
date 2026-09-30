@@ -3,31 +3,31 @@ import {
     CloudUpload,
     Combine,
     GitCommitHorizontal,
-} from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
-import ProjectGitController from "@/actions/App/Http/Controllers/ProjectGitController";
-import SocialProviderIcon from "@/components/social-provider-icon";
-import { Dialog } from "@/components/ui/dialog";
+} from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
+import ProjectGitController from '@/actions/App/Http/Controllers/ProjectGitController';
+import SocialProviderIcon from '@/components/social-provider-icon';
+import { Dialog } from '@/components/ui/dialog';
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
-import CombineCommitsDialog from "@/components/workspace/combine-commits-dialog";
-import CommitDialog from "@/components/workspace/commit-dialog";
-import { DEFAULT_BRANCHES } from "@/components/workspace/git-state";
-import type { GitState } from "@/components/workspace/git-state";
-import PullRequestDialog from "@/components/workspace/pull-request-dialog";
-import { jsonRequest } from "@/lib/json-request";
-import { openWorkspaceTool } from "@/lib/workspace-view";
+} from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
+import CombineCommitsDialog from '@/components/workspace/combine-commits-dialog';
+import CommitDialog from '@/components/workspace/commit-dialog';
+import { DEFAULT_BRANCHES } from '@/components/workspace/git-state';
+import type { GitState } from '@/components/workspace/git-state';
+import PullRequestDialog from '@/components/workspace/pull-request-dialog';
+import { jsonRequest } from '@/lib/json-request';
+import { openWorkspaceTool } from '@/lib/workspace-view';
 
 type OpenDialog =
-    | { kind: "commit"; push: boolean }
-    | { kind: "pull-request" }
-    | { kind: "combine" };
+    | { kind: 'commit'; push: boolean }
+    | { kind: 'pull-request' }
+    | { kind: 'combine' };
 
 /**
  * Commit, push and open a pull request from the header (GIT-006), next to Share. The same git as Tools → Git.
@@ -64,7 +64,7 @@ export default function GitActionsMenu({
     }, [load, running, working]);
 
     const syncStatus = git?.remote?.sync_status ?? null;
-    const syncing = syncStatus === "pushing" || syncStatus === "pulling";
+    const syncing = syncStatus === 'pushing' || syncStatus === 'pulling';
 
     useEffect(() => {
         if (!syncing) {
@@ -82,21 +82,21 @@ export default function GitActionsMenu({
             return;
         }
 
-        if (syncStatus === "failed") {
-            toast.error(git?.remote?.sync_error ?? "The push failed.", {
+        if (syncStatus === 'failed') {
+            toast.error(git?.remote?.sync_error ?? 'The push failed.', {
                 id: pushToast.current,
             });
         } else {
-            toast.success("Pushed", { id: pushToast.current });
+            toast.success('Pushed', { id: pushToast.current });
         }
 
         pushToast.current = null;
     }, [git, syncStatus, syncing]);
 
     const pushBranch = () => {
-        const id = toast.loading("Pushing…");
+        const id = toast.loading('Pushing…');
 
-        return jsonRequest<Pick<GitState, "remote">>(
+        return jsonRequest<Pick<GitState, 'remote'>>(
             ProjectGitController.push.url(projectId),
             {},
         )
@@ -109,7 +109,7 @@ export default function GitActionsMenu({
             .catch((e: Error) => toast.error(e.message, { id }));
     };
 
-    const committed = (changed: Pick<GitState, "status">, push: boolean) => {
+    const committed = (changed: Pick<GitState, 'status'>, push: boolean) => {
         setGit((current) => (current ? { ...current, ...changed } : current));
         setDialog(null);
 
@@ -132,12 +132,12 @@ export default function GitActionsMenu({
     // Why a pull request can't be opened yet, or null when it can (GIT-007).
     const pullRequestProblem = !running
         ? "The sandbox isn't running"
-        : remote?.host !== "github.com"
-          ? "Needs a GitHub repository"
+        : remote?.host !== 'github.com'
+          ? 'Needs a GitHub repository'
           : !branch || DEFAULT_BRANCHES.includes(branch) || bases.length === 0
-            ? "Commit on a new branch first"
+            ? 'Commit on a new branch first'
             : ahead !== 0
-              ? "Push the branch first"
+              ? 'Push the branch first'
               : null;
 
     // More than one commit waiting to be pushed can be combined into one first (GIT-008).
@@ -149,18 +149,18 @@ export default function GitActionsMenu({
 
     const primary = () => {
         if (changes > 0) {
-            setDialog({ kind: "commit", push: !!remote });
+            setDialog({ kind: 'commit', push: !!remote });
         } else if (canPush) {
             void pushBranch();
         }
     };
 
     const title = !running
-        ? "Git works when the sandbox is running."
+        ? 'Git works when the sandbox is running.'
         : working
-          ? "The agent is working. It commits its changes when it finishes."
+          ? 'The agent is working. It commits its changes when it finishes.'
           : changes === 0 && !canPush
-            ? "Nothing to commit or push"
+            ? 'Nothing to commit or push'
             : undefined;
 
     return (
@@ -176,11 +176,11 @@ export default function GitActionsMenu({
                     data-test="git-actions-primary"
                 >
                     <CloudUpload className="size-4" />
-                    {syncStatus === "pushing"
-                        ? "Pushing…"
+                    {syncStatus === 'pushing'
+                        ? 'Pushing…'
                         : remote
-                          ? "Commit & push"
-                          : "Commit"}
+                          ? 'Commit & push'
+                          : 'Commit'}
                 </Button>
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -210,7 +210,7 @@ export default function GitActionsMenu({
                         <DropdownMenuItem
                             disabled={!canCommit}
                             onSelect={() =>
-                                openDialog({ kind: "commit", push: false })
+                                openDialog({ kind: 'commit', push: false })
                             }
                             data-test="git-actions-commit"
                         >
@@ -222,17 +222,17 @@ export default function GitActionsMenu({
                             onSelect={() =>
                                 remote
                                     ? void pushBranch()
-                                    : openWorkspaceTool("git")
+                                    : openWorkspaceTool('git')
                             }
                             data-test="git-actions-push"
                         >
                             <CloudUpload className="size-4" />
-                            {remote ? "Push" : "Connect a repository…"}
+                            {remote ? 'Push' : 'Connect a repository…'}
                         </DropdownMenuItem>
                         {combinable > 1 && (
                             <DropdownMenuItem
                                 disabled={busy || changes > 0}
-                                onSelect={() => openDialog({ kind: "combine" })}
+                                onSelect={() => openDialog({ kind: 'combine' })}
                                 data-test="git-actions-combine"
                             >
                                 <Combine className="size-4" />
@@ -249,7 +249,7 @@ export default function GitActionsMenu({
                         <DropdownMenuItem
                             disabled={pullRequestProblem !== null}
                             onSelect={() =>
-                                openDialog({ kind: "pull-request" })
+                                openDialog({ kind: 'pull-request' })
                             }
                             data-test="git-actions-pr"
                         >
@@ -277,7 +277,7 @@ export default function GitActionsMenu({
                 open={dialog !== null}
                 onOpenChange={(open) => !open && setDialog(null)}
             >
-                {dialog?.kind === "commit" && status && (
+                {dialog?.kind === 'commit' && status && (
                     <CommitDialog
                         projectId={projectId}
                         branch={status.branch}
@@ -298,7 +298,7 @@ export default function GitActionsMenu({
                         }
                     />
                 )}
-                {dialog?.kind === "combine" && (
+                {dialog?.kind === 'combine' && (
                     <CombineCommitsDialog
                         projectId={projectId}
                         working={working}
@@ -311,7 +311,7 @@ export default function GitActionsMenu({
                         }}
                     />
                 )}
-                {dialog?.kind === "pull-request" && branch && (
+                {dialog?.kind === 'pull-request' && branch && (
                     <PullRequestDialog
                         projectId={projectId}
                         branch={branch}

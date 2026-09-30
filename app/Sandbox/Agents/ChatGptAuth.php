@@ -167,11 +167,14 @@ class ChatGptAuth
             return null;
         }
 
-        $models = collect($response->successful() ? $response->json('models') : null)
-            ->filter(fn ($model) => is_array($model) && is_string($model['slug'] ?? null) && ($model['visibility'] ?? 'list') === 'list')
-            ->pluck('slug')
-            ->values()
-            ->all();
+        $listed = $response->successful() ? $response->json('models') : null;
+        $models = [];
+
+        foreach (is_array($listed) ? $listed : [] as $model) {
+            if (is_array($model) && is_string($model['slug'] ?? null) && ($model['visibility'] ?? 'list') === 'list') {
+                $models[] = $model['slug'];
+            }
+        }
 
         return $models !== [] ? $models : null;
     }

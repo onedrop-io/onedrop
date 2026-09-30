@@ -103,7 +103,7 @@ class DatabaseBackups
         $settings = $this->settings();
 
         if ($settings['destination'] === 's3') {
-            return Storage::build([
+            return $this->build([
                 'driver' => 's3',
                 'key' => $settings['s3']['key'],
                 'secret' => $settings['s3']['secret'],
@@ -115,7 +115,21 @@ class DatabaseBackups
             ]);
         }
 
-        return Storage::build(['driver' => 'local', 'root' => self::localRoot(), 'throw' => true]);
+        return $this->build(['driver' => 'local', 'root' => self::localRoot(), 'throw' => true]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $config
+     */
+    protected function build(array $config): FilesystemAdapter
+    {
+        $disk = Storage::build($config);
+
+        if (! $disk instanceof FilesystemAdapter) {
+            throw new RuntimeException("The backup disk isn't a Flysystem disk.");
+        }
+
+        return $disk;
     }
 
     /**
@@ -165,9 +179,9 @@ class DatabaseBackups
 
         try {
             $file = $this->driver() === 'sqlite' ? $this->copySqlite($directory) : $this->dumpPostgres($directory);
-            $stream = fopen($file, 'rb');
+            $stream = $this->open($file, 'rb');
             $this->disk()->writeStream($this->path($name), $stream);
-            is_resource($stream) && fclose($stream);
+            fclose($stream);
         } finally {
             File::deleteDirectory($directory);
         }
@@ -217,9 +231,11 @@ class DatabaseBackups
 
         try {
             $download = "{$directory}/{$name}";
-            $stream = $this->disk()->readStream($this->path($name));
-            File::put($download, $stream);
-            is_resource($stream) && fclose($stream);
+            $stream = $this->disk()->readStream($this->path($name)) ?? throw new RuntimeException("Couldn't read the backup {$name}.");
+            $local = $this->open($download, 'wb');
+            stream_copy_to_stream($stream, $local);
+            fclose($local);
+            fclose($stream);
 
             $this->backUp(beforeRestore: true);
 
@@ -293,6 +309,16 @@ class DatabaseBackups
         return DB::connection();
     }
 
+    /**
+     * @return resource
+     *
+     * @throws RuntimeException
+     */
+    protected function open(string $file, string $mode)
+    {
+        return fopen($file, $mode) ?: throw new RuntimeException("Couldn't open {$file}.");
+    }
+
     protected function extension(): string
     {
         return $this->driver() === 'sqlite' ? 'sqlite.gz' : 'pgdump';
@@ -307,8 +333,8 @@ class DatabaseBackups
         $this->connection()->statement('VACUUM INTO ?', [$copy]);
 
         $gzipped = "{$copy}.gz";
-        $in = fopen($copy, 'rb');
-        $out = gzopen($gzipped, 'wb6');
+        $in = $this->open($copy, 'rb');
+        $out = gzopen($gzipped, 'wb6') ?: throw new RuntimeException("Couldn't write {$gzipped}.");
 
         while (! feof($in)) {
             gzwrite($out, (string) fread($in, 1 << 20));
@@ -346,8 +372,8 @@ class DatabaseBackups
 
         // Next to the database, so the swap is a rename on the same disk.
         $restored = "{$database}.restoring";
-        $in = gzopen($download, 'rb');
-        $out = fopen($restored, 'wb');
+        $in = gzopen($download, 'rb') ?: throw new RuntimeException("Couldn't read {$download}.");
+        $out = $this->open($restored, 'wb');
 
         while (! gzeof($in)) {
             fwrite($out, (string) gzread($in, 1 << 20));
@@ -358,8 +384,11 @@ class DatabaseBackups
 
         try {
             $check = new PDO("sqlite:{$restored}");
-            $ok = $check->query('PRAGMA integrity_check')?->fetchColumn() === 'ok'
-                && $check->query("SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'migrations'")?->fetchColumn() > 0;
+            $integrity = $check->query('PRAGMA integrity_check');
+            $migrations = $check->query("SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'migrations'");
+            $ok = $integrity !== false && $integrity->fetchColumn() === 'ok'
+                && $migrations !== false && $migrations->fetchColumn() > 0;
+            $integrity = $migrations = null;
             $check = null;
         } catch (Throwable) {
             $ok = false;

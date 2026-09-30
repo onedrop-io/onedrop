@@ -171,11 +171,11 @@ class ProjectGitController extends Controller
             'partials.*.excluded.*' => ['integer', 'min:0'],
         ]);
         $paths = $validated['paths'] ?? null;
-        $partials = array_map(fn (array $partial) => [
+        $partials = array_values(array_map(fn (array $partial) => [
             'path' => $partial['path'],
             'hash' => $partial['hash'],
-            'excluded' => array_map(intval(...), $partial['excluded']),
-        ], $validated['partials'] ?? []);
+            'excluded' => array_values(array_map(intval(...), $partial['excluded'])),
+        ], $validated['partials'] ?? []));
 
         return $this->changing($project, function (Sandbox $sandbox) use ($git, $writer, $validated, $paths, $partials, $request, $project) {
             if (($validated['branch'] ?? null) !== null) {

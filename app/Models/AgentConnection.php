@@ -98,7 +98,9 @@ class AgentConnection extends Model
      */
     public function ollamaServer(): array
     {
-        return json_decode($this->credential, true) + ['key' => ''];
+        $server = json_decode($this->credential, true);
+
+        return ['url' => $server['url'] ?? '', 'key' => $server['key'] ?? ''];
     }
 
     /**

@@ -350,7 +350,6 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be able to delete a file, or a folder and everything in it, after confirming; an open file that's deleted closes.
 - Only the project's owner (or an admin) should be able to rename, delete or download files, and only inside the project's workspace, never the workspace itself.
 
-
 ## TAB-001: Workspace tabs
 
 - User should be able to add tabs next to Preview from a "+" menu, and close them.
@@ -962,4 +961,3 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Admin should be able to run a backup now, see the list of backups (newest first, with size and date), download one, and delete one.
 - Admin should see when the last backup ran and whether it failed, with the error.
 - Admin should be able to restore a backup after typing the file's name to confirm; the current database is backed up first, and a restore replaces all of the app's data.
-

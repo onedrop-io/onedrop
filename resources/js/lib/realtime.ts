@@ -1,14 +1,14 @@
-import { router, usePage } from "@inertiajs/react";
-import { configureEcho, echo, echoIsConfigured } from "@laravel/echo-react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { jsonRequest } from "@/lib/json-request";
+import { router, usePage } from '@inertiajs/react';
+import { configureEcho, echo, echoIsConfigured } from '@laravel/echo-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { jsonRequest } from '@/lib/json-request';
 
 /** Where the browser connects for live updates (LIVE-001); null when the app doesn't broadcast. */
 export type RealtimeConfig = {
     key: string;
     host: string | null;
     port: number;
-    scheme: "http" | "https";
+    scheme: 'http' | 'https';
 };
 
 /**
@@ -22,20 +22,20 @@ function connect(config: RealtimeConfig | null): boolean {
 
     if (!echoIsConfigured()) {
         configureEcho({
-            broadcaster: "reverb",
+            broadcaster: 'reverb',
             key: config.key,
             wsHost: config.host ?? window.location.hostname,
             wsPort: config.port,
             wssPort: config.port,
-            forceTLS: config.scheme === "https",
-            enabledTransports: ["ws", "wss"],
+            forceTLS: config.scheme === 'https',
+            enabledTransports: ['ws', 'wss'],
             // The session's CSRF token lives in the XSRF-TOKEN cookie (there's no meta tag); read it on each subscribe.
             channelAuthorization: {
                 customHandler: (
                     { socketId, channelName },
                     callback: (error: Error | null, data: unknown) => void,
                 ) => {
-                    jsonRequest("/broadcasting/auth", {
+                    jsonRequest('/broadcasting/auth', {
                         socket_id: socketId,
                         channel_name: channelName,
                     })
@@ -68,7 +68,7 @@ export function useProjectChannel(
         latest.current = handlers;
     });
 
-    const events = Object.keys(handlers).sort().join(",");
+    const events = Object.keys(handlers).sort().join(',');
 
     useEffect(() => {
         if (!connect(JSON.parse(config) as RealtimeConfig | null)) {
@@ -78,7 +78,7 @@ export function useProjectChannel(
         const name = `project.${projectId}`;
         const channel = echo().private(name);
         let subscribed = false;
-        let connected = echo().connectionStatus() === "connected";
+        let connected = echo().connectionStatus() === 'connected';
         const update = () => setLive(subscribed && connected);
 
         channel.subscribed(() => {
@@ -90,14 +90,14 @@ export function useProjectChannel(
             update();
         });
 
-        for (const event of events.split(",")) {
+        for (const event of events.split(',')) {
             channel.listen(`.${event}`, (payload: never) =>
                 latest.current[event]?.(payload),
             );
         }
 
         const stopWatching = echo().connector.onConnectionChange((status) => {
-            connected = status === "connected";
+            connected = status === 'connected';
             update();
         });
 
@@ -116,17 +116,17 @@ export function useProjectChannel(
  * reload after it, never a pile of them.
  */
 export function useLiveReload(only: string[]): () => void {
-    const state = useRef<"idle" | "reloading" | "again">("idle");
-    const props = only.join(",");
+    const state = useRef<'idle' | 'reloading' | 'again'>('idle');
+    const props = only.join(',');
 
     return useCallback(() => {
         const reload = () => {
-            state.current = "reloading";
+            state.current = 'reloading';
             router.reload({
-                only: props.split(","),
+                only: props.split(','),
                 onFinish: () => {
-                    const again = state.current === "again";
-                    state.current = "idle";
+                    const again = state.current === 'again';
+                    state.current = 'idle';
 
                     if (again) {
                         reload();
@@ -135,10 +135,10 @@ export function useLiveReload(only: string[]): () => void {
             });
         };
 
-        if (state.current === "idle") {
+        if (state.current === 'idle') {
             reload();
         } else {
-            state.current = "again";
+            state.current = 'again';
         }
     }, [props]);
 }

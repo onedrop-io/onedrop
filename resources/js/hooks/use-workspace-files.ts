@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
-import ProjectFileController from "@/actions/App/Http/Controllers/ProjectFileController";
-import type { WorkspaceEntry, WorkspaceFile } from "@/types";
+import { useCallback, useEffect, useState } from 'react';
+import ProjectFileController from '@/actions/App/Http/Controllers/ProjectFileController';
+import type { WorkspaceEntry, WorkspaceFile } from '@/types';
 
 async function getJson<T>(url: string): Promise<T> {
     const response = await fetch(url, {
-        headers: { Accept: "application/json" },
-        credentials: "same-origin",
+        headers: { Accept: 'application/json' },
+        credentials: 'same-origin',
     });
     const body = await response.json().catch(() => ({}));
 
@@ -66,7 +66,7 @@ export function useFilesVersion(
         let cancelled = false;
 
         const check = () => {
-            if (document.visibilityState !== "visible") {
+            if (document.visibilityState !== 'visible') {
                 return;
             }
 
@@ -81,7 +81,7 @@ export function useFilesVersion(
 
         check();
         const timer = live ? null : window.setInterval(check, VERSION_CHECK_MS);
-        document.addEventListener("visibilitychange", check);
+        document.addEventListener('visibilitychange', check);
 
         return () => {
             cancelled = true;
@@ -90,7 +90,7 @@ export function useFilesVersion(
                 window.clearInterval(timer);
             }
 
-            document.removeEventListener("visibilitychange", check);
+            document.removeEventListener('visibilitychange', check);
         };
     }, [projectId, enabled, live, changes]);
 
@@ -117,7 +117,7 @@ export async function saveWorkspaceFile(
     path: string,
     content: string,
 ): Promise<void> {
-    await send(ProjectFileController.update.url(projectId), "PUT", {
+    await send(ProjectFileController.update.url(projectId), 'PUT', {
         path,
         content,
     });
@@ -129,9 +129,9 @@ export async function saveWorkspaceFile(
 export async function createWorkspaceEntry(
     projectId: number,
     path: string,
-    type: WorkspaceEntry["type"],
+    type: WorkspaceEntry['type'],
 ): Promise<void> {
-    await send(ProjectFileController.store.url(projectId), "POST", {
+    await send(ProjectFileController.store.url(projectId), 'POST', {
         path,
         type,
     });
@@ -146,10 +146,10 @@ export async function uploadWorkspaceFile(
     file: File,
 ): Promise<void> {
     const body = new FormData();
-    body.append("path", path);
-    body.append("file", file);
+    body.append('path', path);
+    body.append('file', file);
 
-    await send(ProjectFileController.upload.url(projectId), "POST", body);
+    await send(ProjectFileController.upload.url(projectId), 'POST', body);
 }
 
 /**
@@ -160,7 +160,7 @@ export async function moveWorkspaceEntry(
     from: string,
     to: string,
 ): Promise<void> {
-    await send(ProjectFileController.move.url(projectId), "POST", {
+    await send(ProjectFileController.move.url(projectId), 'POST', {
         from,
         to,
     });
@@ -173,7 +173,7 @@ export async function deleteWorkspaceEntry(
     projectId: number,
     path: string,
 ): Promise<void> {
-    await send(ProjectFileController.destroy.url(projectId), "DELETE", {
+    await send(ProjectFileController.destroy.url(projectId), 'DELETE', {
         path,
     });
 }
@@ -190,7 +190,7 @@ export async function downloadWorkspace(
             projectId,
             path ? { query: { path } } : undefined,
         ),
-        { credentials: "same-origin" },
+        { credentials: 'same-origin' },
     );
 
     if (!response.ok) {
@@ -199,13 +199,13 @@ export async function downloadWorkspace(
         throw new Error(body.message ?? `Download failed (${response.status})`);
     }
 
-    const disposition = response.headers.get("Content-Disposition") ?? "";
+    const disposition = response.headers.get('Content-Disposition') ?? '';
     const encoded = /filename\*=utf-8''([^;]+)/i.exec(disposition)?.[1];
     const name = encoded
         ? decodeURIComponent(encoded)
-        : (/filename="?([^";]+)"?/.exec(disposition)?.[1] ?? "project.zip");
+        : (/filename="?([^";]+)"?/.exec(disposition)?.[1] ?? 'project.zip');
     const url = URL.createObjectURL(await response.blob());
-    const link = document.createElement("a");
+    const link = document.createElement('a');
     link.href = url;
     link.download = name;
     link.click();
@@ -214,22 +214,22 @@ export async function downloadWorkspace(
 
 async function send(
     url: string,
-    method: "POST" | "PUT" | "DELETE",
+    method: 'POST' | 'PUT' | 'DELETE',
     body: Record<string, unknown> | FormData,
 ): Promise<void> {
     const token = document.cookie
-        .split("; ")
-        .find((cookie) => cookie.startsWith("XSRF-TOKEN="))
-        ?.slice("XSRF-TOKEN=".length);
+        .split('; ')
+        .find((cookie) => cookie.startsWith('XSRF-TOKEN='))
+        ?.slice('XSRF-TOKEN='.length);
     const isForm = body instanceof FormData;
     const response = await fetch(url, {
         method,
         headers: {
-            Accept: "application/json",
-            ...(isForm ? {} : { "Content-Type": "application/json" }),
-            "X-XSRF-TOKEN": decodeURIComponent(token ?? ""),
+            Accept: 'application/json',
+            ...(isForm ? {} : { 'Content-Type': 'application/json' }),
+            'X-XSRF-TOKEN': decodeURIComponent(token ?? ''),
         },
-        credentials: "same-origin",
+        credentials: 'same-origin',
         body: isForm ? body : JSON.stringify(body),
     });
 

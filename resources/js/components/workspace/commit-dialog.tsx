@@ -1,31 +1,31 @@
-import { GitBranch, GitBranchPlus, Undo2, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import type { FormEvent, KeyboardEvent } from "react";
-import { toast } from "sonner";
-import ProjectGitController from "@/actions/App/Http/Controllers/ProjectGitController";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import { GitBranch, GitBranchPlus, Undo2, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import type { FormEvent, KeyboardEvent } from 'react';
+import { toast } from 'sonner';
+import ProjectGitController from '@/actions/App/Http/Controllers/ProjectGitController';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
     DialogContent,
     DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { DEFAULT_BRANCHES } from "@/components/workspace/git-state";
-import type { Change, GitState } from "@/components/workspace/git-state";
-import PatchView from "@/components/workspace/patch-view";
-import { jsonRequest } from "@/lib/json-request";
-import { cn } from "@/lib/utils";
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { DEFAULT_BRANCHES } from '@/components/workspace/git-state';
+import type { Change, GitState } from '@/components/workspace/git-state';
+import PatchView from '@/components/workspace/patch-view';
+import { jsonRequest } from '@/lib/json-request';
+import { cn } from '@/lib/utils';
 
 const STATUS_STYLES: Record<string, { label: string; className: string }> = {
-    M: { label: "Modified", className: "text-amber-500" },
-    A: { label: "Added", className: "text-emerald-500" },
-    "?": { label: "New", className: "text-emerald-500" },
-    D: { label: "Deleted", className: "text-red-500" },
-    R: { label: "Renamed", className: "text-sky-500" },
-    U: { label: "Conflicted", className: "text-red-500" },
+    M: { label: 'Modified', className: 'text-amber-500' },
+    A: { label: 'Added', className: 'text-emerald-500' },
+    '?': { label: 'New', className: 'text-emerald-500' },
+    D: { label: 'Deleted', className: 'text-red-500' },
+    R: { label: 'Renamed', className: 'text-sky-500' },
+    U: { label: 'Conflicted', className: 'text-red-500' },
 };
 
 /**
@@ -51,11 +51,11 @@ export default function CommitDialog({
     push: boolean;
     working: boolean;
     onCancel: () => void;
-    onCommitted: (changed: Pick<GitState, "status">) => void;
+    onCommitted: (changed: Pick<GitState, 'status'>) => void;
     /** The changes moved without a commit (a hunk was discarded). */
-    onStatusChanged: (status: GitState["status"]) => void;
+    onStatusChanged: (status: GitState['status']) => void;
 }) {
-    const [message, setMessage] = useState("");
+    const [message, setMessage] = useState('');
     const [choosing, setChoosing] = useState(false);
     const [excluded, setExcluded] = useState<Set<string>>(() => new Set());
     // The new branch's name while committing on a new branch, or null for the current one.
@@ -76,22 +76,22 @@ export default function CommitDialog({
     const openChange = changes.find((change) => change.path === openPath);
 
     /** How much of a file goes in: all of it, none, or some of its lines. */
-    const inclusion = (change: Change): "all" | "none" | "some" => {
+    const inclusion = (change: Change): 'all' | 'none' | 'some' => {
         const left = lineExclusions[change.path];
 
         if (excluded.has(change.path)) {
-            return "none";
+            return 'none';
         }
 
         if (!left || left.size === 0) {
-            return "all";
+            return 'all';
         }
 
-        const lines = changeLines(diffs[change.path]?.patch ?? "");
+        const lines = changeLines(diffs[change.path]?.patch ?? '');
 
-        return lines.every((line) => left.has(line.index)) ? "none" : "some";
+        return lines.every((line) => left.has(line.index)) ? 'none' : 'some';
     };
-    const chosen = changes.filter((change) => inclusion(change) !== "none");
+    const chosen = changes.filter((change) => inclusion(change) !== 'none');
     /** A file's lines added and removed, counting only the chosen lines of a file committed in part. */
     const countsOf = (change: Change) => {
         const left = lineExclusions[change.path];
@@ -106,11 +106,11 @@ export default function CommitDialog({
 
         return {
             ...change,
-            additions: lines.filter((line) => line.kind === "+").length,
-            deletions: lines.filter((line) => line.kind === "-").length,
+            additions: lines.filter((line) => line.kind === '+').length,
+            deletions: lines.filter((line) => line.kind === '-').length,
         };
     };
-    const counted = (key: "additions" | "deletions") =>
+    const counted = (key: 'additions' | 'deletions') =>
         chosen.reduce(
             (total, change) => total + (countsOf(change)[key] ?? 0),
             0,
@@ -121,7 +121,7 @@ export default function CommitDialog({
     const hasCounts = changes.some((change) => change.additions != null);
     const onDefault = !!branch && DEFAULT_BRANCHES.includes(branch);
     const namingBranch = newBranch !== null;
-    const blankBranch = namingBranch && newBranch.trim() === "";
+    const blankBranch = namingBranch && newBranch.trim() === '';
 
     // Revealed by "Commit on new branch": type its name straight away.
     useEffect(() => {
@@ -133,7 +133,7 @@ export default function CommitDialog({
     /** Tick or untick a whole file (a file in part is unticked). */
     const toggle = (path: string) => {
         const change = changes.find((other) => other.path === path);
-        const leaveOut = !!change && inclusion(change) !== "none";
+        const leaveOut = !!change && inclusion(change) !== 'none';
 
         setExcluded((current) => {
             const next = new Set(current);
@@ -157,7 +157,7 @@ export default function CommitDialog({
         const wasExcluded = excluded.has(path);
         const next = new Set(
             wasExcluded
-                ? changeLines(diffs[path]?.patch ?? "").map(
+                ? changeLines(diffs[path]?.patch ?? '').map(
                       (line) => line.index,
                   )
                 : lineExclusions[path],
@@ -181,7 +181,7 @@ export default function CommitDialog({
         setDiffs((current) => ({ ...current, [path]: diff }));
 
     /** A hunk was discarded: forget the file's old diff and choices, and take the new list of changes. */
-    const discarded = (path: string, status: GitState["status"]) => {
+    const discarded = (path: string, status: GitState['status']) => {
         setDiffs(({ [path]: _, ...rest }) => rest);
         setLineExclusions(({ [path]: _, ...rest }) => rest);
         onStatusChanged(status);
@@ -200,7 +200,7 @@ export default function CommitDialog({
 
         setCommitting(true);
         setError(null);
-        jsonRequest<Pick<GitState, "status"> & { message: string }>(
+        jsonRequest<Pick<GitState, 'status'> & { message: string }>(
             ProjectGitController.commit.url(projectId),
             {
                 message: message.trim() || null,
@@ -208,11 +208,11 @@ export default function CommitDialog({
                 paths:
                     excluded.size > 0 || partlyChosen
                         ? chosen
-                              .filter((change) => inclusion(change) === "all")
+                              .filter((change) => inclusion(change) === 'all')
                               .map((change) => change.path)
                         : null,
                 partials: chosen
-                    .filter((change) => inclusion(change) === "some")
+                    .filter((change) => inclusion(change) === 'some')
                     .map((change) => ({
                         path: change.path,
                         hash: diffs[change.path].hash,
@@ -229,12 +229,12 @@ export default function CommitDialog({
             .finally(() => setCommitting(false));
     };
 
-    const action = push ? "Commit & push" : "Commit";
+    const action = push ? 'Commit & push' : 'Commit';
 
     /** ↑/↓ move between files (showing each one's diff when the explorer is open); Space ticks one while editing. */
     const onRowKeyDown = (event: KeyboardEvent, index: number) => {
         const step =
-            event.key === "ArrowDown" ? 1 : event.key === "ArrowUp" ? -1 : 0;
+            event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0;
 
         if (step !== 0) {
             event.preventDefault();
@@ -247,7 +247,7 @@ export default function CommitDialog({
                     setOpenPath(next.path);
                 }
             }
-        } else if (event.key === " " && choosing) {
+        } else if (event.key === ' ' && choosing) {
             event.preventDefault();
             toggle(changes[index].path);
         }
@@ -256,8 +256,8 @@ export default function CommitDialog({
     return (
         <DialogContent
             className={cn(
-                "transition-[max-width]",
-                openChange ? "sm:max-w-6xl" : "sm:max-w-xl",
+                'transition-[max-width]',
+                openChange ? 'sm:max-w-6xl' : 'sm:max-w-xl',
             )}
             onOpenAutoFocus={(event) => {
                 event.preventDefault();
@@ -278,16 +278,16 @@ export default function CommitDialog({
                     <DialogTitle>Commit changes</DialogTitle>
                     <DialogDescription>
                         Review what goes into the commit
-                        {push ? " before it's pushed" : ""}. Leave the message
+                        {push ? " before it's pushed" : ''}. Leave the message
                         blank and AI writes one.
                     </DialogDescription>
                 </DialogHeader>
 
                 <div
                     className={cn(
-                        "grid min-w-0 gap-4",
+                        'grid min-w-0 gap-4',
                         openChange &&
-                            "md:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]",
+                            'md:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]',
                     )}
                 >
                     <div className="min-w-0 space-y-3 rounded-xl border bg-muted/30 p-4">
@@ -303,7 +303,7 @@ export default function CommitDialog({
                                     >
                                         <GitBranch className="size-3.5 shrink-0 text-muted-foreground" />
                                         <span className="truncate">
-                                            {branch ?? "Detached"}
+                                            {branch ?? 'Detached'}
                                         </span>
                                     </span>
                                     <span className="flex-1" />
@@ -334,7 +334,7 @@ export default function CommitDialog({
                                         variant="ghost"
                                         onClick={() => setNewBranch(null)}
                                     >
-                                        Keep {branch ?? "branch"}
+                                        Keep {branch ?? 'branch'}
                                     </Button>
                                 </>
                             )}
@@ -342,11 +342,11 @@ export default function CommitDialog({
 
                         <div className="flex items-center text-sm">
                             <span className="flex-1 text-muted-foreground">
-                                Files{" "}
+                                Files{' '}
                                 <span data-test="git-actions-file-count">
                                     {excluded.size > 0 || partlyChosen
                                         ? `${chosen.length} of ${changes.length}`
-                                        : `${changes.length}${moreChanges ? "+" : ""}`}
+                                        : `${changes.length}${moreChanges ? '+' : ''}`}
                                 </span>
                             </span>
                             {/* Sandboxes whose git tool predates choosing files report no line counts, and would commit them all. */}
@@ -359,15 +359,15 @@ export default function CommitDialog({
                                     onClick={() => setChoosing((open) => !open)}
                                     data-test="git-actions-edit-files"
                                 >
-                                    {choosing ? "Done" : "Edit"}
+                                    {choosing ? 'Done' : 'Edit'}
                                 </Button>
                             )}
                         </div>
 
                         <ul
                             className={cn(
-                                "divide-y divide-border/50 overflow-y-auto rounded-lg border bg-background/60",
-                                openChange ? "max-h-[26rem]" : "max-h-60",
+                                'divide-y divide-border/50 overflow-y-auto rounded-lg border bg-background/60',
+                                openChange ? 'max-h-[26rem]' : 'max-h-60',
                             )}
                             data-test="git-actions-files"
                         >
@@ -376,8 +376,8 @@ export default function CommitDialog({
                                     STATUS_STYLES[change.status] ??
                                     STATUS_STYLES.M;
                                 const slash = change.path
-                                    .replace(/\/$/, "")
-                                    .lastIndexOf("/");
+                                    .replace(/\/$/, '')
+                                    .lastIndexOf('/');
                                 const included = inclusion(change);
                                 const open = change.path === openPath;
 
@@ -385,18 +385,18 @@ export default function CommitDialog({
                                     <li
                                         key={change.path}
                                         className={cn(
-                                            "flex items-center font-mono text-xs",
-                                            open && "bg-muted",
-                                            included === "none" && "opacity-50",
+                                            'flex items-center font-mono text-xs',
+                                            open && 'bg-muted',
+                                            included === 'none' && 'opacity-50',
                                         )}
                                         data-test="git-actions-file"
                                     >
                                         {choosing && (
                                             <Checkbox
                                                 checked={
-                                                    included === "some"
-                                                        ? "indeterminate"
-                                                        : included === "all"
+                                                    included === 'some'
+                                                        ? 'indeterminate'
+                                                        : included === 'all'
                                                 }
                                                 onCheckedChange={() =>
                                                     toggle(change.path)
@@ -435,15 +435,15 @@ export default function CommitDialog({
                                         >
                                             <span
                                                 className={cn(
-                                                    "w-3 shrink-0 text-center font-semibold",
+                                                    'w-3 shrink-0 text-center font-semibold',
                                                     style.className,
                                                 )}
                                                 title={style.label}
                                             >
-                                                {change.status === "?"
-                                                    ? "U"
-                                                    : change.status === "U"
-                                                      ? "!"
+                                                {change.status === '?'
+                                                    ? 'U'
+                                                    : change.status === 'U'
+                                                      ? '!'
                                                       : change.status}
                                             </span>
                                             <span className="flex min-w-0 flex-1">
@@ -459,7 +459,7 @@ export default function CommitDialog({
                                                     )}
                                                 </span>
                                             </span>
-                                            {included === "some" && (
+                                            {included === 'some' && (
                                                 <span
                                                     className="shrink-0 text-muted-foreground"
                                                     data-test="git-actions-file-partly"
@@ -482,10 +482,10 @@ export default function CommitDialog({
                                 data-test="git-actions-totals"
                             >
                                 <span className="text-emerald-500">
-                                    +{counted("additions")}
-                                </span>{" "}
+                                    +{counted('additions')}
+                                </span>{' '}
                                 <span className="text-red-500">
-                                    −{counted("deletions")}
+                                    −{counted('deletions')}
                                 </span>
                             </p>
                         )}
@@ -501,7 +501,7 @@ export default function CommitDialog({
                             // Parts can be picked once the sandbox's git tool can commit them (it hashes each diff).
                             leftOut={
                                 excluded.has(openChange.path)
-                                    ? "all"
+                                    ? 'all'
                                     : (lineExclusions[openChange.path] ?? null)
                             }
                             onLeaveOut={(update) =>
@@ -524,7 +524,7 @@ export default function CommitDialog({
                         htmlFor="git-actions-message"
                         className="text-sm font-medium"
                     >
-                        Commit message{" "}
+                        Commit message{' '}
                         <span className="font-normal text-muted-foreground">
                             (optional)
                         </span>
@@ -537,7 +537,7 @@ export default function CommitDialog({
                         onChange={(event) => setMessage(event.target.value)}
                         onKeyDown={(event) => {
                             if (
-                                event.key === "Enter" &&
+                                event.key === 'Enter' &&
                                 (event.metaKey || event.ctrlKey)
                             ) {
                                 submit();
@@ -572,7 +572,7 @@ export default function CommitDialog({
                             type="button"
                             variant="outline"
                             disabled={committing}
-                            onClick={() => setNewBranch("")}
+                            onClick={() => setNewBranch('')}
                             data-test="git-actions-on-new-branch"
                         >
                             <GitBranchPlus className="size-4" />
@@ -590,9 +590,9 @@ export default function CommitDialog({
                         data-test="git-actions-submit"
                     >
                         {committing
-                            ? message.trim() === ""
-                                ? "Writing the message…"
-                                : "Committing…"
+                            ? message.trim() === ''
+                                ? 'Writing the message…'
+                                : 'Committing…'
                             : newBranch !== null
                               ? `${action} to new branch`
                               : action}
@@ -614,7 +614,7 @@ function LineCounts({ change }: { change: Change }) {
 
     return (
         <span className="shrink-0 tabular-nums">
-            <span className="text-emerald-500">+{change.additions}</span>{" "}
+            <span className="text-emerald-500">+{change.additions}</span>{' '}
             <span className="text-red-500">−{change.deletions ?? 0}</span>
         </span>
     );
@@ -637,17 +637,17 @@ type Hunk = { number: number; header: string; lines: PatchLine[] };
 function parseHunks(patch: string): Hunk[] {
     const hunks: Hunk[] = [];
 
-    patch.split("\n").forEach((text, index, all) => {
-        if (text.startsWith("@@")) {
+    patch.split('\n').forEach((text, index, all) => {
+        if (text.startsWith('@@')) {
             hunks.push({ number: hunks.length, header: text, lines: [] });
         } else if (
             hunks.length > 0 &&
-            (index < all.length - 1 || text !== "")
+            (index < all.length - 1 || text !== '')
         ) {
             hunks[hunks.length - 1].lines.push({
                 index,
                 text,
-                kind: text[0] ?? " ",
+                kind: text[0] ?? ' ',
             });
         }
     });
@@ -658,12 +658,12 @@ function parseHunks(patch: string): Hunk[] {
 /** The added and removed lines of a patch. */
 function changeLines(patch: string): PatchLine[] {
     return parseHunks(patch).flatMap((hunk) =>
-        hunk.lines.filter((line) => line.kind === "+" || line.kind === "-"),
+        hunk.lines.filter((line) => line.kind === '+' || line.kind === '-'),
     );
 }
 
 /** Files whose lines can be picked: edited or new text files (not deleted, renamed or binary ones). */
-const PARTIAL_STATUSES = ["M", "A", "?"];
+const PARTIAL_STATUSES = ['M', 'A', '?'];
 
 /**
  * The open file's changes since the last commit, beside the list of files (GIT-006). Hunks and single lines can be
@@ -685,10 +685,10 @@ function ChangeDiffPane({
     diff: ChangeDiff | null;
     onLoaded: (diff: ChangeDiff) => void;
     /** The lines left out of the commit: "all" for an unticked file, or null for none. */
-    leftOut: Set<number> | "all" | null;
+    leftOut: Set<number> | 'all' | null;
     onLeaveOut: (update: (left: Set<number>) => void) => void;
     working: boolean;
-    onDiscarded: (status: GitState["status"]) => void;
+    onDiscarded: (status: GitState['status']) => void;
     onClose: () => void;
 }) {
     const [error, setError] = useState<string | null>(null);
@@ -726,19 +726,19 @@ function ChangeDiffPane({
         !diff.truncated &&
         PARTIAL_STATUSES.includes(change.status);
     const discardable =
-        !!diff?.hash && !diff.truncated && change.status === "M" && !working;
+        !!diff?.hash && !diff.truncated && change.status === 'M' && !working;
     const isLeftOut = (index: number) =>
-        leftOut === "all" || (leftOut?.has(index) ?? false);
+        leftOut === 'all' || (leftOut?.has(index) ?? false);
 
     const discard = (hunk: number) => {
         setDiscarding(true);
         setError(null);
-        jsonRequest<Pick<GitState, "status">>(
+        jsonRequest<Pick<GitState, 'status'>>(
             ProjectGitController.discardHunk.url(projectId),
             { path: change.path, hash: diff?.hash, hunk },
         )
             .then((changed) => {
-                toast.success("Discarded that part");
+                toast.success('Discarded that part');
                 onDiscarded(changed.status);
             })
             .catch((e: Error) => setError(e.message))
@@ -755,7 +755,7 @@ function ChangeDiffPane({
             data-test="git-actions-diff"
         >
             <header className="flex items-center gap-2 border-b px-3 py-2 font-mono text-xs">
-                <span className={cn("font-semibold", style.className)}>
+                <span className={cn('font-semibold', style.className)}>
                     {style.label}
                 </span>
                 <span
@@ -801,8 +801,8 @@ function ChangeDiffPane({
                     <div className="p-3 text-xs">
                         <p className="mb-2 text-muted-foreground">
                             New folder with {diff.files.length}
-                            {diff.truncated ? "+" : ""}{" "}
-                            {diff.files.length === 1 ? "file" : "files"}:
+                            {diff.truncated ? '+' : ''}{' '}
+                            {diff.files.length === 1 ? 'file' : 'files'}:
                         </p>
                         <ul className="space-y-0.5 font-mono">
                             {diff.files.map((file) => (
@@ -826,7 +826,7 @@ function ChangeDiffPane({
                         {parseHunks(diff.patch).map((hunk) => {
                             const changed = hunk.lines.filter(
                                 (line) =>
-                                    line.kind === "+" || line.kind === "-",
+                                    line.kind === '+' || line.kind === '-',
                             );
                             const left = changed.filter((line) =>
                                 isLeftOut(line.index),
@@ -846,7 +846,7 @@ function ChangeDiffPane({
                                                         : left ===
                                                             changed.length
                                                           ? false
-                                                          : "indeterminate"
+                                                          : 'indeterminate'
                                                 }
                                                 onCheckedChange={() =>
                                                     onLeaveOut((set) => {
@@ -921,8 +921,8 @@ function ChangeDiffPane({
                                     </div>
                                     {hunk.lines.map((line) => {
                                         const isChange =
-                                            line.kind === "+" ||
-                                            line.kind === "-";
+                                            line.kind === '+' ||
+                                            line.kind === '-';
                                         const out =
                                             isChange && isLeftOut(line.index);
 
@@ -931,7 +931,7 @@ function ChangeDiffPane({
                                                 key={line.index}
                                                 role={
                                                     pickable && isChange
-                                                        ? "checkbox"
+                                                        ? 'checkbox'
                                                         : undefined
                                                 }
                                                 aria-checked={
@@ -942,8 +942,8 @@ function ChangeDiffPane({
                                                 title={
                                                     pickable && isChange
                                                         ? out
-                                                            ? "Left out: click to include this line"
-                                                            : "Click to leave this line out"
+                                                            ? 'Left out: click to include this line'
+                                                            : 'Click to leave this line out'
                                                         : undefined
                                                 }
                                                 onClick={() =>
@@ -960,25 +960,25 @@ function ChangeDiffPane({
                                                     })
                                                 }
                                                 className={cn(
-                                                    "px-3 whitespace-pre",
+                                                    'px-3 whitespace-pre',
                                                     pickable &&
                                                         isChange &&
-                                                        "cursor-pointer hover:brightness-125",
-                                                    line.kind === "+"
-                                                        ? "bg-green-500/10 text-green-700 dark:text-green-400"
-                                                        : line.kind === "-"
-                                                          ? "bg-red-500/10 text-red-700 dark:text-red-400"
-                                                          : "text-muted-foreground",
+                                                        'cursor-pointer hover:brightness-125',
+                                                    line.kind === '+'
+                                                        ? 'bg-green-500/10 text-green-700 dark:text-green-400'
+                                                        : line.kind === '-'
+                                                          ? 'bg-red-500/10 text-red-700 dark:text-red-400'
+                                                          : 'text-muted-foreground',
                                                     out &&
-                                                        "bg-transparent line-through opacity-40",
+                                                        'bg-transparent line-through opacity-40',
                                                 )}
                                                 data-test={
                                                     isChange
-                                                        ? "git-actions-line"
+                                                        ? 'git-actions-line'
                                                         : undefined
                                                 }
                                             >
-                                                {line.text || " "}
+                                                {line.text || ' '}
                                             </div>
                                         );
                                     })}

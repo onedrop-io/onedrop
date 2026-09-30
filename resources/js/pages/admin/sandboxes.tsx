@@ -1,18 +1,18 @@
-import { Head, router, useForm, usePage } from "@inertiajs/react";
-import type { FormEvent } from "react";
-import SandboxProviderController from "@/actions/App/Http/Controllers/Admin/SandboxProviderController";
-import Heading from "@/components/heading";
-import InputError from "@/components/input-error";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
+import { Head, router, useForm, usePage } from '@inertiajs/react';
+import type { FormEvent } from 'react';
+import SandboxProviderController from '@/actions/App/Http/Controllers/Admin/SandboxProviderController';
+import Heading from '@/components/heading';
+import InputError from '@/components/input-error';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 
 type Field = {
     key: string;
     label: string;
-    type: "text" | "number" | "secret" | "select";
+    type: 'text' | 'number' | 'secret' | 'select';
     options?: string[];
     help?: string;
     value: string | number | null;
@@ -61,7 +61,7 @@ function ProviderCard({ provider }: { provider: Provider }) {
         ...Object.fromEntries(
             provider.fields.map((field) => [
                 field.key,
-                field.type === "secret" ? "" : (field.value ?? ""),
+                field.type === 'secret' ? '' : (field.value ?? ''),
             ]),
         ),
     });
@@ -72,8 +72,8 @@ function ProviderCard({ provider }: { provider: Provider }) {
             preserveScroll: true,
             onSuccess: () => {
                 provider.fields
-                    .filter((field) => field.type === "secret")
-                    .forEach((field) => form.setData(field.key, ""));
+                    .filter((field) => field.type === 'secret')
+                    .forEach((field) => form.setData(field.key, ''));
             },
         });
     };
@@ -90,8 +90,8 @@ function ProviderCard({ provider }: { provider: Provider }) {
                         <h3 className="font-medium">{provider.label}</h3>
                         {provider.active && <Badge>Active</Badge>}
                         <Badge variant="outline">
-                            {provider.sandboxes}{" "}
-                            {provider.sandboxes === 1 ? "sandbox" : "sandboxes"}
+                            {provider.sandboxes}{' '}
+                            {provider.sandboxes === 1 ? 'sandbox' : 'sandboxes'}
                         </Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
@@ -100,7 +100,7 @@ function ProviderCard({ provider }: { provider: Provider }) {
                 </div>
                 <Switch
                     checked={Boolean(form.data.enabled)}
-                    onChange={(checked) => form.setData("enabled", checked)}
+                    onChange={(checked) => form.setData('enabled', checked)}
                     label={`Turn ${provider.label} on`}
                     disabled={provider.active}
                     testId={`provider-${provider.name}-enabled`}
@@ -109,7 +109,7 @@ function ProviderCard({ provider }: { provider: Provider }) {
 
             {provider.missing.length > 0 && (
                 <p className="text-sm text-amber-600 dark:text-amber-400">
-                    Needs{" "}
+                    Needs{' '}
                     {provider.missing
                         .map(
                             (key) =>
@@ -117,7 +117,7 @@ function ProviderCard({ provider }: { provider: Provider }) {
                                     .find((field) => field.key === key)
                                     ?.label.toLowerCase() ?? key,
                         )
-                        .join(" and ")}{" "}
+                        .join(' and ')}{' '}
                     before it can be active.
                 </p>
             )}
@@ -130,10 +130,10 @@ function ProviderCard({ provider }: { provider: Provider }) {
                         <Label htmlFor={`${provider.name}-${field.key}`}>
                             {field.label}
                         </Label>
-                        {field.type === "select" ? (
+                        {field.type === 'select' ? (
                             <select
                                 id={`${provider.name}-${field.key}`}
-                                value={String(form.data[field.key] ?? "")}
+                                value={String(form.data[field.key] ?? '')}
                                 onChange={(event) =>
                                     form.setData(field.key, event.target.value)
                                 }
@@ -149,17 +149,17 @@ function ProviderCard({ provider }: { provider: Provider }) {
                             <Input
                                 id={`${provider.name}-${field.key}`}
                                 type={
-                                    field.type === "secret"
-                                        ? "password"
-                                        : field.type === "number"
-                                          ? "number"
-                                          : "text"
+                                    field.type === 'secret'
+                                        ? 'password'
+                                        : field.type === 'number'
+                                          ? 'number'
+                                          : 'text'
                                 }
                                 autoComplete="off"
-                                value={String(form.data[field.key] ?? "")}
+                                value={String(form.data[field.key] ?? '')}
                                 placeholder={
-                                    field.type === "secret" && field.set
-                                        ? "Saved (leave empty to keep)"
+                                    field.type === 'secret' && field.set
+                                        ? 'Saved (leave empty to keep)'
                                         : undefined
                                 }
                                 onChange={(event) =>

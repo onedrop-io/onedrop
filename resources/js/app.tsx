@@ -13,7 +13,8 @@ const fallbackName = import.meta.env.VITE_APP_NAME || 'OneDrop';
 void createInertiaApp({
     // The name an admin set (ADMIN-001) comes with every page.
     title: (title, page) => {
-        const appName = (page?.props.name as string | undefined) || fallbackName;
+        const appName =
+            (page?.props.name as string | undefined) || fallbackName;
 
         return title ? `${title} - ${appName}` : appName;
     },

@@ -1,19 +1,19 @@
-import { Form, Head } from "@inertiajs/react";
-import { Globe, Lock, LockOpen } from "lucide-react";
-import ServerController from "@/actions/App/Http/Controllers/Admin/ServerController";
-import Heading from "@/components/heading";
-import InputError from "@/components/input-error";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Form, Head } from '@inertiajs/react';
+import { Globe, Lock, LockOpen } from 'lucide-react';
+import ServerController from '@/actions/App/Http/Controllers/Admin/ServerController';
+import Heading from '@/components/heading';
+import InputError from '@/components/input-error';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 type Requested = {
     domain: string | null;
     email: string | null;
-    certificates: "letsencrypt" | "local";
+    certificates: 'letsencrypt' | 'local';
     requested_at: string | null;
-    status: "pending" | "applied" | "failed" | null;
+    status: 'pending' | 'applied' | 'failed' | null;
     message: string | null;
 };
 
@@ -24,7 +24,7 @@ export default function Server({
     current,
     requested,
 }: {
-    install: "server" | "container" | null;
+    install: 'server' | 'container' | null;
     editable: boolean;
     current: { url: string; domain: string; https: boolean; gateway: boolean };
     requested: Requested;
@@ -50,7 +50,7 @@ export default function Server({
                         <p className="text-sm text-muted-foreground">
                             {current.gateway
                                 ? `Previews at preview-<id>.${current.domain}`
-                                : "Previews open on this computer"}
+                                : 'Previews open on this computer'}
                         </p>
                     </div>
                     {current.https ? (
@@ -64,7 +64,7 @@ export default function Server({
                     )}
                 </div>
 
-                {requested.status === "pending" && (
+                {requested.status === 'pending' && (
                     <p
                         className="text-sm text-amber-600 dark:text-amber-400"
                         data-test="server-pending"
@@ -74,10 +74,10 @@ export default function Server({
                         address.
                     </p>
                 )}
-                {requested.status === "failed" && (
+                {requested.status === 'failed' && (
                     <p className="text-sm text-destructive">
-                        Couldn't switch to {requested.domain}:{" "}
-                        {requested.message ?? "unknown error"}
+                        Couldn't switch to {requested.domain}:{' '}
+                        {requested.message ?? 'unknown error'}
                     </p>
                 )}
 
@@ -113,7 +113,7 @@ export default function Server({
                                             id="email"
                                             name="email"
                                             type="email"
-                                            defaultValue={requested.email ?? ""}
+                                            defaultValue={requested.email ?? ''}
                                             placeholder="Optional"
                                         />
                                         <p className="text-xs text-muted-foreground">
@@ -167,7 +167,7 @@ export default function Server({
                         className="space-y-2 rounded-xl border border-dashed p-4 text-sm text-muted-foreground"
                         data-test="server-instructions"
                     >
-                        {install === "container" ? (
+                        {install === 'container' ? (
                             <>
                                 <p>
                                     This is a one-line install. To change its

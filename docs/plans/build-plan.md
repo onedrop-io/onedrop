@@ -282,4 +282,3 @@ templates/                 starter apps (laravel-inertia-react, nextjs)
 docker/                    self-host compose and images
 docs/                      architecture, decision records, M0 findings
 ```
-

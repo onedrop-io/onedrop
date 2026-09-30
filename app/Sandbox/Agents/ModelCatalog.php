@@ -271,7 +271,7 @@ class ModelCatalog
         $key = "chatgpt-models:{$connection->id}";
         $cached = Cache::get($key);
 
-        if (is_array($cached)) {
+        if (is_array($cached) && array_is_list($cached)) {
             return $cached !== [] ? $cached : null;
         }
 

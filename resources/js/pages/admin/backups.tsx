@@ -1,28 +1,28 @@
-import { Deferred, Head, router, useForm, usePoll } from "@inertiajs/react";
-import { Download, RotateCcw, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
-import type { FormEvent } from "react";
-import DatabaseBackupController from "@/actions/App/Http/Controllers/Admin/DatabaseBackupController";
-import Heading from "@/components/heading";
-import InputError from "@/components/input-error";
-import { Button } from "@/components/ui/button";
+import { Deferred, Head, router, useForm, usePoll } from '@inertiajs/react';
+import { Download, RotateCcw, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import type { FormEvent } from 'react';
+import DatabaseBackupController from '@/actions/App/Http/Controllers/Admin/DatabaseBackupController';
+import Heading from '@/components/heading';
+import InputError from '@/components/input-error';
+import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
     DialogDescription,
     DialogFooter,
     DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
 
 type Settings = {
     enabled: boolean;
     schedule: string;
     keep: number;
-    destination: "local" | "s3";
+    destination: 'local' | 's3';
     prefix: string;
     s3: {
         bucket: string | null;
@@ -44,7 +44,7 @@ type Outcome = {
 type Backup = { name: string; size: number; created_at: string | null };
 
 function formatBytes(bytes: number): string {
-    const units = ["B", "KB", "MB", "GB", "TB"];
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
     let value = bytes;
     let unit = 0;
 
@@ -71,13 +71,13 @@ export default function Backups({
     database: string;
     last: Outcome;
     lastRestore: Outcome;
-    busy: "backup" | "restore" | null;
+    busy: 'backup' | 'restore' | null;
     backups?: { items: Backup[]; error: string | null };
 }) {
     const [restoring, setRestoring] = useState<Backup | null>(null);
     const { start, stop } = usePoll(
         3000,
-        { only: ["busy", "last", "lastRestore", "backups"] },
+        { only: ['busy', 'last', 'lastRestore', 'backups'] },
         { autoStart: false },
     );
 
@@ -98,7 +98,7 @@ export default function Backups({
                     <Heading
                         variant="small"
                         title="Backups"
-                        description={`Copies of OneDrop's own ${database === "pgsql" ? "Postgres" : "SQLite"} database: users, projects, settings. Project files are backed up separately, as git history.`}
+                        description={`Copies of OneDrop's own ${database === 'pgsql' ? 'Postgres' : 'SQLite'} database: users, projects, settings. Project files are backed up separately, as git history.`}
                     />
                     <Button
                         variant="outline"
@@ -112,12 +112,12 @@ export default function Backups({
                             )
                         }
                     >
-                        {busy === "backup" ? "Backing up…" : "Back up now"}
+                        {busy === 'backup' ? 'Backing up…' : 'Back up now'}
                     </Button>
                 </div>
 
                 <div className="space-y-1 text-sm" data-test="backup-status">
-                    {busy === "restore" && (
+                    {busy === 'restore' && (
                         <p className="text-amber-600 dark:text-amber-400">
                             Restoring a backup…
                         </p>
@@ -126,8 +126,8 @@ export default function Backups({
                         <p
                             className={
                                 last.ok
-                                    ? "text-muted-foreground"
-                                    : "text-destructive"
+                                    ? 'text-muted-foreground'
+                                    : 'text-destructive'
                             }
                         >
                             {last.ok
@@ -141,8 +141,8 @@ export default function Backups({
                         <p
                             className={
                                 lastRestore.ok
-                                    ? "text-muted-foreground"
-                                    : "text-destructive"
+                                    ? 'text-muted-foreground'
+                                    : 'text-destructive'
                             }
                         >
                             {lastRestore.ok
@@ -215,7 +215,7 @@ function BackupList({
                                     <td className="p-3">
                                         {backup.created_at
                                             ? formatDate(backup.created_at)
-                                            : ""}
+                                            : ''}
                                     </td>
                                     <td className="p-3">
                                         <div className="flex justify-end gap-1">
@@ -291,23 +291,23 @@ function SettingsForm({ settings }: { settings: Settings }) {
         destination: settings.destination,
         prefix: settings.prefix,
         s3: {
-            bucket: settings.s3.bucket ?? "",
-            region: settings.s3.region ?? "",
-            endpoint: settings.s3.endpoint ?? "",
-            key: settings.s3.key ?? "",
-            secret: "",
+            bucket: settings.s3.bucket ?? '',
+            region: settings.s3.region ?? '',
+            endpoint: settings.s3.endpoint ?? '',
+            key: settings.s3.key ?? '',
+            secret: '',
             path_style: settings.s3.path_style,
         },
     });
     const errors = form.errors as Record<string, string | undefined>;
     const setS3 = (key: keyof typeof form.data.s3, value: string | boolean) =>
-        form.setData("s3", { ...form.data.s3, [key]: value });
+        form.setData('s3', { ...form.data.s3, [key]: value });
 
     const save = (event: FormEvent) => {
         event.preventDefault();
         form.put(DatabaseBackupController.update.url(), {
             preserveScroll: true,
-            onSuccess: () => setS3("secret", ""),
+            onSuccess: () => setS3('secret', ''),
         });
     };
 
@@ -328,7 +328,7 @@ function SettingsForm({ settings }: { settings: Settings }) {
                 </div>
                 <Switch
                     checked={form.data.enabled}
-                    onChange={(checked) => form.setData("enabled", checked)}
+                    onChange={(checked) => form.setData('enabled', checked)}
                     label="Scheduled backups"
                     testId="backups-enabled"
                 />
@@ -341,7 +341,7 @@ function SettingsForm({ settings }: { settings: Settings }) {
                         id="schedule"
                         value={form.data.schedule}
                         onChange={(event) =>
-                            form.setData("schedule", event.target.value)
+                            form.setData('schedule', event.target.value)
                         }
                         className="font-mono"
                     />
@@ -358,7 +358,7 @@ function SettingsForm({ settings }: { settings: Settings }) {
                         min={1}
                         value={form.data.keep}
                         onChange={(event) =>
-                            form.setData("keep", Number(event.target.value))
+                            form.setData('keep', Number(event.target.value))
                         }
                     />
                     <InputError message={errors.keep} />
@@ -370,7 +370,7 @@ function SettingsForm({ settings }: { settings: Settings }) {
                         value={form.data.prefix}
                         placeholder="/"
                         onChange={(event) =>
-                            form.setData("prefix", event.target.value)
+                            form.setData('prefix', event.target.value)
                         }
                     />
                     <InputError message={errors.prefix} />
@@ -384,8 +384,8 @@ function SettingsForm({ settings }: { settings: Settings }) {
                     value={form.data.destination}
                     onChange={(event) =>
                         form.setData(
-                            "destination",
-                            event.target.value as "local" | "s3",
+                            'destination',
+                            event.target.value as 'local' | 's3',
                         )
                     }
                     className="h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs"
@@ -394,7 +394,7 @@ function SettingsForm({ settings }: { settings: Settings }) {
                     <option value="local">This server's disk</option>
                     <option value="s3">S3-compatible storage</option>
                 </select>
-                {form.data.destination === "local" && (
+                {form.data.destination === 'local' && (
                     <p className="text-xs text-muted-foreground">
                         In storage/app/backups. A copy on the same server won't
                         survive losing the server; use S3 for that.
@@ -402,14 +402,14 @@ function SettingsForm({ settings }: { settings: Settings }) {
                 )}
             </div>
 
-            {form.data.destination === "s3" && (
+            {form.data.destination === 's3' && (
                 <div className="grid gap-4 sm:grid-cols-2">
                     {(
                         [
-                            ["bucket", "Bucket", "text"],
-                            ["region", "Region", "text"],
-                            ["endpoint", "Endpoint", "url"],
-                            ["key", "Access key ID", "text"],
+                            ['bucket', 'Bucket', 'text'],
+                            ['region', 'Region', 'text'],
+                            ['endpoint', 'Endpoint', 'url'],
+                            ['key', 'Access key ID', 'text'],
                         ] as const
                     ).map(([key, label, type]) => (
                         <div key={key} className="grid content-start gap-2">
@@ -420,10 +420,10 @@ function SettingsForm({ settings }: { settings: Settings }) {
                                 autoComplete="off"
                                 value={form.data.s3[key]}
                                 placeholder={
-                                    key === "endpoint"
-                                        ? "Empty for AWS"
-                                        : key === "region"
-                                          ? "us-east-1"
+                                    key === 'endpoint'
+                                        ? 'Empty for AWS'
+                                        : key === 'region'
+                                          ? 'us-east-1'
                                           : undefined
                                 }
                                 onChange={(event) =>
@@ -442,21 +442,21 @@ function SettingsForm({ settings }: { settings: Settings }) {
                             value={form.data.s3.secret}
                             placeholder={
                                 settings.s3.secret_set
-                                    ? "Saved (leave empty to keep)"
+                                    ? 'Saved (leave empty to keep)'
                                     : undefined
                             }
                             onChange={(event) =>
-                                setS3("secret", event.target.value)
+                                setS3('secret', event.target.value)
                             }
                         />
-                        <InputError message={errors["s3.secret"]} />
+                        <InputError message={errors['s3.secret']} />
                     </div>
                     <label className="flex items-center gap-2 self-end pb-2 text-sm">
                         <input
                             type="checkbox"
                             checked={form.data.s3.path_style}
                             onChange={(event) =>
-                                setS3("path_style", event.target.checked)
+                                setS3('path_style', event.target.checked)
                             }
                         />
                         Path-style addresses (MinIO and some others)
@@ -482,7 +482,7 @@ function RestoreDialog({
     backup: Backup | null;
     onClose: () => void;
 }) {
-    const form = useForm({ confirm: "" });
+    const form = useForm({ confirm: '' });
 
     const restore = (event: FormEvent) => {
         event.preventDefault();
@@ -516,7 +516,7 @@ function RestoreDialog({
                     <DialogTitle>Restore this backup?</DialogTitle>
                     <DialogDescription>
                         Everything in OneDrop's database (users, projects,
-                        settings, chats) goes back to how it was in{" "}
+                        settings, chats) goes back to how it was in{' '}
                         <span className="font-mono">{backup?.name}</span>. The
                         current database is backed up first. Type the backup's
                         name to confirm.
@@ -525,7 +525,7 @@ function RestoreDialog({
                         autoFocus
                         value={form.data.confirm}
                         onChange={(event) =>
-                            form.setData("confirm", event.target.value)
+                            form.setData('confirm', event.target.value)
                         }
                         placeholder={backup?.name}
                         className="font-mono"

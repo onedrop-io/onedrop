@@ -1,6 +1,6 @@
-import { useEffect, useRef } from "react";
-import SandboxActivityController from "@/actions/App/Http/Controllers/SandboxActivityController";
-import { jsonRequest } from "@/lib/json-request";
+import { useEffect, useRef } from 'react';
+import SandboxActivityController from '@/actions/App/Http/Controllers/SandboxActivityController';
+import { jsonRequest } from '@/lib/json-request';
 
 // Well within the minute an unused sandbox is allowed.
 const EVERY_MS = 20_000;
@@ -10,7 +10,7 @@ const ACTIVITY_MS = 5_000;
 
 // Using the page. Clicks inside the preview or shell frame never reach it, but focus moving into the frame does
 // (the window blurs with the frame as the active element).
-const ACTIVITY_EVENTS = ["pointerdown", "keydown", "wheel"] as const;
+const ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'wheel'] as const;
 
 /**
  * While the workspace is visible, tell the app its sandbox is in use, so it isn't suspended for sitting idle, and
@@ -46,13 +46,13 @@ export function useSandboxActivity(
         };
 
         const onTimer = () => {
-            if (document.visibilityState === "visible") {
+            if (document.visibilityState === 'visible') {
                 void ping().catch(() => {});
             }
         };
 
         const onVisible = () => {
-            if (document.visibilityState === "visible") {
+            if (document.visibilityState === 'visible') {
                 ping()
                     .then((woke) => latest.current(woke))
                     .catch(() => latest.current(false));
@@ -83,21 +83,21 @@ export function useSandboxActivity(
         };
 
         const timer = window.setInterval(onTimer, EVERY_MS);
-        document.addEventListener("visibilitychange", onVisible);
+        document.addEventListener('visibilitychange', onVisible);
         ACTIVITY_EVENTS.forEach((event) =>
             document.addEventListener(event, onActivity, { passive: true }),
         );
-        window.addEventListener("focus", onActivity);
-        window.addEventListener("blur", onBlur);
+        window.addEventListener('focus', onActivity);
+        window.addEventListener('blur', onBlur);
 
         return () => {
             window.clearInterval(timer);
-            document.removeEventListener("visibilitychange", onVisible);
+            document.removeEventListener('visibilitychange', onVisible);
             ACTIVITY_EVENTS.forEach((event) =>
                 document.removeEventListener(event, onActivity),
             );
-            window.removeEventListener("focus", onActivity);
-            window.removeEventListener("blur", onBlur);
+            window.removeEventListener('focus', onActivity);
+            window.removeEventListener('blur', onBlur);
         };
     }, [projectId, task]);
 }

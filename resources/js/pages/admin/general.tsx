@@ -1,12 +1,12 @@
-import { Form, Head, router, usePage } from "@inertiajs/react";
-import { useRef } from "react";
-import BrandingController from "@/actions/App/Http/Controllers/Admin/BrandingController";
-import AppLogoIcon from "@/components/app-logo-icon";
-import Heading from "@/components/heading";
-import InputError from "@/components/input-error";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Form, Head, router, usePage } from '@inertiajs/react';
+import { useRef } from 'react';
+import BrandingController from '@/actions/App/Http/Controllers/Admin/BrandingController';
+import AppLogoIcon from '@/components/app-logo-icon';
+import Heading from '@/components/heading';
+import InputError from '@/components/input-error';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 /** The install's name and logo (ADMIN-001). */
 export default function General({
@@ -35,7 +35,7 @@ export default function General({
                 preserveScroll: true,
                 onFinish: () => {
                     if (fileInput.current) {
-                        fileInput.current.value = "";
+                        fileInput.current.value = '';
                     }
                 },
             },
@@ -65,7 +65,7 @@ export default function General({
                                 <Input
                                     id="name"
                                     name="name"
-                                    defaultValue={customName ?? ""}
+                                    defaultValue={customName ?? ''}
                                     placeholder={defaultName}
                                     maxLength={60}
                                     data-test="app-name-input"
@@ -111,7 +111,7 @@ export default function General({
                         variant="outline"
                         onClick={() => fileInput.current?.click()}
                     >
-                        {logo ? "Replace logo" : "Upload logo"}
+                        {logo ? 'Replace logo' : 'Upload logo'}
                     </Button>
                     {logo && (
                         <Button

@@ -1,26 +1,26 @@
-import { ExternalLink, GitPullRequestArrow } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import type { FormEvent } from "react";
-import ProjectGitController from "@/actions/App/Http/Controllers/ProjectGitController";
-import { Button } from "@/components/ui/button";
+import { ExternalLink, GitPullRequestArrow } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import type { FormEvent } from 'react';
+import ProjectGitController from '@/actions/App/Http/Controllers/ProjectGitController';
+import { Button } from '@/components/ui/button';
 import {
     DialogContent,
     DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import { DEFAULT_BRANCHES } from "@/components/workspace/git-state";
-import { jsonRequest } from "@/lib/json-request";
+} from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
+import { DEFAULT_BRANCHES } from '@/components/workspace/git-state';
+import { jsonRequest } from '@/lib/json-request';
 
 type Draft = { title: string; body: string; commits: number; url: string };
 
@@ -49,10 +49,10 @@ export default function PullRequestDialog({
     bases: string[];
     onClose: () => void;
 }) {
-    const [base, setBase] = useState(() => defaultBase(bases) ?? "");
+    const [base, setBase] = useState(() => defaultBase(bases) ?? '');
     const [draft, setDraft] = useState<Draft | null>(null);
-    const [title, setTitle] = useState("");
-    const [body, setBody] = useState("");
+    const [title, setTitle] = useState('');
+    const [body, setBody] = useState('');
     const [error, setError] = useState<string | null>(null);
     const titleField = useRef<HTMLInputElement>(null);
 
@@ -90,17 +90,17 @@ export default function PullRequestDialog({
     const open = (event: FormEvent) => {
         event.preventDefault();
 
-        if (!draft || title.trim() === "") {
+        if (!draft || title.trim() === '') {
             return;
         }
 
         const query = new URLSearchParams({
-            expand: "1",
+            expand: '1',
             title: title.trim(),
             body: body.trim(),
         });
 
-        window.open(`${draft.url}?${query}`, "_blank", "noopener");
+        window.open(`${draft.url}?${query}`, '_blank', 'noopener');
         onClose();
     };
 
@@ -148,8 +148,8 @@ export default function PullRequestDialog({
                             className="text-muted-foreground"
                             data-test="git-pr-commits"
                         >
-                            · {draft.commits}{" "}
-                            {draft.commits === 1 ? "commit" : "commits"}
+                            · {draft.commits}{' '}
+                            {draft.commits === 1 ? 'commit' : 'commits'}
                         </span>
                     )}
                 </div>
@@ -215,7 +215,7 @@ export default function PullRequestDialog({
                     </Button>
                     <Button
                         type="submit"
-                        disabled={!draft || title.trim() === ""}
+                        disabled={!draft || title.trim() === ''}
                         data-test="git-pr-open"
                     >
                         <ExternalLink className="size-4" />

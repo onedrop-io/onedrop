@@ -18,15 +18,15 @@ export type GitState = {
         tracking: { ahead: number; behind: number } | null;
         /** Commits no remote branch has yet; null without a remote (and in sandboxes that don't count them yet). */
         unpushed?: number | null;
-        state: "merging" | "rebasing" | null;
+        state: 'merging' | 'rebasing' | null;
     };
     remote: {
         url: string;
         host: string | null;
-        sync_status: "pushing" | "pulling" | "failed" | null;
+        sync_status: 'pushing' | 'pulling' | 'failed' | null;
         sync_error: string | null;
     } | null;
 };
 
 /** Branches that are usually a repository's default: pull requests go into them, and committing to them deserves a note. */
-export const DEFAULT_BRANCHES = ["main", "master"];
+export const DEFAULT_BRANCHES = ['main', 'master'];

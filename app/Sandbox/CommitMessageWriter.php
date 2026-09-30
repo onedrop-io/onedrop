@@ -25,10 +25,10 @@ class CommitMessageWriter
      */
     public function write(Project $project, Sandbox $sandbox, ?array $paths = null): string
     {
-        $changes = collect($this->git->status($sandbox)['changes'])
-            ->filter(fn (array $change) => $paths === null || in_array($change['path'], $paths, true))
-            ->values()
-            ->all();
+        $changes = array_values(array_filter(
+            $this->git->status($sandbox)['changes'],
+            fn (array $change) => $paths === null || in_array($change['path'], $paths, true),
+        ));
 
         try {
             $message = $this->messageFrom($this->ai->ask($project, $this->prompt($this->git->changesDiff($sandbox, $paths))));
@@ -52,7 +52,7 @@ class CommitMessageWriter
                 'patch' => $preview['patch'],
                 'new_files' => [],
                 'truncated' => $preview['truncated'],
-            ], collect($preview['commits'])->pluck('subject')->all())));
+            ], array_column($preview['commits'], 'subject'))));
         } catch (SandboxException|ChatGptSignInFailed) {
             $summary = '';
         }

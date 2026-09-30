@@ -99,7 +99,7 @@ class DatabaseBackupController extends Controller
      */
     public function download(DatabaseBackups $backups, string $backup): StreamedResponse
     {
-        abort_unless(preg_match(DatabaseBackups::NAME, $backup) && $backups->disk()->exists($backups->path($backup)), 404);
+        abort_unless(preg_match(DatabaseBackups::NAME, $backup) === 1 && $backups->disk()->exists($backups->path($backup)), 404);
 
         return $backups->disk()->download($backups->path($backup), $backup);
     }
@@ -109,7 +109,7 @@ class DatabaseBackupController extends Controller
      */
     public function destroy(DatabaseBackups $backups, string $backup): RedirectResponse
     {
-        abort_unless(preg_match(DatabaseBackups::NAME, $backup), 404);
+        abort_unless(preg_match(DatabaseBackups::NAME, $backup) === 1, 404);
 
         $backups->delete($backup);
 
@@ -123,7 +123,7 @@ class DatabaseBackupController extends Controller
      */
     public function restore(Request $request, string $backup): RedirectResponse
     {
-        abort_unless(preg_match(DatabaseBackups::NAME, $backup), 404);
+        abort_unless(preg_match(DatabaseBackups::NAME, $backup) === 1, 404);
 
         $request->validate(['confirm' => ['required', 'string', Rule::in([$backup])]], [
             'confirm.in' => __('Type the backup\'s name to restore it.'),

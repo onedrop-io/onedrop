@@ -40,7 +40,11 @@ export default {
 
         if (url.pathname === '/__onedrop/enter') {
             return withoutFrameBlock(
-                await askApp(env, '/__onedrop/enter' + url.search, url.hostname),
+                await askApp(
+                    env,
+                    '/__onedrop/enter' + url.search,
+                    url.hostname,
+                ),
             );
         }
 

@@ -1,19 +1,19 @@
-import { Bot, User } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import type { FormEvent } from "react";
-import { toast } from "sonner";
-import ProjectGitController from "@/actions/App/Http/Controllers/ProjectGitController";
-import { Button } from "@/components/ui/button";
+import { Bot, User } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import type { FormEvent } from 'react';
+import { toast } from 'sonner';
+import ProjectGitController from '@/actions/App/Http/Controllers/ProjectGitController';
+import { Button } from '@/components/ui/button';
 import {
     DialogContent,
     DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
-} from "@/components/ui/dialog";
-import { Skeleton } from "@/components/ui/skeleton";
-import type { GitState } from "@/components/workspace/git-state";
-import { jsonRequest } from "@/lib/json-request";
+} from '@/components/ui/dialog';
+import { Skeleton } from '@/components/ui/skeleton';
+import type { GitState } from '@/components/workspace/git-state';
+import { jsonRequest } from '@/lib/json-request';
 
 type Commit = { sha: string; subject: string; author: string; agent: boolean };
 
@@ -29,10 +29,10 @@ export default function CombineCommitsDialog({
     projectId: number;
     working: boolean;
     onClose: () => void;
-    onCombined: (changed: Pick<GitState, "status">) => void;
+    onCombined: (changed: Pick<GitState, 'status'>) => void;
 }) {
     const [commits, setCommits] = useState<Commit[] | null>(null);
-    const [message, setMessage] = useState("");
+    const [message, setMessage] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [combining, setCombining] = useState(false);
     const messageField = useRef<HTMLTextAreaElement>(null);
@@ -68,13 +68,13 @@ export default function CombineCommitsDialog({
     const submit = (event?: FormEvent) => {
         event?.preventDefault();
 
-        if (!commits || message.trim() === "" || combining) {
+        if (!commits || message.trim() === '' || combining) {
             return;
         }
 
         setCombining(true);
         setError(null);
-        jsonRequest<Pick<GitState, "status">>(
+        jsonRequest<Pick<GitState, 'status'>>(
             ProjectGitController.combine.url(projectId),
             { message },
         )
@@ -91,7 +91,7 @@ export default function CombineCommitsDialog({
             <form onSubmit={submit} className="grid min-w-0 gap-5">
                 <DialogHeader>
                     <DialogTitle>
-                        Combine {commits ? `${commits.length} ` : ""}commits
+                        Combine {commits ? `${commits.length} ` : ''}commits
                     </DialogTitle>
                     <DialogDescription>
                         The commits that aren't pushed yet become one, so the
@@ -157,7 +157,7 @@ export default function CombineCommitsDialog({
                                     }
                                     onKeyDown={(event) => {
                                         if (
-                                            event.key === "Enter" &&
+                                            event.key === 'Enter' &&
                                             (event.metaKey || event.ctrlKey)
                                         ) {
                                             submit();
@@ -188,15 +188,15 @@ export default function CombineCommitsDialog({
                         type="submit"
                         disabled={
                             !commits ||
-                            message.trim() === "" ||
+                            message.trim() === '' ||
                             combining ||
                             working
                         }
                         data-test="git-combine-submit"
                     >
                         {combining
-                            ? "Combining…"
-                            : `Combine${commits ? ` ${commits.length}` : ""} commits`}
+                            ? 'Combining…'
+                            : `Combine${commits ? ` ${commits.length}` : ''} commits`}
                     </Button>
                 </DialogFooter>
             </form>

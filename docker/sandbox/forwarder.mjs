@@ -138,7 +138,10 @@ function codexCommand(resume) {
     ];
 
     if (APP_VARIANT) {
-        args.push('--config', `model_reasoning_effort=${JSON.stringify(APP_VARIANT)}`);
+        args.push(
+            '--config',
+            `model_reasoning_effort=${JSON.stringify(APP_VARIANT)}`,
+        );
     }
 
     // "=" so a list-taking option can't swallow the arguments after it.
@@ -259,7 +262,8 @@ function compactCodexEvent(event) {
                 type: event.type,
                 item: {
                     ...pick(item, ['id', 'type', 'status', 'tool', 'server']),
-                    ...(typeof item.text === 'string' && item.type === 'agent_message'
+                    ...(typeof item.text === 'string' &&
+                    item.type === 'agent_message'
                         ? { text: item.text }
                         : {}),
                     ...(typeof item.command === 'string'

@@ -90,7 +90,7 @@ class ServerSettings
 
         File::ensureDirectoryExists(dirname(self::requestPath()));
         // Written whole then moved into place, so the applier never reads half a file.
-        File::put(self::requestPath().'.tmp', json_encode($request, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        File::put(self::requestPath().'.tmp', json_encode($request, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
         File::move(self::requestPath().'.tmp', self::requestPath());
     }
 

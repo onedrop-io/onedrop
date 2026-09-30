@@ -20,11 +20,11 @@ becomes the E2B template.
 
 ## What goes where
 
-| Where                             | What                                                                                                                                                                                                                       |
-| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Where                             | What                                                                                                                                                                                                                               |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Base image, platform              | Debian slim, single-user Nix, Devbox, `/opt/onedrop/bin/{php,node}` (PHP with pdo_sqlite/pdo_pgsql/pdo_mysql, Node 22), ttyd, openssh, git, sqlite, OpenCode (pinned), starship, eza, fzf, bash-completion, `/opt/onedrop` scripts |
-| Base image, pre-warmed store only | Default stack: php84 + composer, nodejs_22, postgresql, python3 (~683 MiB closure together, measured)                                                                                                                      |
-| Project `devbox.json`             | The project's language(s), libraries and services (Postgres/Redis via `devbox services`); Claude Code / Codex CLIs if wanted                                                                                               |
+| Base image, pre-warmed store only | Default stack: php84 + composer, nodejs_22, postgresql, python3 (~683 MiB closure together, measured)                                                                                                                              |
+| Project `devbox.json`             | The project's language(s), libraries and services (Postgres/Redis via `devbox services`); Claude Code / Codex CLIs if wanted                                                                                                       |
 
 Pre-warmed is not activated: a package in the store is only on `PATH` if the project lists it.
 

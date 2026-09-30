@@ -1,12 +1,12 @@
-import { Deferred, Head, router, usePoll } from "@inertiajs/react";
-import type { ReactNode } from "react";
-import AreaLinesChart from "@/components/charts/area-lines-chart";
-import TimeLineChart from "@/components/charts/time-line-chart";
-import Heading from "@/components/heading";
-import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
+import { Deferred, Head, router, usePoll } from '@inertiajs/react';
+import type { ReactNode } from 'react';
+import AreaLinesChart from '@/components/charts/area-lines-chart';
+import TimeLineChart from '@/components/charts/time-line-chart';
+import Heading from '@/components/heading';
+import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 
-type Range = "1h" | "24h" | "7d";
+type Range = '1h' | '24h' | '7d';
 
 type Point = {
     t: number;
@@ -54,13 +54,13 @@ type Counts = {
 };
 
 const RANGES: { value: Range; label: string }[] = [
-    { value: "1h", label: "Past hour" },
-    { value: "24h", label: "Past day" },
-    { value: "7d", label: "Past week" },
+    { value: '1h', label: 'Past hour' },
+    { value: '24h', label: 'Past day' },
+    { value: '7d', label: 'Past week' },
 ];
 
 function formatBytes(bytes: number, digits = 1): string {
-    const units = ["B", "KB", "MB", "GB", "TB"];
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
     let value = bytes;
     let unit = 0;
 
@@ -86,13 +86,13 @@ export default function Monitoring({
     counts: Counts;
     docker?: DockerRow[] | null;
 }) {
-    usePoll(60_000, { only: ["metrics", "counts"] });
+    usePoll(60_000, { only: ['metrics', 'counts'] });
 
     const { current, series, bucket_seconds: bucket } = metrics;
     const changeRange = (value: Range) =>
         router.reload({
             data: { range: value },
-            only: ["metrics", "range"],
+            only: ['metrics', 'range'],
         });
 
     return (
@@ -117,9 +117,9 @@ export default function Monitoring({
                                 type="button"
                                 onClick={() => changeRange(option.value)}
                                 className={cn(
-                                    "rounded px-2.5 py-1 text-muted-foreground",
+                                    'rounded px-2.5 py-1 text-muted-foreground',
                                     range === option.value &&
-                                        "bg-muted font-medium text-foreground",
+                                        'bg-muted font-medium text-foreground',
                                 )}
                                 aria-pressed={range === option.value}
                             >
@@ -144,7 +144,7 @@ export default function Monitoring({
                         value={
                             Object.entries(counts.providers)
                                 .map(([name, count]) => `${name} ${count}`)
-                                .join(", ") || "None"
+                                .join(', ') || 'None'
                         }
                     />
                 </div>
@@ -160,7 +160,7 @@ export default function Monitoring({
                         share={current.cpu != null ? current.cpu / 100 : null}
                         testId="cpu-panel"
                     >
-                        {hasAny(series, "cpu") && (
+                        {hasAny(series, 'cpu') && (
                             <TimeLineChart
                                 title="Share of all CPUs"
                                 points={series.map((p) => ({
@@ -184,7 +184,7 @@ export default function Monitoring({
                         share={ratio(current.memory_used, current.memory_total)}
                         testId="memory-panel"
                     >
-                        {hasAny(series, "memory_used") && (
+                        {hasAny(series, 'memory_used') && (
                             <TimeLineChart
                                 title="Used over time"
                                 points={series.map((p) => ({
@@ -209,7 +209,7 @@ export default function Monitoring({
                         share={ratio(current.disk_used, current.disk_total)}
                         testId="disk-panel"
                     >
-                        {hasAny(series, "disk_used") && (
+                        {hasAny(series, 'disk_used') && (
                             <TimeLineChart
                                 title="Used over time"
                                 points={series.map((p) => ({
@@ -256,19 +256,19 @@ export default function Monitoring({
                         }
                         testId="block-io-panel"
                     >
-                        {hasAny(series, "disk_read") && (
+                        {hasAny(series, 'disk_read') && (
                             <AreaLinesChart
                                 title="Read and written per second"
                                 series={[
                                     {
-                                        key: "read",
-                                        label: "Read",
-                                        color: "var(--viz-1)",
+                                        key: 'read',
+                                        label: 'Read',
+                                        color: 'var(--viz-1)',
                                     },
                                     {
-                                        key: "written",
-                                        label: "Written",
-                                        color: "var(--viz-4)",
+                                        key: 'written',
+                                        label: 'Written',
+                                        color: 'var(--viz-4)',
                                     },
                                 ]}
                                 points={series.map((p) => ({
@@ -294,19 +294,19 @@ export default function Monitoring({
                         }
                         testId="network-panel"
                     >
-                        {hasAny(series, "network_in") && (
+                        {hasAny(series, 'network_in') && (
                             <AreaLinesChart
                                 title="In and out per second"
                                 series={[
                                     {
-                                        key: "in",
-                                        label: "In",
-                                        color: "var(--viz-1)",
+                                        key: 'in',
+                                        label: 'In',
+                                        color: 'var(--viz-1)',
                                     },
                                     {
-                                        key: "out",
-                                        label: "Out",
-                                        color: "var(--viz-4)",
+                                        key: 'out',
+                                        label: 'Out',
+                                        color: 'var(--viz-4)',
                                     },
                                 ]}
                                 points={series.map((p) => ({
@@ -364,7 +364,7 @@ function Panel({
             <div className="space-y-1">
                 <h3 className="text-sm font-medium">{title}</h3>
                 <p className="text-sm text-muted-foreground tabular-nums">
-                    {summary ?? "Not available on this server."}
+                    {summary ?? 'Not available on this server.'}
                 </p>
             </div>
             {share != null && (
@@ -407,7 +407,7 @@ function DockerUsage({ rows }: { rows: DockerRow[] | null }) {
                             {row.total}
                             {row.active > 0 && (
                                 <span className="text-muted-foreground">
-                                    {" "}
+                                    {' '}
                                     ({row.active} active)
                                 </span>
                             )}
