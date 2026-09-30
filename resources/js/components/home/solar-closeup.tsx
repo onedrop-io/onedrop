@@ -374,18 +374,27 @@ void main() {
 }`;
 
 /**
- * The comet's orbit: long and lopsided (semi-major axis, eccentricity), a
- * slow trip round (seconds), tipped out of the planets' plane and turned
+ * The comet's orbit: a long, thin ellipse (semi-major axis, eccentricity)
+ * that dives in from far beyond Neptune to just outside Mercury, a trip round
+ * (seconds) the same way as the planets, tipped out of their plane and turned
  * (radians), and where along it it starts (0 to 1).
  */
 const COMET = {
-    axis: 82,
-    eccentricity: 0.6,
-    period: 140,
+    axis: 140,
+    eccentricity: 0.83,
+    period: 70,
     tilt: 0.38,
     turn: 2.3,
-    phase: 0.66,
+    phase: 0.83,
 };
+
+/**
+ * Where the comet wakes up on the way in (and dies down on the way out): no
+ * coma or tails beyond `far` from the Sun, fully lit inside `near`. Out there
+ * it's also slow enough for the circling camera to overtake it.
+ */
+const COMET_ACTIVE = { near: 120, far: 145 };
+
 const TAIL_SEGMENTS = 48;
 
 type Tail = {
@@ -934,6 +943,7 @@ function streamRibbons({ three, camera, ribbons }: Scene, seconds: number) {
  * Moves the comet along its orbit (quickly round the Sun, slowly far out, as
  * Kepler had it), and points its tails away from the Sun, longer and brighter
  * the nearer it gets. The dust tail curves back along the path it's come from.
+ * Far out it's dormant: no coma, no tails.
  */
 function flyComet({ three, camera, comet }: Scene, seconds: number) {
     const { axis, eccentricity, period, tilt, turn, phase } = COMET;
@@ -951,27 +961,32 @@ function flyComet({ three, camera, comet }: Scene, seconds: number) {
     const position = new three.Vector3(
         axis * (Math.cos(eccentric) - eccentricity),
         0,
-        minor * Math.sin(eccentric),
+        -minor * Math.sin(eccentric),
     ).applyEuler(orbit);
     const heading = new three.Vector3(
         -axis * Math.sin(eccentric),
         0,
-        minor * Math.cos(eccentric),
+        -minor * Math.cos(eccentric),
     )
         .applyEuler(orbit)
         .normalize();
 
     const distance = position.length();
-    const strength = Math.min(1.4, Math.max(0.3, (60 / distance) ** 1.3));
+    const { near, far } = COMET_ACTIVE;
+    const waking = Math.min(1, Math.max(0, (far - distance) / (far - near)));
+    const awake = waking * waking * (3 - 2 * waking);
+    const strength =
+        Math.min(1.4, Math.max(0.3, (60 / distance) ** 1.3)) * awake;
     const away = position.clone().normalize();
     comet.position.copy(position);
     comet.strength = strength;
 
+    comet.nucleus.visible = awake > 0;
     comet.nucleus.position.copy(position);
     comet.nucleus.rotation.set(seconds * 0.2, seconds * 0.13, 0);
     comet.coma.position.copy(position);
     comet.coma.scale.setScalar(5 + strength * 7);
-    comet.coma.material.opacity = Math.min(1, 0.5 + strength * 0.6);
+    comet.coma.material.opacity = Math.min(1, 0.5 + strength * 0.6) * awake;
 
     const dustLength = 24 + strength * 50;
     const ionLength = 34 + strength * 72;
