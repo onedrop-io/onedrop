@@ -425,6 +425,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Visitor should see the positioning up top: vibe-code apps for production, bring your own subscription (a ChatGPT plan or an API key), deploy anywhere.
 - Visitor should see a short animated demo of an app being described in chat, appearing in a live preview, and getting an instant Tailscale link with one click on Publish (shown still when reduced motion is on).
 - Visitor should be able to pause and play the demo.
+- Visitor should be able to click Watch the demo by the headline to play the product demo video in a dialog, with playback controls, and close it with the close button or Escape.
 - Visitor should see a small prompt by the headline type a sentence and send it, then a single droplet fall from it and land and burst into code and app-part particles that fade away within a few seconds, leaving faint sparks drifting across the page.
 - Visitor should see a full-size, swirling black hole boot up by the headline within about two seconds of the burst, and the hero's dot grid ripple with each impact. Nothing on the page gets pulled into the black hole.
 - The black hole should be ray-traced (gravitational lensing, blackbody-colored accretion disk, Doppler beaming) with WebGL2, falling back to a simpler drawn black hole when WebGL2 isn't available.

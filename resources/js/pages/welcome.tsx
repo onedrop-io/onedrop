@@ -22,6 +22,7 @@ import {
     IMPACT_DELAY_MS,
     ParticleUniverse,
 } from '@/components/home/particle-universe';
+import { DemoVideo } from '@/components/home/demo-video';
 import { DropMark } from '@/components/home/drop-mark';
 import { FEATURES } from '@/components/home/features';
 import { InstallCommand } from '@/components/home/install-command';
@@ -847,6 +848,7 @@ export default function Welcome() {
                                 </p>
                                 <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:items-center">
                                     <PrimaryCta isLoggedIn={isLoggedIn} />
+                                    <DemoVideo brand={BRAND} />
                                     <a
                                         href="#how-it-works"
                                         className="inline-flex items-center justify-center rounded-xl px-6 py-3.5 font-semibold text-[#F5EFEA] ring-1 ring-[#3A302B] hover:bg-[#151110]"

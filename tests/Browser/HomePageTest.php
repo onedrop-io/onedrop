@@ -53,6 +53,16 @@ test('the demo builds an app and publishes it to an instant Tailscale link', fun
         ->assertNoJavaScriptErrors();
 })->group('HOME-001');
 
+test('a visitor watches the demo video and closes it', function () {
+    visit('/')
+        ->click('@watch-demo-video')
+        ->assertVisible('@demo-video')
+        ->assertAttribute('@demo-video', 'src', 'https://pub-c655146bc458440aa8c0969e063c9a4c.r2.dev/onedrop.mp4')
+        ->keys('@demo-video', 'Escape')
+        ->assertMissing('@demo-video')
+        ->assertNoJavaScriptErrors();
+})->group('HOME-001');
+
 test('a visitor opens the product menu and jumps to a feature', function () {
     visit('/')
         ->assertDontSee('Share via Tailscale')
