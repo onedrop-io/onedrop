@@ -105,9 +105,9 @@ class AgentQueue
 
     /**
      * Run the message whose Claude Code run failed because Claude wasn't signed in, now that the user has
-     * signed in (AI-005). False when there's none, or the agent is busy.
+     * signed in (AI-005), with an $activity line in the chat. False when there's none, or the agent is busy.
      */
-    public function resumeAfterSignIn(Conversation $conversation): bool
+    public function resumeAfterSignIn(Conversation $conversation, ?string $activity = 'Signed in to Claude, picking up where it left off'): bool
     {
         $messageId = $conversation->getAttribute('sign_in_retry_message_id');
 
@@ -123,7 +123,10 @@ class AgentQueue
         }
 
         $conversation->update(['status' => ProjectStatus::Working]);
-        $conversation->messages()->create(['role' => MessageRole::Activity, 'content' => 'Signed in to Claude, picking up where it left off']);
+        if ($activity !== null) {
+            $conversation->messages()->create(['role' => MessageRole::Activity, 'content' => $activity]);
+        }
+
         $this->start($conversation, $message);
 
         return true;

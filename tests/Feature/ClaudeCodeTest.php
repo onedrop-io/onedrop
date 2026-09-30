@@ -4,10 +4,12 @@ use App\Enums\AgentHarness;
 use App\Enums\AgentProvider;
 use App\Enums\MessageRole;
 use App\Enums\ProjectStatus;
+use App\Jobs\RunAgentTask;
 use App\Models\AgentConnection;
 use App\Models\Project;
 use App\Models\Sandbox;
 use App\Models\User;
+use App\Sandbox\Agents\ClaudeCodeEvents;
 use App\Sandbox\Agents\HarnessRunner;
 use App\Sandbox\Agents\ModelCatalog;
 use App\Sandbox\ExecResult;
@@ -298,7 +300,6 @@ test('failed Claude Code runs are explained once', function (array $result, stri
         ->and($project->fresh()->status)->toBe(ProjectStatus::Idle);
 })->with([
     'not signed in' => [['result' => 'Not logged in · Please run /login'], "Sign in to Claude to build on your subscription: click **Sign in to Claude** under the chat box. I'll pick up your message as soon as you're signed in."],
-    'expired sign-in' => [['api_error_status' => 401, 'result' => 'authentication_failed'], "Your Claude sign-in has expired or was signed out. Click **Sign in to Claude** under the chat box to sign in again. I'll pick up your message as soon as you're signed in."],
     'plan limit' => [['result' => "You've hit your limit · resets 5pm"], "Your Claude plan's usage limit is used up for now. Try again when it resets, or connect an Anthropic API key in Settings → AI."],
     'no API credits' => [['result' => 'Credit balance is too low'], 'Your Anthropic account is out of credits. Add credits at console.anthropic.com, then try again.'],
     'overloaded' => [['api_error_status' => 529, 'result' => 'Overloaded'], 'Claude is overloaded right now. Try again in a minute.'],
@@ -317,9 +318,36 @@ test('a run that fails because Claude isn\'t signed in waits to run again after 
     expect($project->fresh()->sign_in_retry_message_id)->toBe($waits ? $message->id : null);
 })->with([
     'not signed in' => [['result' => 'Not logged in · Please run /login'], true],
-    'expired sign-in' => [['api_error_status' => 401, 'result' => 'authentication_failed'], true],
     'plan limit' => [['result' => "You've hit your limit · resets 5pm"], false],
 ])->group('AI-005');
+
+test('a run whose Claude sign-in is rejected tries once more before asking the user to sign in again', function () {
+    Queue::fake();
+    $project = Project::factory()->for($this->user)->create(['status' => ProjectStatus::Working]);
+    $message = $project->messages()->create(['role' => MessageRole::User, 'content' => 'Build a timer']);
+    $rejected = [
+        ['type' => 'result', 'is_error' => true, 'api_error_status' => 401, 'result' => 'OAuth access token has been revoked.'],
+        ['type' => 'zap.exit', 'code' => 1, 'stderr' => '', 'reported' => true],
+    ];
+    $logouts = fn () => collect($this->provider->executed)->where('command', ['claude', 'auth', 'logout'])->count();
+
+    // A token revoked by a refresh elsewhere: the message just runs again, still signed in.
+    sendClaudeEvents($project, $rejected);
+
+    Queue::assertPushed(RunAgentTask::class, fn (RunAgentTask $job) => $job->message->is($message));
+    expect($project->messages()->pluck('content')->all())->toBe(['Build a timer', ClaudeCodeEvents::RETRYING_SIGN_IN])
+        ->and($project->fresh()->status)->toBe(ProjectStatus::Working)
+        ->and($logouts())->toBe(0);
+
+    // Turned down again: sign Claude Code out so the chat box offers to sign in, and wait for it.
+    sendClaudeEvents($project, $rejected);
+
+    expect($project->messages()->reorder()->latest('id')->value('content'))->toBe("Your Claude sign-in has expired or was signed out. Click **Sign in to Claude** under the chat box to sign in again. I'll pick up your message as soon as you're signed in.")
+        ->and($project->fresh()->status)->toBe(ProjectStatus::Idle)
+        ->and($project->fresh()->sign_in_retry_message_id)->toBe($message->id)
+        ->and($logouts())->toBe(1);
+    Queue::assertPushed(RunAgentTask::class, 1);
+})->group('AI-005');
 
 test('a Claude Code crash without a result is still explained', function () {
     $project = Project::factory()->for($this->user)->create(['status' => ProjectStatus::Working]);

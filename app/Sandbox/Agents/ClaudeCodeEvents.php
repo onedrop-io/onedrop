@@ -7,6 +7,8 @@ use App\Enums\AgentProvider;
 use App\Enums\CredentialType;
 use App\Enums\MessageRole;
 use App\Enums\ProjectStatus;
+use App\Sandbox\SandboxException;
+use App\Sandbox\SandboxProvider;
 use Illuminate\Support\Str;
 
 /**
@@ -17,6 +19,9 @@ use Illuminate\Support\Str;
  */
 class ClaudeCodeEvents extends AgentEvents
 {
+    /** The chat line for a run going again after Claude rejected the login. */
+    public const RETRYING_SIGN_IN = 'Claude turned down the sign-in, trying again';
+
     /**
      * {@inheritDoc}
      */
@@ -98,14 +103,91 @@ class ClaudeCodeEvents extends AgentEvents
             ], (float) ($usage['costUSD'] ?? 0));
         }
 
-        if ($event['is_error'] ?? false) {
-            [$explanation, $signedOut] = $this->explainResult($conversation, $event);
-            $this->say($conversation, MessageRole::Assistant, $explanation);
+        if (! ($event['is_error'] ?? false)) {
+            return;
+        }
 
-            // Run the message again once the user signs in (AI-005).
-            if ($signedOut) {
-                $conversation->update(['sign_in_retry_message_id' => $conversation->messages()->reorder()->where('role', MessageRole::User)->latest('id')->value('id')]);
+        $messageId = $conversation->messages()->reorder()->where('role', MessageRole::User)->latest('id')->value('id');
+        $rejected = $this->loginRejected($conversation, $event);
+
+        // Claude Code refreshing a shared login elsewhere revokes the token this run started with,
+        // so a rejected login gets one more try before the user is asked to sign in again (AI-005).
+        if ($rejected && ! $this->retriedAfterRejection($conversation, $messageId)) {
+            $this->say($conversation, MessageRole::Activity, self::RETRYING_SIGN_IN);
+            $conversation->update(['sign_in_retry_message_id' => $messageId]);
+
+            return;
+        }
+
+        [$explanation, $signedOut] = $this->explainResult($conversation, $event);
+        $this->say($conversation, MessageRole::Assistant, $explanation);
+
+        // Run the message again once the user signs in (AI-005).
+        if ($signedOut) {
+            if ($rejected) {
+                $this->clearRejectedLogin($conversation);
             }
+
+            $conversation->update(['sign_in_retry_message_id' => $messageId]);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    protected function finish(Conversation $conversation, int $code, string $stderr, bool $reported = false): void
+    {
+        $retrying = $conversation->getAttribute('sign_in_retry_message_id') !== null
+            && $conversation->messages()->reorder()->latest('id')->value('content') === self::RETRYING_SIGN_IN;
+
+        parent::finish($conversation, $code, $stderr, $reported);
+
+        if ($retrying) {
+            app(AgentQueue::class)->resumeAfterSignIn($conversation, activity: null);
+        }
+    }
+
+    /**
+     * Whether Claude turned down the user's Claude subscription login (rather than finding none).
+     *
+     * @param  array<string, mixed>  $event
+     */
+    protected function loginRejected(Conversation $conversation, array $event): bool
+    {
+        return $this->authFailed($event)
+            && ! Str::contains($this->resultMessage($event), ['Not logged in', 'Please run /login'], ignoreCase: true)
+            && $this->usesSubscription($conversation);
+    }
+
+    /**
+     * Whether the message already had its one retry after a rejected login.
+     */
+    protected function retriedAfterRejection(Conversation $conversation, ?int $messageId): bool
+    {
+        return $conversation->messages()
+            ->where('id', '>', (int) $messageId)
+            ->where('role', MessageRole::Activity)
+            ->where('content', self::RETRYING_SIGN_IN)
+            ->exists();
+    }
+
+    /**
+     * Sign Claude Code out of a login Claude rejected twice: `claude auth status` only checks that one
+     * is saved, so without this the chat would keep showing the user as signed in and never offer to
+     * sign in again. Runs before the run ends, so the next status check already sees it.
+     */
+    protected function clearRejectedLogin(Conversation $conversation): void
+    {
+        $sandbox = $conversation->agentSandbox();
+
+        if ($sandbox?->external_id === null) {
+            return;
+        }
+
+        try {
+            app(SandboxProvider::class)->exec($sandbox->external_id, ['claude', 'auth', 'logout']);
+        } catch (SandboxException) {
+            // Unreachable: the status check can't reach it either, and the next run fails the same way.
         }
     }
 
@@ -117,18 +199,12 @@ class ClaudeCodeEvents extends AgentEvents
      */
     protected function explainResult(Conversation $conversation, array $event): array
     {
-        $subscription = $conversation->ownerProject()->user->agentConnections()
-            ->where('provider', AgentProvider::Claude)
-            ->where('credential_type', CredentialType::ClaudeLogin)
-            ->exists();
-        $message = trim(implode(' ', array_filter([
-            is_string($event['result'] ?? null) ? $event['result'] : null,
-            ...array_filter((array) ($event['errors'] ?? []), 'is_string'),
-        ]))) ?: (string) ($event['subtype'] ?? 'unknown error');
+        $subscription = $this->usesSubscription($conversation);
+        $message = $this->resultMessage($event);
         $status = (int) ($event['api_error_status'] ?? 0);
 
         $retry = " I'll pick up your message as soon as you're signed in.";
-        $authFailed = in_array($status, [401, 403], true) || Str::contains($message, ['authentication_failed', 'Failed to authenticate', 'invalid api key', 'OAuth token'], ignoreCase: true);
+        $authFailed = $this->authFailed($event);
 
         return match (true) {
             Str::contains($message, 'credit balance is too low', ignoreCase: true) => ['Your Anthropic account is out of credits. Add credits at console.anthropic.com, then try again.', false],
@@ -139,5 +215,40 @@ class ClaudeCodeEvents extends AgentEvents
             $status === 429 || $status === 529 || Str::contains($message, 'overloaded', ignoreCase: true) => ['Claude is overloaded right now. Try again in a minute.', false],
             default => ['Something went wrong: '.Str::limit($message, 300), false],
         };
+    }
+
+    /**
+     * Whether the user builds on their Claude subscription (Claude Code's own sign-in) rather than an API key.
+     */
+    protected function usesSubscription(Conversation $conversation): bool
+    {
+        return $conversation->ownerProject()->user->agentConnections()
+            ->where('provider', AgentProvider::Claude)
+            ->where('credential_type', CredentialType::ClaudeLogin)
+            ->exists();
+    }
+
+    /**
+     * Whether Claude turned the run's credentials down.
+     *
+     * @param  array<string, mixed>  $event
+     */
+    protected function authFailed(array $event): bool
+    {
+        return in_array((int) ($event['api_error_status'] ?? 0), [401, 403], true)
+            || Str::contains($this->resultMessage($event), ['authentication_failed', 'Failed to authenticate', 'invalid api key', 'OAuth token'], ignoreCase: true);
+    }
+
+    /**
+     * A failed result's error text.
+     *
+     * @param  array<string, mixed>  $event
+     */
+    protected function resultMessage(array $event): string
+    {
+        return trim(implode(' ', array_filter([
+            is_string($event['result'] ?? null) ? $event['result'] : null,
+            ...array_filter((array) ($event['errors'] ?? []), 'is_string'),
+        ]))) ?: (string) ($event['subtype'] ?? 'unknown error');
     }
 }

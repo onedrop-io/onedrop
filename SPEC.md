@@ -97,6 +97,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see who they're signed in to Claude as under the chat box, once signed in.
 - One sign-in should work in all of the user's sandboxes where the sandbox provider supports a shared login folder (Docker); elsewhere each sandbox signs in once. The folder is only mounted into sandboxes of projects the user owns.
 - User should be told to sign in to Claude, or sign in again, when a Claude Code run finds they aren't signed in or their sign-in expired.
+- When Claude rejects the sign-in (e.g. a token revoked because the shared login was refreshed elsewhere), the message should run once more by itself; if it's rejected again, Claude Code should be signed out in that sandbox, so the chat box stops saying they're signed in and shows "Sign in to Claude" instead.
 - Once the user signs in (e.g. in the Shell tab), the chat should carry on by itself: the message that failed because they weren't signed in runs again, unless they've sent another since.
 - Pasting a Claude subscription token (`sk-ant-oat…`) should be refused with a pointer to "Use my Claude subscription"; tokens saved before this change are deleted.
 - Disconnecting the Claude subscription should sign Claude Code out in the user's running sandboxes and delete the shared login folder.
