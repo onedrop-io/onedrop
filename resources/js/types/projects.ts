@@ -119,6 +119,8 @@ export type SandboxState = {
     status: 'creating' | 'running' | 'paused' | 'failed';
     preview_url: string | null;
     shell_url: string | null;
+    /** shell_url is the gateway's address, which takes the shell's own address as its `path` (FILE-005). */
+    shell_via_gateway: boolean;
     /** The Shell tab opened on Claude Code's own sign-in (AI-005). */
     claude_login_url: string | null;
     error: string | null;

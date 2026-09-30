@@ -237,7 +237,8 @@ test('downloads the workspace as a zip built in the sandbox', function () {
 
     expect(array_slice($zip['command'], 0, 2))->toBe(['php', '-r'])
         ->and($temp)->toStartWith('/tmp/onedrop-download-')
-        ->and(array_slice($zip['command'], 5))->toBe(WorkspaceFiles::COLLAPSED)
+        ->and(array_slice($zip['command'], 5, 2))->toBe(['/workspace', '/workspace'])
+        ->and(array_slice($zip['command'], 7))->toBe(WorkspaceFiles::COLLAPSED)
         ->and($read['command'][4])->toBe($temp);
 })->group('FILE-003');
 
@@ -262,3 +263,120 @@ test('other users cannot create, upload or download files', function () {
 
     expect($this->provider->executed)->toBe([]);
 })->group('FILE-003');
+
+test('renames or moves a file or folder, creating the target folders', function () {
+    $this->actingAs($this->user)
+        ->postJson(route('projects.files.move', $this->project), ['from' => 'src/App.tsx', 'to' => 'src/pages/Home.tsx'])
+        ->assertOk()
+        ->assertExactJson(['from' => 'src/App.tsx', 'to' => 'src/pages/Home.tsx']);
+
+    $command = $this->provider->executed[0]['command'];
+
+    expect(array_slice($command, 3))->toBe(['sh', '/workspace/src/App.tsx', '/workspace/src/pages/Home.tsx'])
+        ->and($command[2])->toContain('exit 3', 'mv --');
+})->group('FILE-005');
+
+test('renaming onto something that already exists is refused', function () {
+    $this->provider->execUsing = fn () => new ExecResult(3, '');
+
+    $this->actingAs($this->user)
+        ->postJson(route('projects.files.move', $this->project), ['from' => 'a.txt', 'to' => 'b.txt'])
+        ->assertStatus(422)
+        ->assertJson(['message' => 'b.txt already exists.']);
+})->group('FILE-005');
+
+test('renaming refuses paths outside the workspace, the workspace itself and a folder into itself', function (string $from, string $to) {
+    $this->actingAs($this->user)
+        ->postJson(route('projects.files.move', $this->project), ['from' => $from, 'to' => $to])
+        ->assertStatus(422);
+
+    expect($this->provider->executed)->toBe([]);
+})->with([
+    'outside' => ['a.txt', '../a.txt'],
+    'workspace' => ['.', 'copy'],
+    'into itself' => ['src', 'src/nested'],
+])->group('FILE-005');
+
+test('deletes a file or a folder and everything in it', function () {
+    $this->actingAs($this->user)
+        ->deleteJson(route('projects.files.destroy', $this->project), ['path' => 'src/old/'])
+        ->assertOk()
+        ->assertExactJson(['path' => 'src/old', 'deleted' => true]);
+
+    expect($this->provider->executed[0]['command'])->toBe(['rm', '-rf', '--', '/workspace/src/old']);
+})->group('FILE-005');
+
+test('deleting never reaches outside the workspace or the workspace itself', function (string $path) {
+    $this->actingAs($this->user)
+        ->deleteJson(route('projects.files.destroy', $this->project), ['path' => $path])
+        ->assertStatus(422);
+
+    expect($this->provider->executed)->toBe([]);
+})->with(['parent' => ['../etc'], 'absolute' => ['/'], 'dot' => ['.'], 'dot inside' => ['src/.'], 'empty part' => ['src//a']])
+    ->group('FILE-005');
+
+test('a failed delete returns an error message', function () {
+    $this->provider->execUsing = fn () => new ExecResult(1, '', 'Permission denied');
+
+    $this->actingAs($this->user)
+        ->deleteJson(route('projects.files.destroy', $this->project), ['path' => 'a.txt'])
+        ->assertStatus(502)
+        ->assertJson(['message' => "Couldn't delete a.txt."]);
+})->group('FILE-005');
+
+test('downloads one file as it is', function () {
+    $bytes = "\x89PNG\0binary";
+    $this->provider->execUsing = fn (array $command) => $command[0] === 'sh'
+        ? new ExecResult(1, '')
+        : new ExecResult(0, base64_encode($bytes));
+
+    $response = $this->actingAs($this->user)
+        ->get(route('projects.files.download', [$this->project, 'path' => 'public/logo.png']))
+        ->assertOk()
+        ->assertHeader('Content-Type', 'application/octet-stream')
+        ->assertDownload('logo.png');
+
+    expect($response->getContent())->toBe($bytes)
+        ->and($this->provider->executed[1]['command'])->toBe(['base64', '-w0', '--', '/workspace/public/logo.png']);
+})->group('FILE-005');
+
+test('downloads one folder as a zip named after it, with its entries inside that folder', function () {
+    $this->provider->execUsing = fn (array $command) => match ($command[0]) {
+        'sh' => new ExecResult(0, str_contains($command[2], 'base64') ? base64_encode('PK folder') : ''),
+        default => new ExecResult(0, ''),
+    };
+
+    $response = $this->actingAs($this->user)
+        ->get(route('projects.files.download', [$this->project, 'path' => 'src/components']))
+        ->assertOk()
+        ->assertHeader('Content-Type', 'application/zip')
+        ->assertDownload('components.zip');
+
+    $zip = $this->provider->executed[1]['command'];
+
+    expect($response->getContent())->toBe('PK folder')
+        ->and($zip[0])->toBe('php')
+        ->and(array_slice($zip, 5, 2))->toBe(['/workspace/src/components', '/workspace/src']);
+})->group('FILE-005');
+
+test('downloading something missing or outside the workspace is refused', function () {
+    $this->provider->execUsing = fn () => new ExecResult(3, '');
+
+    $this->actingAs($this->user)
+        ->getJson(route('projects.files.download', [$this->project, 'path' => 'gone.txt']))
+        ->assertStatus(502)
+        ->assertJson(['message' => "gone.txt doesn't exist."]);
+
+    $this->actingAs($this->user)
+        ->getJson(route('projects.files.download', [$this->project, 'path' => '../etc/passwd']))
+        ->assertStatus(422);
+})->group('FILE-005');
+
+test('other users cannot rename or delete files', function () {
+    $this->actingAs(User::factory()->has(AgentConnection::factory())->create());
+
+    $this->postJson(route('projects.files.move', $this->project), ['from' => 'a.txt', 'to' => 'b.txt'])->assertForbidden();
+    $this->deleteJson(route('projects.files.destroy', $this->project), ['path' => 'a.txt'])->assertForbidden();
+
+    expect($this->provider->executed)->toBe([]);
+})->group('FILE-005');

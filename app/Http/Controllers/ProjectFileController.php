@@ -123,19 +123,94 @@ class ProjectFileController extends Controller
     }
 
     /**
-     * Download the workspace as a zip.
+     * Rename or move a file or folder.
      */
-    public function download(Project $project, WorkspaceFiles $files): Response|JsonResponse
+    public function move(Request $request, Project $project, WorkspaceFiles $files): JsonResponse
+    {
+        Gate::authorize('update', $project);
+
+        $validated = $request->validate([
+            'from' => ['required', 'string', 'max:1000'],
+            'to' => ['required', 'string', 'max:1000', 'different:from'],
+        ]);
+        $from = trim((string) $validated['from'], '/');
+        $to = trim((string) $validated['to'], '/');
+
+        abort_unless(WorkspaceFiles::isEntryPath($from) && WorkspaceFiles::isEntryPath($to), 422, __('That path is outside the project.'));
+        abort_if(str_starts_with($to.'/', $from.'/'), 422, __("A folder can't be moved inside itself."));
+
+        return $this->fromSandbox($project, function ($sandbox) use ($files, $from, $to) {
+            if (! $files->move($sandbox, $from, $to)) {
+                return response()->json(['message' => __(':path already exists.', ['path' => $to])], 422);
+            }
+
+            return ['from' => $from, 'to' => $to];
+        });
+    }
+
+    /**
+     * Delete a file, or a folder and everything in it.
+     */
+    public function destroy(Request $request, Project $project, WorkspaceFiles $files): JsonResponse
+    {
+        Gate::authorize('update', $project);
+
+        $path = trim((string) $request->validate([
+            'path' => ['required', 'string', 'max:1000'],
+        ])['path'], '/');
+
+        abort_unless(WorkspaceFiles::isEntryPath($path), 422, __('That path is outside the project.'));
+
+        return $this->fromSandbox($project, function ($sandbox) use ($files, $path) {
+            $files->delete($sandbox, $path);
+
+            return ['path' => $path, 'deleted' => true];
+        });
+    }
+
+    /**
+     * Download the workspace as a zip, or with a `path`, one file as it is or one folder as a zip.
+     */
+    public function download(Request $request, Project $project, WorkspaceFiles $files): Response|JsonResponse
     {
         Gate::authorize('view', $project);
 
-        return $this->fromSandbox($project, fn ($sandbox) => response($files->zip($sandbox), 200, [
-            'Content-Type' => 'application/zip',
-            'Content-Disposition' => HeaderUtils::makeDisposition(
-                HeaderUtils::DISPOSITION_ATTACHMENT,
-                (Str::slug($project->name) ?: 'project').'.zip',
-            ),
-        ]));
+        $path = $request->validate([
+            'path' => ['nullable', 'string', 'max:1000'],
+        ])['path'] ?? null;
+        $path = $path === null ? null : trim((string) $path, '/');
+
+        abort_unless($path === null || WorkspaceFiles::isEntryPath($path), 422, __('That path is outside the project.'));
+
+        return $this->fromSandbox($project, function ($sandbox) use ($files, $path, $project) {
+            if ($path !== null && ! $files->isDirectory($sandbox, $path)) {
+                return response($files->bytes($sandbox, $path), 200, [
+                    'Content-Type' => 'application/octet-stream',
+                    'Content-Disposition' => self::attachment(basename($path)),
+                ]);
+            }
+
+            $name = $path === null ? (Str::slug($project->name) ?: 'project') : basename($path);
+
+            return response($files->zip($sandbox, $path), 200, [
+                'Content-Type' => 'application/zip',
+                'Content-Disposition' => self::attachment($name.'.zip'),
+            ]);
+        });
+    }
+
+    /**
+     * A download header for a file name, with a plain-ASCII fallback for older browsers.
+     */
+    protected static function attachment(string $name): string
+    {
+        $name = str_replace('\\', '_', $name);
+
+        return HeaderUtils::makeDisposition(
+            HeaderUtils::DISPOSITION_ATTACHMENT,
+            $name,
+            (string) preg_replace('/[^\x20-\x7e]|%/', '_', Str::ascii($name)),
+        );
     }
 
     /**

@@ -131,6 +131,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::put('projects/{project}/files', [ProjectFileController::class, 'update'])->name('projects.files.update');
         Route::post('projects/{project}/files', [ProjectFileController::class, 'store'])->name('projects.files.store');
         Route::post('projects/{project}/files/upload', [ProjectFileController::class, 'upload'])->name('projects.files.upload');
+        Route::post('projects/{project}/files/move', [ProjectFileController::class, 'move'])->name('projects.files.move');
+        Route::delete('projects/{project}/files', [ProjectFileController::class, 'destroy'])->name('projects.files.destroy');
         Route::get('projects/{project}/files/download', [ProjectFileController::class, 'download'])->name('projects.files.download');
         Route::get('projects/{project}/logs', [ProjectLogController::class, 'index'])->name('projects.logs.index');
         Route::get('projects/{project}/monitoring', [ProjectMonitoringController::class, 'show'])->name('projects.monitoring.show');

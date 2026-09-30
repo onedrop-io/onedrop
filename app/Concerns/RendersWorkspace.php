@@ -93,6 +93,8 @@ trait RendersWorkspace
                 // On servers the browser goes through the gateway (which signs it in to that address), not the sandbox's local ports.
                 'preview_url' => $sandbox->preview_url ? ($gateway->enabled() ? $open('preview') : $sandbox->preview_url) : null,
                 'shell_url' => $sandbox->shell_url ? ($gateway->enabled() ? $open('shell') : $sandbox->shell_url) : null,
+                // Whether shell_url is the gateway's address, which takes the shell's own address as its `path` (FILE-005).
+                'shell_via_gateway' => $gateway->enabled(),
                 // The Shell tab opened on Claude Code's own sign-in (see docker/sandbox/shell-entry; AI-005).
                 'claude_login_url' => $sandbox->shell_url ? ($gateway->enabled() ? $open('shell', '/?arg=claude-login') : self::withShellArgument($sandbox->shell_url, 'claude-login')) : null,
             ] : null,

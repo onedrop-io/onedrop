@@ -24,10 +24,14 @@ class WorkspaceFiles
     /** Largest single uploaded file, in kilobytes. */
     public const MAX_UPLOAD_KILOBYTES = 10_240;
 
-    /** Zips /workspace into $argv[1], skipping folders named in the rest of $argv. Runs inside the sandbox. */
+    /**
+     * Zips the folder $argv[2] into $argv[1], naming entries from $argv[3] down and skipping folders named in the
+     * rest of $argv. Runs inside the sandbox.
+     */
     protected const ZIP_SCRIPT = <<<'PHP'
-        $root = '/workspace';
-        $skip = array_slice($argv, 2);
+        $root = $argv[2];
+        $base = $argv[3];
+        $skip = array_slice($argv, 4);
         $zip = new ZipArchive;
         $zip->open($argv[1], ZipArchive::CREATE | ZipArchive::OVERWRITE) === true || exit(1);
         $files = new RecursiveIteratorIterator(
@@ -38,7 +42,7 @@ class WorkspaceFiles
             RecursiveIteratorIterator::SELF_FIRST,
         );
         foreach ($files as $file) {
-            $name = substr($file->getPathname(), strlen($root) + 1);
+            $name = substr($file->getPathname(), strlen($base) + 1);
             $file->isDir() ? $zip->addEmptyDir($name) : ($file->isReadable() && $zip->addFile($file->getPathname(), $name));
         }
         $empty = $zip->numFiles === 0;
@@ -200,16 +204,18 @@ class WorkspaceFiles
     }
 
     /**
-     * The workspace as zip bytes, without the folders that are never expanded.
-     * The zip is built inside the sandbox (its PHP has the zip extension).
+     * The workspace, or one folder in it, as zip bytes, without the folders that are never expanded.
+     * A folder's entries sit inside a folder of its name. The zip is built inside the sandbox (its PHP has the zip extension).
      *
      * @throws SandboxException
      */
-    public function zip(Sandbox $sandbox): string
+    public function zip(Sandbox $sandbox, ?string $path = null): string
     {
         $temp = '/tmp/onedrop-download-'.bin2hex(random_bytes(6)).'.zip';
+        $root = $path === null ? self::ROOT : self::ROOT.'/'.$path;
+        $base = $path === null ? self::ROOT : dirname($root);
 
-        $build = $this->provider->exec($sandbox->external_id, ['php', '-r', self::ZIP_SCRIPT, '--', $temp, ...self::COLLAPSED]);
+        $build = $this->provider->exec($sandbox->external_id, ['php', '-r', self::ZIP_SCRIPT, '--', $temp, $root, $base, ...self::COLLAPSED]);
 
         $result = $build->successful()
             ? $this->provider->exec($sandbox->external_id, [
@@ -220,10 +226,83 @@ class WorkspaceFiles
         $bytes = base64_decode(trim($result->output), true);
 
         if (! $result->successful() || $bytes === false) {
-            throw new SandboxException("Couldn't zip the project's files.");
+            throw new SandboxException($path === null ? "Couldn't zip the project's files." : "Couldn't zip {$path}.");
         }
 
         return $bytes;
+    }
+
+    /**
+     * Whether a path is a folder.
+     *
+     * @throws SandboxException
+     */
+    public function isDirectory(Sandbox $sandbox, string $path): bool
+    {
+        $result = $this->provider->exec($sandbox->external_id, [
+            'sh', '-c', 'if [ -d "$1" ]; then exit 0; elif [ -e "$1" ]; then exit 1; else exit 3; fi', 'sh', self::ROOT.'/'.$path,
+        ]);
+
+        return match ($result->exitCode) {
+            0 => true,
+            1 => false,
+            default => throw new SandboxException("{$path} doesn't exist."),
+        };
+    }
+
+    /**
+     * A file's bytes, whatever they are.
+     *
+     * @throws SandboxException
+     */
+    public function bytes(Sandbox $sandbox, string $path): string
+    {
+        $result = $this->provider->exec($sandbox->external_id, ['base64', '-w0', '--', self::ROOT.'/'.$path]);
+        $bytes = base64_decode(trim($result->output), true);
+
+        if (! $result->successful() || $bytes === false) {
+            throw new SandboxException("Couldn't download {$path}.");
+        }
+
+        return $bytes;
+    }
+
+    /**
+     * Rename or move a file or folder, creating the target's folders.
+     * Returns false, changing nothing, when something already exists at the target.
+     *
+     * @throws SandboxException
+     */
+    public function move(Sandbox $sandbox, string $from, string $to): bool
+    {
+        $result = $this->provider->exec($sandbox->external_id, [
+            'sh', '-c', 'if [ -e "$2" ]; then exit 3; fi; mkdir -p -- "$(dirname -- "$2")" && mv -- "$1" "$2"',
+            'sh', self::ROOT.'/'.$from, self::ROOT.'/'.$to,
+        ]);
+
+        if ($result->exitCode === 3) {
+            return false;
+        }
+
+        if (! $result->successful()) {
+            throw new SandboxException("Couldn't rename {$from}.");
+        }
+
+        return true;
+    }
+
+    /**
+     * Delete a file, or a folder and everything in it.
+     *
+     * @throws SandboxException
+     */
+    public function delete(Sandbox $sandbox, string $path): void
+    {
+        $result = $this->provider->exec($sandbox->external_id, ['rm', '-rf', '--', self::ROOT.'/'.$path]);
+
+        if (! $result->successful()) {
+            throw new SandboxException("Couldn't delete {$path}.");
+        }
     }
 
     /**
@@ -232,7 +311,7 @@ class WorkspaceFiles
      *
      * @throws SandboxException
      */
-    protected function writeChunks(Sandbox $sandbox, string $file, string $content, string $error): void
+    public function writeChunks(Sandbox $sandbox, string $file, string $content, string $error): void
     {
         $chunks = $content === '' ? [''] : str_split($content, self::WRITE_CHUNK_BYTES);
 
@@ -258,5 +337,15 @@ class WorkspaceFiles
             && ! str_starts_with($path, '/')
             && ! str_contains($path, "\0")
             && ! in_array('..', explode('/', $path), true);
+    }
+
+    /**
+     * Whether a path names one file or folder inside the workspace, never the workspace itself
+     * (no `.` or empty parts), so renaming or deleting it can't touch anything else.
+     */
+    public static function isEntryPath(string $path): bool
+    {
+        return self::isSafePath($path)
+            && array_intersect(explode('/', $path), ['', '.']) === [];
     }
 }

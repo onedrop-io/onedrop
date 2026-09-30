@@ -178,3 +178,68 @@ test('the files panel shows files made outside the agent once the sandbox report
     $page->assertSeeIn('@files-panel', 'notes.md')
         ->assertNoJavaScriptErrors();
 })->group('FILE-004');
+
+test('each file and folder has a menu to rename, search, open the shell in, and delete it', function () {
+    $listing = "d src\nf src/App.tsx\nf src/util.ts\nf package.json\n";
+    $provider = new FakeSandboxProvider;
+    $provider->execUsing = function (array $command) use (&$listing) {
+        return new ExecResult(0, $command[0] === 'find' ? $listing : '');
+    };
+    app()->instance(SandboxProvider::class, $provider);
+
+    $user = User::factory()->has(AgentConnection::factory())->create();
+    $project = Project::factory()->for($user)->create();
+    Sandbox::factory()->for($project)->create(['preview_url' => null, 'shell_url' => 'http://127.0.0.1:7681']);
+    $this->actingAs($user);
+
+    $page = visit("/projects/{$project->id}")
+        ->resize(1600, 900)
+        ->navigate("/projects/{$project->id}")
+        ->click('@file-src')
+        ->click('[data-test="file-menu-src/App.tsx"]')
+        ->click('@file-action-rename')
+        ->assertVisible('@file-rename-dialog')
+        ->assertScript('document.activeElement?.dataset.test', 'file-rename-name')
+        ->type('@file-rename-name', 'Main.tsx');
+
+    $listing = "d src\nf src/Main.tsx\nf src/util.ts\nf package.json\n";
+
+    $page->click('@file-rename-submit')
+        ->assertMissing('@file-rename-dialog')
+        ->assertPresent('[data-test="file-src/Main.tsx"]')
+        ->type('@files-search', 'package')
+        ->assertSeeIn('@files-panel', 'package.json')
+        ->assertMissing('[data-test="file-src/util.ts"]')
+        ->keys('@files-search', 'Escape')
+        ->assertPresent('[data-test="file-src/util.ts"]')
+        ->click('@file-menu-src')
+        ->click('@file-action-search')
+        ->assertScript('document.activeElement?.dataset.test', 'files-search')
+        ->assertSeeIn('@files-search-folder', 'src')
+        ->type('@files-search', 't')
+        ->assertSeeIn('@files-panel', 'util.ts')
+        ->assertDontSeeIn('@files-panel', 'package.json')
+        ->keys('@files-search', 'Escape')
+        ->assertMissing('@files-search-folder')
+        ->assertSeeIn('@files-panel', 'package.json')
+        ->click('@file-menu-src')
+        ->click('@file-action-shell')
+        ->assertVisible('@shell-frame')
+        ->assertAttribute('@shell-frame', 'src', 'http://127.0.0.1:7681/?arg=cd&arg=src')
+        ->click('[data-test="file-menu-package.json"]')
+        ->click('@file-action-delete')
+        ->assertVisible('@file-delete-dialog');
+
+    $listing = "d src\nf src/Main.tsx\nf src/util.ts\n";
+
+    $page->click('@file-delete-submit')
+        ->assertMissing('@file-delete-dialog')
+        ->assertDontSeeIn('@files-panel', 'package.json')
+        ->assertNoJavaScriptErrors();
+
+    $commands = collect($provider->executed)->pluck('command');
+
+    expect($commands->first(fn (array $command) => str_contains($command[2] ?? '', 'mv --')))
+        ->toContain('/workspace/src/App.tsx', '/workspace/src/Main.tsx')
+        ->and($commands)->toContain(['rm', '-rf', '--', '/workspace/package.json']);
+})->group('FILE-005');

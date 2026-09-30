@@ -30,7 +30,7 @@ import {
 import { Input } from '@/components/ui/input';
 import {
     createWorkspaceEntry,
-    downloadWorkspaceZip,
+    downloadWorkspace,
     uploadWorkspaceFile,
 } from '@/hooks/use-workspace-files';
 import type { WorkspaceEntry } from '@/types';
@@ -108,7 +108,7 @@ export default function FilesMenu({
     const download = () => {
         const id = toast.loading('Zipping your project…');
 
-        downloadWorkspaceZip(projectId)
+        downloadWorkspace(projectId)
             .then(() => toast.dismiss(id))
             .catch((e: Error) => toast.error(e.message, { id }));
     };
@@ -227,13 +227,19 @@ export default function FilesMenu({
     );
 }
 
-function NewEntryDialog({
+/**
+ * Create an empty file or folder, at the top of the project or inside `parent`.
+ */
+export function NewEntryDialog({
     projectId,
     type,
+    parent = '',
     onDone,
 }: {
     projectId: number;
     type: WorkspaceEntry['type'] | null;
+    /** The folder it goes in; empty for the top of the project. */
+    parent?: string;
     /** Called with the new path, or null if cancelled. */
     onDone: (path: string | null) => void;
 }) {
@@ -259,9 +265,11 @@ function NewEntryDialog({
 
         setSaving(true);
 
+        const full = parent ? `${parent}/${trimmed}` : trimmed;
+
         try {
-            await createWorkspaceEntry(projectId, trimmed, type);
-            close(trimmed);
+            await createWorkspaceEntry(projectId, full, type);
+            close(full);
         } catch (e) {
             setError((e as Error).message);
         } finally {
@@ -278,7 +286,8 @@ function NewEntryDialog({
                 <form onSubmit={submit} className="space-y-4">
                     <DialogTitle>New {noun}</DialogTitle>
                     <DialogDescription>
-                        A name, or a path inside the project like{' '}
+                        A name, or a path inside{' '}
+                        {parent ? <code>{parent}</code> : 'the project'} like{' '}
                         {type === 'dir' ? 'src/components' : 'src/utils.ts'}.
                         Missing folders are created too.
                     </DialogDescription>

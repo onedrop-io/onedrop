@@ -153,11 +153,43 @@ export async function uploadWorkspaceFile(
 }
 
 /**
- * Download the workspace as a zip through the browser.
+ * Rename or move a file or folder in the sandbox.
  */
-export async function downloadWorkspaceZip(projectId: number): Promise<void> {
+export async function moveWorkspaceEntry(
+    projectId: number,
+    from: string,
+    to: string,
+): Promise<void> {
+    await send(ProjectFileController.move.url(projectId), "POST", {
+        from,
+        to,
+    });
+}
+
+/**
+ * Delete a file, or a folder and everything in it.
+ */
+export async function deleteWorkspaceEntry(
+    projectId: number,
+    path: string,
+): Promise<void> {
+    await send(ProjectFileController.destroy.url(projectId), "DELETE", {
+        path,
+    });
+}
+
+/**
+ * Download through the browser: the workspace as a zip, or with a path, one file as it is or one folder as a zip.
+ */
+export async function downloadWorkspace(
+    projectId: number,
+    path?: string,
+): Promise<void> {
     const response = await fetch(
-        ProjectFileController.download.url(projectId),
+        ProjectFileController.download.url(
+            projectId,
+            path ? { query: { path } } : undefined,
+        ),
         { credentials: "same-origin" },
     );
 
@@ -167,10 +199,11 @@ export async function downloadWorkspaceZip(projectId: number): Promise<void> {
         throw new Error(body.message ?? `Download failed (${response.status})`);
     }
 
-    const name =
-        /filename="?([^";]+)"?/.exec(
-            response.headers.get("Content-Disposition") ?? "",
-        )?.[1] ?? "project.zip";
+    const disposition = response.headers.get("Content-Disposition") ?? "";
+    const encoded = /filename\*=utf-8''([^;]+)/i.exec(disposition)?.[1];
+    const name = encoded
+        ? decodeURIComponent(encoded)
+        : (/filename="?([^";]+)"?/.exec(disposition)?.[1] ?? "project.zip");
     const url = URL.createObjectURL(await response.blob());
     const link = document.createElement("a");
     link.href = url;
@@ -181,7 +214,7 @@ export async function downloadWorkspaceZip(projectId: number): Promise<void> {
 
 async function send(
     url: string,
-    method: "POST" | "PUT",
+    method: "POST" | "PUT" | "DELETE",
     body: Record<string, unknown> | FormData,
 ): Promise<void> {
     const token = document.cookie

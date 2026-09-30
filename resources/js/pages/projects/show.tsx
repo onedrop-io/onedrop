@@ -21,6 +21,7 @@ import {
     Plus,
     RefreshCw,
     RotateCw,
+    Search,
     SquareTerminal,
     Terminal,
     Trash2,
@@ -52,7 +53,10 @@ import {
 import { TaskStatusIcon } from "@/components/task-status-icon";
 import ConsoleView, { Notice } from "@/components/workspace/console-view";
 import FileIcon from "@/components/workspace/file-icon";
-import FileTree from "@/components/workspace/file-tree";
+import FileTree, {
+    isWithin,
+    searchEntries,
+} from "@/components/workspace/file-tree";
 import FilesMenu from "@/components/workspace/files-menu";
 import {
     fixRequest,
@@ -665,6 +669,11 @@ function WorkspacePanel({
     const [consoleClears, setConsoleClears] = useState(0);
     const [filesOpen, setFilesOpen] = useState(false);
     const [hideHidden, setHideHidden] = useState(false);
+    /** The files panel's name search, in the whole project ('') or a folder picked from its menu (FILE-005). */
+    const [fileSearch, setFileSearch] = useState({ folder: "", query: "" });
+    const fileSearchInput = useRef<HTMLInputElement>(null);
+    /** The folder the Shell was last opened in from the Files panel; null for its usual start (FILE-005). */
+    const [shellFolder, setShellFolder] = useState<string | null>(null);
     const [openPath, setOpenPath] = useState<string | null>(
         tab === "file" ? initialView.file : null,
     );
@@ -724,12 +733,16 @@ function WorkspacePanel({
         setHideHidden(!hideHidden);
     };
 
-    const visibleEntries = hideHidden
+    const unhiddenEntries = hideHidden
         ? files.entries.filter(
               (entry) =>
                   !entry.path.split("/").some((part) => part.startsWith(".")),
           )
         : files.entries;
+    const searching = fileSearch.query.trim() !== "";
+    const visibleEntries = searching
+        ? searchEntries(unhiddenEntries, fileSearch.folder, fileSearch.query)
+        : unhiddenEntries;
 
     const reloadPreview = () => {
         previewErrors.clear();
@@ -837,8 +850,30 @@ function WorkspacePanel({
         setTab(kind);
     };
 
+    const openShellIn = (folder: string) => {
+        setShellFolder(folder);
+        addTab("shell");
+    };
+
+    // The open file (or a folder it's in) was renamed: keep it open under its new name.
+    const followRename = (from: string, to: string) => {
+        if (openPath && isWithin(openPath, from)) {
+            setOpenPath(to + openPath.slice(from.length));
+        }
+    };
+
+    // The open file (or a folder it's in) was deleted: close it.
+    const followDelete = (path: string) => {
+        if (openPath && isWithin(openPath, path)) {
+            setFileDirty(false);
+            setOpenPath(null);
+            closeTab("file");
+        }
+    };
+
     useEffect(() => {
         if (claudeSignIns > 0) {
+            setShellFolder(null);
             setExtraTabs((tabs) =>
                 tabs.includes("shell") ? tabs : [...tabs, "shell"],
             );
@@ -1142,9 +1177,16 @@ function WorkspacePanel({
                             key={claudeSignIns}
                             ref={shellFrame}
                             src={
-                                claudeSignIns > 0 && sandbox.claude_login_url
-                                    ? sandbox.claude_login_url
-                                    : sandbox.shell_url
+                                shellFolder !== null
+                                    ? shellUrlIn(
+                                          sandbox.shell_url,
+                                          sandbox.shell_via_gateway,
+                                          shellFolder,
+                                      )
+                                    : claudeSignIns > 0 &&
+                                        sandbox.claude_login_url
+                                      ? sandbox.claude_login_url
+                                      : sandbox.shell_url
                             }
                             title="Shell"
                             onLoad={() =>
@@ -1187,30 +1229,69 @@ function WorkspacePanel({
                     style={{ width: filesWidth }}
                     data-test="files-panel"
                 >
-                    <div className="flex items-center justify-between border-b border-sidebar-border/70 px-3 py-2 text-sm dark:border-sidebar-border">
-                        <span className="font-medium">Files</span>
-                        <div className="flex items-center">
-                            <IconButton
-                                label="Refresh files"
-                                onClick={() => void files.refresh()}
-                            >
-                                <RefreshCw
-                                    className={cn(
-                                        "size-3.5",
-                                        files.loading && "animate-spin",
-                                    )}
-                                />
-                            </IconButton>
-                            <FilesMenu
-                                projectId={project.id}
+                    <div className="flex items-center gap-1 border-b border-sidebar-border/70 px-2 py-2 text-sm dark:border-sidebar-border">
+                        <div className="flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-md border border-input bg-transparent px-2 focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
+                            <Search className="size-3.5 shrink-0 text-muted-foreground" />
+                            {fileSearch.folder && (
+                                <button
+                                    type="button"
+                                    title="Search the whole project"
+                                    onClick={() => {
+                                        setFileSearch({
+                                            ...fileSearch,
+                                            folder: "",
+                                        });
+                                        fileSearchInput.current?.focus();
+                                    }}
+                                    className="flex max-w-[50%] shrink-0 items-center gap-0.5 rounded bg-muted px-1 text-xs text-muted-foreground hover:text-foreground"
+                                    data-test="files-search-folder"
+                                >
+                                    <span className="truncate">
+                                        {fileSearch.folder}
+                                    </span>
+                                    <X className="size-3 shrink-0" />
+                                </button>
+                            )}
+                            <input
+                                ref={fileSearchInput}
+                                value={fileSearch.query}
                                 disabled={!running}
-                                hideHidden={hideHidden}
-                                onToggleHidden={toggleHidden}
-                                onClose={toggleFiles}
-                                onChanged={() => void files.refresh()}
-                                onCreatedFile={openFile}
+                                onChange={(event) =>
+                                    setFileSearch({
+                                        ...fileSearch,
+                                        query: event.target.value,
+                                    })
+                                }
+                                onKeyDown={(event) =>
+                                    event.key === "Escape" &&
+                                    setFileSearch({ folder: "", query: "" })
+                                }
+                                placeholder="Search files"
+                                aria-label={`Search file names in ${fileSearch.folder || "the project"}`}
+                                className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
+                                data-test="files-search"
                             />
                         </div>
+                        <IconButton
+                            label="Refresh files"
+                            onClick={() => void files.refresh()}
+                        >
+                            <RefreshCw
+                                className={cn(
+                                    "size-3.5",
+                                    files.loading && "animate-spin",
+                                )}
+                            />
+                        </IconButton>
+                        <FilesMenu
+                            projectId={project.id}
+                            disabled={!running}
+                            hideHidden={hideHidden}
+                            onToggleHidden={toggleHidden}
+                            onClose={toggleFiles}
+                            onChanged={() => void files.refresh()}
+                            onCreatedFile={openFile}
+                        />
                     </div>
                     <div className="flex-1 overflow-y-auto px-1">
                         {!running ? (
@@ -1223,17 +1304,33 @@ function WorkspacePanel({
                             </p>
                         ) : visibleEntries.length === 0 ? (
                             <p className="p-3 text-sm text-muted-foreground">
-                                {files.loading
-                                    ? "Loading…"
-                                    : files.entries.length > 0
-                                      ? "Only hidden files so far."
-                                      : "No files yet. The agent will create them."}
+                                {searching
+                                    ? "No file names match."
+                                    : files.loading
+                                      ? "Loading…"
+                                      : files.entries.length > 0
+                                        ? "Only hidden files so far."
+                                        : "No files yet. The agent will create them."}
                             </p>
                         ) : (
                             <FileTree
+                                projectId={project.id}
                                 entries={visibleEntries}
                                 selected={tab === "file" ? openPath : null}
                                 onSelect={openFile}
+                                expandAll={searching}
+                                onChanged={() => void files.refresh()}
+                                onRenamed={followRename}
+                                onDeleted={followDelete}
+                                onSearch={(folder) => {
+                                    setFileSearch({ ...fileSearch, folder });
+                                    fileSearchInput.current?.focus();
+                                }}
+                                onOpenShell={
+                                    sandbox?.shell_url && !shellUnreachable
+                                        ? openShellIn
+                                        : undefined
+                                }
                             />
                         )}
                     </div>
@@ -1241,6 +1338,30 @@ function WorkspacePanel({
             )}
         </div>
     );
+}
+
+/**
+ * The Shell's address, starting in a folder of the workspace (docker/sandbox/shell-entry's `cd`; FILE-005).
+ * Through the gateway, the shell's own address goes in the gateway's `path`.
+ */
+function shellUrlIn(
+    shellUrl: string,
+    viaGateway: boolean,
+    folder: string,
+): string {
+    const args = new URLSearchParams([
+        ["arg", "cd"],
+        ["arg", folder || "."],
+    ]);
+    const url = new URL(shellUrl, window.location.origin);
+
+    if (viaGateway) {
+        url.searchParams.set("path", `/?${args}`);
+    } else {
+        args.forEach((value, key) => url.searchParams.append(key, value));
+    }
+
+    return url.href;
 }
 
 type ToolTab = "console" | "shell";

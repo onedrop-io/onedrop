@@ -336,6 +336,21 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Sandboxes made before the watcher should keep reloading the tree as the agent works.
 - Only the sandbox itself (through the signed address it was created with) should be able to report changes, and only for itself; only the project's owner (or an admin) should be able to check them.
 
+## FILE-005: File and folder actions
+
+- User should be able to open a "⋮" menu on any file or folder in the files tree, shown on hover, or by right-clicking it.
+- User should be able to rename a file or folder, or move it into a folder by typing a path; an open file stays open under its new name.
+- User should see an error instead of overwriting when the new name is taken, and a folder can't be moved inside itself.
+- User should see a "Search files" box at the top of the files panel that filters the tree to file and folder names containing what they type, with their folders open; Escape clears it.
+- User should be able to search inside one folder from its menu; the box shows that folder, and clearing it searches the whole project again.
+- User should be able to add a file (opened in the editor) or a folder inside a folder, and to collapse all its child folders.
+- User should be able to open the Shell in a folder (a file's own folder, for files); the Shell only starts in folders inside the workspace.
+- User should be able to copy a file's or folder's path, and a link to the project with a file open.
+- User should be able to download one file as it is, or one folder as a zip named after it (without `node_modules`, `.git`, `vendor` and `.cache`).
+- User should be able to delete a file, or a folder and everything in it, after confirming; an open file that's deleted closes.
+- Only the project's owner (or an admin) should be able to rename, delete or download files, and only inside the project's workspace, never the workspace itself.
+
+
 ## TAB-001: Workspace tabs
 
 - User should be able to add tabs next to Preview from a "+" menu, and close them.

@@ -145,6 +145,7 @@ The files panel on the right shows the project's folder tree, with a colored ico
 
 - Folders like `node_modules`, `vendor`, and `.git` are listed but not expanded
 - Binary files and files over 200 KB show a notice instead of their contents
+- Type in **Search files** at the top of the panel to show only files and folders whose names contain it; press Escape to clear it
 - Hide or show the panel with the button in the tab bar; it opens by default on wide screens, and your browser remembers whether you last left it open or closed
 
 ### The files menu
@@ -161,6 +162,24 @@ Click **⋮** at the top of the files panel for more actions:
 | **Close files**       | Closes the files panel.                                                                                                                                                                                                    |
 
 New files and folders never overwrite anything: if the name is taken, you'll see an error instead.
+
+### File and folder actions
+
+Hover over a file or folder and click its **⋮**, or right-click it:
+
+| Action                                  | What it does                                                                                                                                                                                                |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Rename**                              | Renames it where it is. Type a name with slashes, like `pages/Home.tsx`, to move it into a folder (missing folders are created). If a file open in the editor is renamed, it stays open under its new name. |
+| **Search this folder** | Limits the **Search files** box to this folder. Click **×** on the folder's name in the box to search the whole project again. Folders only. |
+| **Add file** / **Add folder**           | Creates an empty file (opened in the editor) or folder inside it. Folders only.                                                                                                                             |
+| **Collapse child folders**              | Closes every folder inside it. Folders only.                                                                                                                                                                |
+| **Open shell here**                     | Opens the Shell tab in that folder (a file's own folder, for files). This starts a new Shell session.                                                                                                       |
+| **Copy path**                           | Copies its path in the project, like `src/App.tsx`.                                                                                                                                                         |
+| **Copy link**                           | Copies a link to this project with the file open. Files only.                                                                                                                                               |
+| **Download file** / **Download folder** | Downloads the file as it is, or the folder as a zip, without `node_modules`, `.git`, `vendor`, and `.cache`.                                                                                                |
+| **Delete**                              | Deletes it, and everything in it for a folder, after you confirm. Committed files can be restored from git; anything else is gone.                                                                          |
+
+Renaming never overwrites anything either: if the new name is taken, you'll see an error.
 
 ## Editing files
 

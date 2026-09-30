@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 # The Shell tab's program (ttyd passes ?arg= from the URL). "claude-login" first runs Claude Code's own
-# sign-in (AI-005); anything else is ignored, so the URL can't run arbitrary commands. Then a normal shell.
-if [ "${1:-}" = "claude-login" ]; then
+# sign-in (AI-005); "cd <folder>" starts in that folder of the workspace (FILE-005); anything else is ignored,
+# so the URL can't run arbitrary commands. Then a normal shell.
+if [ "${1:-}" = "cd" ]; then
+    dir="$(realpath -m -- "/workspace/${2:-.}")"
+    case "$dir" in
+        /workspace | /workspace/*) [ -d "$dir" ] && cd -- "$dir" ;;
+    esac
+elif [ "${1:-}" = "claude-login" ]; then
     echo "Signing in to Claude with Claude Code's own sign-in. OneDrop never sees your Claude login."
     echo
     claude auth login --claudeai
