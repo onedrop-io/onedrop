@@ -15,4 +15,7 @@ enum CredentialType: string
 
     /** Tokens from signing in with ChatGPT (a JSON bundle), refreshed by the platform. */
     case ChatGpt = 'chatgpt';
+
+    /** The user's own Ollama server: its URL and an optional key (a JSON bundle, AI-006). */
+    case OllamaServer = 'ollama_server';
 }

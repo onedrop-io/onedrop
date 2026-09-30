@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\AgentProvider;
 use App\Enums\CredentialType;
+use App\Sandbox\Agents\OllamaServer;
 use Database\Factories\AgentConnectionFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -60,7 +61,8 @@ class AgentConnection extends Model
     /**
      * Environment variables that give an agent CLI in a sandbox this credential
      * (the names OpenCode, Claude Code and Codex read; the Codex agent gets a ChatGPT sign-in from codexAuth()).
-     * A Claude subscription has none: Claude Code uses its own sign-in in the sandbox.
+     * A Claude subscription has none: Claude Code uses its own sign-in in the sandbox. An Ollama server
+     * also gets the OpenCode config that points the agent at it.
      *
      * @return array<string, string>
      */
@@ -74,14 +76,29 @@ class AgentConnection extends Model
             return [];
         }
 
+        if ($this->credential_type === CredentialType::OllamaServer) {
+            return app(OllamaServer::class)->sandboxEnvironment($this);
+        }
+
         $variable = match ($this->provider) {
             AgentProvider::Claude => 'ANTHROPIC_API_KEY',
             AgentProvider::Codex => 'OPENAI_API_KEY',
             AgentProvider::OpenRouter => 'OPENROUTER_API_KEY',
             AgentProvider::Gemini => 'GOOGLE_GENERATIVE_AI_API_KEY',
+            AgentProvider::Ollama => 'OLLAMA_API_KEY',
         };
 
         return [$variable => $this->credential];
+    }
+
+    /**
+     * The user's Ollama server: its base URL and key (empty when it has none).
+     *
+     * @return array{url: string, key: string}
+     */
+    public function ollamaServer(): array
+    {
+        return json_decode($this->credential, true) + ['key' => ''];
     }
 
     /**

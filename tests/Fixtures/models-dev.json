@@ -195,5 +195,24 @@
                 }
             }
         }
+    },
+    "ollama-cloud": {
+        "id": "ollama-cloud",
+        "models": {
+            "glm-5.3": {
+                "id": "glm-5.3",
+                "name": "GLM-5.3",
+                "tool_call": true,
+                "release_date": "2026-08-14",
+                "limit": {
+                    "context": 202752,
+                    "output": 131072
+                },
+                "modalities": {
+                    "input": ["text"],
+                    "output": ["text"]
+                }
+            }
+        }
     }
 }

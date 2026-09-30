@@ -29,6 +29,8 @@ class CredentialVerifier
             AgentProvider::Gemini => fn () => Http::withHeaders([
                 'x-goog-api-key' => $credential,
             ])->get('https://generativelanguage.googleapis.com/v1beta/models'),
+            // Ollama Cloud lists models without a key; who-am-I needs a good one.
+            AgentProvider::Ollama => fn () => Http::withToken($credential)->post('https://ollama.com/api/me'),
         };
 
         try {

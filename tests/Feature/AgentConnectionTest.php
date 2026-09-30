@@ -112,6 +112,27 @@ test('a Gemini key Google calls invalid is rejected', function () {
     expect($this->user->agentConnections()->count())->toBe(0);
 })->group('AI-004');
 
+test('connecting Ollama verifies the key with Ollama Cloud', function () {
+    Http::fake(['ollama.com/api/me' => Http::response(['name' => 'dev'])]);
+
+    $this->actingAs($this->user)
+        ->post(route('agent-connections.store'), ['provider' => 'ollama', 'credential' => 'ollama-key-1234'])
+        ->assertSessionHasNoErrors();
+
+    expect($this->user->agentConnections()->sole()->provider)->toBe(AgentProvider::Ollama);
+    Http::assertSent(fn (Request $request) => $request->method() === 'POST' && $request->hasHeader('Authorization', 'Bearer ollama-key-1234'));
+})->group('AI-006');
+
+test('an Ollama key Ollama Cloud rejects is not stored', function () {
+    Http::fake(['ollama.com/api/me' => Http::response(['error' => 'unauthorized'], 401)]);
+
+    $this->actingAs($this->user)
+        ->post(route('agent-connections.store'), ['provider' => 'ollama', 'credential' => 'ollama-bad'])
+        ->assertSessionHasErrors(['credential' => 'Ollama rejected that key.']);
+
+    expect($this->user->agentConnections()->count())->toBe(0);
+})->group('AI-006');
+
 test('a rejected key shows an error and is not stored', function () {
     Http::fake(['openrouter.ai/*' => Http::response(['error' => 'nope'], 401)]);
 

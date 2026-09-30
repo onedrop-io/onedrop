@@ -278,3 +278,36 @@ test('a Gemini key runs Google models through OpenCode with that key', function 
             'GOOGLE_GENERATIVE_AI_API_KEY' => 'AIza-gemini-key',
         ]);
 })->group('AI-004');
+
+test('an Ollama key runs Ollama Cloud models through OpenCode with that key', function () {
+    $provider = new class extends FakeSandboxProvider
+    {
+        /** @var list<array<string, string>> */
+        public array $envs = [];
+
+        public function exec(string $id, array $command, array $env = [], bool $detach = false): ExecResult
+        {
+            $this->envs[] = $env;
+
+            return parent::exec($id, $command, $env, $detach);
+        }
+    };
+    app()->instance(SandboxProvider::class, $provider);
+    AgentConnection::factory()->for($this->user)->provider(AgentProvider::Ollama)->create(['is_default' => false, 'credential' => 'ollama-key']);
+
+    $project = Project::factory()->for($this->user)->create([
+        'status' => ProjectStatus::Working,
+        'agent_provider' => AgentProvider::Ollama,
+        'agent_model' => 'glm-5.3',
+    ]);
+    Sandbox::factory()->for($project)->create(['external_id' => 'ctr-1']);
+    $message = $project->messages()->create(['role' => MessageRole::User, 'content' => 'go']);
+
+    app(OpenCodeRunner::class)->start($project, $message);
+
+    expect(array_column($this->catalog->models(AgentProvider::Ollama), 'id'))->toBe(['glm-5.3'])
+        ->and($provider->envs[0])->toMatchArray([
+            'APP_MODEL' => 'ollama-cloud/glm-5.3',
+            'OLLAMA_API_KEY' => 'ollama-key',
+        ]);
+})->group('AI-006');

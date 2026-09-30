@@ -1,17 +1,19 @@
 ---
 title: 'Set up your AI'
-description: 'Connect Anthropic, OpenAI, Google Gemini, or OpenRouter so the agent can build with your own account.'
+description: 'Connect Anthropic, OpenAI, Google Gemini, OpenRouter, or Ollama so the agent can build with your own account.'
 ---
 
-The agent that builds your apps uses your own AI account: your ChatGPT Plus or Pro plan, or your own API key. You pay your provider directly, with no credits and no markup. You connect at least one provider after signing up, and you can change it later in **Settings → AI**.
+The agent that builds your apps uses your own AI account: your Claude or ChatGPT plan, or your own API key. You pay your provider directly, with no credits and no markup. You connect at least one provider after signing up, and you can change it later in **Settings → AI**.
+
+## After signing up
+
+OneDrop asks **Which AI do you use?** and shows five icons: Claude, Codex, OpenRouter, Gemini and Ollama. Click the one you have an account with, and OneDrop shows only that provider's setup, starting with your subscription (or sign-in). If you'd rather use an API key, click the small **…instead** link under it. Click **Choose a different AI** to go back to the icons. Once you've connected one, OneDrop takes you to the new-project prompt.
 
 ## Providers
 
 <Tabs>
   <Tab title="Claude (Anthropic)">
-    Paste an Anthropic API key from [console.anthropic.com](https://console.anthropic.com/settings/keys). OneDrop checks the key with Anthropic before saving it.
-
-    To build on your Claude Pro or Max plan instead, click **Use my Claude subscription instead**, then **Use my Claude subscription**. There's nothing to paste: you sign in to Claude from your project, in Claude Code's own sign-in.
+    To build on your Claude Pro or Max plan, click **Use my Claude subscription**. There's nothing to paste: you sign in to Claude from your project, in Claude Code's own sign-in.
 
     <Steps>
       <Step title="Open a project on Claude Code">
@@ -33,6 +35,8 @@ The agent that builds your apps uses your own AI account: your ChatGPT Plus or P
     </Note>
 
     If Claude turns down your sign-in, the chat tries your message once more by itself. If Claude Code isn't signed in, or your sign-in has really expired, the chat tells you to sign in again and **Sign in to Claude** comes back above the chat box. Once you've signed in, the chat picks your message back up by itself, so you don't need to send it again. Disconnecting Claude in **Settings → AI** signs Claude Code out of your sandboxes. Claude subscription tokens from `claude setup-token` can't be pasted.
+
+    To pay per use instead, click **Use an Anthropic API key instead** and paste a key from [console.anthropic.com](https://console.anthropic.com/settings/keys). OneDrop checks the key with Anthropic before saving it.
 
   </Tab>
   <Tab title="OpenAI">
@@ -68,6 +72,34 @@ The agent that builds your apps uses your own AI account: your ChatGPT Plus or P
 
     <Note>
       You can't connect a Gemini subscription (Google AI Pro or Ultra). Google's terms forbid other apps from using the Gemini CLI sign-in, and Google suspends accounts that do. Use an API key, or pick a Gemini model through OpenRouter.
+    </Note>
+
+  </Tab>
+  <Tab title="Ollama">
+    Paste an Ollama API key from [ollama.com/settings/keys](https://ollama.com/settings/keys). OneDrop checks the key with Ollama before saving it. The agent runs open models such as GLM, Kimi, DeepSeek and Qwen on Ollama Cloud, billed to your Ollama account (which has a free plan). Ollama models run on the OpenCode agent.
+
+    ### Your own Ollama server
+
+    To use models you run yourself, click **Use my own Ollama server instead**:
+
+    <Steps>
+      <Step title="Enter the server's URL">
+        For example `https://ollama.example.com`. Don't add `/v1` or `/api`.
+      </Step>
+      <Step title="Add a key, if it needs one">
+        If your server sits behind a reverse proxy that checks a token, paste it. OneDrop sends it as `Authorization: Bearer <key>`. Leave it empty for a server without one.
+      </Step>
+      <Step title="Connect">
+        OneDrop checks that the server answers at `/api/tags` and lists its models. The model picker then shows every model you've pulled on it, at no cost.
+      </Step>
+    </Steps>
+
+    <Warning>
+      Your sandboxes run on a server, so your Ollama server needs a public address. OneDrop refuses private, loopback and internal addresses (like `localhost` or `192.168.x.x`). Put it behind a reverse proxy with a key, and don't expose an Ollama server without one.
+    </Warning>
+
+    <Note>
+      On a local install (`APP_ENV=local`), private addresses are allowed. In Docker sandboxes, `http://localhost:11434` is your own machine. Self-hosters can allow private addresses on a server with `SANDBOX_OLLAMA_PRIVATE_SERVERS=true`.
     </Note>
 
   </Tab>

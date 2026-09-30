@@ -55,6 +55,10 @@ export function ProviderIcon({
         ],
         openrouter: ['OR', 'bg-sky-500/15 text-sky-600 dark:text-sky-400'],
         gemini: ['G', 'bg-blue-500/15 text-blue-600 dark:text-blue-400'],
+        ollama: [
+            'OL',
+            'bg-neutral-500/15 text-neutral-700 dark:text-neutral-300',
+        ],
     }[provider];
 
     return (

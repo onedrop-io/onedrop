@@ -60,6 +60,23 @@ class AgentConnectionController extends Controller
     }
 
     /**
+     * Connect the user's own Ollama server by its URL, with a key if it needs one (AI-006).
+     */
+    public function ollamaServer(Request $request, ConnectAgent $connect): RedirectResponse
+    {
+        $validated = $request->validate([
+            'url' => ['required', 'string', 'url:http,https', 'max:500'],
+            'credential' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $connect->ollamaServer($request->user(), $validated['url'], $validated['credential'] ?? null);
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Ollama server connected.')]);
+
+        return $request->boolean('onboarding') ? to_route('dashboard') : back();
+    }
+
+    /**
      * Make a connection the default AI for new projects.
      */
     public function update(Request $request, AgentConnection $connection): RedirectResponse

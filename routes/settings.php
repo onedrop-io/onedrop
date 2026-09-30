@@ -32,6 +32,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('settings/ai', [AgentConnectionController::class, 'index'])->name('agent-connections.index');
     Route::post('settings/ai', [AgentConnectionController::class, 'store'])->name('agent-connections.store');
+    Route::post('settings/ai/ollama-server', [AgentConnectionController::class, 'ollamaServer'])->middleware('throttle:10,1')->name('agent-connections.ollama-server');
     Route::post('settings/ai/claude-login', [AgentConnectionController::class, 'claudeLogin'])->name('agent-connections.claude-login');
     Route::patch('settings/ai/{connection}', [AgentConnectionController::class, 'update'])->name('agent-connections.update');
     Route::delete('settings/ai/{connection}', [AgentConnectionController::class, 'destroy'])->name('agent-connections.destroy');

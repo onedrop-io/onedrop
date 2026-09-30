@@ -7,11 +7,12 @@ use App\Enums\CredentialType;
 use App\Models\AgentConnection;
 use App\Models\User;
 use App\Sandbox\Agents\CredentialVerifier;
+use App\Sandbox\Agents\OllamaServer;
 use Illuminate\Validation\ValidationException;
 
 class ConnectAgent
 {
-    public function __construct(protected CredentialVerifier $verifier) {}
+    public function __construct(protected CredentialVerifier $verifier, protected OllamaServer $ollama) {}
 
     /**
      * Verify and store (or replace) the user's credential for a provider.
@@ -57,6 +58,28 @@ class ConnectAgent
             CredentialType::ChatGpt,
             json_encode($tokens, JSON_THROW_ON_ERROR),
             AgentConnection::hintFor($tokens['account_id'] ?? $tokens['access']),
+            verified: true,
+        );
+    }
+
+    /**
+     * Check and store the user's own Ollama server (AI-006). Its host is shown instead of a key's last characters.
+     *
+     * @throws ValidationException
+     */
+    public function ollamaServer(User $user, string $url, ?string $key): AgentConnection
+    {
+        $url = OllamaServer::normalize($url);
+        $key = trim((string) $key);
+
+        $this->ollama->check($url, $key);
+
+        return $this->store(
+            $user,
+            AgentProvider::Ollama,
+            CredentialType::OllamaServer,
+            json_encode(['url' => $url, 'key' => $key], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES),
+            (string) parse_url($url, PHP_URL_HOST),
             verified: true,
         );
     }

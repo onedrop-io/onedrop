@@ -75,6 +75,11 @@ const INTEGRATIONS = [
                 logo: '/images/logos/openrouter.svg',
                 url: 'https://openrouter.ai',
             },
+            {
+                name: 'Ollama',
+                logo: '/images/logos/ollama.svg',
+                url: 'https://ollama.com',
+            },
         ],
     },
     {
@@ -238,7 +243,7 @@ const FAQS = [
     },
     {
         question: 'Which AI does it use?',
-        answer: 'Yours. Sign in with your ChatGPT Plus or Pro plan, paste an Anthropic, OpenAI, or Gemini API key, or sign in with OpenRouter for hundreds of other models. You pay your provider directly, with no markup.',
+        answer: 'Yours. Sign in with your ChatGPT Plus or Pro plan, paste an Anthropic, OpenAI, Gemini, or Ollama API key, or sign in with OpenRouter for hundreds of other models. You pay your provider directly, with no markup.',
     },
     {
         question: 'Is it really ready for production?',

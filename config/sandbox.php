@@ -133,6 +133,7 @@ return [
         'codex' => env('SANDBOX_MODEL_CODEX', 'openai/gpt-5.6'),
         'openrouter' => env('SANDBOX_MODEL_OPENROUTER', 'openrouter/anthropic/claude-sonnet-5'),
         'gemini' => env('SANDBOX_MODEL_GEMINI', 'google/gemini-3.8-flash'),
+        'ollama' => env('SANDBOX_MODEL_OLLAMA', 'ollama-cloud/glm-5.3'),
     ],
 
     // Shown first in the model picker (catalog ids; ones missing from the catalog are skipped).
@@ -144,7 +145,12 @@ return [
             'google/gemini-3.8-flash', 'moonshotai/kimi-k3', 'z-ai/glm-5', 'deepseek/deepseek-v4-pro',
         ],
         'gemini' => ['gemini-3.8-flash', 'gemini-3.1-pro-preview', 'gemini-3.7-flash'],
+        'ollama' => ['glm-5.3', 'kimi-k2.7-code', 'deepseek-v4-pro', 'qwen3.5:397b'],
     ],
+
+    // Whether a user's own Ollama server may be on a private or loopback address (AI-006). The platform
+    // calls that URL, so it's off on servers; a local install runs Docker sandboxes that can reach the machine.
+    'ollama_private_servers' => (bool) env('SANDBOX_OLLAMA_PRIVATE_SERVERS', env('APP_ENV') === 'local'),
 
     // Model catalog used by OpenCode (names, prices, context sizes, reasoning levels). Cached for a day.
     'catalog_url' => env('SANDBOX_MODEL_CATALOG_URL', 'https://models.dev/api.json'),

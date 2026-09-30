@@ -8,6 +8,7 @@ enum AgentProvider: string
     case Codex = 'codex';
     case OpenRouter = 'openrouter';
     case Gemini = 'gemini';
+    case Ollama = 'ollama';
 
     /**
      * Human-readable name.
@@ -19,6 +20,7 @@ enum AgentProvider: string
             self::Codex => 'Codex',
             self::OpenRouter => 'OpenRouter',
             self::Gemini => 'Gemini',
+            self::Ollama => 'Ollama',
         };
     }
 
@@ -32,6 +34,7 @@ enum AgentProvider: string
             self::Codex => 'openai',
             self::OpenRouter => 'openrouter',
             self::Gemini => 'google',
+            self::Ollama => 'ollama-cloud',
         };
     }
 
@@ -45,6 +48,7 @@ enum AgentProvider: string
             self::Codex => 'OpenAI',
             self::OpenRouter => 'OpenRouter',
             self::Gemini => 'Google',
+            self::Ollama => 'Ollama',
         };
     }
 

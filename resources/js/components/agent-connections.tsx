@@ -15,7 +15,7 @@ import { dashboard } from '@/routes';
 import { redirect as openRouterRedirect } from '@/routes/openrouter';
 import type { AgentConnection, AgentProvider } from '@/types';
 
-/** A way to connect: paste a credential, sign in on the provider's site, or sign in with ChatGPT (a one-time code). */
+/** A way to connect: paste a credential, sign in on the provider's site, sign in with ChatGPT (a one-time code), or point at your own Ollama server. */
 type Method =
     | {
           kind: 'paste';
@@ -25,28 +25,45 @@ type Method =
       }
     | { kind: 'signin'; label: string; href: string }
     | { kind: 'chatgpt'; label: string; help: React.ReactNode }
-    | { kind: 'claude-login'; label: string; help: React.ReactNode };
+    | { kind: 'claude-login'; label: string; help: React.ReactNode }
+    | { kind: 'ollama-server'; label: string; help: React.ReactNode };
 
-type ProviderInfo = {
+export type ProviderInfo = {
     id: AgentProvider;
     name: string;
     /** A one-colour mark in /images/logos, drawn white on the provider's colour. */
     logo: string;
     tile: string;
     tagline: string;
+    /** How you connect it, in a few words, under its icon in the onboarding picker. */
+    hint: string;
     primary: Method;
     alternate?: Method & { switchLabel: string; backLabel: string };
 };
 
-const providers: ProviderInfo[] = [
+export const providers: ProviderInfo[] = [
     {
         id: 'claude',
         name: 'Claude',
         logo: '/images/logos/claude.svg',
         tile: 'bg-[#D97757]',
         tagline: "Anthropic's models, used by the agent in your sandboxes.",
+        hint: 'Claude Pro or Max plan',
         primary: {
+            kind: 'claude-login',
+            label: 'Use my Claude subscription',
+            help: (
+                <>
+                    Builds on your Claude Pro or Max plan with the Claude Code
+                    agent. You sign in to Claude from your project, in Claude
+                    Code's own sign-in: OneDrop never sees your Claude login.
+                </>
+            ),
+        },
+        alternate: {
             kind: 'paste',
+            switchLabel: 'Use an Anthropic API key instead',
+            backLabel: 'Use my Claude subscription instead',
             label: 'Anthropic API key',
             placeholder: 'sk-ant-api…',
             help: (
@@ -59,19 +76,6 @@ const providers: ProviderInfo[] = [
                 </>
             ),
         },
-        alternate: {
-            kind: 'claude-login',
-            switchLabel: 'Use my Claude subscription instead',
-            backLabel: 'Use an API key instead',
-            label: 'Use my Claude subscription',
-            help: (
-                <>
-                    Builds on your Claude Pro or Max plan with the Claude Code
-                    agent. You sign in to Claude from your project, in Claude
-                    Code's own sign-in: OneDrop never sees your Claude login.
-                </>
-            ),
-        },
     },
     {
         id: 'codex',
@@ -79,6 +83,7 @@ const providers: ProviderInfo[] = [
         logo: '/images/logos/openai.svg',
         tile: 'bg-neutral-900 dark:bg-neutral-700',
         tagline: "OpenAI's models, used by the agent in your sandboxes.",
+        hint: 'ChatGPT Plus or Pro plan',
         primary: {
             kind: 'chatgpt',
             label: 'Sign in with ChatGPT',
@@ -107,6 +112,7 @@ const providers: ProviderInfo[] = [
         logo: '/images/logos/openrouter.svg',
         tile: 'bg-[#6467F2]',
         tagline: 'One account for hundreds of models.',
+        hint: 'Hundreds of models',
         primary: {
             kind: 'signin',
             label: 'Sign in with OpenRouter',
@@ -135,6 +141,7 @@ const providers: ProviderInfo[] = [
         logo: '/images/logos/gemini.svg',
         tile: 'bg-linear-to-br from-[#4285F4] to-[#9B72CB]',
         tagline: "Google's models, used by the agent in your sandboxes.",
+        hint: 'API key, free tier',
         primary: {
             kind: 'paste',
             label: 'Gemini API key',
@@ -151,12 +158,49 @@ const providers: ProviderInfo[] = [
             ),
         },
     },
+    {
+        id: 'ollama',
+        name: 'Ollama',
+        logo: '/images/logos/ollama.svg',
+        tile: 'bg-neutral-900 dark:bg-neutral-700',
+        tagline: 'Open models on Ollama Cloud or your own server.',
+        hint: 'Cloud key or your server',
+        primary: {
+            kind: 'paste',
+            label: 'Ollama API key',
+            placeholder: 'Your ollama.com key',
+            help: (
+                <>
+                    Runs on Ollama Cloud, billed to your Ollama account (which
+                    has a free plan). Create one at{' '}
+                    <ExternalLink href="https://ollama.com/settings/keys">
+                        ollama.com
+                    </ExternalLink>
+                    .
+                </>
+            ),
+        },
+        alternate: {
+            kind: 'ollama-server',
+            switchLabel: 'Use my own Ollama server instead',
+            backLabel: 'Use an Ollama Cloud key instead',
+            label: 'Ollama server URL',
+            help: (
+                <>
+                    Your sandboxes run on a server, so it needs a public address
+                    (for example behind a reverse proxy, with a key). The agent
+                    can use any model you've pulled on it.
+                </>
+            ),
+        },
+    },
 ];
 
 const credentialLabels: Record<AgentConnection['credential_type'], string> = {
     api_key: 'API key',
     claude_login: 'Claude subscription',
     chatgpt: 'ChatGPT sign-in',
+    ollama_server: 'Your server',
 };
 
 export default function AgentConnections({
@@ -184,7 +228,7 @@ export default function AgentConnections({
     );
 }
 
-function ProviderCard({
+export function ProviderCard({
     provider,
     connection,
     showDefaultToggle,
@@ -224,7 +268,10 @@ function ProviderCard({
                         {connection.is_default && <Badge>default</Badge>}
                         <Badge variant="secondary">
                             {credentialLabels[connection.credential_type]}
-                            {connection.hint && ` ••••${connection.hint}`}
+                            {connection.hint &&
+                                (connection.credential_type === 'ollama_server'
+                                    ? ` ${connection.hint}`
+                                    : ` ••••${connection.hint}`)}
                         </Badge>
                         {!connection.verified &&
                             connection.credential_type !== 'claude_login' && (
@@ -282,6 +329,16 @@ function ProviderCard({
                         <ChatGptSignIn
                             method={method}
                             onboarding={onboarding}
+                        />
+                    ) : method.kind === 'ollama-server' ? (
+                        <OllamaServerForm
+                            method={method}
+                            onboarding={onboarding}
+                            autoFocus={focusForm}
+                            onConnected={() => {
+                                setReplacing(false);
+                                setUseAlternate(false);
+                            }}
                         />
                     ) : method.kind === 'claude-login' ? (
                         <ClaudeSubscription
@@ -386,6 +443,80 @@ function PasteForm({
                         {method.help}
                     </p>
                     <InputError message={errors.credential} />
+                </>
+            )}
+        </Form>
+    );
+}
+
+/**
+ * Point the agent at the user's own Ollama server: its URL, and a key if it needs one (AI-006).
+ */
+function OllamaServerForm({
+    method,
+    onboarding,
+    autoFocus,
+    onConnected,
+}: {
+    method: Extract<Method, { kind: 'ollama-server' }>;
+    onboarding: boolean;
+    autoFocus: boolean;
+    onConnected: () => void;
+}) {
+    return (
+        <Form
+            {...AgentConnectionController.ollamaServer.form()}
+            options={{ preserveScroll: true }}
+            onSuccess={onConnected}
+            resetOnSuccess
+            className="grid gap-3"
+        >
+            {({ processing, errors }) => (
+                <>
+                    {onboarding && (
+                        <input type="hidden" name="onboarding" value="1" />
+                    )}
+                    <div className="grid gap-2">
+                        <Label htmlFor="ollama-url">{method.label}</Label>
+                        <Input
+                            id="ollama-url"
+                            name="url"
+                            type="url"
+                            required
+                            placeholder="https://ollama.example.com"
+                            autoComplete="off"
+                            autoFocus={autoFocus}
+                        />
+                        <InputError message={errors.url} />
+                    </div>
+                    <div className="grid gap-2">
+                        <Label htmlFor="ollama-key">
+                            Key{' '}
+                            <span className="font-normal text-muted-foreground">
+                                (if your server needs one)
+                            </span>
+                        </Label>
+                        <div className="flex flex-wrap gap-2">
+                            <Input
+                                id="ollama-key"
+                                name="credential"
+                                type="password"
+                                autoComplete="off"
+                                placeholder="Sent as a Bearer token"
+                                className="min-w-64 flex-1"
+                            />
+                            <Button
+                                disabled={processing}
+                                data-test="connect-ollama-server"
+                            >
+                                {processing ? 'Checking…' : 'Connect'}
+                            </Button>
+                        </div>
+                        <InputError message={errors.credential} />
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                        {method.help}
+                    </p>
                 </>
             )}
         </Form>
@@ -584,7 +715,13 @@ function ChatGptSignIn({
     );
 }
 
-function ProviderLogo({ provider }: { provider: ProviderInfo }) {
+export function ProviderLogo({
+    provider,
+    className,
+}: {
+    provider: ProviderInfo;
+    className?: string;
+}) {
     const mask = `url(${provider.logo}) center / contain no-repeat`;
 
     return (
@@ -592,11 +729,12 @@ function ProviderLogo({ provider }: { provider: ProviderInfo }) {
             className={cn(
                 'flex size-10 shrink-0 items-center justify-center rounded-lg shadow-sm',
                 provider.tile,
+                className,
             )}
             aria-hidden
         >
             <span
-                className="size-5 bg-white"
+                className="size-1/2 bg-white"
                 style={{ mask, WebkitMask: mask }}
             />
         </span>

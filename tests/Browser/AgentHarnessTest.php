@@ -116,7 +116,6 @@ test('connecting a Claude subscription in settings unlocks Claude Code in the ch
         ->click('@settings-link')
         ->click('[data-test="settings-modal"] a:has-text("AI")')
         ->assertPathIs('/settings/ai')
-        ->click('@switch-method-claude')
         ->press('@use-claude-subscription')
         ->assertSee('Claude subscription added.')
         ->keys('@settings-modal', 'Escape')

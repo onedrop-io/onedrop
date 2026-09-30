@@ -45,18 +45,21 @@ class OneOffPrompt
             $connection = $this->chatGpt->ensureFresh($connection);
         }
 
+        $environment = $connection->sandboxEnvironment();
+
         $result = $this->provider->exec($sandbox->external_id, [
             'bash', '-c', 'cd /tmp && exec opencode run --format json -m "$APP_MODEL" -- "$APP_PROMPT"',
         ], [
-            ...$connection->sandboxEnvironment(),
+            ...$environment,
             'APP_MODEL' => $this->catalog->opencodeId($selection['provider'], $selection['model']),
             'APP_PROMPT' => $prompt,
-            // No project instructions and no tools: just answer.
+            // No project instructions and no tools: just answer. Keeps a connection's own config (an Ollama server's).
             'OPENCODE_CONFIG_CONTENT' => json_encode([
+                ...json_decode($environment['OPENCODE_CONFIG_CONTENT'] ?? '{}', true),
                 'autoupdate' => false,
                 'share' => 'disabled',
                 'permission' => ['edit' => 'deny', 'bash' => 'deny', 'webfetch' => 'deny'],
-            ], JSON_THROW_ON_ERROR),
+            ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES),
         ]);
 
         $text = $this->textFrom($result->output);

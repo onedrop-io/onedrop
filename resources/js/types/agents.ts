@@ -1,4 +1,5 @@
-export type AgentProvider = 'claude' | 'codex' | 'openrouter' | 'gemini';
+export type AgentProvider =
+    'claude' | 'codex' | 'openrouter' | 'gemini' | 'ollama';
 
 /** The coding agent that works in the sandbox. */
 export type AgentHarness = 'opencode' | 'claude_code' | 'codex';
@@ -6,7 +7,7 @@ export type AgentHarness = 'opencode' | 'claude_code' | 'codex';
 export type AgentConnection = {
     id: number;
     provider: AgentProvider;
-    credential_type: 'api_key' | 'claude_login' | 'chatgpt';
+    credential_type: 'api_key' | 'claude_login' | 'chatgpt' | 'ollama_server';
     hint: string;
     is_default: boolean;
     verified: boolean;

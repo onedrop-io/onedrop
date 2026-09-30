@@ -66,7 +66,9 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 ## AI-001: Set up AI after sign-up
 
 - After signing up, user should be asked to connect an AI before they can start building.
-- User should be able to connect Claude with an Anthropic API key, with a small link to use their Claude subscription instead (AI-005).
+- User should first see a small set of AI icons (Claude, Codex, OpenRouter, Gemini, Ollama) to pick from, each with a few words on how it connects, and only then the setup for the one they picked.
+- User should be able to go back and pick a different AI.
+- User should be able to connect Claude with their Claude subscription (AI-005), with a small link to use an Anthropic API key instead.
 - User should be able to connect Codex by signing in with ChatGPT (AI-003) or with an OpenAI API key.
 - User should be able to connect OpenRouter by signing in to OpenRouter, with a small link to paste an API key instead.
 - User should see an error when a key is rejected by the provider.
@@ -92,7 +94,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## AI-005: Use a Claude subscription through Claude Code's own sign-in
 
-- User should be able to choose "Use my Claude subscription" on the Claude card instead of pasting a key; OneDrop never asks for, receives or stores their Claude login or token (Anthropic requires sign-in to go through its own flow).
+- User should be able to choose "Use my Claude subscription" on the Claude card (the first option; pasting a key is the small link); OneDrop never asks for, receives or stores their Claude login or token (Anthropic requires sign-in to go through its own flow).
 - User should be able to sign in from the project: "Sign in to Claude" under the chat box opens the Shell tab running Claude Code's own `claude auth login`.
 - User should see who they're signed in to Claude as under the chat box, once signed in.
 - One sign-in should work in all of the user's sandboxes where the sandbox provider supports a shared login folder (Docker); elsewhere each sandbox signs in once. The folder is only mounted into sandboxes of projects the user owns.
@@ -108,6 +110,16 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - The key should be checked with Google before it's stored, and user should see an error when Google rejects it.
 - User should be able to pick Google's Gemini models in the model picker, and the agent should run on their key.
 - Signing in with a Gemini (Google AI Pro/Ultra) subscription isn't offered: Google forbids third-party apps from using it.
+
+## AI-006: Connect Ollama: an Ollama Cloud key or your own server
+
+- User should be able to connect Ollama by pasting an Ollama API key, with a link to create one on ollama.com.
+- The key should be checked with Ollama Cloud before it's stored, and user should see an error when Ollama rejects it.
+- User should be able to pick Ollama Cloud's open models (GLM, Kimi, DeepSeek, Qwen…) in the model picker, and the agent (OpenCode) should run on their key.
+- User should be able to choose "Use my own Ollama server instead" and enter its URL, plus a key if it needs one (sent as a Bearer token).
+- The server should be checked before it's stored: user should see an error when it can't be reached, needs a key, rejects the key, or doesn't answer like Ollama.
+- User should see an error for a private, loopback or internal address (sandboxes can't reach it, and the platform won't call it); a local install allows them, and in Docker sandboxes `localhost` means the user's machine.
+- User should be able to pick any model on their server in the model picker, shown at no cost, and see the server's host on the connection instead of a key's last characters.
 
 ## PRJ-001: Start a new project
 

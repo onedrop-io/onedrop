@@ -29,6 +29,12 @@ class ModelCatalog
      */
     public function models(AgentProvider $provider, ?User $user = null): array
     {
+        $server = $provider === AgentProvider::Ollama ? $this->ollamaServer($user) : null;
+
+        if ($server) {
+            return array_map(fn (string $id) => $this->entry($id, ['name' => $id, 'cost' => ['input' => 0, 'output' => 0]], []), app(OllamaServer::class)->models($server));
+        }
+
         $models = $this->allModels($provider);
 
         if (! $this->signedInWithChatGpt($provider, $user)) {
@@ -235,6 +241,12 @@ class ModelCatalog
     {
         $configured = Str::after((string) config("sandbox.models.{$provider->value}"), $provider->catalogId().'/');
 
+        if ($provider === AgentProvider::Ollama && $this->ollamaServer($user)) {
+            $models = array_column($this->models($provider, $user), 'id');
+
+            return in_array($configured, $models, true) ? $configured : ($models[0] ?? $configured);
+        }
+
         if (! $this->signedInWithChatGpt($provider, $user) || $this->includedWithChatGpt($configured, $user)) {
             return $configured;
         }
@@ -267,6 +279,14 @@ class ModelCatalog
         Cache::put($key, $models ?? [], $models === null ? now()->addMinutes(5) : now()->addHour());
 
         return $models;
+    }
+
+    /**
+     * The user's own Ollama server connection, if that's how they connected Ollama (AI-006).
+     */
+    protected function ollamaServer(?User $user): ?AgentConnection
+    {
+        return $user?->agentConnections()->where('provider', AgentProvider::Ollama)->where('credential_type', CredentialType::OllamaServer)->first();
     }
 
     /**
