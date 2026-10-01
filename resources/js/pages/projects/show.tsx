@@ -818,13 +818,15 @@ function WorkspacePanel({
         isRemoteBrowser &&
         !!sandbox?.shell_url &&
         isLocalHostname(new URL(sandbox.shell_url).hostname);
-    const url = !running
-        ? null
-        : !remote
-          ? sandbox.preview_url
-          : publication.status === 'live'
-            ? publication.url
-            : null;
+    // Mid-update the old sandbox's address no longer answers: show the placeholder, not the browser's error page.
+    const url =
+        !running || sandbox.updating
+            ? null
+            : !remote
+              ? sandbox.preview_url
+              : publication.status === 'live'
+                ? publication.url
+                : null;
     const [reloadKey, setReloadKey] = useState(0);
     const [wasWorking, setWasWorking] = useState(working);
     const previewFrame = useRef<HTMLIFrameElement>(null);

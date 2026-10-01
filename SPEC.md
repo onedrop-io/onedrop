@@ -336,7 +336,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Before the agent starts a run, an outdated sandbox should be updated first, so the agent always has the current guides and tools.
 - Updating keeps the app's files, App Storage, the agent's history, and everything in the sandbox user's home folder (such as a database or tools the agent installed there); the app restarts, and a published project is published again.
 - Updated sandboxes should get the image's current shell setup (banner, prompt, aliases, prompt theme) even though the home folder is kept; lines the user added to `~/.bashrc` below the loader line, and a `~/.config/starship.toml` the user made, stay.
-- User should see the sandbox updating in the preview, then the app again.
+- User should see the sandbox updating in the preview (never the browser's "unable to connect" page from the old sandbox's address), then the app again.
 - An update that fails or is cut off partway (a deploy, a queue timeout) should leave the project on its old sandbox with every file; the old sandbox is only removed once the new one has them all.
 - Two updates of the same sandbox should never run at once.
 - An admin should be able to update outdated sandboxes with `php artisan sandbox:update` (all, or one project).

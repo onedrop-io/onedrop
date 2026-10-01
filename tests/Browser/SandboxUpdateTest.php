@@ -16,12 +16,14 @@ test('opening a project with an outdated sandbox shows it updating', function ()
     app()->instance(SandboxProvider::class, $provider);
     $user = User::factory()->has(AgentConnection::factory())->create();
     $project = Project::factory()->for($user)->create();
-    Sandbox::factory()->for($project)->create(['external_id' => 'old-ctr', 'preview_url' => null]);
+    Sandbox::factory()->for($project)->create(['external_id' => 'old-ctr', 'preview_url' => 'http://127.0.0.1:9/']);
     $this->actingAs($user);
 
     visit("/projects/{$project->id}")
         ->click('@tab-preview')
         ->assertSeeIn('@sandbox-status', 'Updating sandbox…')
+        ->assertPresent('@preview-placeholder')
+        ->assertMissing('@preview-frame')
         ->assertNoJavaScriptErrors();
 
     Queue::assertPushed(UpdateSandbox::class);
