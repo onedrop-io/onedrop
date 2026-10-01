@@ -27,7 +27,7 @@ test('an admin renames the app, sees the providers, monitoring, server and backu
         ->fill('@app-name-input', 'Acme Builder')
         ->press('@save-name-button')
         ->assertSee('Name saved.')
-        ->assertSee('Acme Builder');
+        ->assertValue('@app-name-input', 'Acme Builder');
 
     $page->click('[data-test="settings-modal"] a:has-text("Sandboxes")')
         ->assertPathIs('/admin/sandboxes')

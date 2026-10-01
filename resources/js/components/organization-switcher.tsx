@@ -33,8 +33,8 @@ import { useOrganization } from '@/hooks/use-organization';
 import { edit, home } from '@/routes/organizations';
 
 /**
- * The organization the page is in, and the way to the user's others (ORG-002) or a new one (ORG-003). Shown on the
- * hosted install, or when the user is in more than one.
+ * The top of the sidebar: the organization the page is in, and the way to its settings, the user's other
+ * organizations (ORG-002) or a new one (ORG-003, hosted only). A self-hosted install shows its one organization.
  */
 export function OrganizationSwitcher() {
     const { organizations, multiTenant } = usePage().props;
@@ -44,10 +44,6 @@ export function OrganizationSwitcher() {
     const [creating, setCreating] = useState(false);
     // Opened once the menu has closed, so the menu doesn't take focus back from the dialog's input.
     const pendingCreate = useRef(false);
-
-    if (!multiTenant && (organizations?.length ?? 0) < 2) {
-        return null;
-    }
 
     return (
         <SidebarMenu>

@@ -96,7 +96,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - An organization's own pages (new project, groups, invites) should have addresses under `/o/<slug>/`; a project's pages keep `/projects/<id>` and are in the project's organization. Two tabs can be in two organizations.
 - The sidebar should list the projects of the organization the page is in; new projects and search should stay in it.
 - Opening an organization's page or a project should make it the user's current organization; signing in (and `/dashboard`) should take them there.
-- User should see the organization they're in (its logo or initial, and name) at the top of the sidebar on the hosted install, or whenever they belong to more than one.
+- User should see the organization they're in at the top of the sidebar, as its only header: its name and its logo. Without a logo it shows its initial on the hosted install, and the install's own logo (or the droplet) on a self-hosted one.
 - User should be able to switch to another of their organizations from it, and land on that organization's new-project page; it should also open the organization's settings.
 
 ## ORG-003: Create an organization
@@ -1190,8 +1190,8 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## ADMIN-001: Name and logo
 
-- Admin should be able to change the app's name from Settings → General, and see it in the sidebar, header, browser tab title and emails.
-- Admin should be able to upload a logo (PNG, JPEG, WebP or SVG, up to 1 MB) that replaces the droplet in the sidebar, header and browser tab, and remove it to go back to the droplet.
+- Admin should be able to change the app's name from Settings → General, and see it in the header, sign-in pages, browser tab title and emails. (The sidebar shows the organization's name, ORG-002.)
+- Admin should be able to upload a logo (PNG, JPEG, WebP or SVG, up to 1 MB) that replaces the droplet in the header, sign-in pages and browser tab, and in the sidebar of a self-hosted install whose organization has no logo of its own, and remove it to go back to the droplet.
 - Non-admins should not be able to see or change these settings.
 
 ## ADMIN-002: Sandbox providers
