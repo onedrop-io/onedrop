@@ -7,6 +7,11 @@ use Tests\TestCase;
 uses(TestCase::class);
 
 beforeEach(function () {
+    // No background `git gc --auto`: it can still be writing in .git/objects while the test deletes the folder.
+    putenv('GIT_CONFIG_COUNT=1');
+    putenv('GIT_CONFIG_KEY_0=gc.auto');
+    putenv('GIT_CONFIG_VALUE_0=0');
+
     $this->workspace = sys_get_temp_dir().'/onedrop-git-tool-'.uniqid();
     File::ensureDirectoryExists($this->workspace);
     $sandbox = dirname(__DIR__, 2).'/docker/sandbox';
@@ -27,6 +32,9 @@ beforeEach(function () {
 
 afterEach(function () {
     File::deleteDirectory($this->workspace);
+    putenv('GIT_CONFIG_COUNT');
+    putenv('GIT_CONFIG_KEY_0');
+    putenv('GIT_CONFIG_VALUE_0');
 });
 
 test('a project without a repository reports it, and its first commit starts one on main as the user', function () {
