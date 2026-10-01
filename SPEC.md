@@ -243,6 +243,17 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - A project started from a template should be named after the template.
 - Clearing the prompt should drop the template, so the project is named from what they type instead.
 
+## PRJ-012: Browse templates from other registries
+
+- User should see a few rows of popular open-source apps (from the configured registries, Dokploy's to start) under the built-in templates, with their logos, loaded after the page shows.
+- User should be able to open "Browse all templates" beside the templates heading: a dialog listing the built-in templates and every registry's as one list, each with its name, description and logo or icon, not grouped or labelled by the registry it came from.
+- User should be able to search the list by name, description or tag, and narrow it to a category (the most used tags, "Business" for the built-in ones).
+- User should be able to pick a template to fill in the prompt, then change it before sending; the project is named after the template.
+- A registry template (a Docker Compose stack) should start the project with its `docker-compose.yml` and its registry settings in the workspace, and the agent should fill in its variables, set the stack up as the preview and get it running.
+- User should see registry templates (popular ones and in the dialog) as unavailable, with the reason, when new projects' sandboxes can't run Docker (SBX-008); picking one anyway should be refused.
+- A registry that can't be reached should leave the built-in templates working; if a template's files can't be fetched when the project starts, the chat should say why and the agent shouldn't start.
+- An admin should be able to add another registry in the same format, or turn one off, in config.
+
 ## PRJ-005: Search projects from the sidebar
 
 - User should see a "Search" row at the top of the sidebar with a new-project button (pencil icon) beside it.

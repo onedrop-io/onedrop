@@ -2,11 +2,11 @@
 
 namespace App\Http\Requests;
 
-use App\Enums\AppTemplate;
 use App\Models\Attachment;
+use App\Sandbox\Templates\TemplateCatalog;
+use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class StoreProjectRequest extends FormRequest
 {
@@ -21,7 +21,17 @@ class StoreProjectRequest extends FormRequest
             ...Attachment::rules('prompt'),
             // Imported from a repository (PRJ-009), the prompt is optional.
             'prompt' => ['required_without_all:attachments,repository', 'nullable', 'string', 'max:5000'],
-            'template' => ['nullable', Rule::enum(AppTemplate::class)],
+            // A built-in template (PRJ-004) or one from a registry (PRJ-012), which needs Docker in new sandboxes.
+            'template' => ['nullable', 'string', 'max:200', function (string $attribute, string $value, Closure $fail): void {
+                $catalog = app(TemplateCatalog::class);
+                $template = $catalog->find($value);
+
+                if (! $template) {
+                    $fail(__('That template isn\'t available.'));
+                } elseif ($template['compose'] && ! $catalog->canRunCompose()) {
+                    $fail(__(':name runs with Docker Compose, and new projects\' sandboxes can\'t run Docker. An admin can turn on Docker inside sandboxes in Settings → Sandboxes.', ['name' => $template['label']]));
+                }
+            }],
             'repository' => ['nullable', 'string', 'max:500'],
         ];
     }

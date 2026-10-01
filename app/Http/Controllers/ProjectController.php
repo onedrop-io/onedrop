@@ -13,6 +13,7 @@ use App\Enums\SandboxStatus;
 use App\Http\Middleware\ResolveOrganization;
 use App\Http\Requests\StoreProjectRequest;
 use App\Http\Requests\UpdateProjectRequest;
+use App\Jobs\ApplyRegistryTemplate;
 use App\Jobs\CreateSandbox;
 use App\Jobs\ImportRepository;
 use App\Jobs\RegenerateProjectName;
@@ -25,6 +26,7 @@ use App\Sandbox\Agents\ProjectNamer;
 use App\Sandbox\GitException;
 use App\Sandbox\GitHubApp;
 use App\Sandbox\RepositoryImport;
+use App\Sandbox\Templates\TemplateCatalog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Bus;
@@ -41,7 +43,7 @@ class ProjectController extends Controller
     /**
      * Show the "what are we working on today?" prompt.
      */
-    public function create(Request $request, ModelCatalog $catalog, GitHubApp $github): Response
+    public function create(Request $request, ModelCatalog $catalog, GitHubApp $github, TemplateCatalog $templates): Response
     {
         $agent = $catalog->newProjectAgent($request->user());
 
@@ -49,6 +51,11 @@ class ProjectController extends Controller
             'defaultAi' => $request->user()->agentConnections()->firstWhere('is_default', true)?->provider->label(),
             'agent' => $agent ? $catalog->describe(['provider' => $agent['agent_provider'], 'model' => $agent['agent_model'], 'variant' => $agent['agent_variant']], $agent['agent_harness']) : null,
             'templates' => AppTemplate::options(),
+            // Popular open-source apps under the built-in ones (PRJ-012), after the page shows, since the registry may be slow.
+            'popular' => Inertia::defer(fn () => $templates->popular()),
+            // "Browse all templates" loads the built-in and every registry's when it opens.
+            'catalog' => Inertia::optional(fn () => $templates->all()),
+            'compose' => $templates->canRunCompose(),
             // "Remix this" on a share page (SHARE-002) opens this page with the shared prompt filled in.
             'remix' => $request->session()->pull('remix'),
             // Importing a repository (PRJ-009): private GitHub ones need the GitHub App.
@@ -65,10 +72,10 @@ class ProjectController extends Controller
     /**
      * Create a project from a description (or a template's), or from a repository, and start the agent on it.
      */
-    public function store(StoreProjectRequest $request, ModelCatalog $catalog, RepositoryImport $import): RedirectResponse
+    public function store(StoreProjectRequest $request, ModelCatalog $catalog, RepositoryImport $import, TemplateCatalog $templates): RedirectResponse
     {
         $prompt = (string) $request->validated('prompt');
-        $template = $request->enum('template', AppTemplate::class);
+        $template = $request->filled('template') ? $templates->find((string) $request->validated('template')) : null;
         $repository = null;
 
         if ($request->filled('repository')) {
@@ -98,7 +105,7 @@ class ProjectController extends Controller
 
         $project = $request->user()->projects()->create([
             'organization_id' => ResolveOrganization::current($request)->id,
-            'name' => $repository['name'] ?? $template?->label() ?? Project::nameFromPrompt($prompt),
+            'name' => $repository['name'] ?? $template['label'] ?? Project::nameFromPrompt($prompt),
             'prompt' => $prompt,
             ...$agent,
             ...($repository ? [
@@ -112,9 +119,13 @@ class ProjectController extends Controller
         // and the queued run may take a moment to start.
         $project->update(['status' => ProjectStatus::Working]);
 
+        // A registry template's setup goes to the agent only, beside what the user wrote (PRJ-012).
+        $registry = $template ? $templates->registryFor($template['value']) : null;
+
         $message = $project->messages()->create([
             'role' => MessageRole::User,
             'content' => $prompt,
+            ...($registry ? ['meta' => ['template' => $template['value'], 'agent_context' => $registry->agentContext($template)]] : []),
         ]);
 
         foreach ($request->file('attachments', []) as $file) {
@@ -129,6 +140,7 @@ class ProjectController extends Controller
         Bus::chain(array_values(array_filter([
             new CreateSandbox($project),
             $repository ? new ImportRepository($project, $message, $repository['branch']) : null,
+            $registry ? new ApplyRegistryTemplate($project, $message, $template['value']) : null,
             new RunAgentTask($project, $message),
         ])))->dispatch();
 

@@ -21,6 +21,26 @@ Under the message box are templates for apps teams usually keep in spreadsheets:
 
 Picking one fills the message box with a full description: the records the app keeps, the views it shows (tables, boards, calendars, public forms), who signs in, and sample data to try it with. Change anything you like before sending, such as "for our three warehouses" or "add a field for the lead source". The project is named after the template; rename it from the sidebar any time.
 
+### Popular open-source apps
+
+Below the templates are popular open-source apps, ready to run: Twenty CRM, Chatwoot, n8n, Cal.com, Plausible, NocoDB, Documenso, Plane and Metabase. They come from template registries, starting with [Dokploy's](https://templates.dokploy.com).
+
+### Browse all templates
+
+**Browse all templates**, beside the "Or start from a template" heading, opens every template in one list: the built-in ones plus about 500 open-source apps. Type to search names, descriptions and tags (such as `analytics` or `cms`), or pick a category above the list (Business, Monitoring, Database, AI…). Use the arrow keys and Enter, or click one.
+
+A registry template is a Docker Compose stack. Picking one fills the message box with "Set up …"; add what you want changed (say, "use New York time"). When the project starts, OneDrop puts the template's `docker-compose.yml` in the project and its registry settings in `.onedrop/template.toml`. The agent then writes the `.env` (with new random passwords and secrets), sets the stack up as the preview, gets it running, and tells you how to sign in. The stack's containers show in the [Services tab](/guides/workspace#services).
+
+<Info>
+Registry templates need Docker inside sandboxes, which an admin turns on in **Settings → Sandboxes → Docker** (see [Run a project's Docker Compose](/guides/docker-compose)). Until then they're greyed out.
+</Info>
+
+If a registry can't be reached, the built-in templates still work and the registry's are tried again a few minutes later. If a template's files can't be downloaded when the project starts, the chat says so and the agent doesn't start.
+
+#### Add a registry
+
+Registries are listed in `config/sandbox.php` under `template_registries`. Each has a `name`, a `format`, a `url` and the `popular` template ids shown under the prompt; any registry laid out like Dokploy's (a `meta.json` index and a `blueprints/<id>/` folder per template), such as your own fork, works with `'format' => 'dokploy'`. Point the Dokploy entry somewhere else with `SANDBOX_TEMPLATES_DOKPLOY_URL`, or set it to an empty value to turn it off. Each registry's list is cached for a day.
+
 ### Start from a repository
 
 To work on an app you already have, click **Repository** next to the agent picker under the message box. A repository field opens above the message box (the templates hide while it's open). Enter any of these:

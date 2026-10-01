@@ -17,6 +17,11 @@ abstract class TestCase extends BaseTestCase
         Http::fake([
             'models.test/*' => Http::response(file_get_contents(__DIR__.'/Fixtures/models-dev.json'), 200, ['Content-Type' => 'application/json']),
             'chatgpt.test/*' => Http::response('', 503),
+            // Dokploy's template registry (PRJ-012): two templates, and n8n's files.
+            'dokploy.test/meta.json' => Http::response(file_get_contents(__DIR__.'/Fixtures/dokploy-meta.json'), 200, ['Content-Type' => 'application/json']),
+            'dokploy.test/blueprints/n8n/docker-compose.yml' => Http::response(file_get_contents(__DIR__.'/Fixtures/dokploy-n8n-compose.yml')),
+            'dokploy.test/blueprints/n8n/template.toml' => Http::response(file_get_contents(__DIR__.'/Fixtures/dokploy-n8n-template.toml')),
+            'dokploy.test/*' => Http::response('', 404),
         ]);
     }
 

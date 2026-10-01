@@ -1,0 +1,37 @@
+[
+  {
+    "id": "ghost",
+    "name": "Ghost",
+    "version": "6.0.0",
+    "description": "Ghost is a free and open source, professional publishing platform built on a modern Node.js technology stack.",
+    "logo": "ghost.jpeg",
+    "links": {
+      "github": "https://github.com/TryGhost/Ghost",
+      "website": "https://ghost.org/",
+      "docs": "https://ghost.org/docs/"
+    },
+    "tags": [
+      "cms"
+    ]
+  },
+  {
+    "id": "n8n",
+    "name": "n8n",
+    "version": "1.104.0",
+    "description": "n8n is an open source low-code platform for automating workflows and integrations.",
+    "logo": "n8n.png",
+    "links": {
+      "github": "https://github.com/n8n-io/n8n",
+      "website": "https://n8n.io/",
+      "docs": "https://docs.n8n.io/"
+    },
+    "tags": [
+      "automation"
+    ]
+  },
+  {
+    "id": "../escape",
+    "name": "Bad",
+    "description": "not a folder name"
+  }
+]

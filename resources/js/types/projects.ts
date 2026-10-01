@@ -87,6 +87,18 @@ export type AppTemplate = {
     prompt: string;
 };
 
+/** A template in "Browse all templates" (App\Sandbox\Templates\TemplateCatalog, PRJ-012): built-in or from a registry. */
+export type CatalogTemplate = AppTemplate & {
+    /** The registry's name, e.g. "Dokploy"; null for the built-in ones. */
+    registry: string | null;
+    logo: string | null;
+    tags: string[];
+    /** A Docker Compose stack, which needs Docker inside sandboxes. */
+    compose: boolean;
+    /** The app's website. */
+    link: string | null;
+};
+
 /** A project as listed in the sidebar, with what its menu needs. */
 export type SidebarProject = ProjectSummary & {
     pinned: boolean;

@@ -170,6 +170,19 @@ return [
     // Model catalog used by OpenCode (names, prices, context sizes, reasoning levels). Cached for a day.
     'catalog_url' => env('SANDBOX_MODEL_CATALOG_URL', 'https://models.dev/api.json'),
 
+    // Template registries listed beside the built-in templates on the new-project page (PRJ-012), by name. "format" is
+    // how the registry is laid out ("dokploy": a meta.json index and blueprints/<id>/ files), so a fork or mirror is
+    // one more entry. An empty url turns a registry off. Each index is cached for a day. "popular" are the ids shown
+    // under the prompt as popular apps, in order (registries don't say which are popular).
+    'template_registries' => [
+        'dokploy' => [
+            'name' => 'Dokploy',
+            'format' => 'dokploy',
+            'url' => env('SANDBOX_TEMPLATES_DOKPLOY_URL', 'https://templates.dokploy.com'),
+            'popular' => ['twenty', 'chatwoot', 'n8n', 'calcom', 'plausible', 'nocodb', 'documenso', 'plane', 'metabase'],
+        ],
+    ],
+
     // Where ChatGPT lists the models a signed-in account can use with Codex (its plan decides). Cached for an hour.
     'chatgpt_models_url' => env('SANDBOX_CHATGPT_MODELS_URL', 'https://chatgpt.com/backend-api/codex/models'),
 

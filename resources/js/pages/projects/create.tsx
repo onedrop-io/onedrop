@@ -1,20 +1,7 @@
-import { Head, usePage } from '@inertiajs/react';
-import {
-    Boxes,
-    CalendarDays,
-    CalendarHeart,
-    Handshake,
-    KanbanSquare,
-    LayoutTemplate,
-    LifeBuoy,
-    Newspaper,
-    Receipt,
-    Shuffle,
-    Sparkles,
-    UserSearch,
-} from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
+import { Deferred, Head, router, usePage } from '@inertiajs/react';
+import { ArrowRight, LayoutTemplate, Shuffle, Sparkles } from 'lucide-react';
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 import ProjectController from '@/actions/App/Http/Controllers/ProjectController';
 import AgentModelPicker from '@/components/agent-model-picker';
 import PromptComposer from '@/components/prompt-composer';
@@ -22,33 +9,35 @@ import RepositoryPicker, {
     RepositoryToggle,
 } from '@/components/repository-picker';
 import type { ImportGitHub } from '@/components/repository-picker';
+import TemplateBrowser, {
+    TemplateLogo,
+    templateIcons,
+} from '@/components/template-browser';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useOrganization } from '@/hooks/use-organization';
 import { cn } from '@/lib/utils';
-import type { AgentSelection, AppTemplate } from '@/types';
+import type { AgentSelection, AppTemplate, CatalogTemplate } from '@/types';
 import { dashboard } from '@/routes';
-
-const templateIcons: Record<string, LucideIcon> = {
-    crm: Handshake,
-    'project-tracker': KanbanSquare,
-    'content-calendar': Newspaper,
-    inventory: Boxes,
-    hiring: UserSearch,
-    events: CalendarHeart,
-    'help-desk': LifeBuoy,
-    'time-off': CalendarDays,
-    expenses: Receipt,
-};
 
 export default function CreateProject({
     defaultAi,
     agent,
     templates,
+    popular,
+    catalog,
+    compose,
     remix,
     github,
 }: {
     defaultAi: string | null;
     agent: AgentSelection | null;
     templates: AppTemplate[];
+    /** Popular open-source apps from the registries (PRJ-012); deferred, since a registry may be slow. */
+    popular?: CatalogTemplate[];
+    /** Every template, built-in and from registries; loaded when "Browse all templates" opens. */
+    catalog?: CatalogTemplate[];
+    /** New projects' sandboxes can run registry templates' Docker Compose stacks. */
+    compose: boolean;
     /** "Remix this" on a share page: the shared project's name and prompt (SHARE-002). */
     remix: { name: string; prompt: string } | null;
     /** Importing a repository instead (PRJ-009). */
@@ -59,13 +48,31 @@ export default function CreateProject({
     const organization = useOrganization();
     const [prompt, setPrompt] = useState(remix?.prompt ?? '');
     const [template, setTemplate] = useState<string | null>(null);
+    const [browsing, setBrowsing] = useState(false);
+    // A template picked in the browser that isn't one of the cards, named beside "Browse all templates".
+    const [browsed, setBrowsed] = useState<CatalogTemplate | null>(null);
     // Back from connecting GitHub here: open the import again.
     const [importing, setImporting] = useState(github.returned !== null);
     const [repository, setRepository] = useState('');
     const firstName = auth.user.name.split(' ')[0];
 
+    const browse = () => {
+        setBrowsing(true);
+
+        if (catalog === undefined) {
+            router.reload({ only: ['catalog'] });
+        }
+    };
+
     const pickTemplate = (picked: AppTemplate) => {
         setTemplate(picked.value);
+        setBrowsed(
+            [...templates, ...(popular ?? [])].some(
+                (option) => option.value === picked.value,
+            )
+                ? null
+                : (picked as CatalogTemplate),
+        );
         setPrompt(picked.prompt);
 
         const composer = document.getElementById('composer-prompt');
@@ -112,6 +119,7 @@ export default function CreateProject({
 
                             if (value.trim() === '') {
                                 setTemplate(null);
+                                setBrowsed(null);
                             }
                         }}
                         autoFocus={!importing}
@@ -162,9 +170,22 @@ export default function CreateProject({
                     />
 
                     <div className={cn('space-y-3', importing && 'hidden')}>
-                        <p className="text-sm text-muted-foreground">
-                            Or start from a template
-                        </p>
+                        <div className="flex items-baseline justify-between gap-4">
+                            <p className="text-sm text-muted-foreground">
+                                Or start from a template
+                            </p>
+                            <button
+                                type="button"
+                                onClick={browse}
+                                className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+                                data-test="browse-templates"
+                            >
+                                {browsed
+                                    ? `Starting from ${browsed.label}. Browse all templates`
+                                    : 'Browse all templates'}
+                                <ArrowRight className="size-3.5" />
+                            </button>
+                        </div>
                         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                             {templates.map((option) => {
                                 const Icon =
@@ -172,34 +193,113 @@ export default function CreateProject({
                                     LayoutTemplate;
 
                                 return (
-                                    <button
+                                    <TemplateCard
                                         key={option.value}
-                                        type="button"
+                                        label={option.label}
+                                        description={option.description}
+                                        icon={
+                                            <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                                        }
+                                        pressed={template === option.value}
                                         onClick={() => pickTemplate(option)}
-                                        aria-pressed={template === option.value}
-                                        className={cn(
-                                            'flex items-start gap-3 rounded-xl border border-input px-4 py-3 text-left transition-colors hover:bg-muted',
-                                            template === option.value &&
-                                                'border-primary bg-muted',
-                                        )}
-                                    >
-                                        <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                                        <span className="space-y-0.5">
-                                            <span className="block text-sm font-medium">
-                                                {option.label}
-                                            </span>
-                                            <span className="block text-xs text-muted-foreground">
-                                                {option.description}
-                                            </span>
-                                        </span>
-                                    </button>
+                                    />
                                 );
                             })}
                         </div>
+
+                        <p className="pt-3 text-sm text-muted-foreground">
+                            Popular open-source apps
+                        </p>
+                        {!compose && (
+                            <p className="text-xs text-muted-foreground">
+                                These run with Docker. An admin can turn on
+                                Docker inside sandboxes in Settings → Sandboxes.
+                            </p>
+                        )}
+                        <Deferred
+                            data="popular"
+                            fallback={
+                                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                                    {Array.from({ length: 6 }, (_, index) => (
+                                        <Skeleton
+                                            key={index}
+                                            className="h-[4.25rem] rounded-xl"
+                                        />
+                                    ))}
+                                </div>
+                            }
+                        >
+                            <div
+                                className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3"
+                                data-test="popular-templates"
+                            >
+                                {(popular ?? []).map((option) => (
+                                    <TemplateCard
+                                        key={option.value}
+                                        label={option.label}
+                                        description={option.description}
+                                        icon={
+                                            <TemplateLogo
+                                                template={option}
+                                                className="size-6"
+                                            />
+                                        }
+                                        pressed={template === option.value}
+                                        disabled={!compose}
+                                        onClick={() => pickTemplate(option)}
+                                    />
+                                ))}
+                            </div>
+                        </Deferred>
                     </div>
+
+                    <TemplateBrowser
+                        open={browsing}
+                        onOpenChange={setBrowsing}
+                        templates={catalog}
+                        compose={compose}
+                        onPick={pickTemplate}
+                    />
                 </div>
             </div>
         </>
+    );
+}
+
+function TemplateCard({
+    label,
+    description,
+    icon,
+    pressed,
+    disabled = false,
+    onClick,
+}: {
+    label: string;
+    description: string;
+    icon: ReactNode;
+    pressed: boolean;
+    disabled?: boolean;
+    onClick: () => void;
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            disabled={disabled}
+            aria-pressed={pressed}
+            className={cn(
+                'flex items-start gap-3 rounded-xl border border-input px-4 py-3 text-left transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent',
+                pressed && 'border-primary bg-muted',
+            )}
+        >
+            {icon}
+            <span className="min-w-0 space-y-0.5">
+                <span className="block text-sm font-medium">{label}</span>
+                <span className="line-clamp-2 text-xs text-muted-foreground">
+                    {description}
+                </span>
+            </span>
+        </button>
     );
 }
 
