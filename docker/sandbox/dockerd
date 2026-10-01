@@ -9,5 +9,14 @@ if ! mountpoint -q /var/lib/docker; then
     exit 1
 fi
 
+# A restarted container keeps /var/run, so the last run's pid files are still there. Their pids can belong to
+# something else by now (even a thread of another process), and dockerd would refuse to start: "process with
+# PID 27 is still running". Nothing of Docker's runs while dockerd doesn't, so they're stale; remove them.
+RUN="${ONEDROP_RUN_DIR:-/var/run}"
+
+if ! pgrep -x dockerd >/dev/null; then
+    rm -f "${RUN}/docker.pid" "${RUN}/docker/containerd/containerd.pid"
+fi
+
 # The sandbox user runs docker through the socket (it's in the docker group).
 exec dockerd --group docker

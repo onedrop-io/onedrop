@@ -415,6 +415,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - With Docker inside sandboxes turned on (Settings → Sandboxes → Docker), each sandbox should have its own Docker, so a project's own `docker-compose.yml` runs in it unmodified, and the agent and the Shell tab can use `docker` and `docker compose`.
 - Sandboxes should only get `--privileged` for this on a local install; a server needs a container runtime that makes Docker in a container safe (such as Sysbox), and a privileged setting there should fail with a message saying so.
 - Each sandbox's Docker should keep its images, containers and volumes on its own volume, deleted with the sandbox.
+- A sandbox's Docker should start again when the sandbox restarts, so an app that runs on it (e.g. its database) comes back.
 - Turning Docker inside sandboxes on or off should update existing sandboxes (files kept), as other sandbox changes do.
 - `/opt/onedrop/compose init` should set a project up to start with its compose stack: it picks the compose files (the base file, its override, and an `arm64` overlay on arm64 machines), the web port the preview shows (or the one given), writes `.onedrop/dev`, and restarts the preview.
 - User should see the chosen service in the preview; restarting the preview restarts the stack.
