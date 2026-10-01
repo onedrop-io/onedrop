@@ -132,11 +132,11 @@ test('on a small screen the chat and the workspace are tabs, keeping the draft w
     visit("/projects/{$project->id}")
         ->resize(390, 844)
         ->assertVisible('section[aria-label="Chat"]')
-        ->assertMissing('@tab-preview')
+        ->assertMissing('@mobile-tab-switcher')
         ->type('#composer-content', 'half a thought')
         ->click('@mobile-tab-workspace')
         ->assertMissing('section[aria-label="Chat"]')
-        ->assertVisible('@tab-preview')
+        ->assertVisible('@mobile-tab-switcher')
         ->assertMissing('@toggle-chat')
         ->click('@mobile-tab-chat')
         ->assertVisible('section[aria-label="Chat"]')
@@ -182,3 +182,57 @@ test('on a small screen the preview bar leaves out the address, the size menu an
         ->assertVisible('@split-menu')
         ->assertNoJavaScriptErrors();
 })->group('LAYOUT-006');
+
+test('on a small screen a pane\'s tabs are one switcher, with the rest in a sheet', function () {
+    $user = User::factory()->has(AgentConnection::factory())->create();
+    $project = Project::factory()->for($user)->create();
+    Sandbox::factory()->for($project)->create(['preview_url' => 'http://127.0.0.1:49152', 'shell_url' => 'about:blank']);
+    $this->actingAs($user);
+
+    $page = visit("/projects/{$project->id}")
+        ->resize(390, 844)
+        ->click('@mobile-tab-workspace')
+        ->assertMissing('@tab-preview')
+        ->assertMissing('@add-tab')
+        ->assertSeeIn('@mobile-tab-switcher', 'Preview')
+        ->assertVisible('@preview-annotate')
+        ->click('@mobile-tab-switcher')
+        ->click('@mobile-add-tab-tests')
+        ->assertMissing('@mobile-tab-sheet')
+        ->assertSeeIn('@mobile-tab-switcher', 'Tests')
+        ->assertSeeIn('@mobile-tab-switcher', '3')
+        ->click('@mobile-tab-switcher')
+        ->assertMissing('@mobile-add-tab-tests')
+        ->assertVisible('@mobile-add-tab-shell')
+        ->click('@mobile-close-tests')
+        ->assertMissing('@mobile-tab-tests')
+        ->click('@mobile-tab-preview')
+        ->assertSeeIn('@mobile-tab-switcher', 'Preview')
+        ->assertVisible('@preview-annotate')
+        ->click('@pane-more')
+        ->assertSee('Open in a new tab')
+        ->assertNoJavaScriptErrors();
+
+    $page->screenshot(filename: 'mobile-tab-switcher');
+
+    $page->resize(1600, 900)
+        ->assertMissing('@mobile-tab-switcher')
+        ->assertVisible('@tab-preview');
+})->group('LAYOUT-007');
+
+test('on a small screen the header\'s commit and share buttons are icons, leaving room for the project\'s name', function () {
+    $user = User::factory()->has(AgentConnection::factory())->create();
+    $project = Project::factory()->for($user)->create(['name' => 'Dolorum Aut Ut Alias Iusto Molestiae']);
+    Sandbox::factory()->for($project)->create(['preview_url' => null]);
+    $this->actingAs($user);
+
+    $page = visit("/projects/{$project->id}")
+        ->resize(390, 844)
+        ->assertVisible('@share-button')
+        ->assertScript("document.querySelector('[data-test=\"share-button\"]').offsetWidth < 48", true)
+        ->assertSeeIn('@publish-button', 'Publish')
+        ->assertScript("document.querySelector('header [data-slot=\"breadcrumb-page\"]').offsetHeight < 30", true)
+        ->assertNoJavaScriptErrors();
+
+    $page->screenshot(filename: 'mobile-header');
+})->group('LAYOUT-007');

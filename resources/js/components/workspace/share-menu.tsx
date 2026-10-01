@@ -81,12 +81,12 @@ export default function ShareMenu({
             <DropdownMenuTrigger asChild>
                 <Button size="sm" variant="outline" data-test="share-button">
                     <Share2 className="size-4" />
-                    Share
+                    <span className="max-sm:sr-only">Share</span>
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
                 align="end"
-                className="max-h-[calc(100svh-6rem)] w-[26rem] space-y-4 overflow-y-auto p-4"
+                className="max-h-[calc(100svh-6rem)] w-[26rem] max-w-[calc(100vw-1rem)] space-y-4 overflow-y-auto p-4"
                 data-test="share-panel"
                 // The preview iframe can grab focus while loading; only close on a real click outside or Escape.
                 onFocusOutside={(event) => event.preventDefault()}

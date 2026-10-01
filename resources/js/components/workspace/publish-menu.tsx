@@ -110,7 +110,7 @@ export default function PublishMenu({
             </DropdownMenuTrigger>
             <DropdownMenuContent
                 align="end"
-                className="w-96 space-y-4 p-4"
+                className="w-96 max-w-[calc(100vw-1rem)] space-y-4 p-4"
                 data-test="publish-panel"
                 // The preview iframe can grab focus while loading; only close on a real click outside or Escape.
                 onFocusOutside={(event) => event.preventDefault()}

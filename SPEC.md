@@ -566,6 +566,13 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Sending something to the chat from the workspace (a marked-up or inspected preview) should switch to the Chat tab.
 - On a phone, the workspace's tab bar should leave out the preview's address, the preview size menu and the split menu, so its buttons fit on one line.
 
+## LAYOUT-007: Tabs and header buttons on a phone
+
+- On a phone, user should see one button for a pane's tabs showing the tab on screen and how many are open; tapping it opens a sheet listing the open tabs (to switch to or close) and the tabs that can be opened.
+- The showing tab's own buttons (e.g. the preview's Inspect, Annotate and Reload) should stay in the bar however many tabs are open; "Open in a new tab" and the files toggle should be in a "⋯" menu.
+- On a phone, the header's Commit and Share buttons should show only their icons, Publish keeps its label, and the project's name should stay on one line, cut short if it's long.
+- Panels opened from the header (Share, Publish) should fit the phone's screen.
+
 ## PUB-001: Publish a project
 
 - User should be able to publish a project from a Publish button in the workspace header.

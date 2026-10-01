@@ -24,6 +24,7 @@ import {
     Pencil,
     MessageSquare,
     Monitor,
+    MoreHorizontal,
     Columns2,
     PanelLeft,
     PanelRight,
@@ -98,6 +99,7 @@ import FileTree, {
 } from '@/components/workspace/file-tree';
 import FilesMenu from '@/components/workspace/files-menu';
 import QuickOpen from '@/components/workspace/quick-open';
+import MobileTabSwitcher from '@/components/workspace/mobile-tab-switcher';
 import * as panes from '@/components/workspace/panes';
 import type { Layout, PaneTab, ShellTab } from '@/components/workspace/panes';
 import {
@@ -1785,6 +1787,49 @@ function WorkspacePanel({
         );
     };
 
+    /** A pane's tabs for the phone's tab switcher (LAYOUT-007). */
+    const switcherTabs = (pane: Layout['panes'][number]) =>
+        pane.tabs
+            .filter((kind) => kind !== 'file' || openPath)
+            .map((kind) => {
+                const name = openPath?.split('/').pop() ?? '';
+
+                return {
+                    id: kind,
+                    label:
+                        kind === 'tools'
+                            ? 'Tools'
+                            : kind === 'preview'
+                              ? 'Preview'
+                              : kind === 'file'
+                                ? name
+                                : panes.isShell(kind)
+                                  ? panes.shellLabel(kind)
+                                  : TOOL_TABS[kind].label,
+                    icon:
+                        kind === 'tools' ? (
+                            <Wrench className="size-4" />
+                        ) : kind === 'preview' ? (
+                            <Monitor className="size-4" />
+                        ) : kind === 'file' ? (
+                            <FileIcon name={name} />
+                        ) : panes.isShell(kind) ? (
+                            TOOL_TABS.shell.icon
+                        ) : (
+                            TOOL_TABS[kind].icon
+                        ),
+                    active: pane.active === kind,
+                    dirty: kind === 'file' && fileDirty,
+                    onSelect: () => showTab(kind),
+                    onClose:
+                        kind === 'tools' || kind === 'preview'
+                            ? undefined
+                            : kind === 'file'
+                              ? closeFile
+                              : () => closeTab(kind),
+                };
+            });
+
     return (
         <div
             className={cn(
@@ -1853,34 +1898,56 @@ function WorkspacePanel({
                                     <PanelLeft className="size-4" />
                                 </IconButton>
                             )}
-                            {pane.tabs.map((kind) => tabButton(kind, pane.id))}
-                            <DropdownMenu modal={false}>
-                                <DropdownMenuTrigger asChild>
-                                    <button
-                                        type="button"
-                                        aria-label="Add tab"
-                                        title="Add tab"
-                                        data-test="add-tab"
-                                        className="rounded p-1 text-muted-foreground hover:bg-muted"
-                                    >
-                                        <Plus className="size-4" />
-                                    </button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent
-                                    align="start"
-                                    onFocusOutside={(event) =>
-                                        event.preventDefault()
-                                    }
-                                    onCloseAutoFocus={(event) => {
-                                        // The menu hands focus back to "+" as it closes; keep it in the shell instead.
-                                        if (panes.isShell(tab)) {
-                                            event.preventDefault();
-                                            shellFrames.current[tab]?.focus();
+                            <MobileTabSwitcher
+                                className="md:hidden"
+                                tabs={switcherTabs(pane)}
+                                newTabs={(Object.keys(TOOL_TABS) as ToolTab[])
+                                    .filter(
+                                        (kind) =>
+                                            kind === 'shell' ||
+                                            !panes.paneOf(layout, kind),
+                                    )
+                                    .map((kind) => ({
+                                        id: kind,
+                                        label: TOOL_TABS[kind].label,
+                                        icon: TOOL_TABS[kind].icon,
+                                        onSelect: () => addTab(kind, pane.id),
+                                    }))}
+                            />
+                            <div className="contents max-md:hidden">
+                                {pane.tabs.map((kind) =>
+                                    tabButton(kind, pane.id),
+                                )}
+                                <DropdownMenu modal={false}>
+                                    <DropdownMenuTrigger asChild>
+                                        <button
+                                            type="button"
+                                            aria-label="Add tab"
+                                            title="Add tab"
+                                            data-test="add-tab"
+                                            className="rounded p-1 text-muted-foreground hover:bg-muted"
+                                        >
+                                            <Plus className="size-4" />
+                                        </button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent
+                                        align="start"
+                                        onFocusOutside={(event) =>
+                                            event.preventDefault()
                                         }
-                                    }}
-                                >
-                                    {(Object.keys(TOOL_TABS) as ToolTab[]).map(
-                                        (kind) => (
+                                        onCloseAutoFocus={(event) => {
+                                            // The menu hands focus back to "+" as it closes; keep it in the shell instead.
+                                            if (panes.isShell(tab)) {
+                                                event.preventDefault();
+                                                shellFrames.current[
+                                                    tab
+                                                ]?.focus();
+                                            }
+                                        }}
+                                    >
+                                        {(
+                                            Object.keys(TOOL_TABS) as ToolTab[]
+                                        ).map((kind) => (
                                             <DropdownMenuItem
                                                 key={kind}
                                                 onSelect={() =>
@@ -1891,10 +1958,10 @@ function WorkspacePanel({
                                                 {TOOL_TABS[kind].icon}
                                                 {TOOL_TABS[kind].label}
                                             </DropdownMenuItem>
-                                        ),
-                                    )}
-                                </DropdownMenuContent>
-                            </DropdownMenu>
+                                        ))}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            </div>
                             <span
                                 className={cn(
                                     'ml-2 min-w-0 flex-1 truncate text-muted-foreground',
@@ -1998,7 +2065,7 @@ function WorkspacePanel({
                                         target="_blank"
                                         rel="noreferrer"
                                         aria-label="Open preview in a new tab"
-                                        className="rounded p-1 hover:bg-muted"
+                                        className="rounded p-1 hover:bg-muted max-md:hidden"
                                     >
                                         <ExternalLink className="size-4" />
                                     </a>
@@ -2096,9 +2163,51 @@ function WorkspacePanel({
                                     }
                                     onClick={toggleFiles}
                                     testId="toggle-files"
+                                    className="max-md:hidden"
                                 >
                                     <PanelRight className="size-4" />
                                 </IconButton>
+                            )}
+                            {((pane.active === 'preview' && url) ||
+                                index === filesTogglePane) && (
+                                <DropdownMenu modal={false}>
+                                    <DropdownMenuTrigger asChild>
+                                        <button
+                                            type="button"
+                                            aria-label="More"
+                                            title="More"
+                                            data-test="pane-more"
+                                            className="rounded p-1 hover:bg-muted md:hidden"
+                                        >
+                                            <MoreHorizontal className="size-4" />
+                                        </button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        {pane.active === 'preview' && url && (
+                                            <DropdownMenuItem asChild>
+                                                <a
+                                                    href={url}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                >
+                                                    <ExternalLink />
+                                                    Open in a new tab
+                                                </a>
+                                            </DropdownMenuItem>
+                                        )}
+                                        {index === filesTogglePane && (
+                                            <DropdownMenuItem
+                                                onSelect={toggleFiles}
+                                                data-test="pane-more-files"
+                                            >
+                                                <PanelRight />
+                                                {filesOpen
+                                                    ? 'Hide files'
+                                                    : 'Show files'}
+                                            </DropdownMenuItem>
+                                        )}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             )}
                         </div>
                     </Fragment>

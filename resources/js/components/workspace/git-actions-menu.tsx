@@ -186,11 +186,14 @@ export default function GitActionsMenu({
                     data-test="git-actions-primary"
                 >
                     <CloudUpload className="size-4" />
-                    {syncStatus === 'pushing'
-                        ? 'Pushing…'
-                        : remote
-                          ? 'Commit & push'
-                          : 'Commit'}
+                    {/* Icon only on a phone, so the project's name has room (LAYOUT-007). */}
+                    <span className="max-sm:sr-only">
+                        {syncStatus === 'pushing'
+                            ? 'Pushing…'
+                            : remote
+                              ? 'Commit & push'
+                              : 'Commit'}
+                    </span>
                 </Button>
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
