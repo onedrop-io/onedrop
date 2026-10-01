@@ -1610,6 +1610,10 @@ function WorkspacePanel({
               failed: 'Sandbox failed to start',
           }[sandbox?.status ?? 'creating'];
 
+    // The preview's address says nothing new on a phone, where the bar has no room for it (LAYOUT-006).
+    const statusIsUrl =
+        sandbox?.status === 'running' && !sandbox.updating && !!url;
+
     const statusFor = (kind: PaneTab): string | null => {
         if (panes.isShell(kind)) {
             const folder = shellStarts[kind]?.folder;
@@ -1892,7 +1896,12 @@ function WorkspacePanel({
                                 </DropdownMenuContent>
                             </DropdownMenu>
                             <span
-                                className="ml-2 min-w-0 flex-1 truncate text-muted-foreground"
+                                className={cn(
+                                    'ml-2 min-w-0 flex-1 truncate text-muted-foreground',
+                                    pane.active === 'preview' &&
+                                        statusIsUrl &&
+                                        'max-md:invisible',
+                                )}
                                 data-test="sandbox-status"
                             >
                                 {statusFor(pane.active)}
@@ -1906,7 +1915,7 @@ function WorkspacePanel({
                                                 aria-label="Preview size"
                                                 title={`Preview size: ${PREVIEW_SIZES[previewSize].label}`}
                                                 data-test="preview-size"
-                                                className="rounded p-1 hover:bg-muted"
+                                                className="rounded p-1 hover:bg-muted max-md:hidden"
                                             >
                                                 {
                                                     PREVIEW_SIZES[previewSize]
@@ -2013,7 +2022,7 @@ function WorkspacePanel({
                                             aria-label="Split pane"
                                             title="Split pane"
                                             data-test="split-menu"
-                                            className="rounded p-1 hover:bg-muted"
+                                            className="rounded p-1 hover:bg-muted max-md:hidden"
                                         >
                                             {rowLayout ? (
                                                 <Columns2 className="size-4" />

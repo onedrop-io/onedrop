@@ -218,6 +218,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be able to send follow-up messages to the agent.
 - User should see the live app in the preview once it has a preview URL, and a placeholder until then.
 - User should see their recent projects in the sidebar.
+- On a phone, the sidebar should close once the user picks a project (or any other page) in it.
 - User should not be able to see or message another user's project (admins can see all).
 
 ## PRJ-003: Project menu in the sidebar
@@ -563,6 +564,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be able to switch between them without losing the chat's draft or reloading the preview.
 - User should see that the agent is working on the Chat tab while the Workspace tab is showing.
 - Sending something to the chat from the workspace (a marked-up or inspected preview) should switch to the Chat tab.
+- On a phone, the workspace's tab bar should leave out the preview's address, the preview size menu and the split menu, so its buttons fit on one line.
 
 ## PUB-001: Publish a project
 

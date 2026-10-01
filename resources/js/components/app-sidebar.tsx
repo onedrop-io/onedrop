@@ -1,4 +1,5 @@
 import { usePage } from '@inertiajs/react';
+import { useEffect } from 'react';
 import { NavOpenProject } from '@/components/nav-open-project';
 import { NavProjects, useSidebarUpdates } from '@/components/nav-projects';
 import { NavSearch } from '@/components/nav-search';
@@ -9,6 +10,7 @@ import {
     SidebarContent,
     SidebarFooter,
     SidebarHeader,
+    useSidebar,
 } from '@/components/ui/sidebar';
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import { isProjectPath } from '@/lib/open-project';
@@ -23,6 +25,13 @@ export function AppSidebar() {
             : null;
 
     useSidebarUpdates(sidebarProjects, openProject);
+
+    // On a phone the sidebar slides over the page: going to another page closes it (PRJ-002).
+    const { setOpenMobile } = useSidebar();
+
+    useEffect(() => {
+        setOpenMobile(false);
+    }, [currentUrl, setOpenMobile]);
 
     return (
         <Sidebar collapsible="icon" variant="inset">

@@ -4,6 +4,7 @@ use App\Models\AgentConnection;
 use App\Models\Project;
 use App\Models\Sandbox;
 use App\Models\User;
+use Database\Seeders\DatabaseSeeder;
 
 test('the chat can be hidden and shown again, keeping its draft, and stays hidden after a reload', function () {
     $user = User::factory()->has(AgentConnection::factory())->create();
@@ -143,5 +144,41 @@ test('on a small screen the chat and the workspace are tabs, keeping the draft w
         ->resize(1600, 900)
         ->assertMissing('@mobile-tab-chat')
         ->assertVisible('@tab-preview')
+        ->assertNoJavaScriptErrors();
+})->group('LAYOUT-006');
+
+test('on a small screen the sidebar closes once a project in it is opened', function () {
+    $this->seed(DatabaseSeeder::class);
+    $user = User::where('email', 'dev@example.com')->sole();
+    AgentConnection::factory()->for($user)->create();
+    $project = Project::factory()->for($user)->create(['name' => 'Todo App']);
+    $this->actingAs($user);
+
+    visit('/dashboard')
+        ->resize(390, 844)
+        ->click('[data-sidebar="trigger"]')
+        ->assertVisible('[data-mobile="true"]')
+        ->click('[data-mobile="true"] li[data-test="sidebar-project"] a:has-text("Todo App")')
+        ->assertPathIs("/projects/{$project->id}")
+        ->assertMissing('[data-mobile="true"]')
+        ->assertNoJavaScriptErrors();
+})->group('PRJ-002');
+
+test('on a small screen the preview bar leaves out the address, the size menu and splitting', function () {
+    $user = User::factory()->has(AgentConnection::factory())->create();
+    $project = Project::factory()->for($user)->create();
+    Sandbox::factory()->for($project)->create(['preview_url' => 'http://127.0.0.1:49152']);
+    $this->actingAs($user);
+
+    visit("/projects/{$project->id}")
+        ->resize(390, 844)
+        ->click('@mobile-tab-workspace')
+        ->assertVisible('@preview-annotate')
+        ->assertMissing('@preview-size')
+        ->assertMissing('@split-menu')
+        ->assertScript("getComputedStyle(document.querySelector('[data-test=\"sandbox-status\"]')).visibility", 'hidden')
+        ->resize(1600, 900)
+        ->assertVisible('@preview-size')
+        ->assertVisible('@split-menu')
         ->assertNoJavaScriptErrors();
 })->group('LAYOUT-006');
