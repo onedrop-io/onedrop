@@ -68,7 +68,9 @@ function SecretPrompt({
     held: HeldMessage;
     actions: HeldActions;
 }) {
-    const [name, setName] = useState(String(held.name ?? 'SECRET'));
+    const [name, setName] = useState(
+        typeof held.name === 'string' ? held.name : 'SECRET',
+    );
     const [value, setValue] = useState('');
     const preview = typeof held.preview === 'string' ? held.preview : null;
     const save = () =>
