@@ -121,3 +121,27 @@ test('a reload keeps the panes, tabs, Shell sessions, preview page and chat draf
         ->assertScript($tabsIn(1), 'tab-tools,tab-preview')
         ->assertValue('#composer-content', '');
 })->group('LAYOUT-005');
+
+test('on a small screen the chat and the workspace are tabs, keeping the draft when switching', function () {
+    $user = User::factory()->has(AgentConnection::factory())->create();
+    $project = Project::factory()->for($user)->create();
+    Sandbox::factory()->for($project)->create(['preview_url' => null]);
+    $this->actingAs($user);
+
+    visit("/projects/{$project->id}")
+        ->resize(390, 844)
+        ->assertVisible('section[aria-label="Chat"]')
+        ->assertMissing('@tab-preview')
+        ->type('#composer-content', 'half a thought')
+        ->click('@mobile-tab-workspace')
+        ->assertMissing('section[aria-label="Chat"]')
+        ->assertVisible('@tab-preview')
+        ->assertMissing('@toggle-chat')
+        ->click('@mobile-tab-chat')
+        ->assertVisible('section[aria-label="Chat"]')
+        ->assertValue('#composer-content', 'half a thought')
+        ->resize(1600, 900)
+        ->assertMissing('@mobile-tab-chat')
+        ->assertVisible('@tab-preview')
+        ->assertNoJavaScriptErrors();
+})->group('LAYOUT-006');

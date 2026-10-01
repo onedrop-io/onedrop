@@ -557,6 +557,13 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - A new browser tab on the same project should start with the default layout and new Shells, not share the other tab's.
 - A Shell tab that's closed should end its session.
 
+## LAYOUT-006: Chat and workspace as tabs on small screens
+
+- On a phone or small tablet, user should see Chat and Workspace tabs at the top of a project instead of the chat above the workspace, each taking the whole screen.
+- User should be able to switch between them without losing the chat's draft or reloading the preview.
+- User should see that the agent is working on the Chat tab while the Workspace tab is showing.
+- Sending something to the chat from the workspace (a marked-up or inspected preview) should switch to the Chat tab.
+
 ## PUB-001: Publish a project
 
 - User should be able to publish a project from a Publish button in the workspace header.

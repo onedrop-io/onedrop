@@ -22,6 +22,7 @@ import {
     LoaderCircle,
     SquareMousePointer,
     Pencil,
+    MessageSquare,
     Monitor,
     Columns2,
     PanelLeft,
@@ -265,6 +266,18 @@ export default function ShowProject({
         setChatOpen(!chatOpen);
     };
 
+    // On a phone or small tablet the chat and the workspace are tabs, one at a time (LAYOUT-006).
+    const [mobileView, setMobileView] = useState<'chat' | 'workspace'>('chat');
+
+    // Something was sent to the chat from the workspace: make sure it's on screen.
+    const showChat = () => {
+        if (!chatOpen) {
+            toggleChat();
+        }
+
+        setMobileView('chat');
+    };
+
     setLayoutProps({
         breadcrumbs: [
             { title: project.name, href: show(project.id) },
@@ -344,6 +357,11 @@ export default function ShowProject({
             </HeaderActions>
 
             <div className="flex h-[calc(100svh-4rem)] min-h-0 flex-col md:h-[calc(100svh-5rem)] lg:flex-row">
+                <MobileViewTabs
+                    view={mobileView}
+                    onChange={setMobileView}
+                    working={working}
+                />
                 <ChatPanel
                     key={task?.id ?? (newTask ? 'new' : 'main')}
                     project={project}
@@ -356,6 +374,7 @@ export default function ShowProject({
                     working={working}
                     width={chatWidth}
                     hidden={!chatOpen}
+                    mobileHidden={mobileView !== 'chat'}
                     claudeSignIn={
                         claudeSubscription && agent?.harness === 'claude_code'
                             ? () => setClaudeSignIns((count) => count + 1)
@@ -389,6 +408,8 @@ export default function ShowProject({
                     wakes={wakes}
                     chatOpen={chatOpen}
                     onToggleChat={toggleChat}
+                    onShowChat={showChat}
+                    mobileHidden={mobileView !== 'workspace'}
                 />
             </div>
         </>
@@ -406,6 +427,7 @@ function ChatPanel({
     working,
     width,
     hidden,
+    mobileHidden,
     claudeSignIn,
     onClaudeSignedIn,
 }: {
@@ -420,6 +442,8 @@ function ChatPanel({
     width: number;
     /** Hidden by the user (LAYOUT-001); stays mounted so a draft survives. */
     hidden: boolean;
+    /** The workspace tab is showing on a small screen (LAYOUT-006). */
+    mobileHidden: boolean;
     /** Open Claude Code's sign-in, when the agent runs on the user's Claude subscription. */
     claudeSignIn: (() => void) | null;
     /** That sign-in succeeded. */
@@ -536,7 +560,8 @@ function ChatPanel({
             aria-label="Chat"
             className={cn(
                 'flex min-h-0 flex-1 flex-col lg:w-(--chat-width) lg:max-w-[calc(100%-20rem)] lg:flex-none',
-                hidden && 'hidden',
+                hidden && 'lg:hidden',
+                mobileHidden && 'max-lg:hidden',
             )}
             style={{ '--chat-width': `${width}px` } as CSSProperties}
         >
@@ -782,6 +807,8 @@ function WorkspacePanel({
     wakes,
     chatOpen,
     onToggleChat,
+    onShowChat,
+    mobileHidden,
 }: {
     project: Project;
     /** Where the chat on screen sends messages. */
@@ -806,6 +833,10 @@ function WorkspacePanel({
     /** The chat is showing next to the workspace (LAYOUT-001). */
     chatOpen: boolean;
     onToggleChat: () => void;
+    /** Shows the chat (opening it, or switching to its tab on a small screen) when something is sent to it. */
+    onShowChat: () => void;
+    /** The chat tab is showing on a small screen (LAYOUT-006). */
+    mobileHidden: boolean;
 }) {
     const running = sandbox?.status === 'running';
     const isRemoteBrowser = useIsRemote();
@@ -1071,9 +1102,7 @@ function WorkspacePanel({
 
             setInspecting(false);
 
-            if (!chatOpen) {
-                onToggleChat();
-            }
+            onShowChat();
 
             // Only the picture shows in the chat; what was picked and moved goes to the agent with it.
             askAgent('', [{ file: image, context }]);
@@ -1127,9 +1156,7 @@ function WorkspacePanel({
             return;
         }
 
-        if (!chatOpen) {
-            onToggleChat();
-        }
+        onShowChat();
 
         // Only the picture shows in the chat; what the marks point at goes to the agent with it.
         askAgent('', [
@@ -1755,7 +1782,12 @@ function WorkspacePanel({
     };
 
     return (
-        <div className="flex min-h-80 min-w-0 flex-1 border-t border-sidebar-border/70 lg:border-t-0 dark:border-sidebar-border">
+        <div
+            className={cn(
+                'flex min-h-0 min-w-0 flex-1',
+                mobileHidden && 'max-lg:hidden',
+            )}
+        >
             <section
                 ref={panesArea}
                 aria-label="Preview"
@@ -1812,6 +1844,7 @@ function WorkspacePanel({
                                     label={chatOpen ? 'Hide chat' : 'Show chat'}
                                     onClick={onToggleChat}
                                     testId="toggle-chat"
+                                    className="max-lg:hidden"
                                 >
                                     <PanelLeft className="size-4" />
                                 </IconButton>
@@ -2722,11 +2755,13 @@ function IconButton({
     label,
     onClick,
     testId,
+    className,
     children,
 }: {
     label: string;
     onClick: () => void;
     testId?: string;
+    className?: string;
     children: React.ReactNode;
 }) {
     return (
@@ -2736,10 +2771,63 @@ function IconButton({
             aria-label={label}
             title={label}
             data-test={testId}
-            className="rounded p-1 hover:bg-muted"
+            className={cn('rounded p-1 hover:bg-muted', className)}
         >
             {children}
         </button>
+    );
+}
+
+/** Chat and Workspace as tabs on a phone or small tablet, instead of one above the other (LAYOUT-006). */
+function MobileViewTabs({
+    view,
+    onChange,
+    working,
+}: {
+    view: 'chat' | 'workspace';
+    onChange: (view: 'chat' | 'workspace') => void;
+    /** The agent is working: the Chat tab shows it while the workspace is on screen. */
+    working: boolean;
+}) {
+    const tab = (
+        kind: 'chat' | 'workspace',
+        icon: React.ReactNode,
+        label: string,
+    ) => (
+        <button
+            type="button"
+            role="tab"
+            aria-selected={view === kind}
+            onClick={() => onChange(kind)}
+            data-test={`mobile-tab-${kind}`}
+            className={cn(
+                'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors',
+                view === kind && 'bg-background text-foreground shadow-sm',
+            )}
+        >
+            {icon}
+            {label}
+            {kind === 'chat' && working && view !== 'chat' && (
+                <span
+                    className="size-1.5 animate-pulse rounded-full bg-primary"
+                    aria-label="Agent is working"
+                    data-test="mobile-chat-working"
+                />
+            )}
+        </button>
+    );
+
+    return (
+        <div
+            role="tablist"
+            aria-label="Chat or workspace"
+            className="flex shrink-0 gap-1 border-b border-sidebar-border/70 p-2 lg:hidden dark:border-sidebar-border"
+        >
+            <div className="flex flex-1 gap-1 rounded-lg bg-muted p-1">
+                {tab('chat', <MessageSquare className="size-4" />, 'Chat')}
+                {tab('workspace', <Monitor className="size-4" />, 'Workspace')}
+            </div>
+        </div>
     );
 }
 
