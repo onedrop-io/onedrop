@@ -41,7 +41,7 @@ SHELL_THEME+='"brightBlack":"#5c6370","brightRed":"#ff7b86","brightGreen":"#b1e1
 
 (
     while true; do
-        ttyd --writable --url-arg --port "${SHELL_PORT}" --cwd /workspace \
+        ttyd --writable --url-arg --port "${SHELL_PORT}" --cwd /workspace --index /opt/onedrop/shell.html \
             -t fontSize=13 -t lineHeight=1.2 -t cursorBlink=true -t rendererType=dom -t disableLeaveAlert=true \
             -t 'fontFamily=ui-monospace,SFMono-Regular,Menlo,Consolas,Liberation Mono,monospace' \
             -t "theme=${SHELL_THEME}" \

@@ -285,3 +285,27 @@ test('cmd+p goes to a file by typing letters of its name', function () {
         ->assertMissing('@quick-open')
         ->assertNoJavaScriptErrors();
 })->group('FILE-006');
+
+test('cmd or ctrl+p in a shell opens go to file', function () {
+    $user = User::factory()->has(AgentConnection::factory())->create();
+    $project = Project::factory()->for($user)->create();
+
+    // A Shell on another origin running the sandbox's real shell-keys.js, the way ttyd's page does.
+    $shell = '<!doctype html><html><head><script>'.file_get_contents(base_path('docker/sandbox/shell-keys.js'))
+        .'</script></head><body><textarea id="terminal"></textarea></body></html>';
+    Sandbox::factory()->for($project)->create(['preview_url' => null, 'shell_url' => 'data:text/html,'.rawurlencode($shell)]);
+    $this->actingAs($user);
+
+    $page = visit("/projects/{$project->id}")
+        ->click('@add-tab')
+        ->click('@add-tab-shell')
+        ->assertMissing('@quick-open');
+
+    $page->withinFrame('[data-test="shell-frame"]', function ($frame) {
+        $frame->keys('#terminal', PHP_OS_FAMILY === 'Darwin' ? 'Meta+p' : 'Control+p')
+            ->assertValue('#terminal', '');
+    });
+
+    $page->assertVisible('@quick-open')
+        ->assertNoJavaScriptErrors();
+})->group('FILE-006');

@@ -1265,9 +1265,26 @@ function WorkspacePanel({
             }
         };
 
-        window.addEventListener('keydown', onKeyDown, true);
+        // A Shell (another origin) sends its Cmd/Ctrl+P here instead (docker/sandbox/shell-keys.js).
+        const onMessage = (event: MessageEvent) => {
+            if (
+                (event.data as { onedrop?: string })?.onedrop ===
+                    'quick-open' &&
+                Object.values(shellFrames.current).some(
+                    (frame) => frame?.contentWindow === event.source,
+                )
+            ) {
+                setQuickOpen(true);
+            }
+        };
 
-        return () => window.removeEventListener('keydown', onKeyDown, true);
+        window.addEventListener('keydown', onKeyDown, true);
+        window.addEventListener('message', onMessage);
+
+        return () => {
+            window.removeEventListener('keydown', onKeyDown, true);
+            window.removeEventListener('message', onMessage);
+        };
     }, []);
 
     // The tree may be stale or not loaded when the Files panel is closed.

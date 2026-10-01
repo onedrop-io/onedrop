@@ -502,7 +502,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## FILE-006: Go to a file by name
 
-- User should be able to press Cmd+P (Ctrl+P on Windows and Linux) anywhere in the workspace, including in the editor, or choose "Go to file…" from the files menu, to open a "Go to file" box with the cursor in it.
+- User should be able to press Cmd+P (Ctrl+P on Windows and Linux) anywhere in the workspace, including in the editor and in a Shell, or choose "Go to file…" from the files menu, to open a "Go to file" box with the cursor in it.
 - User should be able to type letters of a file's name or path in order (e.g. `usctl` for `UserController.php`) and see matching files, best first: letters at word starts and in the file's own name rank highest, with the matched letters highlighted.
 - User should see the files they opened most recently first before typing anything.
 - User should be able to move through the results with the arrow keys and open one with Enter or a click; Escape closes the box.

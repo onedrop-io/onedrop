@@ -80,6 +80,13 @@ COPY compose dockerd forward.mjs /opt/onedrop/
 # the agent; TEST-005).
 COPY tests.mjs playwright.config.mjs run-tests test-steps.mjs browser.mjs browser-viewer.html browser /opt/onedrop/
 RUN mkdir -p /opt/onedrop/playwright && chown sandbox:sandbox /opt/onedrop/playwright
+# The Shell tab's page: ttyd's own, with shell-keys.js added so workspace shortcuts typed in the terminal
+# (Cmd/Ctrl+P, FILE-006) reach the workspace. start.sh serves it with ttyd --index.
+COPY shell-keys.js /opt/onedrop/
+RUN (ttyd --port 7699 --interface lo true >/dev/null 2>&1 &) \
+    && curl -fsS --retry 10 --retry-connrefused --retry-delay 1 -o /tmp/ttyd.html http://127.0.0.1:7699/ \
+    && node -e 'const fs = require("fs"); const page = fs.readFileSync("/tmp/ttyd.html", "utf8"); if (!page.includes("</head>")) { process.exit(1); } fs.writeFileSync("/opt/onedrop/shell.html", page.replace("</head>", () => "<script>" + fs.readFileSync("/opt/onedrop/shell-keys.js", "utf8") + "</script></head>"));' \
+    && pkill ttyd && rm /tmp/ttyd.html
 RUN usermod -aG docker sandbox \
     && echo 'sandbox ALL=(root) NOPASSWD: /opt/onedrop/dockerd' > /etc/sudoers.d/onedrop-dockerd \
     && chmod 0440 /etc/sudoers.d/onedrop-dockerd
