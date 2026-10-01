@@ -2,6 +2,8 @@
 
 namespace App\Console\Commands;
 
+use App\Sandbox\Providers\RuntimeSandboxProvider;
+use App\Sandbox\SandboxException;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -71,6 +73,17 @@ class BuildSandboxImage extends Command
             $this->components->error('Set RUNTIME_API_KEY first (https://withruntime.com/account/keys).');
 
             return self::FAILURE;
+        }
+
+        // The account caps how many images it holds: make room first (SBX-003). A failure here isn't the build's.
+        try {
+            $pruned = (new RuntimeSandboxProvider($config))->pruneImages();
+
+            if ($pruned !== []) {
+                $this->components->info('Deleted '.count($pruned).' old image version(s) first.');
+            }
+        } catch (SandboxException $e) {
+            $this->components->warn("Couldn't delete old image versions first: {$e->getMessage()}");
         }
 
         return $this->build($config['image'], ['npx', '--yes', 'withruntime@0.8', 'image', 'build', '.', '--tag', $config['image']], env: [

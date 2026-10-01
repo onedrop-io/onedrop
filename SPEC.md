@@ -367,7 +367,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - A paused Runtime sandbox should wake on the next command even when Runtime briefly has no room for it (the trial's running limit, a full host): commands wait a few seconds and retry, then say to try again in a moment instead of failing outright.
 - While an update copies a Runtime sandbox's files, the app's processes should be frozen (not the sandbox paused, which a copy would wake), so a database is copied in a consistent state; if the update fails or is cut off, they should carry on where they were.
 - When the trial's limit on running sandboxes is reached, creating one should wait for a free slot (up to two minutes) instead of failing at once.
-- Old versions of the sandbox image should be deleted from Runtime once a day (`php artisan sandbox:prune-images`, `--dry-run` to only list them), since Runtime charges for stored images. The current version, any newer build, and every version a running, paused or persistent sandbox came from should be kept.
+- Old versions of the sandbox image should be deleted from Runtime every hour and right before the image is built there (`php artisan sandbox:prune-images`, `--dry-run` to only list them), since Runtime charges for stored images and caps how many an account holds. Versions under the image's names from before the rename (`zap-sandbox`, `zap-probe`) should go too. The current version, any newer build, and every version a running, paused or persistent sandbox came from should be kept; a build should go ahead even if the old versions can't be deleted.
 
 ## SBX-004: Sandboxes on Blaxel
 

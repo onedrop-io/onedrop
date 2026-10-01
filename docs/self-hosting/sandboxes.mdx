@@ -85,7 +85,7 @@ How it differs from Docker:
 - **Previews and the Shell tab** use private Blaxel preview links under `bl.run`. Each link carries a token, and OneDrop hands it only to people allowed to see the project. The first visit trades the token for a cookie. Tokens last 7 days, and OneDrop fetches new links at most once a day when someone opens the project.
 - **Idle sandboxes go to standby** a few seconds after the last connection, with memory and processes kept, and wake on the next request. Agent runs keep their sandbox awake until they end.
 - **Size.** `BLAXEL_MEMORY_MIB` (4096 by default, the most a new account allows) also sets CPUs, one per 2048 MB. About half of it holds the sandbox's files.
-- **Old images are deleted daily.** Runtime charges for stored images, and every build leaves the previous version behind. Once a day the scheduler runs `php artisan sandbox:prune-images`, which deletes older versions of the image that no running, paused or persistent sandbox came from. The current version and any newer build are kept. Run it with `--dry-run` to see what it would delete.
+- **Old images are deleted every hour.** Runtime charges for stored images and limits how many an account holds, and every build leaves the previous version behind. Every hour, and right before `php artisan sandbox:build-image` builds on Runtime, `php artisan sandbox:prune-images` deletes older versions of the image (including ones from before OneDrop's rename) that no running, paused or persistent sandbox came from. The current version and any newer build are kept. Run it with `--dry-run` to see what it would delete.
 - **Not available yet:** SSH (Tools → Developer → SSH) and Tailscale publishing, which need Docker.
 
 To find or delete sandboxes by hand:

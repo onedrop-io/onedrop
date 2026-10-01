@@ -26,6 +26,9 @@ class RuntimeSandboxProvider implements SandboxProvider
     /** Label holding the id of the image version a sandbox was made from (for isOutdated()). */
     public const IMAGE_LABEL = 'onedrop.image';
 
+    /** What the sandbox image was called before the rename (and a probe built while trying Runtime out). */
+    public const FORMER_IMAGE_NAMES = ['zap-sandbox', 'zap-probe'];
+
     /** The sandbox user's home (Runtime itself starts commands in /workspace with HOME set to it). */
     public const HOME = '/home/sandbox';
 
@@ -312,7 +315,9 @@ class RuntimeSandboxProvider implements SandboxProvider
 
     /**
      * Delete versions of the sandbox image older than the current one that no sandbox could still need (Runtime
-     * charges for every stored image). Newer builds are kept: a failed one holds the checkpoints its fix starts from.
+     * charges for every stored image, and caps how many an account has). Newer builds are kept: a failed one holds
+     * the checkpoints its fix starts from. Every version under the image's former names goes too, unless a sandbox
+     * could still need it.
      *
      * @return list<array{id: string, version: int, state: string}> the versions deleted (or, with $dryRun, to delete)
      *
@@ -329,8 +334,14 @@ class RuntimeSandboxProvider implements SandboxProvider
         $current = $this->throwUnlessOk($current)->json();
         $inUse = $this->imagesInUse();
 
+        $former = collect(self::FORMER_IMAGE_NAMES)
+            ->reject(fn (string $name) => $name === $current['name'])
+            ->flatMap(fn (string $name) => $this->listAll('images', ['name' => $name]));
+
         $old = collect($this->listAll('images', ['name' => $current['name']]))
-            ->filter(fn (array $image) => $image['version'] < $current['version'] && ! in_array($image['id'], $inUse, true))
+            ->filter(fn (array $image) => $image['version'] < $current['version'])
+            ->concat($former)
+            ->reject(fn (array $image) => $image['id'] === $current['id'] || in_array($image['id'], $inUse, true))
             ->map(fn (array $image) => ['id' => (string) $image['id'], 'version' => (int) $image['version'], 'state' => (string) ($image['state'] ?? '')])
             ->sortBy('version')
             ->values()

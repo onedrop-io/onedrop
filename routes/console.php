@@ -20,8 +20,9 @@ if (! config('app.laravel_cloud')) {
     Schedule::command('server:sample')->everyMinute()->withoutOverlapping();
 }
 
-// Runtime charges for stored images; every sandbox image build leaves the previous version behind (SBX-003).
-Schedule::command('sandbox:prune-images')->daily()->withoutOverlapping();
+// Runtime charges for stored images and caps how many an account has; every sandbox image build leaves the
+// previous version behind (SBX-003).
+Schedule::command('sandbox:prune-images')->hourly()->withoutOverlapping();
 
 // Database backups (ADMIN-005), on the schedule an admin chose in Settings → Backups.
 Schedule::job(new BackUpDatabase)

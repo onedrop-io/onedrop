@@ -8,6 +8,7 @@ use App\Sandbox\Providers\FakeSandboxProvider;
 use App\Sandbox\SandboxProvider;
 use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
 
 beforeEach(function () {
@@ -65,6 +66,8 @@ test('the ssh panel explains that runtime sandboxes have no ssh address', functi
 test('the image is built on runtime with the key in the environment, not the command line', function () {
     config(['sandbox.provider' => 'runtime', 'sandbox.providers.runtime.api_key' => 'rt-secret']);
     Process::fake(['*' => Process::result('ready')]);
+    // Not built yet: nothing to prune first.
+    Http::fake(['*/v1/images/resolve*' => Http::response(['error' => ['code' => 'image_not_found']], 404)]);
 
     $this->artisan('sandbox:build-image')->assertSuccessful();
 

@@ -367,21 +367,26 @@ test('large archives are uploaded in the chunks runtime asks for, checked by the
     Http::assertSent(fn (Request $request) => str_ends_with($request->url(), ':commit'));
 })->group('SBX-003');
 
-function fakeRuntimeImages(array $sandboxes): void
+/**
+ * The current image's versions (over two pages), and $former ones under the image's name from before the rename.
+ */
+function fakeRuntimeImages(array $sandboxes, array $former = []): void
 {
     Http::fake([
         RT_API.'/images/resolve*' => Http::response(['id' => 'img-4', 'name' => 'onedrop-sandbox', 'version' => 4]),
         RT_API.'/images/*:delete' => Http::response(['id' => 'x', 'status' => 'deleted']),
-        RT_API.'/images?*' => Http::sequence()
-            ->push(['data' => [
+        RT_API.'/images?*' => fn (Request $request) => Http::response(match (true) {
+            $request['name'] !== 'onedrop-sandbox' => ['data' => $request['name'] === 'zap-sandbox' ? $former : [], 'nextCursor' => null],
+            ($request['cursor'] ?? null) === null => ['data' => [
                 ['id' => 'img-5', 'version' => 5, 'state' => 'failed'],
                 ['id' => 'img-4', 'version' => 4, 'state' => 'ready'],
                 ['id' => 'img-3', 'version' => 3, 'state' => 'ready'],
-            ], 'nextCursor' => 'next'])
-            ->push(['data' => [
+            ], 'nextCursor' => 'next'],
+            default => ['data' => [
                 ['id' => 'img-2', 'version' => 2, 'state' => 'ready'],
                 ['id' => 'img-1', 'version' => 1, 'state' => 'failed'],
-            ], 'nextCursor' => null]),
+            ], 'nextCursor' => null],
+        }),
         RT_API.'/sandboxes?*' => Http::response(['data' => $sandboxes, 'nextCursor' => null]),
     ]);
 }
@@ -410,6 +415,20 @@ test('pruning keeps the images of stopped persistent sandboxes and of sandboxes 
     ]);
 
     expect(array_column($this->runtime->pruneImages(), 'id'))->toBe(['img-2']);
+})->group('SBX-003');
+
+test('pruning deletes every version under the image\'s name from before the rename, unless a sandbox still needs it', function () {
+    fakeRuntimeImages([
+        ['id' => 'sbx-1', 'state' => 'paused', 'persistent' => false, 'labels' => ['zap.image' => 'zap-12']],
+    ], former: [
+        ['id' => 'zap-13', 'version' => 13, 'state' => 'ready'],
+        ['id' => 'zap-12', 'version' => 12, 'state' => 'ready'],
+        ['id' => 'zap-4', 'version' => 4, 'state' => 'failed'],
+    ]);
+
+    expect(array_column($this->runtime->pruneImages(), 'id'))->toBe(['img-1', 'img-2', 'img-3', 'zap-4', 'zap-13']);
+    Http::assertSent(fn (Request $request) => $request->url() === RT_API.'/images/zap-13:delete');
+    Http::assertNotSent(fn (Request $request) => $request->url() === RT_API.'/images/zap-12:delete');
 })->group('SBX-003');
 
 test('a dry run of pruning deletes nothing', function () {
