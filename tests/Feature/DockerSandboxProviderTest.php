@@ -326,6 +326,40 @@ test('waking a container that no longer exists says so', function () {
     $this->docker->wake('abc123');
 })->throws(SandboxException::class)->group('SBX-007');
 
+test('waking a container whose host folder was deleted makes the folder again and restarts it', function () {
+    $root = storageRoot();
+    $docker = new DockerSandboxProvider([...$this->dockerConfig, 'storage_path' => $root]);
+    mkdir("{$root}/project-7/storage", 0755, true);
+    Process::fake(fn (PendingProcess $process) => Process::result(match (true) {
+        str_contains(implode(' ', $process->command), '.State.Status') => "running\n",
+        str_contains(implode(' ', $process->command), '.Mounts') => "/data/storage {$root}/project-7/storage\n/data/claude {$root}/user-1/claude\n/elsewhere /tmp/not-ours\n",
+        str_contains(implode(' ', $process->command), 'stat -c') => "/data/claude\n",
+        default => '',
+    }));
+
+    expect($docker->wake('abc123'))->toBeTrue()
+        ->and(is_dir("{$root}/user-1/claude"))->toBeTrue();
+    // Only our own folders are checked, never anything else the container mounts.
+    Process::assertRan(fn (PendingProcess $process) => array_slice($process->command, -2) === ['/data/storage', '/data/claude']);
+    Process::assertRan(fn (PendingProcess $process) => $process->command === ['docker', 'restart', '--time', '5', 'abc123']);
+    Process::assertRan(fn (PendingProcess $process) => $process->command === ['docker', 'exec', '-u', 'root', 'abc123', 'chown', 'sandbox:sandbox', '/data/claude']);
+    Process::assertRanTimes(fn (PendingProcess $process) => in_array('chown', $process->command) && in_array('/data/storage', $process->command), 0);
+})->group('SBX-007', 'AI-005');
+
+test('waking a container whose mounts all work doesn\'t restart it', function () {
+    $root = storageRoot();
+    $docker = new DockerSandboxProvider([...$this->dockerConfig, 'storage_path' => $root]);
+    mkdir("{$root}/user-1/claude", 0755, true);
+    Process::fake(fn (PendingProcess $process) => Process::result(match (true) {
+        str_contains(implode(' ', $process->command), '.State.Status') => "running\n",
+        str_contains(implode(' ', $process->command), '.Mounts') => "/data/claude {$root}/user-1/claude\n",
+        default => '',
+    }));
+
+    expect($docker->wake('abc123'))->toBeFalse();
+    Process::assertRanTimes(fn (PendingProcess $process) => $process->command[1] === 'restart', 0);
+})->group('SBX-007');
+
 test('a command in a suspended container wakes it first', function () {
     Process::fake([
         '*exec*' => Process::sequence()

@@ -12,8 +12,10 @@ use Illuminate\Support\Facades\File;
 
 /**
  * Sign Claude Code out for a user who stopped using their Claude subscription (or deleted their
- * account): `claude auth logout` in their running sandboxes, then delete their shared login folder
- * (DockerSandboxProvider::CLAUDE_MOUNT). The platform never reads the login; it only removes it.
+ * account): `claude auth logout` in their running sandboxes, then empty their shared login folder
+ * (DockerSandboxProvider::CLAUDE_MOUNT). The folder itself stays: running sandboxes have it mounted, and
+ * deleting it would leave them a dead mount that no later sign-in can write to. The platform never reads
+ * the login; it only removes it.
  */
 class SignOutOfClaude implements ShouldQueue
 {
@@ -46,7 +48,7 @@ class SignOutOfClaude implements ShouldQueue
         $root = config('sandbox.providers.docker.storage_path');
 
         if (filled($root)) {
-            File::deleteDirectory(rtrim($root, '/')."/user-{$this->userId}/claude");
+            File::cleanDirectory(rtrim($root, '/')."/user-{$this->userId}/claude");
         }
     }
 }

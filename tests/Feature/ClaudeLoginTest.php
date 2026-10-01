@@ -141,17 +141,20 @@ test('the workspace tells the chat when a message is waiting for a Claude sign-i
         ->assertInertia(fn ($page) => $page->where('project.waiting_for_sign_in', $waiting));
 })->with(['waiting' => true, 'not waiting' => false])->group('AI-005');
 
-test('signing out logs Claude Code out in the user\'s running sandboxes and deletes their sign-in folder', function () {
+test('signing out logs Claude Code out in the user\'s running sandboxes and empties their sign-in folder', function () {
     $root = storageRoot();
     config(['sandbox.providers.docker.storage_path' => $root]);
-    mkdir("{$root}/user-{$this->user->id}/claude", 0755, true);
+    mkdir("{$root}/user-{$this->user->id}/claude/backups", 0755, true);
+    file_put_contents("{$root}/user-{$this->user->id}/claude/.credentials.json", '{}');
     Sandbox::factory()->for(Project::factory())->create(['external_id' => 'someone-else']);
     Sandbox::factory()->for(Project::factory()->for($this->user))->create(['external_id' => 'paused', 'status' => SandboxStatus::Paused]);
 
     (new SignOutOfClaude($this->user->id))->handle($this->provider);
 
     expect($this->provider->executed)->toBe([['id' => 'ctr-1', 'command' => ['claude', 'auth', 'logout'], 'env' => [], 'detach' => false]])
-        ->and(is_dir("{$root}/user-{$this->user->id}/claude"))->toBeFalse();
+        // Kept, so the sandboxes that have it mounted can still save the next sign-in.
+        ->and(is_dir("{$root}/user-{$this->user->id}/claude"))->toBeTrue()
+        ->and(glob("{$root}/user-{$this->user->id}/claude/{,.}[!.]*", GLOB_BRACE))->toBe([]);
 })->group('AI-005');
 
 test('a rejected API key is explained without mentioning signing in', function () {

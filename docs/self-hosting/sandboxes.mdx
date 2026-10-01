@@ -58,6 +58,8 @@ A paused sandbox still holds its memory, so one left suspended for 5 minutes is 
 
 A container stopped outside the app (from Docker Desktop, or by a restart) starts again the same way. Each container keeps the host ports it was created with, so its preview and shell links still work after a restart.
 
+If a sandbox's host folders under `SANDBOX_DOCKER_STORAGE_PATH` (its App Storage, or its user's Claude sign-in) are deleted while it runs, the container can no longer write to them: a Claude sign-in says **Login successful** but doesn't stick. The next time the sandbox is woken, the app makes the missing folders again and restarts the container so it picks them up. Its files and home folder are kept, and its preview reloads. Whatever was in a deleted folder is gone, so sign in to Claude again.
+
 The `sandbox:suspend-idle` command does the suspending, every 15 seconds, from Laravel's scheduler: `composer run dev` runs the scheduler locally, and the [server install](/install#install-on-a-server) runs it as the `drop-scheduler` service. Change the wait with `SANDBOX_DOCKER_IDLE_SECONDS`, or set it to `0` to never suspend.
 
 ## Run sandboxes on Blaxel

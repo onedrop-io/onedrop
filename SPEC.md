@@ -372,6 +372,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Task copies (TASK-003) should be suspended and woken the same way.
 - A sandbox whose container was removed outside the app should show as failed, with an error saying so.
 - A Docker sandbox stopped outside the app (Docker Desktop, a restart) should start again when its project is opened or its workspace is open, and its preview and shell links should keep working: each container keeps its host ports across restarts, and links are refreshed for containers made before that.
+- A Docker sandbox whose host folders (its App Storage, or its user's Claude sign-in) were deleted while it ran should mend itself the next time it's woken (its project opened, its workspace open): the folders are made again and the sandbox restarts so it can write to them, and its preview reloads. Otherwise a Claude sign-in there says "Login successful" but doesn't stick.
 
 ## SBX-008: Run a project's own Docker Compose
 

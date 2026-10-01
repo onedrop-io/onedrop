@@ -146,8 +146,19 @@ class DockerSandboxProvider implements SandboxProvider
     /**
      * Let a suspended container's processes carry on where they were, or start one that was stopped (by pause(), or
      * outside the app: Docker Desktop, a restart). Docker won't start a paused container, nor exec in either.
+     * A container whose host folders were deleted under it is mended too (repairMounts()).
      */
     public function wake(string $id): bool
+    {
+        $woke = $this->wakeContainer($id);
+
+        return $this->repairMounts($id) || $woke;
+    }
+
+    /**
+     * Unpause or start the container, saying whether it had to.
+     */
+    protected function wakeContainer(string $id): bool
     {
         $state = Process::timeout(15)->run(['docker', 'inspect', '--format', '{{.State.Status}}', $id]);
 
@@ -353,6 +364,65 @@ class DockerSandboxProvider implements SandboxProvider
         }
 
         return $folder;
+    }
+
+    /**
+     * Mend a container whose host folders of ours (under storage_path) were deleted while it had them mounted: make
+     * the folders again, and restart the container if any mount is still dead in there. Until then whatever is
+     * written to it (a Claude sign-in, App Storage) goes nowhere. On Linux a deleted folder stays mounted with no
+     * links (so it's dead even once something makes the folder again); on Docker Desktop it can't be read until the
+     * folder is back. Returns whether it restarted. Best effort: the next wake tries again.
+     *
+     * @throws SandboxException
+     */
+    protected function repairMounts(string $id): bool
+    {
+        $root = $this->config['storage_path'] ?? null;
+
+        if (blank($root)) {
+            return false;
+        }
+
+        $result = Process::timeout(15)->run(['docker', 'inspect', '--format', '{{range .Mounts}}{{if eq .Type "bind"}}{{println .Destination .Source}}{{end}}{{end}}', $id]);
+
+        if ($result->failed()) {
+            return false;
+        }
+
+        $prefix = rtrim($root, '/').'/';
+        $mounts = [];
+
+        foreach (array_filter(explode("\n", trim($result->output()))) as $line) {
+            [$mount, $source] = array_pad(explode(' ', $line, 2), 2, '');
+
+            if (str_starts_with($source, $prefix)) {
+                $mounts[] = $mount;
+
+                if (! is_dir($source)) {
+                    @mkdir($source, 0755, true);
+                }
+            }
+        }
+
+        if ($mounts === []) {
+            return false;
+        }
+
+        $check = $this->run($id, ['sh', '-c', 'for d; do [ "$(stat -c %h "$d" 2>/dev/null)" -ge 1 ] 2>/dev/null || echo "$d"; done', 'sh', ...$mounts], [], false);
+        $dead = array_values(array_intersect($mounts, explode("\n", trim($check->output()))));
+
+        if ($check->failed() || $dead === []) {
+            return false;
+        }
+
+        $this->docker(['restart', '--time', (string) self::STOP_SECONDS, $id]);
+
+        // A new host folder is owned by the platform's user; let the sandbox user write to it (as create() does).
+        foreach ($dead as $mount) {
+            Process::timeout(30)->run(['docker', 'exec', '-u', 'root', $id, 'chown', 'sandbox:sandbox', $mount]);
+        }
+
+        return true;
     }
 
     /**
