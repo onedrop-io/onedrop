@@ -39,6 +39,8 @@ export default defineConfig({
                 '**/.cursor/**',
                 '**/.junie/**',
                 '**/vendor/**',
+                // Inertia DevTools writes a file here on every request.
+                '**/storage/**',
             ],
         },
     },
