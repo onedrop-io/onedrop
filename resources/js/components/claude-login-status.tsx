@@ -155,10 +155,7 @@ export default function ClaudeLoginStatus({
     }
 
     // A message waiting for a sign-in has told the user to click this button, so it's there even when the check can't tell.
-    if (
-        status?.signed_in === false ||
-        (waitingForSignIn && status?.signed_in !== true)
-    ) {
+    if (status?.signed_in === false || waitingForSignIn) {
         return (
             <div
                 className="mb-2 flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm"
