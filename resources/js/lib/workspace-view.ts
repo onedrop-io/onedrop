@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import type { AttachedFile } from '@/components/prompt-composer';
 
 /**
  * What the workspace shows on the right (TASK-004): its tab, the Tools section, and the open file.
@@ -118,15 +119,27 @@ export function onOpenWorkspaceTool(open: (tool: string) => void): () => void {
 
 const ASK_AGENT_EVENT = 'workspace:ask-agent';
 
-/** Put text in the chat box, ready for the user's question (e.g. a hunk of a diff, GIT-011). */
-export function askAgent(text: string): void {
-    window.dispatchEvent(new CustomEvent(ASK_AGENT_EVENT, { detail: text }));
+type AskAgent = { text: string; files: AttachedFile[] };
+
+/**
+ * Put text in the chat box, ready for the user's question (e.g. a hunk of a diff, GIT-011), with any files
+ * attached (e.g. a marked-up picture of the preview, AGT-013).
+ */
+export function askAgent(text: string, files: AttachedFile[] = []): void {
+    window.dispatchEvent(
+        new CustomEvent<AskAgent>(ASK_AGENT_EVENT, { detail: { text, files } }),
+    );
 }
 
-/** Calls `ask` with the text whenever something asks to put text in the chat box. */
-export function onAskAgent(ask: (text: string) => void): () => void {
-    const listener = (event: Event) =>
-        ask((event as CustomEvent<string>).detail);
+/** Calls `ask` with the text and files whenever something asks to put them in the chat box. */
+export function onAskAgent(
+    ask: (text: string, files: AttachedFile[]) => void,
+): () => void {
+    const listener = (event: Event) => {
+        const { text, files } = (event as CustomEvent<AskAgent>).detail;
+
+        ask(text, files);
+    };
 
     window.addEventListener(ASK_AGENT_EVENT, listener);
 

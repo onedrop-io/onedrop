@@ -4,6 +4,7 @@ import { NavOpenProject } from '@/components/nav-open-project';
 import { NavProjects, useSidebarUpdates } from '@/components/nav-projects';
 import { NavSearch } from '@/components/nav-search';
 import { NavUser } from '@/components/nav-user';
+import { OrganizationSwitcher } from '@/components/organization-switcher';
 import {
     Sidebar,
     SidebarContent,
@@ -42,6 +43,7 @@ export function AppSidebar() {
                         </SidebarMenuButton>
                     </SidebarMenuItem>
                 </SidebarMenu>
+                <OrganizationSwitcher />
             </SidebarHeader>
 
             <SidebarContent>

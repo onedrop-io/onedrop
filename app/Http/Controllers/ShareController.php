@@ -26,6 +26,8 @@ class ShareController extends Controller
 
     public function show(Request $request, ProjectShare $share): Response
     {
+        $this->abortWhenHeld($share);
+
         $project = $share->project;
         $isOwner = $request->user()?->id === $project->user_id;
 
@@ -63,11 +65,15 @@ class ShareController extends Controller
 
     public function card(ProjectShare $share): HttpResponse
     {
+        $this->abortWhenHeld($share);
+
         return $this->image($share->card_file);
     }
 
     public function screenshot(ProjectShare $share): HttpResponse
     {
+        $this->abortWhenHeld($share);
+
         return $this->image($share->screenshot_file);
     }
 
@@ -77,6 +83,8 @@ class ShareController extends Controller
      */
     public function remix(Request $request, ProjectShare $share): RedirectResponse
     {
+        $this->abortWhenHeld($share);
+
         $share->timestamps = false;
         $share->increment('remixes');
 
@@ -89,6 +97,14 @@ class ShareController extends Controller
         redirect()->setIntendedUrl(route('dashboard'));
 
         return to_route(Route::has('register') ? 'register' : 'login');
+    }
+
+    /**
+     * A share page held for review or taken down on the hosted install isn't there (PUB-003).
+     */
+    protected function abortWhenHeld(ProjectShare $share): void
+    {
+        abort_if((bool) $share->project->abuseReview?->status?->blocksPublic(), 404);
     }
 
     protected function image(?string $file): HttpResponse

@@ -15,7 +15,7 @@ import type { AgentHarness, AgentProvider } from '@/types/agents';
 
 type Range = '24h' | '7d' | '30d' | '90d';
 type Metric = 'cost' | 'tokens';
-type Breakdown = 'model' | 'project' | 'day';
+type Breakdown = 'model' | 'project' | 'person' | 'day';
 
 type Sums = {
     cost: number;
@@ -40,6 +40,10 @@ type Props = {
         name: string;
     })[];
     projects: (Sums & { id: number | null; name: string })[];
+    /** An organization's usage (ORG-005): whose runs they were. */
+    people?: (Sums & { id: number; name: string })[];
+    /** Whose usage it is, when it isn't the user's own. */
+    title?: string;
     series: {
         t: number;
         cost: Partial<Record<AgentHarness, number>>;
@@ -139,6 +143,8 @@ export default function Usage({
     agents,
     models,
     projects,
+    people,
+    title,
     series,
 }: Props) {
     const [metric, setMetric] = useState<Metric>('cost');
@@ -181,30 +187,37 @@ export default function Usage({
                     cost: project.cost,
                     tokens: project.tokens,
                 }))
-              : series
-                    .map((point) => ({
-                        key: String(point.t),
-                        name: new Date(point.t * 1000).toLocaleString(
-                            undefined,
-                            bucket === 'hour'
-                                ? { hour: 'numeric', minute: '2-digit' }
-                                : {
-                                      weekday: 'short',
-                                      month: 'short',
-                                      day: 'numeric',
-                                  },
-                        ),
-                        cost: Object.values(point.cost).reduce(
-                            (sum, value) => sum + (value ?? 0),
-                            0,
-                        ),
-                        tokens: Object.values(point.tokens).reduce(
-                            (sum, value) => sum + (value ?? 0),
-                            0,
-                        ),
-                    }))
-                    .filter((row) => row.tokens > 0 || row.cost > 0)
-                    .reverse();
+              : breakdown === 'person'
+                ? (people ?? []).map((person) => ({
+                      key: String(person.id),
+                      name: person.name,
+                      cost: person.cost,
+                      tokens: person.tokens,
+                  }))
+                : series
+                      .map((point) => ({
+                          key: String(point.t),
+                          name: new Date(point.t * 1000).toLocaleString(
+                              undefined,
+                              bucket === 'hour'
+                                  ? { hour: 'numeric', minute: '2-digit' }
+                                  : {
+                                        weekday: 'short',
+                                        month: 'short',
+                                        day: 'numeric',
+                                    },
+                          ),
+                          cost: Object.values(point.cost).reduce(
+                              (sum, value) => sum + (value ?? 0),
+                              0,
+                          ),
+                          tokens: Object.values(point.tokens).reduce(
+                              (sum, value) => sum + (value ?? 0),
+                              0,
+                          ),
+                      }))
+                      .filter((row) => row.tokens > 0 || row.cost > 0)
+                      .reverse();
 
     if (breakdown !== 'day') {
         rows.sort((a, b) => b[metric] - a[metric]);
@@ -218,12 +231,12 @@ export default function Usage({
 
     return (
         <>
-            <Head title="Usage" />
+            <Head title={title ? `${title} usage` : 'Usage'} />
 
             <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-10 p-4 md:p-6">
                 <header className="flex flex-wrap items-center gap-3">
                     <h1 className="text-lg font-medium">
-                        Usage
+                        {title ? `${title} usage` : 'Usage'}
                         <span className="px-2 text-muted-foreground">/</span>
                         <span className="font-normal text-muted-foreground">
                             {formatDay(since)} to {formatDay(until)}
@@ -388,6 +401,14 @@ export default function Usage({
                                 options={[
                                     { value: 'model', label: 'Model' },
                                     { value: 'project', label: 'Project' },
+                                    ...(people
+                                        ? [
+                                              {
+                                                  value: 'person' as const,
+                                                  label: 'Person',
+                                              },
+                                          ]
+                                        : []),
                                     {
                                         value: 'day',
                                         label:
@@ -410,9 +431,11 @@ export default function Usage({
                                         ? 'Model'
                                         : breakdown === 'project'
                                           ? 'Project'
-                                          : bucket === 'hour'
-                                            ? 'Hour'
-                                            : 'Day'}
+                                          : breakdown === 'person'
+                                            ? 'Person'
+                                            : bucket === 'hour'
+                                              ? 'Hour'
+                                              : 'Day'}
                                 </th>
                                 <th className="py-3 text-right font-normal">
                                     Cost

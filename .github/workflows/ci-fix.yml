@@ -1,0 +1,120 @@
+name: ci fix
+
+# When `tests` fails, opens an issue with the failure and assigns it to Copilot cloud agent, which fixes it
+# in a PR into the branch that failed. Nothing lands until a person merges that PR.
+# Skips fork PRs (their logs could steer the agent), Copilot's own copilot/* branches, runs whose branch has
+# moved on, and branches that already have an open ci-fix issue.
+# Needs the COPILOT_TOKEN secret: a fine-grained token from someone with Copilot cloud agent, with read access
+# to metadata and read/write to actions, contents, issues and pull requests. GITHUB_TOKEN can't assign Copilot.
+
+on:
+  workflow_run:
+    workflows: [tests]
+    types: [completed]
+
+permissions:
+  actions: read
+
+concurrency:
+  group: ci-fix-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  assign:
+    if: >-
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      !startsWith(github.event.workflow_run.head_branch, 'copilot/')
+    runs-on: ubuntu-latest
+    env:
+      HAS_COPILOT_TOKEN: ${{ secrets.COPILOT_TOKEN != '' }}
+      FAILED_RUN_ID: ${{ github.event.workflow_run.id }}
+      FAILED_RUN_URL: ${{ github.event.workflow_run.html_url }}
+      FAILED_SHA: ${{ github.event.workflow_run.head_sha }}
+      BASE_BRANCH: ${{ github.event.workflow_run.head_branch }}
+    steps:
+      - name: Skip without a Copilot token
+        if: env.HAS_COPILOT_TOKEN != 'true'
+        run: echo "::notice::COPILOT_TOKEN isn't set; not asking Copilot to fix the failed tests."
+
+      - name: Write the issue
+        id: issue
+        if: env.HAS_COPILOT_TOKEN == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          head=$(gh api "repos/$GITHUB_REPOSITORY/branches/$BASE_BRANCH" --jq .commit.sha || true)
+          if [ "$head" != "$FAILED_SHA" ]; then
+            echo "::notice::$BASE_BRANCH has moved past $FAILED_SHA; its newer run gets its own fix."
+            exit 0
+          fi
+
+          title="Fix failing tests on $BASE_BRANCH"
+          open=$(gh issue list --repo "$GITHUB_REPOSITORY" --label ci-fix --state open --search "\"$title\" in:title" --json number --jq '.[0].number')
+          if [ -n "$open" ]; then
+            echo "::notice::#$open is already fixing $BASE_BRANCH."
+            exit 0
+          fi
+
+          # An issue body holds 65,536 characters; keep the end of the log, where the failures are.
+          log=$(gh run view "$FAILED_RUN_ID" --repo "$GITHUB_REPOSITORY" --log-failed | tail -c 50000)
+          {
+            echo "The \`tests\` workflow failed on \`$BASE_BRANCH\` at $FAILED_SHA: $FAILED_RUN_URL"
+            echo
+            echo "CI runs \`composer ci:check\` (front-end lint and types, Pint, PHPStan, Pest including browser tests) and"
+            echo "\`node --test infra/cloudflare/preview-gateway/worker.test.mjs\`."
+            echo
+            echo "<details><summary>Failed steps' log (end)</summary>"
+            echo
+            echo '```'
+            echo "$log"
+            echo '```'
+            echo
+            echo "</details>"
+          } > body.md
+          echo "title=$title" >> "$GITHUB_OUTPUT"
+
+      - name: Assign it to Copilot
+        if: steps.issue.outputs.title != ''
+        env:
+          GH_TOKEN: ${{ secrets.COPILOT_TOKEN }}
+          TITLE: ${{ steps.issue.outputs.title }}
+          INSTRUCTIONS: >-
+            Find which check failed and rerun just that check to reproduce it. If it passes when rerun, it's flaky:
+            rerun it several times (e.g. Pest's --repeat) to catch it, and fix the cause (timing, ordering, shared state,
+            unseeded randomness, the real clock), not the symptom. Fix the root cause in the app code or the test,
+            whichever is wrong; read REQ.md's section for the feature first so you don't undo a recorded decision.
+            Never skip, delete or loosen a test or an assertion, add sleeps, or raise timeouts just to make it pass.
+            Run vendor/bin/pint --dirty and npx vp check --fix on what you change, then rerun the failed check and
+            composer ci:check until both pass. In the PR, say what failed, the root cause, whether it was flaky, and
+            what you ran to check the fix.
+        run: |
+          gh label create ci-fix --repo "$GITHUB_REPOSITORY" --color d73a4a --description "Failing tests for Copilot to fix" 2>/dev/null || true
+          owner=${GITHUB_REPOSITORY%/*}
+          name=${GITHUB_REPOSITORY#*/}
+          # shellcheck disable=SC2016 # $owner and $name are GraphQL variables
+          ids=$(gh api graphql -f owner="$owner" -f name="$name" -f query='
+            query($owner: String!, $name: String!) {
+              repository(owner: $owner, name: $name) {
+                id
+                labels(query: "ci-fix", first: 1) { nodes { id } }
+                suggestedActors(capabilities: [CAN_BE_ASSIGNED], first: 100) { nodes { login ... on Bot { id } } }
+              }
+            }')
+          repo_id=$(jq -r '.data.repository.id' <<< "$ids")
+          label_id=$(jq -r '.data.repository.labels.nodes[0].id' <<< "$ids")
+          bot_id=$(jq -r '.data.repository.suggestedActors.nodes[] | select(.login == "copilot-swe-agent") | .id' <<< "$ids")
+          if [ -z "$bot_id" ]; then
+            echo "::error::Copilot cloud agent isn't enabled for this repository or for COPILOT_TOKEN's owner."
+            exit 1
+          fi
+          # shellcheck disable=SC2016 # so are $repo, $title and the rest
+          gh api graphql -H 'GraphQL-Features: issues_copilot_assignment_api_support,coding_agent_model_selection' \
+            -f repo="$repo_id" -f label="$label_id" -f bot="$bot_id" -f title="$TITLE" -F body=@body.md \
+            -f base="$BASE_BRANCH" -f instructions="$INSTRUCTIONS" -f query='
+            mutation($repo: ID!, $label: ID!, $bot: ID!, $title: String!, $body: String!, $base: String!, $instructions: String!) {
+              createIssue(input: {
+                repositoryId: $repo, title: $title, body: $body, labelIds: [$label], assigneeIds: [$bot],
+                agentAssignment: { targetRepositoryId: $repo, baseRef: $base, customInstructions: $instructions }
+              }) { issue { url } }
+            }' --jq '.data.createIssue.issue.url'

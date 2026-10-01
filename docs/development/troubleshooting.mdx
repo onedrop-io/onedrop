@@ -11,7 +11,7 @@ description: 'Common problems and how to fix them.'
     Providers like OpenRouter reserve the maximum possible cost of a request before running it, across every app using your account. Add credits, wait for other requests to finish, or choose a cheaper model with `SANDBOX_MODEL_*`.
   </Accordion>
   <Accordion title="The agent stopped unexpectedly">
-    The chat shows the error line from the agent. To see more, read the agent's log inside the sandbox:
+    The chat shows the error line from the agent. When OpenRouter is set up, [Jev](https://openrouter.ai/docs/guides/community/jev) reads errors OneDrop doesn't recognize and, when it's sure, replaces this message a moment later with the known cause's: a rejected key, no credits left, a busy or rate-limiting provider, a model that isn't available, a conversation too long for the model, or a network error. To see more, read the agent's log inside the sandbox:
 
     ```bash
     docker exec <container> cat /home/sandbox/.local/share/opencode/log/opencode.log

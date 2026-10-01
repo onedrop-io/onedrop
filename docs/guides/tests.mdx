@@ -3,7 +3,7 @@ title: 'Tests'
 description: 'Watch recordings of the browser tests the agent writes for each requirement.'
 ---
 
-While it builds what you ask for, the agent writes a browser test for each of your [requirements](/guides/requirements): a script that opens the app, clicks through it the way a person would, and checks that the result is right. It runs them before it finishes, and fixes what broke. Each run is recorded, so you can watch exactly what was checked.
+While it builds what you ask for, starting with the first request and whatever the app is built with, the agent writes a browser test for each of your [requirements](/guides/requirements): a script that opens the app, clicks through it the way a person would, and checks that the result is right. It runs them before it finishes, and fixes what broke. Each run is recorded, so you can watch exactly what was checked.
 
 If some requirements don't have tests yet (for example, ones written before OneDrop added tests), the Tests tab says so. Click **Write them with agent** to ask the agent in the chat to write and run them; it's queued if the agent is busy.
 
@@ -18,6 +18,8 @@ Pick a test to:
 - **Watch** the video of its last run.
 - **Read why it failed**, when it did.
 - **Download its trace**, a step-by-step record of every action and what the page looked like. Open it at [trace.playwright.dev](https://trace.playwright.dev) (the file stays in your browser).
+
+A failing test also shows a guess at why it failed, next to it in the list and above its error: **Likely: the app broke**, **Likely: the test is out of date** (the app changed on purpose, as you asked, and the test still expects the old behavior), or **Likely: flaky or timing**. [Jev](https://openrouter.ai/docs/guides/community/jev) makes the guess from the test's error, its steps and source, and what you asked for lately, once per run of the test, in the background; it appears a moment after the run ends. When Jev isn't sure, or OpenRouter isn't set up (see [below](#the-platform-checks-the-agent)), there's no guess.
 
 In the Requirements tab, each requirement with tests shows a badge: **Test passes**, **Test failing** (or how many of its tests fail), or how many haven't run yet.
 
@@ -73,6 +75,12 @@ The bar above the page says where the test is: paused after a step (and what it 
 If you changed the page, a later step may no longer find what it expects. It then shows as failing, with the reason, which tells you whether the app or the test should change. The agent can carry on with the test too, when you ask it to.
 
 The page uses the app's own dev server and database, like the preview: whatever you do there really happens. Close the Browser tab to close it; it also closes after 30 minutes unwatched. Only people who can change the project can take over a test.
+
+## The platform checks the agent
+
+After each turn, OneDrop asks [Jev](https://openrouter.ai/docs/guides/community/jev), a small decision model on OpenRouter, whether the agent changed the app and, if it did, whether it recorded that in your requirements and wrote and ran tests for it. If it skipped either, OneDrop asks it once in the chat to catch up, and names any requirements that still have no tests. You'll see that message from you in the chat, like an [Autofix](/guides/workspace#when-the-app-hits-an-error) request.
+
+The check uses your OpenRouter connection if you have one (it costs a fraction of a cent per turn), otherwise the platform's own key. If neither is set up, turns aren't checked.
 
 ## Turn it on or off
 

@@ -79,3 +79,45 @@ test('the workspace splits into panes with their own shells, and tabs move betwe
         ->assertMissing('@close-pane')
         ->assertNoJavaScriptErrors();
 })->group('LAYOUT-002');
+
+test('a reload keeps the panes, tabs, Shell sessions, preview page and chat draft, but a new browser tab starts afresh', function () {
+    $user = User::factory()->has(AgentConnection::factory())->create();
+    $project = Project::factory()->for($user)->create();
+    Sandbox::factory()->for($project)->create(['preview_url' => 'http://127.0.0.1:9', 'shell_url' => 'about:blank']);
+    $this->actingAs($user);
+
+    $tabsIn = fn (int $pane) => "Array.from(document.querySelectorAll('[data-test=\"pane-{$pane}\"] button[data-test^=tab-]')).map((tab) => tab.dataset.test).join(',')";
+    $shellSrc = 'document.querySelector(\'[data-test="shell-frame"]\').getAttribute("src")';
+    $previewSrc = 'document.querySelector(\'[data-test="preview-frame"]\').getAttribute("src")';
+    // What the sandbox's preview script posts when the app's page changes.
+    $navigatePreview = 'window.dispatchEvent(new MessageEvent("message", {data: {onedrop: "location", page: "/settings?section=billing"}, source: document.querySelector(\'[data-test="preview-frame"]\').contentWindow}))';
+
+    $page = visit("/projects/{$project->id}")
+        ->resize(1600, 900)
+        ->click('@split-menu')
+        ->click('@split-right')
+        ->assertPresent('@shell-frame')
+        ->click('[data-test="pane-1"] [data-test="add-tab"]')
+        ->click('@add-tab-console')
+        ->click('@tab-preview')
+        ->type('#composer-content', 'half a thought');
+
+    $page->script($navigatePreview);
+    $session = $page->script($shellSrc);
+    expect($session)->toContain('arg=session');
+
+    $page->refresh()
+        ->assertScript($tabsIn(1), 'tab-tools,tab-preview,tab-console')
+        ->assertScript($tabsIn(2), 'tab-shell')
+        ->assertScript($shellSrc, $session)
+        ->assertScript("{$previewSrc}.endsWith('/settings?section=billing')", true)
+        ->assertValue('#composer-content', 'half a thought')
+        ->assertNoJavaScriptErrors();
+
+    // Another browser tab has its own sessionStorage: the default layout, and no shared Shells.
+    visit("/projects/{$project->id}")
+        ->resize(1600, 900)
+        ->assertMissing('@pane-2')
+        ->assertScript($tabsIn(1), 'tab-tools,tab-preview')
+        ->assertValue('#composer-content', '');
+})->group('LAYOUT-005');

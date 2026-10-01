@@ -63,6 +63,83 @@ export function initialLayout(
     };
 }
 
+const TABS: PaneTab[] = [
+    'tools',
+    'preview',
+    'file',
+    'console',
+    'requirements',
+    'tests',
+    'browser',
+];
+
+function isPaneTab(value: unknown): value is PaneTab {
+    return (
+        typeof value === 'string' &&
+        (TABS.includes(value as PaneTab) || /^shell(-[2-9]\d*)?$/.test(value))
+    );
+}
+
+/**
+ * A layout saved before a reload (LAYOUT-005), if it still follows the rules: known tabs, each in one
+ * pane, Tools and Preview somewhere, a size per pane. Anything else gives null, and the default layout.
+ */
+export function restoreLayout(value: unknown): Layout | null {
+    const saved = value as Partial<Layout> | null;
+
+    if (
+        !saved ||
+        !Array.isArray(saved.panes) ||
+        !Array.isArray(saved.sizes) ||
+        saved.panes.length === 0 ||
+        saved.panes.length > MAX_PANES ||
+        saved.sizes.length !== saved.panes.length ||
+        !saved.sizes.every((size) => typeof size === 'number' && size > 0) ||
+        (saved.direction !== 'row' && saved.direction !== 'column')
+    ) {
+        return null;
+    }
+
+    const valid = saved.panes.every(
+        (pane: Partial<Pane>) =>
+            Number.isInteger(pane.id) &&
+            Array.isArray(pane.tabs) &&
+            pane.tabs.length > 0 &&
+            pane.tabs.every(isPaneTab) &&
+            pane.tabs.includes(pane.active as PaneTab),
+    );
+    const tabs = saved.panes.flatMap((pane) => pane.tabs);
+    const ids = saved.panes.map((pane) => pane.id);
+
+    if (
+        !valid ||
+        new Set(tabs).size !== tabs.length ||
+        new Set(ids).size !== ids.length ||
+        !PINNED.every((tab) => tabs.includes(tab))
+    ) {
+        return null;
+    }
+
+    const total = saved.sizes.reduce((sum, size) => sum + size, 0);
+
+    return {
+        panes: saved.panes.map((pane) => ({
+            id: pane.id,
+            tabs: ordered(pane.tabs),
+            active: pane.active,
+        })),
+        focused: ids.includes(saved.focused as number)
+            ? (saved.focused as number)
+            : ids[0],
+        direction: saved.direction,
+        sizes: saved.sizes.map((size) => size / total),
+        nextPaneId: Math.max(
+            Math.max(...ids) + 1,
+            Number(saved.nextPaneId) || 0,
+        ),
+    };
+}
+
 export function paneOf(layout: Layout, tab: PaneTab): Pane | undefined {
     return layout.panes.find((pane) => pane.tabs.includes(tab));
 }

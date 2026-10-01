@@ -20,20 +20,23 @@ class ProjectAgentController extends Controller
 
     /**
      * Change the agent, model and reasoning level the project uses from the next message on.
-     * A different agent can't pick up the other one's conversation, so it starts a fresh one.
+     * A different agent can't pick up the other one's conversation, so it starts a fresh one. With agent_auto
+     * (AGT-011), the model and reasoning level are picked per message from the chosen provider.
      */
     public function update(Request $request, Project $project, ModelCatalog $catalog): RedirectResponse
     {
         Gate::authorize('update', $project);
 
         $agent = $this->validatedAgentSelection($request, $request->user(), $catalog, required: true);
+        $request->validate(['agent_auto' => ['sometimes', 'boolean']]);
+        $auto = $request->boolean('agent_auto');
         $switching = $agent['agent_harness'] !== $catalog->harnessFor($project);
 
         if ($switching && $project->agentBusy()) {
             throw ValidationException::withMessages(['agent_harness' => __('Wait for the agent to finish, or stop it, before switching agents.')]);
         }
 
-        $project->update($switching ? [...$agent, 'agent_session_id' => null] : $agent);
+        $project->update([...$agent, 'agent_auto' => $auto, ...($switching ? ['agent_session_id' => null] : [])]);
 
         // Tasks use the project's agent too, so theirs start fresh conversations as well.
         if ($switching) {
@@ -47,7 +50,9 @@ class ProjectAgentController extends Controller
             ]);
         }
 
-        $request->user()->rememberModel($agent['agent_provider'], $agent['agent_model']);
+        if (! $auto) {
+            $request->user()->rememberModel($agent['agent_provider'], $agent['agent_model']);
+        }
         $request->user()->preferAgent($agent);
 
         return to_route('projects.show', $project);

@@ -1,6 +1,7 @@
 /** Pages that open inside the settings modal instead of the main content area. */
 const SETTINGS_PAGE_PREFIXES = [
     'settings/',
+    'organizations/',
     'groups/',
     'invitations/',
     'users/',

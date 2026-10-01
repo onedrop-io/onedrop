@@ -8,8 +8,10 @@ use App\Enums\ProjectStatus;
 use App\Enums\SandboxStatus;
 use App\Enums\TaskStage;
 use App\Enums\TaskSyncStatus;
+use App\Enums\TurnOutcome;
 use App\Jobs\DestroySandbox;
 use App\Sandbox\Agents\Conversation;
+use App\Sandbox\Agents\PlainActivity;
 use Database\Factories\TaskFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -41,11 +43,12 @@ use Illuminate\Support\Str;
  * @property string|null $sync_error
  * @property Carbon|null $applied_at
  * @property Carbon|null $read_at
+ * @property TurnOutcome|null $turn_outcome
  * @property string|null $last_reply_at From withLastReply().
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['title', 'description', 'stage', 'position', 'status', 'agent_session_id', 'sign_in_retry_message_id', 'events_token_hash', 'base_commit', 'sync_status', 'sync_error', 'applied_at', 'read_at'])]
+#[Fillable(['title', 'description', 'stage', 'position', 'status', 'agent_session_id', 'sign_in_retry_message_id', 'events_token_hash', 'base_commit', 'sync_status', 'sync_error', 'applied_at', 'read_at', 'turn_outcome'])]
 #[Hidden(['events_token_hash'])]
 class Task extends Model implements Conversation
 {
@@ -73,6 +76,7 @@ class Task extends Model implements Conversation
             'sync_status' => TaskSyncStatus::class,
             'applied_at' => 'datetime',
             'read_at' => 'datetime',
+            'turn_outcome' => TurnOutcome::class,
         ];
     }
 
@@ -219,16 +223,16 @@ class Task extends Model implements Conversation
     }
 
     /**
-     * The agent's latest step in its current run, or null before its first one.
+     * The agent's latest step in its current run, in plain words (PlainActivity), or null before its first one.
      */
     public function currentActivity(): ?string
     {
         $lastPromptId = $this->messages()->reorder()->where('role', MessageRole::User)->max('id') ?? 0;
 
-        return $this->messages()->reorder()
+        return PlainActivity::describe($this->messages()->reorder()
             ->where('role', MessageRole::Activity)
             ->where('id', '>', $lastPromptId)
             ->latest('id')
-            ->value('content');
+            ->value('content'));
     }
 }

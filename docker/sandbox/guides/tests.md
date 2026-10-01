@@ -2,7 +2,7 @@
 
 Back each requirement in /workspace/.onedrop/REQ.md with browser tests that show it works, written with Playwright Test in /workspace/tests/e2e. The platform runs them with a video of each; the user watches them in the Tests tab, next to the requirement they check. Treat them as the proof that the app does what the user asked.
 
-This is part of every turn that changes what the app does, like updating REQ.md, however small the change: add or update the tests, run them, and only then finish. If requirements in REQ.md have no tests yet (for example, they were written before tests existed, or /workspace/tests/e2e is missing), add tests for them in that same turn too.
+This is part of every turn that changes what the app does, like updating REQ.md, however small the change, on every stack (a plain Vite or static page gets them too), and including the turn that first builds the app: add or update the tests, run them, and only then finish. If requirements in REQ.md have no tests yet (for example, they were written before tests existed, or /workspace/tests/e2e is missing), add tests for them in that same turn too.
 
 ### Setup, once per app
 

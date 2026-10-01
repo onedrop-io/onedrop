@@ -84,6 +84,7 @@ export default function PublishMenu({
     const [copiedText, copy] = useClipboard();
     const published = publication.status === 'live';
     const publishing = publication.status === 'publishing';
+    const inReview = publication.status === 'review';
     const everPublished = publication.published_at !== null;
     const error = errors.publish ?? publication.error;
 
@@ -141,6 +142,7 @@ export default function PublishMenu({
                                             'animate-pulse bg-amber-500',
                                         publication.status === 'failed' &&
                                             'bg-red-500',
+                                        inReview && 'bg-amber-500',
                                         !publication.status &&
                                             'bg-muted-foreground/40',
                                     )}
@@ -151,7 +153,9 @@ export default function PublishMenu({
                                       ? 'Publishing…'
                                       : publication.status === 'failed'
                                         ? 'Failed'
-                                        : 'Not published'}
+                                        : inReview
+                                          ? 'Waiting for a review'
+                                          : 'Not published'}
                             </dd>
                             {published &&
                                 publishedTo &&
@@ -223,6 +227,18 @@ export default function PublishMenu({
                                 </>
                             )}
                         </dl>
+
+                        {inReview && (
+                            <p
+                                className="rounded-md bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400"
+                                data-test="publish-review"
+                            >
+                                OneDrop checks apps before they go public, and
+                                this one needs a person to look at it first. It
+                                goes live as soon as it's approved; you can keep
+                                working meanwhile.
+                            </p>
+                        )}
 
                         {publication.targets.length > 1 && (
                             <fieldset>

@@ -38,6 +38,14 @@ Someone who opens a private app on your domain without being signed in is sent t
 
 If OneDrop has no Tailscale auth key configured, publishing to Tailscale shows **Approve in Tailscale**. Open the link, approve the device in your Tailscale account, and publishing continues on its own. You only approve each project once.
 
+## Waiting for a review
+
+On OneDrop's hosted service, apps are checked before they go public, to keep out phishing pages, scams and malware. The check looks at the project's name, its prompts, and the app's home page, and takes a moment while the status says **Publishing…**. Almost every app goes live straight away.
+
+If the check thinks an app might be one of those, the status says **Waiting for a review** and the app stays offline until someone at OneDrop looks at it. It goes live by itself once approved; you can keep building meanwhile, and publishing privately still works. An app that's taken down can't be published publicly or shared again.
+
+Apps already published publicly are checked again, at most once a day, after the agent changes them.
+
 ## Republish or unpublish
 
 Once published, the button says **Republish**. Use it to switch between Private and Public, or between your domain and Tailscale (the project comes off the one it was on). **Unpublish** takes the project offline.

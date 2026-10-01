@@ -2,12 +2,35 @@
 # The Shell tab's program (ttyd passes ?arg= from the URL). "claude-login" first runs Claude Code's own
 # sign-in (AI-005); "cd <folder>" starts in that folder of the workspace (FILE-005); anything else is ignored,
 # so the URL can't run arbitrary commands. Then a normal shell.
-if [ "${1:-}" = "cd" ]; then
-    dir="$(realpath -m -- "/workspace/${2:-.}")"
+#
+# "session <name>" after those (LAYOUT-005) runs it all in a tmux session of that name, or reattaches to the
+# session if it's still there, so a reloaded page gets its Shells back. A session no tab comes back to ends
+# a few minutes later (see tmux.conf and shell-reap). Older pages send no session and get a plain shell.
+action=()
+session=""
+
+while [ $# -gt 0 ]; do
+    if [ "$1" = session ]; then
+        [[ "${2:-}" =~ ^[A-Za-z0-9-]{1,40}$ ]] && session="$2"
+        shift 2 || shift
+    else
+        action+=("$1")
+        shift
+    fi
+done
+
+if [ -n "$session" ] && command -v tmux >/dev/null 2>&1; then
+    tmux=(tmux -L onedrop -f "$(dirname "$0")/tmux.conf")
+    "${tmux[@]}" has-session -t "=$session" 2>/dev/null || "${tmux[@]}" new-session -d -s "$session" "$0" "${action[@]}"
+    exec "${tmux[@]}" attach-session -t "=$session"
+fi
+
+if [ "${action[0]:-}" = "cd" ]; then
+    dir="$(realpath -m -- "/workspace/${action[1]:-.}")"
     case "$dir" in
         /workspace | /workspace/*) [ -d "$dir" ] && cd -- "$dir" ;;
     esac
-elif [ "${1:-}" = "claude-login" ]; then
+elif [ "${action[0]:-}" = "claude-login" ]; then
     echo "Signing in to Claude with Claude Code's own sign-in. OneDrop never sees your Claude login."
     echo
     claude auth login --claudeai

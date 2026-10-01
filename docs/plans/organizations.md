@@ -1,6 +1,6 @@
 # Plan: Organizations (multi-tenant hosting, same codebase as self-hosted)
 
-Status: phase 1 (the boundary) built; phases 2–4 not started. Specs ORG-001..007; decisions in `REQ.md` → Organizations.
+Status: phases 1–3 built (boundary; members, settings, usage; switcher, creating organizations, logos, the platform admin's list). Phase 4 (billing) not started. Specs ORG-001..007; decisions in `REQ.md` → Organizations.
 
 Anyone can self-host one install; we also run one hosted install for many companies. An organization is the
 boundary between companies. Groups stay as teams inside one.
@@ -92,9 +92,12 @@ Superseded where "What phase 1 built" differs: project routes kept `/projects/{i
 1. **Boundary, no visible change.** Schema, backfill, `BelongsToOrganization`, policies, `/o/{slug}` routes,
    redirects, shared props, "everyone" fixes. Self-hosted looks the same except URLs. Tests: every area gets a
    cross-org test (member of org A gets 404 on org B's project, group, invite, skill, gateway, OneDrop sign-in).
-2. **Members and settings.** ORG-004/005: members page, roles, leave, org invites, org name/slug/logo, org usage.
-3. **Multi-tenant.** ORG-002/003/006: switcher, create organization, sign-up creates an org when
-   `ONEDROP_MULTI_TENANT=true`, platform-admin organizations list. Browser test: sign up, create a second org,
+2. **Members and settings.** ORG-004/005: members page, roles, leave, org invites, org name/slug, org usage (built
+   2026-10-01: Settings → Organization, `OrganizationMemberController`, `UsageReport::forOrganization` over
+   `agent_usages.organization_id`). The logo moved to phase 3.
+3. **Multi-tenant** (built 2026-10-01: `OrganizationSwitcher`, `POST /organizations`, `/o/{slug}/logo`,
+   `Admin\OrganizationController`). ORG-002/003/006: switcher, create organization, sign-up creates an org when
+   `APP_MULTI_TENANT=true`, platform-admin organizations list, organization logo. Browser test: sign up, create a second org,
    switch, check the first org's projects aren't there.
 4. **Billing** (separate plan): flat plans per organization (REQ Marketing → pricing).
 

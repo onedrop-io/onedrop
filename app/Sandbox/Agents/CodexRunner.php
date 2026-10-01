@@ -27,7 +27,7 @@ class CodexRunner extends SandboxAgentRunner
     {
         $conversation = $message->conversation();
         $sandbox = $conversation->agentSandbox();
-        $selection = $this->catalog->selectionFor($project);
+        $selection = $this->catalog->selectionFor($project, $message);
         $connection = $project->user->agentConnections()->firstWhere('provider', AgentProvider::Codex);
 
         $problem = match (true) {

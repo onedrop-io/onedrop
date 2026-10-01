@@ -24,6 +24,7 @@ class AgentUsageFactory extends Factory
         return [
             'user_id' => User::factory(),
             'project_id' => fn (array $attributes) => Project::factory()->create(['user_id' => $attributes['user_id']])->id,
+            'organization_id' => fn (array $attributes) => Project::query()->whereKey($attributes['project_id'])->value('organization_id'),
             'harness' => AgentHarness::ClaudeCode,
             'provider' => AgentProvider::Claude,
             'model' => 'claude-sonnet-5',

@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Ends a Shell's tmux session (see shell-entry) once no tab has come back to it for a while: its tab was
+# closed, not reloaded. Run by tmux.conf's client-detached hook with the session's name (LAYOUT-005).
+session="${1:?session name}"
+sleep 300
+
+attached="$(tmux -L onedrop display-message -p -t "=$session:" '#{session_attached}' 2>/dev/null)"
+
+if [ "$attached" = 0 ]; then
+    tmux -L onedrop kill-session -t "=$session"
+fi

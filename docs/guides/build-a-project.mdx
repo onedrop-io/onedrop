@@ -66,7 +66,18 @@ Send follow-up messages to change the app, for example "make the Start button bl
     keep pressing it to go further back. **Down** steps forward again.
 </Tip>
 
-Messages you send while the agent is working are queued and run when it finishes. Press ⌘/Ctrl+Enter to stop the current run and send yours right away.
+Messages you send while the agent is working are queued and run when it finishes. Press ⌘/Ctrl+Enter to stop the current run and send yours right away, or ⌥/Alt+Enter to always queue it.
+
+When OpenRouter is set up (your connection or the platform's key), [Jev](https://openrouter.ai/docs/guides/community/jev) also reads a message you send with Enter while the agent works. If it corrects or changes what the agent is doing ("actually, put the form on the About page"), it's sent right away instead of waiting, and the chat says "Sent now: it changes what the agent is doing". A separate request still waits its turn.
+
+### Before a message is sent
+
+Jev checks each message you send in the chat once, in well under a second:
+
+- **A pasted secret.** If the message contains an API key, password, token or a database URL with a password, it isn't sent yet. The box above the message asks **This looks like a secret. Save it in Secrets instead?**, with a suggested name such as `STRIPE_SECRET_KEY`. **Save in Secrets** adds it to [Tools → Secrets](/guides/secrets) and sends your message with `(saved as STRIPE_SECRET_KEY in Secrets)` in its place; **Send anyway** sends it as typed.
+- **A change to an earlier decision.** With [requirements](/guides/requirements) on, a message that would undo a decision the app recorded asks **This changes an earlier decision: … Go ahead?** **Go ahead** sends it and tells the agent the change is on purpose, so it rewrites the decision; **Cancel** leaves your message in the box to edit.
+
+Your message stays in the box until it's sent. Without OpenRouter, or if Jev doesn't answer within a few seconds, messages are sent straight away as usual.
 
 ### Your code is saved after every turn
 
@@ -91,6 +102,28 @@ Other files (text, CSV, PDFs and so on) are handed to the agent as files it can 
 
 Attachments stay in the chat, and only people who can see the project can open them. If you stop the agent while messages are queued, their text comes back into the box but their attachments are removed, so attach them again.
 
+## Draw on the preview
+
+To show the agent what to change in your app's UI, click **Annotate** (the brush) in the Preview's header. The preview freezes as a picture of what's on screen: the page as you scrolled it, with any open menus and typed input.
+
+<Steps>
+    <Step title="Mark it up">
+        Click where you want a note and type it (**Text** is picked to start with), or pick **Pen**, **Box** or **Arrow**. Marks come in red, yellow or blue. Each mark gets a number. To move a mark, drag it by its line, its text or its number. Undo with the arrow button (or ⌘/Ctrl+Z), clear them all with the bin (undo brings them back), or press **Cancel** (Esc) to go back to the preview.
+    </Step>
+    <Step title="Add it to the chat">
+        Click **Add to chat**. The marked-up picture is attached to the message box, and the chat opens if it was hidden. When you send it, the agent is also told which element each numbered mark points at (for example `1. Box (red) around button#save.btn ("Save changes")`), so it can find the right code. That part isn't shown in the chat.
+    </Step>
+    <Step title="Say what to change">
+        Type your request ("make 1 bigger and move it next to 2") and send it. If your notes on the picture already say it all, you can send the picture on its own.
+    </Step>
+</Steps>
+
+<Note>
+    If the page in the preview can't take its own picture, OneDrop says so and
+    offers **Share the tab instead**. Your browser asks which tab to share; pick
+    this one, and OneDrop takes the picture from there.
+</Note>
+
 ## Your projects
 
 Your projects are listed in the sidebar: pinned ones under **Pinned**, the first 10 others under **Recent**, and archived ones under **Archived** (click it to expand). Only you (and admins) can see your projects.
@@ -111,11 +144,21 @@ Click **Search** at the top of the sidebar to find any of your projects by name,
 
 A blue dot and bold name mean the agent is done and waiting for you: it replied in the project's main chat, or in one of its [tasks](/guides/tasks), since you last opened that chat. Tasks get their own dot too, so you can see which one finished. Replies that arrive while you're in another tab or app stay unread until you come back.
 
+When OpenRouter is set up (your connection or the platform's key), [Jev](https://openrouter.ai/docs/guides/community/jev), a small decision model, reads the end of each turn's reply and tells done apart from waiting for you. A chat whose agent is waiting shows why under its name, in amber, until you send the next message:
+
+| Label                        | The agent…                                                                   |
+| ---------------------------- | ---------------------------------------------------------------------------- |
+| **Needs your answer**        | Asked you a question it needs answered to go on                              |
+| **Needs something from you** | Needs a secret or key, a sign-in, a payment, or a decision only you can make |
+| **Stuck**                    | Couldn't finish: it hit an error it couldn't fix, or gave up                 |
+
+The label shows on the project, on each task in the sidebar, on **Main** in an opened project, and on the task's card on the [board](/guides/tasks#the-board). A finished turn has no label. Without Jev, there are no labels.
+
 Each project has a tile showing its [app icon](/guides/app-icon), or its first letter until it has one. The badge on the tile's corner shows what the project is doing:
 
 | Badge         | Meaning                                                                                                                |
 | ------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Pulsing amber | The agent is working. The step it's on shows under the name, such as "Editing routes/web.php", and updates as it goes. |
+| Pulsing amber | The agent is working. What it's doing shows under the name in plain words, such as "Building the orders page" or "Testing the app", and updates as it goes. The chat shows each step in detail. |
 | Green         | The app is [published](/guides/publish).                                                                               |
 | Red           | The sandbox failed. "Sandbox failed" shows under the name; open the project to see the error.                          |
 

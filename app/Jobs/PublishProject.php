@@ -3,7 +3,9 @@
 namespace App\Jobs;
 
 use App\Enums\PublishStatus;
+use App\Enums\PublishVisibility;
 use App\Models\Project;
+use App\Sandbox\AbuseCheck;
 use App\Sandbox\Publishing\Publishers;
 use App\Sandbox\Publishing\PublishException;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -20,10 +22,16 @@ class PublishProject implements ShouldQueue
     public function __construct(public Project $project) {}
 
     /**
-     * Start the endpoint, then let ConfirmPublication wait for it to come up.
+     * On the hosted install, check a public app for abuse first (PUB-003): one that looks like it waits for a
+     * platform admin instead. Then start the endpoint, and let ConfirmPublication wait for it to come up.
      */
-    public function handle(Publishers $publishers): void
+    public function handle(Publishers $publishers, AbuseCheck $abuse): void
     {
+        if ($this->project->publish_visibility === PublishVisibility::Public && $abuse->enabled()
+            && $abuse->run($this->project, 'publish')->blocksPublic()) {
+            return;
+        }
+
         try {
             $publishers->forProject($this->project)->start($this->project);
         } catch (PublishException $e) {

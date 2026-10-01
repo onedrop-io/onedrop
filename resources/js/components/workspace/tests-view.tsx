@@ -19,7 +19,7 @@ import { requirementNames, useRequirements } from '@/hooks/use-requirements';
 import { useWorkspaceTests } from '@/hooks/use-workspace-tests';
 import { askAgent } from '@/lib/ask-agent';
 import { jsonRequest } from '@/lib/json-request';
-import type { WorkspaceTest } from '@/hooks/use-workspace-tests';
+import type { TestTriage, WorkspaceTest } from '@/hooks/use-workspace-tests';
 import { cn } from '@/lib/utils';
 import type { Project } from '@/types/projects';
 
@@ -321,6 +321,17 @@ export default function TestsView({
                                                 <StatusIcon test={test} />
                                                 <span className="min-w-0 flex-1">
                                                     {test.title}
+                                                    {test.result?.triage && (
+                                                        <span
+                                                            className="block text-xs text-muted-foreground"
+                                                            data-test="test-row-triage"
+                                                        >
+                                                            {triageLabel(
+                                                                test.result
+                                                                    .triage,
+                                                            )}
+                                                        </span>
+                                                    )}
                                                 </span>
                                                 {test.result && (
                                                     <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
@@ -417,6 +428,16 @@ function TestDetail({
                     Run
                 </button>
             </div>
+            {result?.triage && (
+                <p
+                    className="mt-3 text-sm font-medium"
+                    title={`Jev, a decision model, is ${Math.round(result.triage.probability * 100)}% sure`}
+                    data-test="test-triage"
+                    data-verdict={result.triage.verdict}
+                >
+                    {triageLabel(result.triage)}
+                </p>
+            )}
             {result?.error && (
                 <pre
                     className="mt-3 overflow-x-auto rounded-md bg-red-500/10 p-3 font-mono text-xs whitespace-pre-wrap text-red-700 dark:text-red-300"
@@ -632,6 +653,16 @@ const number = (id: string) => Number(id.replace(/\D/g, ''));
 /** A step as a person would say it: `Click getByRole('button')`. */
 const stepLabel = (step?: { title: string; subtitle: string | null }) =>
     step ? [step.title, step.subtitle].filter(Boolean).join(' ') : null;
+
+/** Why Jev thinks a test failed (TEST-008), e.g. "Likely: the test is out of date". */
+const triageLabel = (triage: TestTriage) =>
+    `Likely: ${
+        {
+            app: 'the app broke',
+            test: 'the test is out of date',
+            flaky: 'flaky or timing',
+        }[triage.verdict]
+    }`;
 
 const seconds = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
 

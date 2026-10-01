@@ -2,6 +2,7 @@ import { Link, router } from '@inertiajs/react';
 import {
     ChartArea,
     BookOpen,
+    Building2,
     CircleHelp,
     FolderGit2,
     LogOut,
@@ -28,6 +29,7 @@ import { useOrganization } from '@/hooks/use-organization';
 import { DOCUMENTATION_URL, REPOSITORY_URL } from '@/lib/links';
 import { logout } from '@/routes';
 import { index as invitationsIndex } from '@/routes/invitations';
+import { usage as organizationUsage } from '@/routes/organizations';
 import { edit } from '@/routes/profile';
 import { index as usageIndex } from '@/routes/usage';
 import type { User } from '@/types';
@@ -85,6 +87,20 @@ export function UserMenuContent({ user }: Props) {
                         Usage
                     </Link>
                 </DropdownMenuItem>
+                {organization.manages && (
+                    <DropdownMenuItem asChild>
+                        <Link
+                            className="w-full cursor-pointer"
+                            href={organizationUsage(organization.slug)}
+                            prefetch
+                            onClick={cleanup}
+                            data-test="organization-usage-link"
+                        >
+                            <Building2 />
+                            {organization.name} usage
+                        </Link>
+                    </DropdownMenuItem>
+                )}
                 <DropdownMenuItem asChild>
                     <Link
                         className="w-full cursor-pointer"

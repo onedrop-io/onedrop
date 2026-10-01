@@ -250,7 +250,7 @@ test('the sidebar shows the agent\'s latest step in its current run', function (
     $this->project->update(['status' => ProjectStatus::Working]);
 
     expect(sidebarProjects($this->user)['recent'][0])
-        ->toMatchArray(['working' => true, 'activity' => 'Editing routes/web.php', 'failed' => false]);
+        ->toMatchArray(['working' => true, 'activity' => 'Connecting the pages', 'failed' => false]);
 
     // A new prompt starts a new run, so the previous run's steps no longer apply.
     $this->project->messages()->create(['role' => MessageRole::User, 'content' => 'Add due dates']);

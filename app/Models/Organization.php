@@ -9,7 +9,9 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
@@ -19,11 +21,13 @@ use Illuminate\Support\Str;
  * @property int $id
  * @property string $name
  * @property string $slug
+ * @property string|null $logo_path Its logo on the local disk (ORG-005), or null for its initial
+ * @property string|null $logo_hash Changes with the logo, so browsers can cache it
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read OrganizationMember $pivot Set on organizations loaded through a user's organizations
  */
-#[Fillable(['name', 'slug'])]
+#[Fillable(['name', 'slug', 'logo_path', 'logo_hash'])]
 class Organization extends Model
 {
     /** @use HasFactory<OrganizationFactory> */
@@ -59,6 +63,37 @@ class Organization extends Model
     {
         return static::query()->oldest('id')->first()
             ?? static::createNamed((string) config('app.name', 'OneDrop'));
+    }
+
+    /**
+     * Replace its logo with an uploaded image (ORG-005).
+     */
+    public function storeLogo(UploadedFile $file): void
+    {
+        $this->removeLogo();
+
+        $path = $file->storeAs('organization-logos', $this->id.'-'.Str::random(8).'.'.($file->extension() === 'svg' ? 'svg' : $file->guessExtension()), 'local');
+
+        $this->update(['logo_path' => $path, 'logo_hash' => substr((string) hash_file('sha256', $file->getRealPath()), 0, 12)]);
+    }
+
+    /**
+     * Go back to its initial.
+     */
+    public function removeLogo(): void
+    {
+        if ($this->logo_path !== null) {
+            Storage::disk('local')->delete($this->logo_path);
+            $this->update(['logo_path' => null, 'logo_hash' => null]);
+        }
+    }
+
+    /**
+     * Its logo's address (changing with the file, so browsers can cache it), or null for its initial.
+     */
+    public function logoUrl(): ?string
+    {
+        return $this->logo_hash !== null ? route('organizations.logo', [$this, 'v' => $this->logo_hash], false) : null;
     }
 
     /**
@@ -125,6 +160,37 @@ class Organization extends Model
 
         $this->members()->attach($user, ['role' => $role->value]);
         $user->forgetOrganizationRoles();
+    }
+
+    /**
+     * Take someone out of the organization and its groups (ORG-004). Their projects stay, out of their reach.
+     */
+    public function removeMember(User $user): void
+    {
+        $this->groups()->each(fn (Group $group) => $group->members()->detach($user));
+        $this->members()->detach($user);
+        $user->forgetOrganizationRoles();
+
+        if ($user->current_organization_id === $this->id) {
+            $user->forceFill(['current_organization_id' => null])->saveQuietly();
+        }
+    }
+
+    /**
+     * How many owners it has. It always keeps at least one.
+     */
+    public function ownerCount(): int
+    {
+        return $this->members()->wherePivot('role', OrganizationRole::Owner->value)->count();
+    }
+
+    /**
+     * Whether the user owns it, or on a self-hosted install is a platform admin (who stands in for its owner).
+     */
+    public function isOwnedBy(User $user): bool
+    {
+        return $user->organizationRole($this) === OrganizationRole::Owner
+            || ($user->is_admin && ! static::multiTenant() && $user->belongsToOrganization($this));
     }
 
     /**

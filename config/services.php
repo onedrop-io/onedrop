@@ -98,6 +98,14 @@ return [
     |
     */
 
+    // Jev, OpenRouter's decision model, checks that the agent kept the requirements and tests (TEST-007). Used
+    // when the project's owner has no OpenRouter connection of their own (or Nimble on their own Ollama server,
+    // AI-007); without any, there's no check.
+    'openrouter' => [
+        'key' => env('OPENROUTER_API_KEY'),
+        'jev_model' => env('JEV_MODEL', 'typesafe/jev-1.13'),
+    ],
+
     'github_app' => [
         'id' => env('GITHUB_APP_ID'),
         'slug' => env('GITHUB_APP_SLUG'),

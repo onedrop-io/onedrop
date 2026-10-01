@@ -8,6 +8,21 @@ Admins find install-wide settings under **Admin** in [Settings](/guides/settings
 
 Settings saved here win over the matching values in `.env`. OneDrop tells running queue workers to restart after their current job, so they use the new settings too.
 
+## Organizations
+
+On the hosted install (`APP_MULTI_TENANT=true`), **Organizations** under **Admin** lists every organization, newest first: its address, owners, and how many members and projects it has. Search by name or address. Owners link to their user pages; the list never opens an organization's projects. See [Organizations](/guides/organizations).
+
+## Reviews
+
+On the hosted install (`APP_MULTI_TENANT=true`, with `OPENROUTER_API_KEY` set), OneDrop asks [Jev](https://openrouter.ai/docs/guides/community/jev) whether an app looks like abuse before it's published publicly or shared: phishing or impersonating a real brand, a scam or malware, or something else clearly harmful. Jev sees the project's name, its first and latest prompts, and the home page's title, visible text, form fields and where its forms send. The check always uses the platform's key, never the owner's.
+
+An app that looks 80% likely or more to be one of those is held: its public app stays offline (the owner sees **Waiting for a review**) and its share page is hidden. Held apps are listed under **Admin → Reviews**, with how likely each kind of abuse looked and what Jev saw.
+
+- **Approve** lets it through: a held publish goes live and the share page comes back. An approval stands until the owner sends the agent another message.
+- **Take down** takes the public app offline and deletes the share page. The owner can't publish it publicly or share it again until an admin approves it; publishing privately still works.
+
+Public and shared apps are checked again after the agent's next turns, at most once a day per project. If Jev can't be reached, apps are published as normal and the error is reported. Self-hosted installs (one organization) aren't checked.
+
 ## Name and logo
 
 **Settings → General** changes the name shown in the sidebar, the browser tab, and emails. Leave it empty to go back to `APP_NAME`.

@@ -3,12 +3,14 @@ import {
     Activity,
     Bell,
     Box,
+    Building2,
     DatabaseBackup,
     Globe,
     Palette,
     Settings,
     Settings2,
     Shield,
+    ShieldAlert,
     Sparkles,
     User,
     UserCog,
@@ -30,16 +32,19 @@ import { dashboard } from '@/routes';
 import { index as backupsIndex } from '@/routes/admin/backups';
 import { edit as editGeneral } from '@/routes/admin/general';
 import { show as showMonitoring } from '@/routes/admin/monitoring';
+import { index as reviewsIndex } from '@/routes/admin/reviews';
 import { index as sandboxesIndex } from '@/routes/admin/sandboxes';
 import { edit as editServer } from '@/routes/admin/server';
 import { index as aiSettings } from '@/routes/agent-connections';
 import { edit as editAppearance } from '@/routes/appearance';
 import { index as groupsIndex } from '@/routes/groups';
+import { edit as editOrganization } from '@/routes/organizations';
 import { index as invitationsIndex } from '@/routes/invitations';
 import { edit as editNotifications } from '@/routes/notifications';
 import { edit } from '@/routes/profile';
 import { edit as editSecurity } from '@/routes/security';
 import { index as usersIndex } from '@/routes/users';
+import { index as adminOrganizationsIndex } from '@/routes/admin/organizations';
 import type { NavItem } from '@/types';
 
 type NavSection = { title: string; items: NavItem[] };
@@ -59,6 +64,11 @@ const accountSection: NavSection = {
 const peopleSection = (organization: string): NavSection => ({
     title: 'People',
     items: [
+        {
+            title: 'Organization',
+            href: editOrganization(organization),
+            icon: Building2,
+        },
         { title: 'Groups', href: groupsIndex(organization), icon: Users },
         {
             title: 'Invite people',
@@ -68,27 +78,43 @@ const peopleSection = (organization: string): NavSection => ({
     ],
 });
 
-const adminSection: NavSection = {
+/** Install-wide settings; Organizations (ORG-006) and Reviews (ADMIN-006) only on the hosted install. */
+const adminSection = (multiTenant: boolean): NavSection => ({
     title: 'Admin',
     items: [
         { title: 'Users', href: usersIndex(), icon: UserCog },
+        ...(multiTenant
+            ? [
+                  {
+                      title: 'Organizations',
+                      href: adminOrganizationsIndex(),
+                      icon: Building2,
+                  },
+                  // Apps held by the abuse check (ADMIN-006).
+                  {
+                      title: 'Reviews',
+                      href: reviewsIndex(),
+                      icon: ShieldAlert,
+                  },
+              ]
+            : []),
         { title: 'General', href: editGeneral(), icon: Settings2 },
         { title: 'Sandboxes', href: sandboxesIndex(), icon: Box },
         { title: 'Monitoring', href: showMonitoring(), icon: Activity },
         { title: 'Server', href: editServer(), icon: Globe },
         { title: 'Backups', href: backupsIndex(), icon: DatabaseBackup },
     ],
-};
+});
 
 /** Settings pages render in a modal over the app; closing it returns to the page you came from. */
 export default function SettingsLayout({ children }: PropsWithChildren) {
-    const { auth } = usePage().props;
+    const { auth, multiTenant } = usePage().props;
     const organization = useOrganization();
     const { isCurrentOrParentUrl } = useCurrentUrl();
 
     const people = peopleSection(organization.slug);
     const sections = auth.user.is_admin
-        ? [accountSection, people, adminSection]
+        ? [accountSection, people, adminSection(multiTenant)]
         : [accountSection, people];
 
     const close = () => {

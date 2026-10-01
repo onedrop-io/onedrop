@@ -5,6 +5,8 @@ export type OrganizationSummary = {
     id: number;
     name: string;
     slug: string;
+    /** Its logo (ORG-005), or null to show its initial. */
+    logo_url: string | null;
 };
 
 /** The organization the page is in. */

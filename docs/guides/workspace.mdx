@@ -21,7 +21,7 @@ Drag the divider between the chat and the workspace to make either one wider, or
 | **Tests**   | The agent's browser tests, with a recording of each ([Tests](/guides/tests)) | Yes |
 | File tabs   | An editor for a file you opened                           | Yes       |
 
-Add Console, Shell, Requirements or Tests from the **+** button. Each time you choose **Shell** you get another one (**Shell 2**, **Shell 3**…), each with its own session. Drag the tabs you can close to put them in a different order; Tools and Preview always stay first. A shell keeps its session while you switch tabs, and the cursor lands in it whenever you open the tab, so you can start typing right away. It opens with a OneDrop banner showing the project's name and a few shortcuts.
+Add Console, Shell, Requirements or Tests from the **+** button. Each time you choose **Shell** you get another one (**Shell 2**, **Shell 3**…), each with its own session. Drag the tabs you can close to put them in a different order; Tools and Preview always stay first. A shell keeps its session while you switch tabs or [reload the page](#reloading-the-page), and the cursor lands in it whenever you open the tab, so you can start typing right away. It opens with a OneDrop banner showing the project's name and a few shortcuts.
 
 ### Panes
 
@@ -32,7 +32,17 @@ Split the workspace to see two things at once, like the preview next to a Shell,
 - Drag the line between two panes to resize them, or double-click it to make them all the same size.
 - Click **×** at the right of a pane's tab bar to close the pane; its tabs move into the pane next to it. A pane also closes when its last tab is closed or moved away.
 
+### Reloading the page
+
+Reloading a project's page brings the workspace back as you left it in that browser tab: the same panes, tabs and sizes, the open file and Tools section, the files panel's search and open folders, and the chat's half-typed message and scroll position. The preview comes back on the page of your app it was showing, and **Reload preview** keeps that page too.
+
+Shells come back with the same session, so what was on screen and anything still running (a dev server, a long install, an editor) is still there. A Shell whose tab you close ends a few minutes later. A new browser tab on the same project starts with the usual layout and its own new Shells.
+
+<Note>Sandboxes made before this pick it up once they update to the latest image; until then their Shells start fresh after a reload.</Note>
+
 To see how the app looks on a smaller screen, click the size button in the Preview's header and choose **Tablet** (768px wide) or **Mobile** (390px wide). The app shows at that width in the middle of the pane, so its own responsive styles kick in. **Desktop** fills the pane again. Your choice is remembered in this browser for every project.
+
+To point at something in the app for the agent, click **Annotate** (the brush) in the Preview's header and draw on it. See [Draw on the preview](/guides/build-a-project#draw-on-the-preview).
 
 | Command                  | What it does                                                             |
 | ------------------------ | ------------------------------------------------------------------------ |
@@ -60,9 +70,9 @@ The agent sees your app's errors, whatever it's built with. The sandbox records 
 
 When a page in the preview hits an error, a bar shows it over the preview. Click **Fix it** to send the error to the agent. The request shows up in the chat, and if the agent is busy, it runs next. Dismiss the bar with **×**.
 
-After each agent turn, OneDrop loads the app's home page and checks for new errors from the preview. If it finds any, it sends them to the agent once, automatically. The run that request starts isn't checked again, so this can't loop. Errors from visitors to the published app are recorded for the agent too, but they never start a run on their own.
+After each agent turn, OneDrop loads the app's home page and checks for new errors from the preview. If it finds any, it sends them to the agent once, automatically. When OpenRouter is set up (your connection or the platform's key), [Jev](https://openrouter.ai/docs/guides/community/jev), a small decision model, first sorts out the noise: errors from a hot-reload rebuild or restart, a browser extension, a missing favicon, or a dev-only warning aren't sent, and when every error is noise, nothing is. Without Jev, every new error is sent. The run that request starts isn't checked again, so this can't loop. Errors from visitors to the published app are recorded for the agent too, but they never start a run on their own.
 
-To turn this automatic fixing off for a project, click **Autofix** in the chat's controls, next to the model picker. Click it again to turn it back on. It's on for new projects. **Fix it** works either way.
+To turn this automatic fixing off for a project, click **Autofix** in the chat's controls, next to the model picker. Click it again to turn it back on. It's on for new projects. **Fix it** works either way, and always sends the error you clicked it for.
 
 ## Tools
 

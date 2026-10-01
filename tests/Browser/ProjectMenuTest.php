@@ -135,7 +135,7 @@ test('the sidebar shows what each project is doing, also when collapsed', functi
     $sidebar = '[data-sidebar="sidebar"]';
 
     $page = visit('/dashboard')
-        ->assertSeeIn($sidebar, 'Editing routes/web.php')
+        ->assertSeeIn($sidebar, 'Connecting the pages')
         ->assertSeeIn($sidebar, 'Sandbox failed')
         ->assertVisible('@sidebar-project-working')
         ->assertVisible('@sidebar-project-live')

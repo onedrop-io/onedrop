@@ -20,10 +20,11 @@ use Illuminate\Support\Carbon;
  * @property MessageRole $role
  * @property string $content
  * @property bool $queued
+ * @property array<string, mixed>|null $meta what was decided when it was sent: the model Auto picked (`selection`, and the chat line saying so, `auto_note`), an earlier decision it changes (`changes_decision`), notes for the agent that the chat doesn't show (`agent_context`, e.g. what a marked-up picture of the preview points at, AGT-013)
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['role', 'content', 'queued'])]
+#[Fillable(['role', 'content', 'queued', 'meta'])]
 class Message extends Model
 {
     use BroadcastsProjectChanges;
@@ -41,6 +42,7 @@ class Message extends Model
         return [
             'role' => MessageRole::class,
             'queued' => 'boolean',
+            'meta' => 'array',
         ];
     }
 

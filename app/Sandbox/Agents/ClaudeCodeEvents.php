@@ -2,6 +2,7 @@
 
 namespace App\Sandbox\Agents;
 
+use App\Enums\AgentFailure;
 use App\Enums\AgentHarness;
 use App\Enums\AgentProvider;
 use App\Enums\CredentialType;
@@ -120,7 +121,7 @@ class ClaudeCodeEvents extends AgentEvents
         }
 
         [$explanation, $signedOut] = $this->explainResult($conversation, $event);
-        $this->say($conversation, MessageRole::Assistant, $explanation);
+        $this->sayFailure($conversation, $explanation);
 
         // Run the message again once the user signs in (AI-005).
         if ($signedOut) {
@@ -213,7 +214,26 @@ class ClaudeCodeEvents extends AgentEvents
             $authFailed && $subscription => ['Your Claude sign-in has expired or was signed out. Click **Sign in to Claude** under the chat box to sign in again.'.$retry, true],
             $authFailed => ['Claude rejected your API key. Reconnect Claude in Settings → AI.', false],
             $status === 429 || $status === 529 || Str::contains($message, 'overloaded', ignoreCase: true) => ['Claude is overloaded right now. Try again in a minute.', false],
-            default => ['Something went wrong: '.Str::limit($message, 300), false],
+            default => [$this->unmatched($message, 'Something went wrong: '.Str::limit($message, 300)), false],
+        };
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function failureMessage(Conversation $conversation, AgentFailure $failure): ?string
+    {
+        $subscription = $this->usesSubscription($conversation);
+
+        return match ($failure) {
+            AgentFailure::BadKey => $subscription
+                ? 'Your Claude sign-in has expired or was signed out. Click **Sign in to Claude** under the chat box to sign in again.'
+                : 'Claude rejected your API key. Reconnect Claude in Settings → AI.',
+            AgentFailure::OutOfCredits => $subscription
+                ? "Your Claude plan's usage limit is used up for now. Try again when it resets, or connect an Anthropic API key in Settings → AI."
+                : 'Your Anthropic account is out of credits. Add credits at console.anthropic.com, then try again.',
+            AgentFailure::RateLimited => 'Claude is overloaded right now. Try again in a minute.',
+            default => parent::failureMessage($conversation, $failure),
         };
     }
 

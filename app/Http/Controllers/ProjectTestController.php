@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\SandboxStatus;
+use App\Jobs\TriageFailingTests;
 use App\Models\Project;
 use App\Models\Sandbox;
 use App\Sandbox\Agents\AgentQueue;
@@ -20,7 +21,8 @@ use Illuminate\Support\Facades\Gate;
 class ProjectTestController extends Controller
 {
     /**
-     * The tests and each one's latest result. `cached` skips looking for new tests (cheap, for polling a run).
+     * The tests and each one's latest result, with Jev's verdict on each failure once it's worked out (TEST-008).
+     * `cached` skips looking for new tests (cheap, for polling a run).
      */
     public function index(Request $request, Project $project, WorkspaceTests $tests): JsonResponse
     {
@@ -28,7 +30,7 @@ class ProjectTestController extends Controller
 
         $cached = $request->boolean('cached');
 
-        return $this->fromSandbox($project, fn ($sandbox) => response()->json($tests->status($sandbox, $cached)));
+        return $this->fromSandbox($project, fn ($sandbox) => response()->json(TriageFailingTests::annotate($project, $tests->status($sandbox, $cached))));
     }
 
     /**

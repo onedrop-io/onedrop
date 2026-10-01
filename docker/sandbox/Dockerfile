@@ -3,7 +3,7 @@
 FROM php:8.4-cli-bookworm
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends git curl unzip ca-certificates sqlite3 libsqlite3-dev libpq-dev libzip-dev procps openssh-server bash-completion vim ncdu rsync inotify-tools \
+    && apt-get install -y --no-install-recommends git curl unzip ca-certificates sqlite3 libsqlite3-dev libpq-dev libzip-dev procps openssh-server bash-completion vim ncdu rsync inotify-tools tmux \
     && docker-php-ext-install pdo_sqlite pdo_pgsql pdo_mysql zip pcntl \
     && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
@@ -53,13 +53,17 @@ RUN install -m 0755 -d /etc/apt/keyrings \
 # JSON events are parsed by the platform). Credentials arrive as env vars at run time, never at build time.
 RUN npm install -g opencode-ai@1.18.32 @anthropic-ai/claude-code@2.1.284 @openai/codex@0.159.2
 
+# modern-screenshot takes the picture of a preview page the user draws on (AGT-013); host-proxy.mjs serves it.
+RUN npm install --prefix /opt/onedrop/capture --no-save --no-audit --no-fund modern-screenshot@4.7.0 \
+    && rm -rf /root/.npm
+
 # /data/storage holds App Storage buckets: on the sandbox's disk but outside the app's code and git.
 RUN useradd --create-home --shell /bin/bash sandbox \
     && mkdir -p /workspace /data/storage && chown sandbox:sandbox /workspace /data/storage
 
 COPY placeholder /opt/onedrop/placeholder
-# fork copies the app for a task and merges its work back (TASK-003). file-watcher.mjs tells the Files panel when files come and go (FILE-004). share-card makes share cards (SHARE-001). db.php backs the Tools → Database panel (SQLite, Postgres and MySQL through PDO); auth.php backs Users & Auth; secrets.php backs Secrets; storage.php backs App Storage; git.php backs Git.
-COPY start.sh restart stop-agent shell-entry checkpoint fork share-card forwarder.mjs file-watcher.mjs host-proxy.mjs db.php auth.php secrets.php storage.php git.php skills.php instructions.md opencode.json /opt/onedrop/
+# shell-entry runs each Shell tab in its own tmux session (tmux.conf, shell-reap), so a reloaded page gets it back (LAYOUT-005). fork copies the app for a task and merges its work back (TASK-003). file-watcher.mjs tells the Files panel when files come and go (FILE-004). share-card makes share cards (SHARE-001). db.php backs the Tools → Database panel (SQLite, Postgres and MySQL through PDO); auth.php backs Users & Auth; secrets.php backs Secrets; storage.php backs App Storage; git.php backs Git.
+COPY start.sh restart stop-agent shell-entry shell-reap tmux.conf checkpoint fork share-card forwarder.mjs file-watcher.mjs host-proxy.mjs db.php auth.php secrets.php storage.php git.php skills.php instructions.md opencode.json /opt/onedrop/
 # Task guides the agent follows (e.g. guides/auth.md for adding sign-in).
 COPY guides /opt/onedrop/guides
 # Shell setup lives in /opt/onedrop (not the home folder, which updates carry over) so image changes reach every sandbox; ~/.bashrc only loads it.

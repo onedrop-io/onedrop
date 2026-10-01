@@ -7,11 +7,13 @@ use App\Enums\ProjectStatus;
 use App\Enums\PublishStatus;
 use App\Enums\SandboxStatus;
 use App\Enums\TaskStage;
+use App\Jobs\CheckTurnOutcome;
 use App\Models\Impersonation;
 use App\Models\Organization;
 use App\Models\Project;
 use App\Models\Task;
 use App\Models\User;
+use App\Sandbox\Agents\PlainActivity;
 use App\Sandbox\Agents\ProjectNamer;
 use App\Sandbox\Branding;
 use App\Sandbox\ProjectIcons;
@@ -59,8 +61,8 @@ class HandleInertiaRequests extends Middleware
             ],
             // The organization the page is in and the others the user can switch to (ORG-002).
             'organization' => fn () => $request->user() ? $this->organization($request->user(), ResolveOrganization::current($request)) : null,
-            'organizations' => fn () => $request->user()?->organizations()->orderBy('name')->get(['organizations.id', 'name', 'slug'])
-                ->map(fn (Organization $organization): array => $organization->only('id', 'name', 'slug'))->all(),
+            'organizations' => fn () => $request->user()?->organizations()->orderBy('name')->get(['organizations.id', 'name', 'slug', 'logo_hash'])
+                ->map(fn (Organization $organization): array => [...$organization->only('id', 'name', 'slug'), 'logo_url' => $organization->logoUrl()])->all(),
             'multiTenant' => Organization::multiTenant(),
             'impersonator' => fn () => $request->user() && $request->session()->has(Impersonation::SESSION_KEY)
                 ? Impersonation::current()?->admin?->only('id', 'name')
@@ -97,12 +99,13 @@ class HandleInertiaRequests extends Middleware
     }
 
     /**
-     * @return array{id: int, name: string, slug: string, role: string|null, manages: bool}
+     * @return array{id: int, name: string, slug: string, logo_url: string|null, role: string|null, manages: bool}
      */
     protected function organization(User $user, Organization $organization): array
     {
         return [
             ...$organization->only('id', 'name', 'slug'),
+            'logo_url' => $organization->logoUrl(),
             'role' => $user->organizationRole($organization)?->value,
             'manages' => $organization->isManagedBy($user),
         ];
@@ -118,10 +121,10 @@ class HandleInertiaRequests extends Middleware
     {
         $query = fn () => $user->projects()
             ->inOrganization($organization)
-            ->select(['id', 'name', 'status', 'pinned_at', 'read_at', 'archived_at', 'publish_status', 'published_url', 'icon_path', 'icon_hash'])
+            ->select(['id', 'name', 'status', 'pinned_at', 'read_at', 'archived_at', 'publish_status', 'published_url', 'icon_path', 'icon_hash', 'turn_outcome'])
             ->with([
                 'sandbox:id,project_id,status',
-                'tasks' => fn ($query) => $query->where('stage', '!=', TaskStage::Done)->select(['id', 'project_id', 'title', 'stage', 'status', 'position', 'read_at'])->withLastReply(),
+                'tasks' => fn ($query) => $query->where('stage', '!=', TaskStage::Done)->select(['id', 'project_id', 'title', 'stage', 'status', 'position', 'read_at', 'turn_outcome'])->withLastReply(),
             ])
             ->withExists(['tasks as task_working' => fn (Builder $query) => $query->where('status', ProjectStatus::Working)])
             ->withMax(['messages as last_reply_at' => fn (Builder $query) => $query->where('role', MessageRole::Assistant)], 'created_at');
@@ -149,6 +152,7 @@ class HandleInertiaRequests extends Middleware
             'published_url' => $project->publish_status === PublishStatus::Live ? $project->published_url : null,
             'working' => $project->status === ProjectStatus::Working || $project->task_working,
             'activity' => $project->status === ProjectStatus::Working ? $this->currentActivity($project) : null,
+            ...$this->waiting($project, $project->tasks),
             'tasks' => $project->tasks->map($this->summarizeTask(...))->all(),
             'failed' => $project->sandbox?->status === SandboxStatus::Failed,
             'icon_url' => ProjectIcons::url($project),
@@ -164,7 +168,7 @@ class HandleInertiaRequests extends Middleware
     /**
      * The opened project with every task, for the sidebar's project view; null when none is open or it isn't the user's.
      *
-     * @return array{id: int, name: string, working: bool, unread: bool, tasks: list<array<string, mixed>>}|null
+     * @return array{id: int, name: string, working: bool, unread: bool, main_waiting_for: string|null, waiting_for: string|null, checking: bool, tasks: list<array<string, mixed>>}|null
      */
     protected function openProject(User $user, int $projectId): ?array
     {
@@ -174,17 +178,21 @@ class HandleInertiaRequests extends Middleware
             return null;
         }
 
+        $tasks = $project->tasks()->withLastReply()->get();
+
         return [
             'id' => $project->id,
             'name' => $project->name,
             'working' => $project->status === ProjectStatus::Working,
             'unread' => $this->mainChatUnread($project->loadMax(['messages as last_reply_at' => fn (Builder $query) => $query->where('role', MessageRole::Assistant)], 'created_at')),
-            'tasks' => array_values($project->tasks()->withLastReply()->get()->map($this->summarizeTask(...))->all()),
+            'main_waiting_for' => $this->waitingFor($project),
+            ...$this->waiting($project, $tasks),
+            'tasks' => array_values($tasks->map($this->summarizeTask(...))->all()),
         ];
     }
 
     /**
-     * @return array{id: int, title: string, stage: TaskStage, working: bool, unread: bool, activity: string|null}
+     * @return array{id: int, title: string, stage: TaskStage, working: bool, unread: bool, activity: string|null, waiting_for: string|null}
      */
     protected function summarizeTask(Task $task): array
     {
@@ -195,7 +203,37 @@ class HandleInertiaRequests extends Middleware
             'working' => $task->isWorking(),
             'unread' => $this->taskUnread($task),
             'activity' => $task->isWorking() ? $task->currentActivity() : null,
+            'waiting_for' => $this->waitingFor($task),
         ];
+    }
+
+    /**
+     * Whether the project's main chat or one of the given tasks is waiting for the owner (the main chat's outcome
+     * first), and whether a turn that just ended there is still being checked, so the sidebar holds its
+     * notification for the answer (PRJ-011).
+     *
+     * @param  iterable<Task>  $tasks
+     * @return array{waiting_for: string|null, checking: bool}
+     */
+    protected function waiting(Project $project, iterable $tasks): array
+    {
+        $conversations = [$project, ...$tasks];
+
+        return [
+            'waiting_for' => collect($conversations)->map($this->waitingFor(...))->filter()->first(),
+            'checking' => collect($conversations)->contains(fn (Project|Task $conversation): bool => CheckTurnOutcome::checking($conversation)),
+        ];
+    }
+
+    /**
+     * Why the conversation's agent is waiting for the owner after its last turn (PRJ-011), or null when it's working,
+     * done, or wasn't checked.
+     */
+    protected function waitingFor(Project|Task $conversation): ?string
+    {
+        return $conversation->status !== ProjectStatus::Working && $conversation->turn_outcome?->waiting()
+            ? $conversation->turn_outcome->value
+            : null;
     }
 
     /**
@@ -217,16 +255,16 @@ class HandleInertiaRequests extends Middleware
     }
 
     /**
-     * The agent's latest step in its current run, or null before its first one.
+     * The agent's latest step in its current run, in plain words (PlainActivity), or null before its first one.
      */
     protected function currentActivity(Project $project): ?string
     {
         $lastPromptId = $project->messages()->reorder()->where('role', MessageRole::User)->max('id') ?? 0;
 
-        return $project->messages()->reorder()
+        return PlainActivity::describe($project->messages()->reorder()
             ->where('role', MessageRole::Activity)
             ->where('id', '>', $lastPromptId)
             ->latest('id')
-            ->value('content');
+            ->value('content'));
     }
 }

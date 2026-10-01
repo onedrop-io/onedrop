@@ -1,9 +1,5 @@
 export type AgentProvider =
-    | 'claude'
-    | 'codex'
-    | 'openrouter'
-    | 'gemini'
-    | 'ollama';
+    'claude' | 'codex' | 'openrouter' | 'gemini' | 'ollama';
 
 /** The coding agent that works in the sandbox. */
 export type AgentHarness = 'opencode' | 'claude_code' | 'codex';
@@ -49,4 +45,6 @@ export type AgentSelection = {
     variant: string | null;
     name: string;
     efforts: string[];
+    /** Auto (AGT-011): the model and reasoning are picked per message, from this provider. */
+    auto?: boolean;
 };

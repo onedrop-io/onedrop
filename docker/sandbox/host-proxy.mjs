@@ -660,6 +660,23 @@ const ERROR_REPORTER = `(() => {
             try { window.parent.postMessage({ onedrop: 'error', error }, '*'); } catch {}
         }
     };
+    // Tell the workspace which page is showing, so reloading the workspace comes back to it (LAYOUT-005).
+    if (window.parent !== window) {
+        const where = () => {
+            try { window.parent.postMessage({ onedrop: 'location', page: location.pathname + location.search + location.hash }, '*'); } catch {}
+        };
+        for (const name of ['pushState', 'replaceState']) {
+            const original = history[name];
+            history[name] = function () {
+                const result = original.apply(this, arguments);
+                where();
+                return result;
+            };
+        }
+        addEventListener('popstate', where);
+        addEventListener('hashchange', where);
+        where();
+    }
     const status = Number(script && script.dataset.status);
     if (status) {
         const show = () => report('server', status + ' ' + (document.title || 'Server error') + ': '
@@ -708,6 +725,143 @@ const ERROR_REPORTER = `(() => {
     }
 })();
 `;
+
+// Annotate (AGT-013): the workspace around the preview asks for a picture of the page as it's shown right now, and
+// then for the elements under the user's marks. The picture is taken in the page (modern-screenshot, loaded only
+// when asked) so it has what's open, typed and scrolled. Only the frame's own parent is answered, at its origin.
+const CAPTURE_SCRIPT_PATH = '/__onedrop/capture.js';
+const CAPTURE_LIBRARY =
+    '/opt/onedrop/capture/node_modules/modern-screenshot/dist/index.js';
+const PREVIEW_ANNOTATOR = `(() => {
+    if (window.__onedropAnnotator || window.parent === window) return;
+    window.__onedropAnnotator = true;
+    let library;
+    const load = () => library || (library = new Promise((resolve, reject) => {
+        const tag = document.createElement('script');
+        tag.src = '${CAPTURE_SCRIPT_PATH}';
+        tag.onload = () => { tag.remove(); resolve(window.modernScreenshot); };
+        tag.onerror = () => { tag.remove(); library = undefined; reject(new Error("Couldn't load the capture script")); };
+        (document.head || document.documentElement).appendChild(tag);
+    }));
+    // The viewport only: the page is moved by its scroll, fixed elements are moved back, and scrolled boxes
+    // (a dashboard's main column) keep their scroll, since a copy of the page can't be scrolled.
+    const capture = async () => {
+        const shot = await load();
+        const x = scrollX, y = scrollY;
+        const scrolled = [];
+        for (const element of document.body ? document.body.querySelectorAll('*') : []) {
+            if (element.scrollTop || element.scrollLeft) {
+                element.setAttribute('data-onedrop-scroll', element.scrollLeft + ' ' + element.scrollTop);
+                scrolled.push(element);
+            }
+        }
+        try {
+            return await shot.domToPng(document.documentElement, {
+                width: innerWidth,
+                height: innerHeight,
+                scale: Math.min(devicePixelRatio || 1, 2),
+                style: { transform: 'translate(' + -x + 'px, ' + -y + 'px)' },
+                onCloneEachNode: (copy) => {
+                    if (!(copy instanceof Element)) return;
+                    if (copy.style && copy.style.position === 'fixed') copy.style.translate = x + 'px ' + y + 'px';
+                    const scroll = copy.getAttribute('data-onedrop-scroll');
+                    if (!scroll) return;
+                    copy.removeAttribute('data-onedrop-scroll');
+                    const [left, top] = scroll.split(' ');
+                    for (const child of Array.from(copy.childNodes)) {
+                        let moved = child;
+                        if (child.nodeType === Node.TEXT_NODE) {
+                            if (!child.textContent.trim()) continue;
+                            moved = document.createElement('span');
+                            child.replaceWith(moved);
+                            moved.append(child);
+                        }
+                        if (moved.style) moved.style.translate = -left + 'px ' + -top + 'px';
+                    }
+                },
+            });
+        } finally {
+            scrolled.forEach((element) => element.removeAttribute('data-onedrop-scroll'));
+        }
+    };
+    const INLINE = new Set(['SPAN', 'B', 'I', 'EM', 'STRONG', 'SMALL', 'svg', 'path', 'g', 'use', 'circle', 'rect', 'line', 'polyline', 'polygon']);
+    const SKIP = new Set(['HTML', 'BODY']);
+    const describe = (element) => {
+        let name = element.tagName.toLowerCase();
+        if (element.id) name += '#' + element.id;
+        const classes = typeof element.className === 'string' ? element.className.trim().split(/ +/).filter(Boolean) : [];
+        if (classes.length) name += '.' + classes.slice(0, 3).join('.') + (classes.length > 3 ? '…' : '');
+        const testId = element.getAttribute('data-testid') || element.getAttribute('data-test');
+        const text = (element.innerText || element.getAttribute('aria-label') || element.getAttribute('placeholder')
+            || element.getAttribute('alt') || element.getAttribute('name') || '').replace(/ *[\\n\\r]+ */g, ' ').trim();
+        // Like a CSS selector, then the text in brackets: button#save.btn ("Save changes").
+        return name + (testId ? '[data-test="' + testId + '"]' : '')
+            + (text ? ' ("' + (text.length > 80 ? text.slice(0, 79) + '…' : text) + '")' : '');
+    };
+    // The element a mark points at: for a box, the one under its middle that fits it best; for a point, the one
+    // there, skipping the icons and formatting inside it (a button, not its svg).
+    const elementAt = (mark) => {
+        const stack = document.elementsFromPoint(mark.x + mark.width / 2, mark.y + mark.height / 2)
+            .filter((element) => !SKIP.has(element.tagName));
+        if (!stack.length) return null;
+        if (mark.width > 8 && mark.height > 8) {
+            const area = mark.width * mark.height;
+            let best = null, bestScore = 0;
+            for (const element of stack) {
+                const box = element.getBoundingClientRect();
+                const overlap = Math.max(0, Math.min(box.right, mark.x + mark.width) - Math.max(box.left, mark.x))
+                    * Math.max(0, Math.min(box.bottom, mark.y + mark.height) - Math.max(box.top, mark.y));
+                const score = overlap / (area + box.width * box.height - overlap);
+                if (score > bestScore) { best = element; bestScore = score; }
+            }
+            if (best) return describe(best);
+        }
+        let element = stack[0];
+        while (INLINE.has(element.tagName) && element.parentElement && !SKIP.has(element.parentElement.tagName)) {
+            element = element.parentElement;
+        }
+        return describe(element);
+    };
+    addEventListener('message', async (event) => {
+        const data = event.data;
+        if (event.source !== window.parent || !data || typeof data !== 'object') return;
+        const reply = (message) => {
+            try { window.parent.postMessage({ ...message, id: data.id }, event.origin === 'null' ? '*' : event.origin); } catch {}
+        };
+        if (data.onedrop === 'capture') {
+            try {
+                reply({ onedrop: 'captured', image: await capture(), width: innerWidth, height: innerHeight, page: location.pathname + location.search + location.hash });
+            } catch (error) {
+                reply({ onedrop: 'captured', error: String((error && error.message) || error) });
+            }
+        } else if (data.onedrop === 'inspect' && Array.isArray(data.marks)) {
+            reply({ onedrop: 'inspected', elements: data.marks.slice(0, 50).map((mark) => {
+                try { return elementAt(mark); } catch { return null; }
+            }) });
+        }
+    });
+})();
+`;
+
+/** The page-capture library the annotator loads (pinned in the Dockerfile), read once. */
+let captureLibrary;
+
+function serveCaptureLibrary(res) {
+    try {
+        captureLibrary ??= readFileSync(CAPTURE_LIBRARY);
+    } catch {
+        res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+        res.end('Capture library not installed');
+
+        return;
+    }
+
+    res.writeHead(200, {
+        'content-type': 'text/javascript; charset=utf-8',
+        'cache-control': 'public, max-age=86400',
+    });
+    res.end(captureLibrary);
+}
 
 /** Add the error reporter to a preview page, first thing in its head (or body), so it sees the app's first errors. */
 function withErrorReporter(html, status) {
@@ -1262,7 +1416,13 @@ const server = http.createServer((req, res) => {
             'content-type': 'text/javascript; charset=utf-8',
             'cache-control': 'no-cache',
         });
-        res.end(ERROR_REPORTER);
+        res.end(ERROR_REPORTER + PREVIEW_ANNOTATOR);
+
+        return;
+    }
+
+    if (req.method === 'GET' && path === CAPTURE_SCRIPT_PATH) {
+        serveCaptureLibrary(res);
 
         return;
     }

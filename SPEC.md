@@ -91,38 +91,42 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - A self-hosted install should have one organization that everything already there moves into, and look the same as before (no switcher).
 - User's profile, sign-in methods, SSH keys and AI connections should stay theirs in every organization they belong to.
 
-## ORG-002: Switch organizations (switcher planned)
+## ORG-002: Switch organizations
 
 - An organization's own pages (new project, groups, invites) should have addresses under `/o/<slug>/`; a project's pages keep `/projects/<id>` and are in the project's organization. Two tabs can be in two organizations.
 - The sidebar should list the projects of the organization the page is in; new projects and search should stay in it.
 - Opening an organization's page or a project should make it the user's current organization; signing in (and `/dashboard`) should take them there.
-- (Planned) User who belongs to more than one organization should be able to switch from the sidebar, and land on that organization's new-project page.
+- User should see the organization they're in (its logo or initial, and name) at the top of the sidebar on the hosted install, or whenever they belong to more than one.
+- User should be able to switch to another of their organizations from it, and land on that organization's new-project page; it should also open the organization's settings.
 
-## ORG-003: Create an organization (planned)
+## ORG-003: Create an organization
 
 - On the hosted install, someone signing up without an invite should get a new organization they own, named after them ("Ada's organization"); someone signing up through an invite should join the inviter's organization instead.
-- (Planned) User should be able to rename their organization.
-- On the hosted install, user should be able to create another organization and become its owner.
+- On the hosted install, user should be able to create another organization from the switcher, with a name; they become its owner and land on its new-project page.
 - On a self-hosted install, new sign-ups should join the one organization, and creating more should not be offered.
 
-## ORG-004: Manage an organization's members (planned)
+## ORG-004: Manage an organization's members
 
-- Organization owners and admins should be able to see its members, change their role (owner, admin, member) and remove them.
+- User should see their organization's members (name, email, role, when they joined) in Settings → Organization.
+- Organization owners and admins should be able to change a member's role between member and admin; only owners should be able to make someone an owner, or change or remove an owner.
 - An organization should always keep at least one owner.
-- A member should be able to leave an organization.
-- A removed member should lose access to its projects at once; their projects should stay in the organization. (Built.)
-- Invites should be for an organization: accepting one should join it (signing up first if needed). (Built.)
+- On the hosted install, organization owners and admins should be able to remove a member, and a member should be able to leave. Leaving or being removed should take them out of the organization's groups and away from its projects at once; their projects should stay in the organization.
+- On a self-hosted install, nobody should be able to leave or be removed from its one organization (an admin deletes the account instead).
+- Members who aren't owners or admins should see the list but not change it.
+- Invites should be for an organization: accepting one should join it (signing up first if needed).
 
-## ORG-005: Organization settings (planned)
+## ORG-005: Organization settings
 
-- Organization owners and admins should be able to change its name, slug and logo, and see its AI usage.
-- Groups should belong to an organization, and only its members can be added to them. (Built.)
-- Organization owners and admins should be able to manage every group and project in their organization. (Built.)
+- Organization owners and admins should be able to change its name and its address (`/o/<slug>`: lowercase letters, numbers and dashes, not taken by another organization), and land on the new address.
+- Organization owners and admins should be able to see its AI usage at `/o/<slug>/usage` from the account menu: the Usage page for every project in the organization, with a breakdown by person too.
+- Organization owners and admins should be able to give it a logo (PNG, JPEG, WebP or SVG, up to 1 MB) in Settings → Organization, shown in the switcher, and remove it to go back to its initial. Only its members can load it.
+- Groups should belong to an organization, and only its members can be added to them.
+- Organization owners and admins should be able to manage every group and project in their organization.
 
-## ORG-006: Platform admin (planned)
+## ORG-006: Platform admin
 
 - Platform admins should keep the install-wide settings: sandbox providers, server, monitoring and backups.
-- On the hosted install, platform admins should see every organization with its member and project counts.
+- On the hosted install, platform admins should see every organization in Settings → Admin → Organizations: its name, address, owners, member and project counts, and when it was made, newest first, searchable by name or address. They shouldn't be able to open its projects from there.
 - Being a platform admin should not give access to an organization's projects, groups or members on the hosted install; on a self-hosted install platform admins run its one organization. (Built.)
 
 ## ORG-007: "Everyone" means the organization
@@ -168,6 +172,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see who they're signed in to Claude as under the chat box, once signed in.
 - One sign-in should work in all of the user's sandboxes where the sandbox provider supports a shared login folder (Docker); elsewhere each sandbox signs in once. The folder is only mounted into sandboxes of projects the user owns.
 - User should be told to sign in to Claude, or sign in again, when a Claude Code run finds they aren't signed in or their sign-in expired.
+- User should see "Sign in to Claude" under the chat box whenever a message is waiting for them to sign in, even if the sign-in can't be checked right now (e.g. the sandbox is paused, or several chats are checking at once).
 - When Claude rejects the sign-in (e.g. a token revoked because the shared login was refreshed elsewhere), the message should run once more by itself; if it's rejected again, Claude Code should be signed out in that sandbox, so the chat box stops saying they're signed in and shows "Sign in to Claude" instead.
 - Once the user signs in (e.g. in the Shell tab), the chat should carry on by itself: the message that failed because they weren't signed in runs again, unless they've sent another since. This should also happen when the chat was reloaded or reopened while they signed in.
 - Pasting a Claude subscription token (`sk-ant-oat…`) should be refused with a pointer to "Use my Claude subscription"; tokens saved before this change are deleted.
@@ -189,6 +194,14 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - The server should be checked before it's stored: user should see an error when it can't be reached, needs a key, rejects the key, or doesn't answer like Ollama.
 - User should see an error for a private, loopback or internal address (sandboxes can't reach it, and the platform won't call it); a local install allows them, and in Docker sandboxes `localhost` means the user's machine.
 - User should be able to pick any model on their server in the model picker, shown at no cost, and see the server's host on the connection instead of a key's last characters.
+
+## AI-007: Platform checks run on Nimble on your own Ollama server
+
+- When the project owner has connected their own Ollama server (AI-006) and pulled Nimble on it (`ollama pull nimble`), the platform's decision checks (Jev's: turn outcome, requirements kept, preview errors, test triage, failure causes, message checks and Auto's size) should be asked of Nimble on that server instead of Jev on OpenRouter, even when the owner also has an OpenRouter key.
+- The checks should go to the server's `/v1/systemone` with the server's key, under the name Nimble has there (e.g. `nimble:latest`), through the same private-address guard as the rest of AI-006.
+- A server without Nimble should leave the checks on OpenRouter as before (the owner's key, else the platform's).
+- When Nimble errors or times out, the check should fail the way a Jev failure does, without asking OpenRouter instead.
+- The hosted install's abuse check (PUB-003) should keep using the platform's OpenRouter key.
 
 ## PRJ-001: Start a new project
 
@@ -242,7 +255,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 - User should see a small colored tile with the project's initial beside each project in the sidebar; the same project always gets the same color.
 - User should see a pulsing badge on a project's tile while its agent is working, a green badge when the app is published, and a red badge when its sandbox failed.
-- User should see the agent's latest step (e.g. "Editing routes/web.php") under the project's name while it works, or "Working…" before its first step, updating without reloading.
+- User should see the agent's latest step in plain words under the project's name while it works (e.g. "Building the orders page", "Installing tools", "Testing the app", never a file path or a command), or "Working…" before its first step, updating without reloading. The same goes for tasks in the sidebar and on the board; the chat keeps the exact step.
 - User should see "Sandbox failed" under the name when the project's sandbox failed.
 - User should still see their pinned and recent projects as tiles when the sidebar is collapsed to icons, with the name on hover.
 
@@ -250,7 +263,8 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 - User should be able to turn on desktop notifications under Settings → Notifications; turning them on asks the browser for permission and then shows a "Notifications are on" notification, so they can see notifications get through.
 - While the agent is working, user should see a prompt in the chat offering desktop notifications ("Turn on" / "Not now"), until they're turned on or the user picks "Not now" (remembered in their browser).
-- User should get a desktop notification with the project's name when its agent finishes working, even while they're on another page or another tab.
+- User should get a desktop notification with the project's name when its agent finishes working, even while they're on another page or another tab; it says "Ready for your review".
+- When the agent is waiting for the user (PRJ-011), the notification should say so instead: "Needs your answer", "Needs something from you", or "Got stuck and needs your help". The notification waits for that check (up to 20 seconds), then falls back to "Ready for your review".
 - User should not be notified about the project they're looking at in a focused window.
 - User should be able to click the notification to open the project.
 - User should see why notifications can't be turned on when their browser doesn't support them or has blocked them for the app, and how to unblock them.
@@ -296,6 +310,14 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Under "Manual", the "Recent" heading should read "Projects", since the list isn't by date anymore.
 - The sort and the order should be remembered on their account, across devices.
 - User should not be able to reorder someone else's projects.
+
+## PRJ-011: See which chats are waiting for an answer
+
+- After each agent turn, in the main chat and in tasks, the platform should ask Jev (TypeSafe's decision model on OpenRouter) how the turn ended: finished, asking the user a question, needing something from the user (a secret or key, a sign-in, a payment, a decision), or stuck (an error it couldn't fix, gave up).
+- User should see why a chat is waiting under the project's name in the sidebar ("Needs your answer", "Needs something from you" or "Stuck", in amber), on each task in the sidebar, on "Main" in an opened project, and on the task's card on the board. A finished turn shows nothing new.
+- The label should stay until the chat's next run starts, and not show while its agent is working.
+- The check should use the project owner's OpenRouter connection when they have one, otherwise the platform's `OPENROUTER_API_KEY`. Without either, or when Jev can't be reached, isn't sure (below 50%) or doesn't answer, nothing changes: the turn shows as done, as before.
+- A turn the user stopped, or that has no reply from the agent, shouldn't be labelled.
 
 ## SBX-001: A sandbox per project
 
@@ -502,6 +524,15 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Changing the size shouldn't reload the preview.
 - User's choice should be remembered in their browser across reloads and projects.
 
+## LAYOUT-005: Reloading keeps the workspace as it was
+
+- User should see the same panes, tabs, pane sizes and showing tab after reloading a project's page, including Shells, the open file, the Tools section and the Tests tab's requirement.
+- User's Shells should come back with the same session after a reload: what was on screen and anything still running in them are still there.
+- User should see the preview on the page of the app it was on before the reload.
+- User should find a half-typed chat message, the files panel's search and recently opened files (for "Go to file") still there after a reload, and the chat scrolled where it was.
+- A new browser tab on the same project should start with the default layout and new Shells, not share the other tab's.
+- A Shell tab that's closed should end its session.
+
 ## PUB-001: Publish a project
 
 - User should be able to publish a project from a Publish button in the workspace header.
@@ -677,6 +708,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be able to star models and find them under Favorites.
 - User should see the models they chose most recently at the top of each provider's list, above the featured ones.
 - User should be able to choose a reasoning level supported by the chosen model (e.g. Low, Medium, High, Extra high, Max), or leave it on the default.
+- User should be able to choose Auto instead of a model in the project chat, so the model and reasoning level are picked for each message (AGT-011).
 - User should be able to pick the model when starting a new project, and change it in the project's chat at any time; the next message uses the new choice.
 - User should see the agent, model, reasoning and Autofix controls fit a narrow chat: the model name shortens and labels drop to icons instead of running under the send button.
 - The agent should use the key for the chosen model's provider, not just the default connection.
@@ -706,6 +738,29 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see a plain explanation when OpenAI turns down the sign-in or key, the ChatGPT plan's usage limit is used up, or the model isn't included with ChatGPT.
 - Codex runs should count towards Usage (USAGE-001), with costs estimated at OpenAI's API prices.
 
+## AGT-010: Unrecognized agent errors get a second look
+
+- When an agent run fails with an error none of the known error texts match, and the chat shows the generic message ("Something went wrong: …" or "The agent stopped unexpectedly. Error: …"), the platform should ask Jev which known cause it is: a rejected key or sign-in, no credits or usage left, rate limited or overloaded, a model that isn't available, a conversation too long for the model, or a network error.
+- When Jev is at least 70% sure of one of those causes, user should see the generic message replaced a moment later by that cause's message, in the agent's own wording (e.g. "Claude is overloaded right now. Try again in a minute." for Claude Code, "OpenAI turned down your ChatGPT sign-in…" for Codex on a ChatGPT sign-in).
+- Errors the known texts already match should keep their message, and Jev shouldn't be asked.
+- When Jev isn't sure, picks "something else", can't be reached, or there's no OpenRouter key (the owner's or the platform's), user should keep seeing the generic message. A message that changed in the meantime is left alone.
+
+## AGT-011: Auto model and reasoning
+
+- User should be able to pick Auto at the top of a provider's models in the project chat's model picker; the picker then reads "Auto" and hides the reasoning level.
+- With Auto, each message should run on a model and reasoning level of that provider picked for how big the request is (a typo or tiny tweak, a small change, a new feature, a big redesign or hard bug): fast and cheap for small requests, the strongest with high effort for big ones.
+- User should see in the chat which model and reasoning Auto picked for each run (e.g. "Auto picked Claude Sonnet 5 with low reasoning, for a small change").
+- A queued message should run on the model picked for it when it was sent.
+- Without Jev (no OpenRouter key, a timeout or an error), or when the picked model isn't one the user's connection can run, Auto should use the provider's default model.
+- User should be able to turn Auto off by picking a model.
+
+## AGT-012: Corrections while the agent works are sent now
+
+- When the agent is working and the user sends a message with Enter (not send now, not ⌥/Alt+Enter), the platform should ask Jev whether it corrects or changes the work in progress, or is a separate request.
+- A correction (Jev at least 80% sure) should stop the current run and start the message right away, and the chat should say "Sent now: it changes what the agent is doing".
+- A separate request should be queued as before.
+- Without Jev (no key, a timeout or an error), the message should be queued as before.
+
 ## AGT-003: Stop, queue, and send now
 
 - User should be able to stop the agent while it's working; the run ends in the sandbox and the chat says it was stopped.
@@ -713,6 +768,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be able to send messages while the agent works; they're queued, shown as queued, and run automatically one at a time when the current run finishes.
 - User should be able to remove a queued message before it runs.
 - User should be able to send a message immediately (⌘/Ctrl+Enter or the send-now button), which stops the current run and starts theirs; queued messages follow.
+- User should be able to always queue a message with ⌥/Alt+Enter; Enter queues it unless it corrects the work in progress (AGT-012).
 - Stopping should put any queued messages back into the message box instead of running them.
 
 ## AGT-004: Recall earlier prompts
@@ -739,6 +795,15 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - The agent should see attached images along with the text, using a vision-capable model: the chosen model if it can read images, otherwise one from the same provider for that message (the chat says which). If none can, the agent works from the text and still has the files.
 - The agent should get every attachment as a file in the sandbox, so when the user asks to use one in the app it copies it to the right place: the app's assets for fixed parts of the UI (logo, icons, backgrounds), or App Storage for content the app's users manage.
 - Queued messages should keep their attachments when they run; stopping the agent drops attachments on queued messages and tells the user.
+
+## AGT-013: Draw on the preview to show what to change
+
+- User should be able to click Annotate in the Preview's header to freeze the preview as a picture of what it shows right now (the page as scrolled, with anything open or typed in it).
+- User should be able to draw on that picture with a pen, boxes, arrows and text notes, in red, yellow or blue, and undo or clear marks. Text is the tool picked when it opens.
+- User should be able to drag any mark (by its line, its text or its number) to move it, whatever tool is picked; undo puts it back, and clearing can be undone too.
+- User should be able to cancel, or click "Add to chat" to put the marked-up picture in the chat box as an attachment, and nothing else; the chat opens if it was hidden, ready for them to say what to change.
+- The agent should be told, with the message but not in the chat, which page the picture is of and, for each numbered mark, the element it points at, written like a CSS selector with its text (`1. Box (red) around button#save ("Save changes")`), so it can find it in the code. Removing the picture before sending drops that too.
+- When the preview can't take its own picture (the page doesn't answer), the browser should ask to share the tab and use that instead; declining should leave the preview as it was and say it couldn't take a picture.
 
 ## AGT-008: Laravel by default
 
@@ -863,6 +928,16 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Secrets should stay in the app's `.env` inside the sandbox; the app builder never stores them.
 - The agent should read secrets from the environment, never put their values in code or chat, and ask the user to add missing ones in Tools → Secrets.
 - User should see a clear message when the sandbox isn't running or the secrets can't be read.
+
+## SECRET-002: Pasted secrets go to Secrets, not the agent
+
+- When a chat message (main chat or a task's) contains a credential (an API key, password, token, a database URL with a password), the platform should ask "This looks like a secret. Save it in Secrets instead?" before sending it to the agent.
+- User should see a suggested name (from the kind of key, an assignment like `NAME=value`, or the words before it) and be able to change it; the name field is focused.
+- User should be able to save it: the value goes into the app's `.env` through Secrets (SECRET-001), and the message is sent with "(saved as NAME in Secrets)" in its place.
+- User should be able to paste the value themselves when the platform can't tell which part of the message is the secret, and see an error when it isn't in the message, the name is invalid or already exists, or the sandbox isn't running.
+- User should be able to send it anyway, or cancel (the message stays in the box).
+- The message keeps its attachments until it's sent, and Jev is asked once per message.
+- Without Jev (no key, a timeout or an error), the message should be sent as typed. Messages the platform writes (e.g. Feature Flags' agent actions) are never held.
 
 ## FLAG-001: Feature flags
 
@@ -1026,7 +1101,8 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Browser errors should only be accepted from the preview, never from the published address.
 - The agent should be told where the log is and to check it before it finishes and when the user says something is broken.
 - User should see a bar over the preview when the page hits an error, with the error and a "Fix it" button that sends it to the agent (queued if the agent is busy), and be able to dismiss it.
-- After the agent finishes, the platform should load the app's home page and check for new errors from the preview; if there are any, it should send them to the agent once, automatically. A run started by that automatic message shouldn't trigger another.
+- After the agent finishes, the platform should load the app's home page and check for new errors from the preview; if there are any worth fixing, it should send them to the agent once, automatically. A run started by that automatic message shouldn't trigger another.
+- When there's an OpenRouter key (the project owner's connection, else the platform's `OPENROUTER_API_KEY`), the platform should ask Jev which of the new errors are real problems in the app and send only those, leaving out noise (an error during a hot-reload rebuild or restart, a browser extension's, a missing favicon, a dev-only warning). If Jev judges them all noise, nothing should be sent. Without a key, or when Jev can't be reached or doesn't answer, every new error should be sent. The "Fix it" bar always sends the error the user clicked it for.
 - User should be able to turn this automatic fixing on or off per project with an Autofix button in the chat's controls. It's on for new projects.
 - Rebuilding a Laravel app's assets shouldn't break the preview while the build runs.
 
@@ -1098,6 +1174,18 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Moving a published project to the other target should take it down from the first. Unpublishing, or a failed publish, should stop it being served on the domain.
 - With the Cloudflare preview gateway (GW-002, e.g. on Laravel Cloud), the Worker serves published apps the same way: public ones without a cookie (its answer shared for a minute), private ones by passing the sign-in redirect on. Names under the domain that only look like a published app still reach their own origin.
 
+## PUB-003: Abuse check before going public (hosted install)
+
+- On the hosted install (`APP_MULTI_TENANT=true`) with a platform OpenRouter key, OneDrop should ask Jev whether a project looks like abuse (phishing or impersonating a real brand or login page, a scam or malware, or something else clearly harmful) before it's published as Public, and after it's shared.
+- Jev should see the project's name, its first and latest prompts, and the app's home page as a browser renders it: title, visible text, form fields and where its forms send. Each is cut short, and the check always uses the platform's key, never the owner's.
+- User should see a public publish go live as normal when it looks fine; the check runs while the panel says Publishing….
+- When it looks 80% likely or more to be abuse, user should see "Waiting for a review" in the Publish panel, with a plain explanation that a person will look at it and it goes live once approved; the app should not be served publicly meanwhile.
+- A held project's share page (and its card, screenshot and Remix) should be a 404 until approved, and the Share panel should say it's waiting for a review.
+- Publishing publicly again while held should stay held without asking Jev again.
+- A project that's live as Public or shared should be checked again after the agent's next turns, at most once a day; one that's flagged then is taken offline for review the same way.
+- If Jev fails or times out, or the page can't be read, the app should be published as normal (the page is just left out when it can't be read) and the error reported.
+- Publishing privately, a self-hosted install, and an install without a platform key should never be checked.
+
 ## ADMIN-001: Name and logo
 
 - Admin should be able to change the app's name from Settings → General, and see it in the sidebar, header, browser tab title and emails.
@@ -1135,6 +1223,15 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Admin should be able to run a backup now, see the list of backups (newest first, with size and date), download one, and delete one.
 - Admin should see when the last backup ran and whether it failed, with the error.
 - Admin should be able to restore a backup after typing the file's name to confirm; the current database is backed up first, and a restore replaces all of the app's data.
+
+## ADMIN-006: Review held apps (hosted install)
+
+- Platform admins should see apps the abuse check held (PUB-003) under Settings → Admin → Reviews, on the hosted install: the project, its owner (linking to their user page) and organization, what triggered the check, how likely each kind of abuse looked, and what Jev saw (prompts, page title, text, fields, form targets).
+- Admin should be able to approve a held app: a held publish goes live, the share page comes back, and the approval stands until the owner sends the agent another message.
+- Admin should be able to take an app down after confirming: its public app goes offline (the Publish panel says it was taken down after a review) and its share page is deleted.
+- User should not be able to publish a taken-down app publicly or share it again until an admin approves it; publishing privately still works.
+- Admin should see the latest decisions (who approved or took down what, and when), and be able to approve a taken-down app from there.
+- Non-admins should not be able to see the reviews or decide them.
 
 ## SKILL-001: Agent Skills in Tools
 
@@ -1178,8 +1275,16 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 ## REQ-002: Turn requirements tracking on or off
 
 - Requirements tracking should be on for every project unless turned off.
-- While it's on, the agent (OpenCode, Claude Code or Codex) should record each change the user asks for and each decision (including ones stated in passing), before finishing its turn, and check new requests against earlier decisions.
+- While it's on, the agent (OpenCode, Claude Code or Codex) should record each change the user asks for and each decision (including ones stated in passing), before finishing its turn, and check new requests against earlier decisions, starting with the turn that first builds the app, whatever its stack.
 - User should be able to turn it off or on from the Requirements tab or Tools → Agent Skills; the agent follows it from its next run. Turning it off keeps the file, and also stops the agent writing tests for them (TEST-002).
+
+## REQ-003: Confirm changes to earlier decisions
+
+- While requirements tracking is on (REQ-002) and `.onedrop/REQ.md` has decisions, the platform should ask Jev, before a chat message is sent, which decision (if any) it would undo or change.
+- When Jev is at least 80% sure one does, the run shouldn't start; user should see "This changes an earlier decision: <decision>. Go ahead?" above the chat box.
+- User should be able to click Go ahead, which sends the message and tells the agent the change is intended, so it rewrites that decision with the new date and reason.
+- User should be able to click Cancel, which leaves the message in the box to edit.
+- Without decisions, with tracking off, or without Jev, the message should be sent as before.
 
 ## TEST-001: Tests tab
 
@@ -1194,7 +1299,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 - While requirements tracking is on (REQ-002), the agent should write a Playwright test for each "User should be able to…" a browser can check, titled with it and tagged with its requirement's ID (`@REQ-001`), and update or remove them when the requirement changes.
 - The agent should run the tests of the requirements it touched before finishing its turn, fix what fails (never deleting or skipping a test to make it pass), and say in one line if one still fails.
-- The agent should treat tests as part of every turn that changes what the app does, however small, and add tests for any requirement that has none yet (e.g. ones written before tests existed).
+- The agent should treat tests as part of every turn that changes what the app does, however small and on every stack (a plain Vite or static page too), including the turn that first builds the app, and add tests for any requirement that has none yet (e.g. ones written before tests existed).
 - User should see in the Tests tab which requirements have no tests yet, and be able to click "Write them with agent" to ask the agent in the chat (queued if it's working) to write and run them.
 - Every agent (OpenCode, Claude Code or Codex) and every stack should use the same setup: `@playwright/test` as a dev dependency, run by the platform's own config against the preview's dev server, one test at a time, with the sandbox's Chromium.
 
@@ -1230,3 +1335,16 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - A step that no longer matches the page (because the user changed it) should show as that step failing, with Playwright's reason, and the page should stay open.
 - A test paused for longer than its usual timeout should still carry on when resumed.
 - The agent should be able to carry on with the test too (`/opt/onedrop/browser resume step|end`) and see where it is.
+
+## TEST-007: The platform checks the agent kept the requirements and tests
+
+- After a main-chat turn, while requirements tracking is on (REQ-002), the platform should ask Jev (TypeSafe's decision model on OpenRouter) whether the turn changed what the app does, whether REQ.md records the request, and whether the agent wrote and ran tests for it.
+- If the turn changed the app but REQ.md is missing or doesn't record it, tests weren't written or run, or a requirement has no tests, the platform should ask the agent once, in the chat, to catch up, naming the requirements without tests. A run started by that message shouldn't be checked again.
+- The check should use the project owner's OpenRouter connection when they have one, otherwise the platform's `OPENROUTER_API_KEY`; with neither, there's no check.
+- Nothing should be asked when Jev can't be reached or doesn't answer, or when the user has sent another message since.
+
+## TEST-008: Why a test failed
+
+- User should see, next to each failing test in the Tests tab (in the list and above its error), Jev's guess at why it failed: "Likely: the app broke", "Likely: the test is out of date" (the app changed on purpose and the test expects the old behavior) or "Likely: flaky or timing".
+- The guess should come from the test's title, error, steps and source and the user's recent requests and the agent's recent actions, be worked out once per run of each test in the background (the tab never waits on it), and appear shortly after the run ends.
+- User should see no guess when Jev isn't at least 50% sure, can't be reached or doesn't answer, or when there's no OpenRouter key (the owner's connection, else the platform's).

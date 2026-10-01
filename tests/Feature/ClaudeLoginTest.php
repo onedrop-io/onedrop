@@ -53,6 +53,18 @@ test('the sign-in status is unknown while the sandbox is not running', function 
     expect($this->provider->executed)->toBe([]);
 })->group('AI-005');
 
+test('each chat checks its sign-in on its own allowance, so other open chats can\'t use it up', function () {
+    $other = Project::factory()->for($this->user)->create();
+    $this->actingAs($this->user);
+
+    foreach (range(1, 60) as $check) {
+        $this->getJson(route('projects.claude-login.show', $this->project))->assertOk();
+    }
+
+    $this->getJson(route('projects.claude-login.show', $this->project))->assertTooManyRequests();
+    $this->getJson(route('projects.claude-login.show', $other))->assertOk();
+})->group('AI-005');
+
 test('only the owner can see the sign-in status', function () {
     $this->actingAs(User::factory()->has(AgentConnection::factory())->create())
         ->getJson(route('projects.claude-login.show', $this->project))

@@ -28,11 +28,13 @@ class AgentQueue
 
     /**
      * Send a user message: run it now if the agent is free, otherwise queue it.
-     * With $now, stop the current run and start this message instead (the queue stays).
+     * With $now, stop the current run and start this message instead (the queue stays), saying $nowNote in the chat
+     * when given (why it was sent now). $meta is what was decided about the message as it was sent (see Message).
      *
      * @param  list<UploadedFile>  $attachments
+     * @param  array<string, mixed>|null  $meta
      */
-    public function send(Conversation $conversation, string $content, bool $now = false, array $attachments = []): Message
+    public function send(Conversation $conversation, string $content, bool $now = false, array $attachments = [], ?array $meta = null, ?string $nowNote = null): Message
     {
         if ($conversation->getAttribute('status') === ProjectStatus::Working) {
             if (! $now) {
@@ -40,6 +42,7 @@ class AgentQueue
                     'role' => MessageRole::User,
                     'content' => $content,
                     'queued' => true,
+                    'meta' => $meta,
                 ]);
 
                 foreach ($attachments as $file) {
@@ -50,13 +53,17 @@ class AgentQueue
             }
 
             $this->interrupt($conversation);
+
+            if ($nowNote !== null) {
+                $conversation->messages()->create(['role' => MessageRole::Activity, 'content' => $nowNote]);
+            }
         }
 
         return $this->run($conversation, $content, function (Message $message) use ($attachments) {
             foreach ($attachments as $file) {
                 Attachment::store($message, $file);
             }
-        });
+        }, $meta);
     }
 
     /**
@@ -83,7 +90,7 @@ class AgentQueue
         });
 
         if ($next) {
-            $this->run($conversation, $next->content, fn (Message $message) => $message->attachments()->saveMany($attachments));
+            $this->run($conversation, $next->content, fn (Message $message) => $message->attachments()->saveMany($attachments), $next->meta);
         }
     }
 
@@ -150,19 +157,25 @@ class AgentQueue
     }
 
     /**
-     * Add the message to the chat, attach its files ($attach), and start the agent on it.
+     * Add the message to the chat, attach its files ($attach), and start the agent on it. When Auto picked its
+     * model (AGT-011), the chat says which.
      *
      * @param  (Closure(Message): mixed)|null  $attach
+     * @param  array<string, mixed>|null  $meta
      */
-    protected function run(Conversation $conversation, string $content, ?Closure $attach = null): Message
+    protected function run(Conversation $conversation, string $content, ?Closure $attach = null, ?array $meta = null): Message
     {
         // A new message replaces one waiting to run again after a Claude sign-in (AI-005).
         $conversation->update(['status' => ProjectStatus::Working, 'sign_in_retry_message_id' => null]);
 
-        $message = $conversation->messages()->create(['role' => MessageRole::User, 'content' => $content]);
+        $message = $conversation->messages()->create(['role' => MessageRole::User, 'content' => $content, 'meta' => $meta]);
 
         if ($attach) {
             $attach($message);
+        }
+
+        if (is_string($meta['auto_note'] ?? null)) {
+            $conversation->messages()->create(['role' => MessageRole::Activity, 'content' => $meta['auto_note']]);
         }
 
         $this->start($conversation, $message);

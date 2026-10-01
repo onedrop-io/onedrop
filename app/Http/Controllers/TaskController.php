@@ -6,6 +6,7 @@ use App\Concerns\RendersWorkspace;
 use App\Enums\ProjectStatus;
 use App\Enums\TaskStage;
 use App\Enums\TaskSyncStatus;
+use App\Jobs\CheckTurnOutcome;
 use App\Jobs\SyncTask;
 use App\Models\Attachment;
 use App\Models\Project;
@@ -43,6 +44,9 @@ class TaskController extends Controller
             'tasks' => $tasks->map(fn (Task $task): array => [
                 ...$task->only('id', 'title', 'description', 'stage', 'status'),
                 'activity' => $task->isWorking() ? $task->currentActivity() : null,
+                // Why its agent is waiting for the user after its last turn, and whether that's still being checked (PRJ-011).
+                'waiting_for' => ! $task->isWorking() && $task->turn_outcome?->waiting() ? $task->turn_outcome->value : null,
+                'checking' => CheckTurnOutcome::checking($task),
                 'updated_at' => $task->updated_at?->toIso8601String(),
             ]),
         ]);

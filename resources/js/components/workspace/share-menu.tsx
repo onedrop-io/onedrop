@@ -102,6 +102,17 @@ export default function ShareMenu({
                     </p>
                 </div>
 
+                {sharing.review && (
+                    <p
+                        className="rounded-md bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400"
+                        data-test="share-review"
+                    >
+                        {sharing.review === 'held'
+                            ? "OneDrop checks apps before they go public, and this one needs a person to look at it first. The page stays hidden until it's approved."
+                            : "OneDrop took this app down after a review, so it can't be shared. Contact support if you think that's a mistake."}
+                    </p>
+                )}
+
                 {sharing.shared && (
                     <div className="space-y-3">
                         <div className="relative aspect-[1200/630] overflow-hidden rounded-lg border bg-muted">

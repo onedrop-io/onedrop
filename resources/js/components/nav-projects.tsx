@@ -40,6 +40,7 @@ import { desktopNotificationStatus } from '@/hooks/use-desktop-notifications';
 import { useOrganization } from '@/hooks/use-organization';
 import { isProjectPath } from '@/lib/open-project';
 import { isTabSeen } from '@/lib/unseen-reloads';
+import { readyNotificationBody, WAITING_LABELS } from '@/lib/waiting-for';
 import { useWorkspaceLinks } from '@/lib/workspace-view';
 import { order, show, sort as sortProjects } from '@/routes/projects';
 import {
@@ -51,6 +52,7 @@ import type {
     ProjectSort,
     SidebarProject,
     SidebarProjects,
+    WaitingFor,
 } from '@/types';
 
 /**
@@ -69,9 +71,11 @@ export function useSidebarUpdates(
         [projects],
     );
     const naming = all.some((project) => project.naming);
+    // Also while a finished turn is checked for whether it's waiting for the user (PRJ-011).
     const working =
-        all.some((project) => project.working) ||
+        all.some((project) => project.working || project.checking) ||
         !!open?.working ||
+        !!open?.checking ||
         !!open?.tasks.some((task) => task.working);
     const drawing = all.some((project) => project.drawing_icon);
     const { start, stop } = usePoll(
@@ -190,22 +194,25 @@ export function NavProjects({ projects }: { projects: SidebarProjects }) {
     );
 }
 
-/** Shows a desktop notification when a project's agent finishes working, unless it's the page in front of the user. */
+/**
+ * Shows a desktop notification when a project's agent finishes working, unless it's the page in front of the user.
+ * It waits while the turn is checked for whether the agent needs the user (PRJ-011), and then says so.
+ */
 function useReadyNotifications(projects: SidebarProject[]) {
     const wasWorking = useRef<Set<number> | null>(null);
 
     useEffect(() => {
+        const busy = (project: SidebarProject) =>
+            project.working || project.checking;
         const previous = wasWorking.current;
-        wasWorking.current = new Set(
-            projects.filter((p) => p.working).map((p) => p.id),
-        );
+        wasWorking.current = new Set(projects.filter(busy).map((p) => p.id));
 
         if (!previous || desktopNotificationStatus() !== 'on') {
             return;
         }
 
         projects
-            .filter((project) => previous.has(project.id) && !project.working)
+            .filter((project) => previous.has(project.id) && !busy(project))
             .forEach((project) => {
                 const url = show(project.id).url;
 
@@ -214,7 +221,7 @@ function useReadyNotifications(projects: SidebarProject[]) {
                 }
 
                 const notification = new Notification(project.name, {
-                    body: 'Ready for your review',
+                    body: readyNotificationBody(project.waiting_for),
                     tag: `project-${project.id}`,
                     icon: '/favicon.svg',
                 });
@@ -431,7 +438,9 @@ function ProjectList({
                     ? 'Sandbox failed'
                     : project.working
                       ? (project.activity ?? 'Working…')
-                      : null;
+                      : project.waiting_for
+                        ? WAITING_LABELS[project.waiting_for]
+                        : null;
 
                 return (
                     <SidebarMenuItem
@@ -476,7 +485,7 @@ function ProjectList({
                                     </span>
                                     {subtitle && (
                                         <span
-                                            className={`truncate text-xs ${project.failed ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}
+                                            className={`truncate text-xs ${project.failed ? 'text-red-600 dark:text-red-400' : !project.working && project.waiting_for ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}
                                             data-test="sidebar-project-activity"
                                         >
                                             {subtitle}
@@ -536,7 +545,10 @@ function ProjectList({
                                                     }).url,
                                                 )}
                                                 title={
-                                                    task.activity ?? task.title
+                                                    task.activity ??
+                                                    (task.waiting_for
+                                                        ? `${task.title}: ${WAITING_LABELS[task.waiting_for]}`
+                                                        : task.title)
                                                 }
                                                 data-test="sidebar-task"
                                             >
@@ -553,6 +565,13 @@ function ProjectList({
                                                 >
                                                     {task.title}
                                                 </span>
+                                                {task.waiting_for && (
+                                                    <WaitingLabel
+                                                        waitingFor={
+                                                            task.waiting_for
+                                                        }
+                                                    />
+                                                )}
                                                 {task.unread && <UnreadDot />}
                                             </Link>
                                         </SidebarMenuSubButton>
@@ -615,6 +634,18 @@ function isExpanded(
     return (
         project.tasks.length > 0 &&
         (expanded[project.id] ?? isProjectPath(currentUrl, project.id))
+    );
+}
+
+/** Says why a chat's agent is waiting for the user (PRJ-011), e.g. "Needs your answer". */
+export function WaitingLabel({ waitingFor }: { waitingFor: WaitingFor }) {
+    return (
+        <span
+            className="shrink-0 text-xs text-amber-600 dark:text-amber-400"
+            data-test="waiting-for"
+        >
+            {WAITING_LABELS[waitingFor]}
+        </span>
     );
 }
 

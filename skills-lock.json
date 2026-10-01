@@ -1,38 +1,58 @@
 {
-    "version": 1,
-    "skills": {
-        "blaxel-cli": {
-            "source": "blaxel-ai/agent-skills",
-            "sourceType": "github",
-            "skillPath": "skills/blaxel-cli/SKILL.md",
-            "computedHash": "81037beea28d70a222d0c442c296d4d8b3d3da8629c3956a06a83b1f7e598a6a"
-        },
-        "blaxel-sdk": {
-            "source": "blaxel-ai/agent-skills",
-            "sourceType": "github",
-            "skillPath": "skills/blaxel-sdk/SKILL.md",
-            "computedHash": "0765970de06abf704282e2b3333c960dbe49ad489d76eace77a8420be42206b4"
-        },
-        "mintlify": {
-            "source": "mintlify.com",
-            "sourceUrl": "https://mintlify.com/docs",
-            "sourceType": "well-known",
-            "computedHash": "199eb0d56f5b6d2d67a41e3e35a5fe4f18461d08bf1acce6ef4fcb4abcd628bb",
-            "wellKnownDigest": "sha256:1e33070f5a73ff45a53bc591805665bbd9720f7b9d61f8983f6c7b99d9a4f824"
-        },
-        "mintlify-api": {
-            "source": "mintlify.com",
-            "sourceUrl": "https://mintlify.com/docs",
-            "sourceType": "well-known",
-            "computedHash": "4b73380bdf72f728299bbd1d40b2119d44651bde75b4a23317da290936bc3301",
-            "wellKnownDigest": "sha256:dacffa9de4971a0156927fa472e6ed552e3eb013a0b728fb0340c491815168e2"
-        },
-        "mintlify-docs": {
-            "source": "mintlify.com",
-            "sourceUrl": "https://mintlify.com/docs",
-            "sourceType": "well-known",
-            "computedHash": "b710a8432c3e62bdc85da76b4396e1d4907e6a444f6ac3f825bb2c5ef9114f9a",
-            "wellKnownDigest": "sha256:9268f7316b6677ea0398ad51f0ff7ccdf1645067212a9881132b5f0e06c5482a"
-        }
+  "version": 1,
+  "skills": {
+    "autumn-catalog": {
+      "source": "./autumn/skills",
+      "sourceType": "local",
+      "computedHash": "2a1a26846ad4e0589b156d0b89bfe20343625827c97e5216aca87e6bca6a8f74"
+    },
+    "autumn-concepts": {
+      "source": "./autumn/skills",
+      "sourceType": "local",
+      "computedHash": "9658ce30dff90534d1afe2375189e26ea6feeab796610c9be57a3d385c4af981"
+    },
+    "autumn-integrate": {
+      "source": "./autumn/skills",
+      "sourceType": "local",
+      "computedHash": "350c4c90eb922753b74954f3bd77f26c7cac656d51a62a70c91d952bbcb8df12"
+    },
+    "autumn-setup": {
+      "source": "./autumn/skills",
+      "sourceType": "local",
+      "computedHash": "a9c6a0720c9940d80f189e6cbbefeb307ae2e856d25111f4adea68fc807d7021"
+    },
+    "blaxel-cli": {
+      "source": "blaxel-ai/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/blaxel-cli/SKILL.md",
+      "computedHash": "81037beea28d70a222d0c442c296d4d8b3d3da8629c3956a06a83b1f7e598a6a"
+    },
+    "blaxel-sdk": {
+      "source": "blaxel-ai/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/blaxel-sdk/SKILL.md",
+      "computedHash": "0765970de06abf704282e2b3333c960dbe49ad489d76eace77a8420be42206b4"
+    },
+    "mintlify": {
+      "source": "mintlify.com",
+      "sourceUrl": "https://mintlify.com/docs",
+      "sourceType": "well-known",
+      "computedHash": "199eb0d56f5b6d2d67a41e3e35a5fe4f18461d08bf1acce6ef4fcb4abcd628bb",
+      "wellKnownDigest": "sha256:1e33070f5a73ff45a53bc591805665bbd9720f7b9d61f8983f6c7b99d9a4f824"
+    },
+    "mintlify-api": {
+      "source": "mintlify.com",
+      "sourceUrl": "https://mintlify.com/docs",
+      "sourceType": "well-known",
+      "computedHash": "4b73380bdf72f728299bbd1d40b2119d44651bde75b4a23317da290936bc3301",
+      "wellKnownDigest": "sha256:dacffa9de4971a0156927fa472e6ed552e3eb013a0b728fb0340c491815168e2"
+    },
+    "mintlify-docs": {
+      "source": "mintlify.com",
+      "sourceUrl": "https://mintlify.com/docs",
+      "sourceType": "well-known",
+      "computedHash": "b710a8432c3e62bdc85da76b4396e1d4907e6a444f6ac3f825bb2c5ef9114f9a",
+      "wellKnownDigest": "sha256:9268f7316b6677ea0398ad51f0ff7ccdf1645067212a9881132b5f0e06c5482a"
     }
+  }
 }

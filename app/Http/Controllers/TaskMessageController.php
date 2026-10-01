@@ -7,6 +7,7 @@ use App\Models\Message;
 use App\Models\Project;
 use App\Models\Task;
 use App\Sandbox\Agents\AgentQueue;
+use App\Sandbox\Agents\MessageChecks;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -21,16 +22,18 @@ class TaskMessageController extends Controller
 {
     /**
      * Send a message to the task's agent. While it's working the message is queued, unless mode is "now",
-     * which stops the task's current run and sends this one instead. Started from the board ("stay"),
+     * which stops the task's current run and sends this one instead, or "auto", where Jev decides (AGT-012); with
+     * checks, a message can be held for the user to answer first (SECRET-002, REQ-003). Started from the board ("stay"),
      * the user stays there to start more.
      */
-    public function store(Request $request, Project $project, Task $task, AgentQueue $queue): RedirectResponse
+    public function store(Request $request, Project $project, Task $task, MessageChecks $checks): RedirectResponse
     {
         Gate::authorize('update', $project);
 
         $validated = $request->validate([
             ...Attachment::rules('content'),
-            'mode' => ['nullable', Rule::in(['queue', 'now'])],
+            ...MessageChecks::rules(),
+            'mode' => ['nullable', Rule::in(['queue', 'now', 'auto'])],
             'stay' => ['sometimes', 'boolean'],
         ]);
 
@@ -38,12 +41,20 @@ class TaskMessageController extends Controller
             throw TaskController::copyLimitError();
         }
 
-        $queue->send(
+        $held = $checks->send(
             $task,
             $validated['content'] ?? '',
-            now: ($validated['mode'] ?? 'queue') === 'now',
+            $validated['mode'] ?? 'queue',
             attachments: array_values(Arr::wrap($request->file('attachments'))),
+            interactive: $request->boolean('checks'),
+            replies: Arr::only($validated, ['check', 'confirm_decision', 'send_secret', 'secret_name', 'secret_value']),
+            agentContext: $validated['agent_context'] ?? null,
         );
+
+        // Held for the user to answer first (a secret, or a change to an earlier decision); the composer keeps the text.
+        if ($held !== null) {
+            MessageChecks::rememberPrompt($request->user(), $task, $held);
+        }
 
         return $request->boolean('stay') ? back() : to_route('projects.tasks.show', [$project, $task]);
     }

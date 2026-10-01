@@ -5,14 +5,15 @@ namespace App\Sandbox\Agents;
 use App\Enums\CredentialType;
 use App\Models\AgentConnection;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
 
 /**
- * The user's own Ollama server (AI-006): checks it's reachable, lists its models, and builds the OpenCode
- * config that points the agent at it. The platform calls a URL the user typed, so it refuses private and
+ * The user's own Ollama server (AI-006): checks it's reachable, lists its models, builds the OpenCode
+ * config that points the agent at it, and asks Nimble there in Jev's place (AI-007). The platform calls a URL the user typed, so it refuses private and
  * internal addresses (unless sandbox.ollama_private_servers allows them, as on a local install) and pins
  * the request to the address it checked.
  */
@@ -122,6 +123,28 @@ class OllamaServer
     }
 
     /**
+     * The name Nimble has on the user's server (e.g. "nimble:latest"), or null when it isn't pulled there (AI-007).
+     */
+    public function nimbleModel(AgentConnection $connection): ?string
+    {
+        return collect($this->models($connection))->first(fn (string $model) => $model === 'nimble' || str_starts_with($model, 'nimble:'));
+    }
+
+    /**
+     * Ask Nimble on the user's server (its /v1/systemone takes Jev's request as-is), through the same address guard.
+     *
+     * @param  array<string, mixed>  $body
+     *
+     * @throws ConnectionException|ValidationException
+     */
+    public function decide(AgentConnection $connection, array $body, int $timeout): Response
+    {
+        ['url' => $url, 'key' => $key] = $connection->ollamaServer();
+
+        return $this->request($url, $key, $timeout)->post("{$url}/v1/systemone", $body);
+    }
+
+    /**
      * Whether this connection is the user's own server rather than an Ollama Cloud key.
      */
     public static function isServer(?AgentConnection $connection): bool
@@ -130,24 +153,30 @@ class OllamaServer
     }
 
     /**
-     * GET the server's model list, pinned to an address that passed the guard, without following redirects.
+     * GET the server's model list.
      *
      * @throws ConnectionException|ValidationException
      */
     protected function tags(string $url, ?string $key): Response
     {
+        return $this->request($url, $key)->get("{$url}/api/tags");
+    }
+
+    /**
+     * A request to the server, pinned to an address that passed the guard, without following redirects.
+     *
+     * @throws ValidationException
+     */
+    protected function request(string $url, ?string $key, int $timeout = 10): PendingRequest
+    {
         $host = (string) parse_url($url, PHP_URL_HOST);
         $port = parse_url($url, PHP_URL_PORT) ?? (parse_url($url, PHP_URL_SCHEME) === 'https' ? 443 : 80);
         $address = $this->allowedAddress($host);
 
-        $request = Http::timeout(10)->acceptJson()->withoutRedirecting()
+        $request = Http::timeout($timeout)->acceptJson()->withoutRedirecting()
             ->withOptions(['curl' => [CURLOPT_RESOLVE => ["{$host}:{$port}:{$address}"]]]);
 
-        if ($key) {
-            $request = $request->withToken($key);
-        }
-
-        return $request->get("{$url}/api/tags");
+        return $key ? $request->withToken($key) : $request;
     }
 
     /**

@@ -7,6 +7,8 @@ As you chat, the agent writes down what you ask for and why. Open the **Requirem
 
 The agent also reads the list before changing the app. If a new request contradicts an earlier decision, it points that out and asks before going ahead, so a later change doesn't undo an earlier choice by accident.
 
+When OpenRouter is set up, OneDrop checks this before the agent even starts: a message that would undo a recorded decision shows **This changes an earlier decision: … Go ahead?** above the chat box. **Go ahead** sends it and tells the agent the change is intended, so it rewrites that decision with today's date and the new reason. **Cancel** leaves your message in the box. Only the decisions in Main's list are checked.
+
 ## What's in it
 
 The list is grouped by area of the app, such as Sign-in, Orders or Admin. Each area has:

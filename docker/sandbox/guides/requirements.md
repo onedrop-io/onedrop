@@ -6,12 +6,14 @@ This file belongs to the platform. It never replaces the app's own README, SPEC.
 
 ### When
 
+This applies to every app, whatever its stack (Laravel, a plain Vite or static page, anything else), and however small or simple it is. The request that first builds the app is its first requirement: record it, and back it with tests, in that same turn. Never skip this because the app has no server, isn't the Laravel starter kit, or seems too small to need it.
+
 - Read it at the start of a turn that changes what the app does, before you change anything. If a request contradicts something in it, say so in one line and ask, unless the user clearly meant to change it.
 - Update it in the same turn as the change, before you finish: a new feature, a change to one, a fix that says how something should behave, or a decision (theirs or yours) about how the app works.
 - In that same turn, write or update the browser tests for each requirement you added or changed, and run them (see "Tests" below). A turn that changes what the app does isn't finished until its requirements have passing tests.
 - Record decisions the user states in passing ("always…", "never…", "use X, not Y", "only admins can…").
 - Skip it for questions, explanations and changes that don't touch what the app does (a typo, a refactor). Don't mention the file in your reply unless the user asks about it.
-- Create it the first time there's something to record. For an app that already exists, only record what the user asks for from now on, plus decisions you can see they made; don't invent history.
+- Create it in the first turn that builds or changes the app. For an app that already exists, only record what the user asks for from now on, plus decisions you can see they made; don't invent history.
 
 ### Format
 

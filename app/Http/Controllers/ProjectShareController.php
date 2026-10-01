@@ -2,13 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\AbuseReviewStatus;
 use App\Jobs\CaptureShareCard;
+use App\Jobs\CheckForAbuse;
 use App\Models\Project;
 use App\Models\ProjectShare;
+use App\Sandbox\AbuseCheck;
 use App\Sandbox\ShareCards;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 /**
@@ -19,7 +23,7 @@ class ProjectShareController extends Controller
     /**
      * Share the project, or save a new prompt or page for its share page. Either makes a new card.
      */
-    public function store(Request $request, Project $project): RedirectResponse
+    public function store(Request $request, Project $project, AbuseCheck $abuse): RedirectResponse
     {
         Gate::authorize('update', $project);
 
@@ -30,12 +34,21 @@ class ProjectShareController extends Controller
             'page_path.regex' => __('The page should be a path in the app, like / or /dashboard.'),
         ]);
 
+        if ($project->abuseReview?->status === AbuseReviewStatus::TakenDown) {
+            throw ValidationException::withMessages(['prompt' => __(AbuseCheck::TAKEN_DOWN_MESSAGE)]);
+        }
+
         $share = $project->share ?? $project->share()->make(['slug' => ProjectShare::slugFor($project)]);
         $share->fill(['prompt' => trim($validated['prompt']), 'page_path' => ($validated['page_path'] ?? null) ?: '/']);
 
         if (! $share->exists || $share->isDirty() || $share->card_file === null) {
             $share->save();
             $this->capture($share);
+
+            // On the hosted install, check it isn't abuse; one that looks like it is hidden until reviewed (PUB-003).
+            if ($abuse->enabled()) {
+                CheckForAbuse::dispatch($project, 'share');
+            }
         }
 
         return to_route('projects.show', $project);

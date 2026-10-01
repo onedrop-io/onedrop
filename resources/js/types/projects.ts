@@ -42,6 +42,9 @@ export type TaskDetail = Task & {
     waiting_for_sign_in: boolean;
 };
 
+/** Why an agent is waiting for the user after its turn, as Jev judged it (PRJ-011; App\Enums\TurnOutcome). */
+export type WaitingFor = 'question' | 'needs_input' | 'blocked';
+
 /** A task as listed in the sidebar. */
 export type SidebarTask = Pick<Task, 'id' | 'title' | 'stage'> & {
     working: boolean;
@@ -49,11 +52,16 @@ export type SidebarTask = Pick<Task, 'id' | 'title' | 'stage'> & {
     unread: boolean;
     /** The agent's latest step in its current run. */
     activity: string | null;
+    /** Its agent ended its last turn waiting for the user; null when done (or not checked). */
+    waiting_for: WaitingFor | null;
 };
 
 /** A card on the board (TASK-002). */
 export type BoardTask = Task & {
     activity: string | null;
+    waiting_for: WaitingFor | null;
+    /** Its last turn just ended and is still being checked for waiting_for. */
+    checking: boolean;
     updated_at: string | null;
 };
 
@@ -62,6 +70,12 @@ export type OpenProject = ProjectSummary & {
     working: boolean;
     /** The main chat has a reply the owner hasn't seen. */
     unread: boolean;
+    /** The main chat's agent ended its last turn waiting for the user. */
+    main_waiting_for: WaitingFor | null;
+    /** The main chat's or a task's agent is waiting for the user (the main chat's first). */
+    waiting_for: WaitingFor | null;
+    /** A turn that just ended is still being checked for waiting_for. */
+    checking: boolean;
     tasks: SidebarTask[];
 };
 
@@ -85,6 +99,10 @@ export type SidebarProject = ProjectSummary & {
     working: boolean;
     /** The agent's latest step in its current run, e.g. "Editing routes/web.php". */
     activity: string | null;
+    /** Its main chat's or a task's agent ended its last turn waiting for the user (the main chat's first). */
+    waiting_for: WaitingFor | null;
+    /** A turn that just ended there is still being checked for waiting_for, so its notification waits. */
+    checking: boolean;
     /** Its sandbox failed to start or crashed. */
     failed: boolean;
     /** The app's icon (its favicon, or one the AI drew). */
@@ -150,7 +168,8 @@ export type WorkspaceFile = {
 };
 
 export type Publication = {
-    status: 'publishing' | 'live' | 'failed' | null;
+    /** 'review': held for a platform admin before going public on the hosted install (PUB-003). */
+    status: 'publishing' | 'live' | 'failed' | 'review' | null;
     visibility: 'private' | 'public' | null;
     url: string | null;
     published_at: string | null;
@@ -191,6 +210,8 @@ export type Sharing = {
     card_error: string | null;
     views: number;
     remixes: number;
+    /** Held for a platform admin's review, or taken down after one, on the hosted install (PUB-003). */
+    review: 'held' | 'taken_down' | null;
 };
 
 /** A shared project's public page (SHARE-001). */

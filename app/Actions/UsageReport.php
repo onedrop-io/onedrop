@@ -4,16 +4,18 @@ namespace App\Actions;
 
 use App\Enums\AgentHarness;
 use App\Models\AgentUsage;
+use App\Models\Organization;
 use App\Models\Project;
 use App\Models\User;
 use Carbon\CarbonInterface;
+use Closure;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
 /**
- * The tokens and estimated cost of a user's agent runs over a range (USAGE-001): their own Usage page, and an admin's
- * look at them (USR-002).
+ * The tokens and estimated cost of agent runs over a range: a user's own (USAGE-001), an admin's look at them (USR-002),
+ * and an organization's, for its owners and admins (ORG-005).
  */
 class UsageReport
 {
@@ -36,10 +38,37 @@ class UsageReport
      */
     public function for(User $user, string $range): array
     {
+        return $this->report(fn (): HasMany => $user->agentUsages(), $range);
+    }
+
+    /**
+     * The same for every run in the organization's projects (deleted ones too), with a breakdown by person.
+     *
+     * @return array<string, mixed>
+     */
+    public function forOrganization(Organization $organization, string $range): array
+    {
+        $report = $this->report(fn (): Builder => AgentUsage::query()->where('organization_id', $organization->id), $range);
+        $usages = AgentUsage::query()->where('organization_id', $organization->id)->where('created_at', '>=', $report['since']);
+
+        $personRows = $usages->selectRaw('user_id, '.self::SUMS)->groupBy('user_id')->toBase()->get();
+        $names = User::query()->whereKey($personRows->pluck('user_id'))->pluck('name', 'id');
+
+        return [...$report, 'people' => $personRows
+            ->map(fn (object $row) => ['id' => $row->user_id, 'name' => $names[$row->user_id] ?? 'Deleted account', ...$this->sums($row)])
+            ->sortByDesc('cost')->values()];
+    }
+
+    /**
+     * @param  Closure(): (HasMany<AgentUsage, User>|Builder<AgentUsage>)  $query
+     * @return array<string, mixed>
+     */
+    protected function report(Closure $query, string $range): array
+    {
         $hourly = $range === '24h';
         $until = now();
         $since = $hourly ? $until->subHours(23)->startOfHour() : $until->subDays(self::RANGES[$range] / 24 - 1)->startOfDay();
-        $usages = fn (): HasMany => $user->agentUsages()->where('created_at', '>=', $since);
+        $usages = fn (): HasMany|Builder => $query()->where('created_at', '>=', $since);
 
         $totals = $this->sums($usages()->selectRaw(self::SUMS)->toBase()->first());
 

@@ -2,6 +2,7 @@
 
 namespace App\Sandbox\Agents;
 
+use App\Enums\AgentFailure;
 use App\Enums\AgentHarness;
 use App\Enums\AgentProvider;
 use App\Enums\MessageRole;
@@ -31,7 +32,7 @@ class OpenCodeEvents extends AgentEvents
             'text' => $this->say($conversation, MessageRole::Assistant, trim((string) ($part['text'] ?? ''))),
             'tool_use' => $this->say($conversation, MessageRole::Activity, $this->describeTool($part)),
             'step_finish' => $this->stepFinished($conversation, $part, $event['model'] ?? null),
-            'error' => $this->say($conversation, MessageRole::Assistant, $this->explainError($this->errorMessage($event['error'] ?? null))),
+            'error' => $this->sayFailure($conversation, $this->explainError($this->errorMessage($event['error'] ?? null))),
             'onedrop.exit' => $this->finish($conversation, (int) ($event['code'] ?? 0), (string) ($event['stderr'] ?? '')),
             default => null,
         };
@@ -95,8 +96,18 @@ class OpenCodeEvents extends AgentEvents
     {
         return match (true) {
             Str::contains($message, ['exceed your available credits', 'insufficient credits', 'Insufficient balance', 'credit balance is too low'], ignoreCase: true) => 'Your AI provider says your balance is too low for this request. Try again in a minute, or add credits (for OpenRouter: openrouter.ai/settings/credits).',
-            default => 'Something went wrong: '.$message,
+            default => $this->unmatched($message, 'Something went wrong: '.$message),
         };
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function failureMessage(Conversation $conversation, AgentFailure $failure): ?string
+    {
+        return $failure === AgentFailure::OutOfCredits
+            ? 'Your AI provider says your balance is too low for this request. Try again in a minute, or add credits (for OpenRouter: openrouter.ai/settings/credits).'
+            : parent::failureMessage($conversation, $failure);
     }
 
     /**

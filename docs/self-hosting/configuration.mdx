@@ -56,6 +56,8 @@ OneDrop is a Laravel application, so the usual Laravel settings (`APP_URL`, `DB_
 | `SANDBOX_MODEL_GEMINI`     | `google/gemini-3.8-flash`              | Model used for Gemini connections.                                                                                                     |
 | `SANDBOX_MODEL_OLLAMA`     | `ollama-cloud/glm-5.3`                 | Model used for Ollama Cloud connections (a user's own server starts on its first model).                                               |
 | `SANDBOX_OLLAMA_PRIVATE_SERVERS` | `true` when `APP_ENV=local` | Let users connect an Ollama server on a private or loopback address. Off on servers, so the platform can't be made to call internal addresses. |
+| `OPENROUTER_API_KEY` | empty | Key for Jev, OpenRouter's decision model, which makes quick checks around the agent: that it [kept the requirements and tests](/guides/tests#the-platform-checks-the-agent), whether a finished chat is waiting for an answer, which preview errors are worth fixing, why a test failed, what an unknown agent error means, and the checks when a message is sent. Used when a project's owner hasn't connected OpenRouter; empty, only their projects are checked. On the hosted install it also checks apps for abuse before they're published publicly or shared ([Reviews](/self-hosting/administration#reviews)), always with this key. |
+| `JEV_MODEL` | `typesafe/jev-1.13` | The Jev model on OpenRouter. |
 
 These are the defaults for new projects; users can pick any other model in the chat. Models use OpenCode's `provider/model` format.
 

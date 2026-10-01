@@ -1,5 +1,5 @@
 import { ChevronRight } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import FileEntryMenu, {
     DeleteEntryDialog,
@@ -98,6 +98,34 @@ export function searchEntries(
     return entries.filter((entry) => matches.has(entry.path));
 }
 
+const openFoldersKey = (projectId: number) =>
+    `onedrop.files-open-folders.${projectId}`;
+
+function loadOpenFolders(projectId: number): string[] {
+    try {
+        const saved: unknown = JSON.parse(
+            window.sessionStorage.getItem(openFoldersKey(projectId)) ?? '[]',
+        );
+
+        return Array.isArray(saved)
+            ? saved.filter((path) => typeof path === 'string')
+            : [];
+    } catch {
+        return [];
+    }
+}
+
+function saveOpenFolders(projectId: number, folders: string[]): void {
+    try {
+        window.sessionStorage.setItem(
+            openFoldersKey(projectId),
+            JSON.stringify(folders),
+        );
+    } catch {
+        // Storage blocked: folders just start closed after a reload.
+    }
+}
+
 export default function FileTree({
     projectId,
     entries,
@@ -126,7 +154,13 @@ export default function FileTree({
     onOpenShell?: (folder: string) => void;
 }) {
     const tree = useMemo(() => buildTree(entries), [entries]);
-    const [open, setOpen] = useState<Set<string>>(new Set());
+    // The folders left open come back after a reload (LAYOUT-005); the tree only shows once files are loaded,
+    // so never in the server's HTML.
+    const [open, setOpen] = useState<Set<string>>(
+        () => new Set(loadOpenFolders(projectId)),
+    );
+
+    useEffect(() => saveOpenFolders(projectId, [...open]), [projectId, open]);
     const [menuFor, setMenuFor] = useState<string | null>(null);
     const [creating, setCreating] = useState<{
         type: WorkspaceEntry['type'];

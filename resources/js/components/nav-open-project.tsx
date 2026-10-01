@@ -1,6 +1,6 @@
 import { Link } from '@inertiajs/react';
 import { ArrowLeft, CircleDot, Kanban, Plus } from 'lucide-react';
-import { UnreadDot } from '@/components/nav-projects';
+import { UnreadDot, WaitingLabel } from '@/components/nav-projects';
 import { TaskStatusIcon } from '@/components/task-status-icon';
 import {
     SidebarGroup,
@@ -73,6 +73,14 @@ export function NavOpenProject({ project }: { project: OpenProject }) {
                                 >
                                     Main
                                 </span>
+                                {!project.working &&
+                                    project.main_waiting_for && (
+                                        <WaitingLabel
+                                            waitingFor={
+                                                project.main_waiting_for
+                                            }
+                                        />
+                                    )}
                                 {project.unread && (
                                     <UnreadDot data-test="open-project-main-unread" />
                                 )}
@@ -164,7 +172,9 @@ function TaskGroup({
                                 asChild
                                 isActive={isCurrentUrl(href)}
                                 className={
-                                    task.activity ? 'h-auto min-h-8 py-1.5' : ''
+                                    task.activity || task.waiting_for
+                                        ? 'h-auto min-h-8 py-1.5'
+                                        : ''
                                 }
                             >
                                 <Link
@@ -181,10 +191,18 @@ function TaskGroup({
                                         >
                                             {task.title}
                                         </span>
-                                        {task.activity && (
+                                        {task.activity ? (
                                             <span className="truncate text-xs text-muted-foreground">
                                                 {task.activity}
                                             </span>
+                                        ) : (
+                                            task.waiting_for && (
+                                                <WaitingLabel
+                                                    waitingFor={
+                                                        task.waiting_for
+                                                    }
+                                                />
+                                            )
                                         )}
                                     </span>
                                     {task.unread && <UnreadDot />}

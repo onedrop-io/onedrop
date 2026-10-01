@@ -2,6 +2,7 @@
 
 namespace App\Concerns;
 
+use App\Enums\AbuseReviewStatus;
 use App\Enums\AgentProvider;
 use App\Enums\CredentialType;
 use App\Enums\PublishStatus;
@@ -13,6 +14,7 @@ use App\Models\Message;
 use App\Models\Project;
 use App\Models\Task;
 use App\Sandbox\Agents\Conversation;
+use App\Sandbox\Agents\MessageChecks;
 use App\Sandbox\Agents\ModelCatalog;
 use App\Sandbox\Gateway;
 use App\Sandbox\Publishing\Publishers;
@@ -56,6 +58,9 @@ trait RendersWorkspace
         $queued = $newTask ? collect() : $conversation->queuedMessages()->with('attachments')->get();
 
         return Inertia::render('projects/show', [
+            // A message the user just sent that's waiting for their answer (SECRET-002, REQ-003), shown once. Being a
+            // closure, partial reloads that don't ask for it leave it for the page load after the send.
+            'held' => fn () => $newTask ? null : MessageChecks::pullPrompt($request->user(), $conversation),
             'project' => [
                 ...$project->only('id', 'name', 'status', 'autofix', 'track_requirements'),
                 // A message that failed because Claude Code wasn't signed in, waiting to run again (AI-005).
@@ -69,7 +74,8 @@ trait RendersWorkspace
                 'applied_at' => $task->applied_at?->toIso8601String(),
             ] : null,
             'newTask' => $newTask,
-            'agent' => ($selection = $catalog->selectionFor($project)) ? $catalog->describe($selection, $catalog->harnessFor($project)) : null,
+            // With Auto (AGT-011), the provider and its default model, which a message runs on when Jev can't size it.
+            'agent' => ($selection = $catalog->selectionFor($project)) ? [...$catalog->describe($selection, $catalog->harnessFor($project)), 'auto' => $project->agent_auto] : null,
             // Claude Code runs on the owner's own Claude sign-in in the sandbox (AI-005).
             'claudeSubscription' => $project->user->agentConnections()
                 ->where('provider', AgentProvider::Claude)
@@ -138,6 +144,12 @@ trait RendersWorkspace
             'card_error' => $share?->card_error,
             'views' => $share->views ?? 0,
             'remixes' => $share->remixes ?? 0,
+            // Held for a platform admin's review, or taken down, on the hosted install (PUB-003).
+            'review' => match ($project->abuseReview?->status) {
+                AbuseReviewStatus::Held => 'held',
+                AbuseReviewStatus::TakenDown => 'taken_down',
+                default => null,
+            },
         ];
     }
 

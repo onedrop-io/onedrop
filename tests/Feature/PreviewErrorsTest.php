@@ -9,13 +9,20 @@ use App\Models\Project;
 use App\Models\Sandbox;
 use App\Models\User;
 use App\Sandbox\Agents\AgentQueue;
+use App\Sandbox\Agents\Jev;
 use App\Sandbox\ExecResult;
 use App\Sandbox\PreviewErrors;
 use App\Sandbox\Providers\FakeSandboxProvider;
 use App\Sandbox\SandboxProvider;
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 
 beforeEach(function () {
+    // Without a key, Jev isn't asked and every error is sent.
+    config(['services.openrouter.key' => null]);
+    Http::preventStrayRequests();
+
     $this->provider = new FakeSandboxProvider;
     app()->instance(SandboxProvider::class, $this->provider);
 
@@ -39,7 +46,7 @@ test('new preview errors after a turn are sent to the agent once', function () {
         ['t' => $this->since + 20, 'k' => 'browser', 'type' => 'error', 'msg' => 'x is not defined', 'page' => '/dashboard', 'pub' => false],
     ]);
 
-    (new CheckPreviewErrors($this->project, $this->since, $this->turn->id))->handle(app(PreviewErrors::class), app(AgentQueue::class));
+    (new CheckPreviewErrors($this->project, $this->since, $this->turn->id))->handle(app(PreviewErrors::class), app(AgentQueue::class), app(Jev::class));
 
     $request = $this->project->messages()->reorder()->latest('id')->first();
 
@@ -58,6 +65,47 @@ test('new preview errors after a turn are sent to the agent once', function () {
     CheckPreviewErrors::afterTurn($this->project);
     Queue::assertNotPushed(CheckPreviewErrors::class);
 })->group('ERR-001');
+
+test('only the errors Jev judges real problems are sent', function () {
+    Queue::fake([RunAgentTask::class]);
+    config(['services.openrouter.key' => 'sk-or-system']);
+    ($this->recorded)('200', [
+        ['t' => $this->since + 10, 'k' => 'browser', 'type' => 'error', 'msg' => 'Chart is not defined', 'stack' => 'ReferenceError: Chart is not defined', 'page' => '/dashboard', 'pub' => false],
+        ['t' => $this->since + 2500, 'k' => 'browser', 'type' => 'resource', 'msg' => 'http://localhost/favicon.ico', 'page' => '/', 'pub' => false],
+    ]);
+    Http::fake([Jev::URL => Http::response(['answers' => [
+        'error_0' => ['type' => 'noul', 'noul' => 0.93],
+        'error_1' => ['type' => 'noul', 'noul' => 0.09],
+    ]])]);
+
+    (new CheckPreviewErrors($this->project, $this->since, $this->turn->id))->handle(app(PreviewErrors::class), app(AgentQueue::class), app(Jev::class));
+
+    expect($this->project->messages()->reorder()->latest('id')->first()->content)
+        ->toContain('Chart is not defined')
+        ->not->toContain('favicon');
+    Http::assertSent(fn (Request $request) => $request->url() === Jev::URL
+        && $request->hasHeader('Authorization', 'Bearer sk-or-system')
+        && $request['state']['user_request'] === 'Add a dashboard'
+        && $request['state']['errors']['error_0']['stack'] === 'ReferenceError: Chart is not defined'
+        && $request['state']['errors']['error_1']['seconds_after_turn'] == 2.5
+        && $request['questions']['error_1']['type'] === 'noul');
+})->group('ERR-001');
+
+test('nothing is sent when Jev judges every error noise; everything is when Jev fails', function (array $response, int $status, bool $sent) {
+    Queue::fake([RunAgentTask::class]);
+    config(['services.openrouter.key' => 'sk-or-system']);
+    ($this->recorded)('200', [['t' => $this->since + 10, 'k' => 'browser', 'type' => 'error', 'msg' => 'boom', 'pub' => false]]);
+    Http::fake([Jev::URL => Http::response($response, $status)]);
+    $count = $this->project->messages()->count();
+
+    (new CheckPreviewErrors($this->project, $this->since, $this->turn->id))->handle(app(PreviewErrors::class), app(AgentQueue::class), app(Jev::class));
+
+    expect($this->project->messages()->count())->toBe($sent ? $count + 1 : $count);
+})->with([
+    'all noise' => [['answers' => ['error_0' => ['type' => 'noul', 'noul' => 0.1]]], 200, false],
+    'jev fails' => [['error' => 'down'], 500, true],
+    'jev leaves the error out' => [['answers' => []], 200, true],
+])->group('ERR-001');
 
 test('published-address errors, console output and a restart the app recovered from are ignored', function () {
     ($this->recorded)('200', [
@@ -81,7 +129,7 @@ test('nothing is sent when the preview is fine, the agent is busy again, or anot
     $setUp->call($this);
     $count = $this->project->messages()->count();
 
-    (new CheckPreviewErrors($this->project, $this->since, $this->turn->id))->handle(app(PreviewErrors::class), app(AgentQueue::class));
+    (new CheckPreviewErrors($this->project, $this->since, $this->turn->id))->handle(app(PreviewErrors::class), app(AgentQueue::class), app(Jev::class));
 
     expect($this->project->messages()->count())->toBe($count);
 })->with([

@@ -38,13 +38,15 @@ export default function ClaudeLoginStatus({
     const seenSignedOut = useRef(false);
 
     useEffect(() => {
-        if (status?.signed_in === false) {
+        if (status?.signed_in === true) {
+            if (seenSignedOut.current) {
+                seenSignedOut.current = false;
+                onSignedIn();
+            }
+        } else if (status?.signed_in === false || waitingForSignIn) {
             seenSignedOut.current = true;
-        } else if (status?.signed_in === true && seenSignedOut.current) {
-            seenSignedOut.current = false;
-            onSignedIn();
         }
-    }, [status, onSignedIn]);
+    }, [status, waitingForSignIn, onSignedIn]);
 
     useEffect(() => {
         if (working) {
@@ -65,6 +67,18 @@ export default function ClaudeLoginStatus({
                         credentials: 'same-origin',
                     },
                 );
+
+                if (cancelled) {
+                    return;
+                }
+
+                // A failed check (e.g. throttled) says nothing about the sign-in: keep what was known and ask again.
+                if (!response.ok) {
+                    timer = setTimeout(check, RECHECK_MS);
+
+                    return;
+                }
+
                 const next = (await response.json()) as Status;
 
                 if (cancelled) {
@@ -124,7 +138,11 @@ export default function ClaudeLoginStatus({
         );
     }
 
-    if (status?.signed_in === false) {
+    // A message waiting for a sign-in has told the user to click this button, so it's there even when the check can't tell.
+    if (
+        status?.signed_in === false ||
+        (waitingForSignIn && status?.signed_in !== true)
+    ) {
         return (
             <div
                 className="mb-2 flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm"

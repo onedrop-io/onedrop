@@ -108,7 +108,7 @@ test('the shell greets each new terminal with a banner, but not nested shells, a
             ->and($listing('-la'))->toContain('ok')
             ->and($listing('-ltr'))->toContain('ok');
 
-        foreach (['bat --version', 'rg --version', 'fd --version', 'zoxide --version', 'jq --version', 'btop --version', 'lazygit --version', 'micro -version', 'vim --version', 'ncdu -v'] as $command) {
+        foreach (['bat --version', 'rg --version', 'fd --version', 'zoxide --version', 'jq --version', 'btop --version', 'lazygit --version', 'micro -version', 'vim --version', 'ncdu -v', 'tmux -V'] as $command) {
             expect($docker->exec($id, explode(' ', $command))->successful())->toBeTrue("{$command} failed");
         }
     } finally {
@@ -380,6 +380,24 @@ test('the host proxy records custom analytics events without passing them to the
         $docker->destroy($id);
     }
 })->group('GROW-002');
+
+test('preview pages can take a picture of themselves for annotating', function () {
+    $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
+    $id = $docker->create(new SandboxSpec('onedrop-test-'.bin2hex(random_bytes(3))));
+    $curl = fn (string ...$args) => $docker->exec($id, ['curl', '-s', ...$args])->output;
+
+    try {
+        $script = retry(20, fn () => tap($curl('http://127.0.0.1:8081/__onedrop/errors.js'), fn (string $body) => throw_unless($body !== '', new RuntimeException('proxy not up'))), 250);
+
+        expect($script)->toContain("onedrop: 'captured'")
+            ->toContain("onedrop: 'inspected'")
+            ->toContain("tag.src = '/__onedrop/capture.js'")
+            ->and($curl('http://127.0.0.1:8081/__onedrop/capture.js'))->toContain('modernScreenshot')
+            ->and($curl('-o', '/dev/null', '-w', '%{content_type}', 'http://127.0.0.1:8081/__onedrop/capture.js'))->toBe('text/javascript; charset=utf-8');
+    } finally {
+        $docker->destroy($id);
+    }
+})->group('AGT-013');
 
 test('the host proxy records server errors, preview browser errors and the app being down', function () {
     $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));

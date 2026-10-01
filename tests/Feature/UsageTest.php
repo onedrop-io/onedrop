@@ -48,8 +48,9 @@ test('a Claude Code result records each model it used, charged to the project ow
     $usages = AgentUsage::query()->orderBy('id')->get();
 
     expect($usages)->toHaveCount(2)
-        ->and($usages[0]->only(['user_id', 'project_id', 'task_id', 'harness', 'provider', 'model', 'session_id', 'input_tokens', 'output_tokens', 'cache_read_tokens', 'cache_write_tokens', 'cost']))->toBe([
+        ->and($usages[0]->only(['user_id', 'organization_id', 'project_id', 'task_id', 'harness', 'provider', 'model', 'session_id', 'input_tokens', 'output_tokens', 'cache_read_tokens', 'cache_write_tokens', 'cost']))->toBe([
             'user_id' => $this->user->id,
+            'organization_id' => $this->project->organization_id,
             'project_id' => $this->project->id,
             'task_id' => $task->id,
             'harness' => AgentHarness::ClaudeCode,

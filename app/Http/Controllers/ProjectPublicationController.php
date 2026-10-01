@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\AbuseReviewStatus;
 use App\Enums\PublishStatus;
 use App\Enums\PublishTarget;
 use App\Enums\PublishVisibility;
 use App\Enums\SandboxStatus;
 use App\Jobs\PublishProject;
 use App\Models\Project;
+use App\Sandbox\AbuseCheck;
 use App\Sandbox\Publishing\Publishers;
 use App\Sandbox\Publishing\PublishException;
 use Illuminate\Http\RedirectResponse;
@@ -34,7 +36,9 @@ class ProjectPublicationController extends Controller
         $target = isset($validated['target']) ? PublishTarget::from($validated['target']) : $publishers->default();
 
         $problem = $publishers->for($target)->unavailableReason()
-            ?? ($project->sandbox?->status !== SandboxStatus::Running ? __("The project's sandbox isn't running.") : null);
+            ?? ($project->sandbox?->status !== SandboxStatus::Running ? __("The project's sandbox isn't running.") : null)
+            // Taken down after a review on the hosted install (ADMIN-006): private publishing still works.
+            ?? ($visibility === PublishVisibility::Public && $project->abuseReview?->status === AbuseReviewStatus::TakenDown ? __(AbuseCheck::TAKEN_DOWN_MESSAGE) : null);
 
         if ($problem) {
             throw ValidationException::withMessages(['publish' => $problem]);

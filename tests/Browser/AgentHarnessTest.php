@@ -88,7 +88,7 @@ test('users sign in to Claude from the chat in Claude Code\'s own sign-in in the
         ->assertSeeIn('@harness-picker', 'Claude Code')
         ->click('@claude-sign-in')
         ->assertVisible('@shell-frame')
-        ->assertAttribute('@shell-frame', 'src', 'http://127.0.0.1:7681/?arg=claude-login')
+        ->assertScript('document.querySelector(\'[data-test="shell-frame"]\').getAttribute("src").startsWith("http://127.0.0.1:7681/?arg=claude-login&arg=session&arg=")', true)
         ->assertNoJavaScriptErrors();
 
     // Once Claude Code reports a sign-in, the chat shows who it's signed in as.
@@ -102,6 +102,22 @@ test('users sign in to Claude from the chat in Claude Code\'s own sign-in in the
         ->assertNoJavaScriptErrors();
 
     expect($project->fresh()->sign_in_retry_message_id)->toBeNull();
+})->group('AI-005');
+
+test('the chat offers "Sign in to Claude" while a message waits for it, even when the sign-in can\'t be checked', function () {
+    app()->instance(SandboxProvider::class, new FakeSandboxProvider);
+    $user = User::factory()->create();
+    AgentConnection::factory()->for($user)->claudeLogin()->create();
+    $project = Project::factory()->for($user)->create(['agent_harness' => AgentHarness::ClaudeCode]);
+    // Not running, so the check can't ask Claude Code.
+    Sandbox::factory()->for($project)->create(['status' => SandboxStatus::Paused, 'preview_url' => null, 'shell_url' => 'http://127.0.0.1:7681']);
+    $failed = $project->messages()->create(['role' => MessageRole::User, 'content' => 'Build a timer']);
+    $project->update(['sign_in_retry_message_id' => $failed->id]);
+    $this->actingAs($user);
+
+    visit("/projects/{$project->id}")
+        ->assertVisible('@claude-sign-in')
+        ->assertNoJavaScriptErrors();
 })->group('AI-005');
 
 test('the chat carries on when it opens already signed in to Claude, e.g. after a reload mid sign-in', function () {

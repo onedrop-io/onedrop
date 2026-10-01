@@ -99,7 +99,33 @@ abstract class SandboxAgentRunner implements AgentRunner
      */
     protected function prompt(Message $message, array $attached): string
     {
-        return $this->withBrowserNote($message, $this->withAttachments($message, $attached));
+        return $this->withBrowserNote($message, $this->withDecisionNote($message, $this->withAgentContext($message, $this->withAttachments($message, $attached))));
+    }
+
+    /**
+     * Notes that came with the message for the agent only, not shown in the chat (e.g. what each mark on a
+     * marked-up picture of the preview points at, AGT-013).
+     */
+    protected function withAgentContext(Message $message, string $prompt): string
+    {
+        $context = $message->meta['agent_context'] ?? null;
+
+        return is_string($context) && $context !== '' ? "{$prompt}\n\n{$context}" : $prompt;
+    }
+
+    /**
+     * When the user confirmed the message changes an earlier decision (REQ-003), tell the agent it's on purpose,
+     * so it rewrites that decision instead of pushing back or keeping both.
+     */
+    protected function withDecisionNote(Message $message, string $prompt): string
+    {
+        $decision = $message->meta['changes_decision'] ?? null;
+
+        if (! is_string($decision) || $decision === '') {
+            return $prompt;
+        }
+
+        return "{$prompt}\n\n(The user confirmed this message intentionally changes an earlier decision in .onedrop/REQ.md: \"{$decision}\". Make the change, and rewrite that decision with today's date and the new reason.)";
     }
 
     /**

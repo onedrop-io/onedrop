@@ -6,6 +6,7 @@ use App\Enums\AgentHarness;
 use App\Enums\AgentProvider;
 use App\Enums\CredentialType;
 use App\Models\AgentConnection;
+use App\Models\Message;
 use App\Models\Project;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
@@ -205,13 +206,19 @@ class ModelCatalog
 
     /**
      * What the agent will run for a project: its saved choice, or the owner's default provider's default model.
+     * For a $message Auto picked a model for (AGT-011), that model, while the owner can still run its provider.
      *
      * @return array{provider: AgentProvider, model: string, variant: string|null}|null
      */
-    public function selectionFor(Project $project): ?array
+    public function selectionFor(Project $project, ?Message $message = null): ?array
     {
         $harness = $this->harnessFor($project);
         $usable = $this->usableProviders($project->user, $harness);
+        $picked = $message?->meta['selection'] ?? null;
+
+        if (is_array($picked) && ($provider = AgentProvider::tryFrom($picked['provider'] ?? '')) && in_array($provider, $usable, true) && is_string($picked['model'] ?? null)) {
+            return ['provider' => $provider, 'model' => $picked['model'], 'variant' => $picked['variant'] ?? null];
+        }
 
         if ($project->agent_provider && in_array($project->agent_provider, $usable, true) && $project->agent_model
             && (! $this->signedInWithChatGpt($project->agent_provider, $project->user) || $this->includedWithChatGpt($project->agent_model, $project->user))) {

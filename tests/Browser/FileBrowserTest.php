@@ -225,7 +225,7 @@ test('each file and folder has a menu to rename, search, open the shell in, and 
         ->click('@file-menu-src')
         ->click('@file-action-shell')
         ->assertVisible('@shell-frame')
-        ->assertAttribute('@shell-frame', 'src', 'http://127.0.0.1:7681/?arg=cd&arg=src')
+        ->assertScript('document.querySelector(\'[data-test="shell-frame"]\').getAttribute("src").startsWith("http://127.0.0.1:7681/?arg=cd&arg=src&arg=session&arg=")', true)
         ->click('[data-test="file-menu-package.json"]')
         ->click('@file-action-delete')
         ->assertVisible('@file-delete-dialog');

@@ -25,7 +25,7 @@ class OpenCodeRunner extends SandboxAgentRunner
     {
         $conversation = $message->conversation();
         $sandbox = $conversation->agentSandbox();
-        $selection = $this->catalog->selectionFor($project);
+        $selection = $this->catalog->selectionFor($project, $message);
         // The connection for the chosen model's provider; the default one only explains why nothing is usable.
         $connection = $selection
             ? $project->user->agentConnections()->firstWhere('provider', $selection['provider'])

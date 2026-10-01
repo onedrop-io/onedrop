@@ -26,6 +26,14 @@ The rules for working on OneDrop live in `AGENTS.md` at the repo root, and apply
 | Type-check front end      | `npm run types:check`                                  |
 | Preview these docs        | `cd docs && npx mint dev`                              |
 
+## When CI fails
+
+If the `tests` workflow fails on `main` or on a pull request from a branch in this repo, the `ci fix` workflow opens an issue with the failure, labelled `ci-fix`, and assigns it to Copilot cloud agent. Copilot finds and fixes the cause, then opens a pull request into the branch that failed. Review it like any other pull request; nothing lands without a merge. You may need to approve the workflow runs on Copilot's pull requests before the tests run.
+
+It needs Copilot cloud agent turned on for the repository, and a `COPILOT_TOKEN` repository secret: a fine-grained personal access token from someone with a Copilot plan, with read access to metadata and read and write access to actions, contents, issues and pull requests. Without it the workflow does nothing. It skips pull requests from forks, runs whose branch already has newer commits, and branches that already have an open `ci-fix` issue.
+
+`.github/workflows/copilot-setup-steps.yml` installs PHP, Node, the app and Playwright's Chromium before Copilot starts, the same way CI does.
+
 ## Dev user
 
 The database seeder creates `dev@example.com` / `password` (an admin), `sam@example.com` / `password`, and an "Engineering" group, in local and testing environments only.

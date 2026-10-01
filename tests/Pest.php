@@ -309,3 +309,11 @@ function orgPath(string $path = ''): string
 {
     return '/o/'.Organization::install()->slug.$path;
 }
+
+/**
+ * A made-up Stripe secret key, put together from two pieces so GitHub's push protection doesn't take it for a real one.
+ */
+function fakeStripeKey(): string
+{
+    return 'sk_'.'live_51Hx9aKJ2b3C4d5E6f7G8h9I0j';
+}

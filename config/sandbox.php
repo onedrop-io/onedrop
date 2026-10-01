@@ -152,6 +152,17 @@ return [
         'ollama' => ['glm-5.3', 'kimi-k2.7-code', 'deepseek-v4-pro', 'qwen3.5:397b'],
     ],
 
+    // What Auto (AGT-011) runs for each size of request, per provider: [catalog id, reasoning level], smallest first
+    // (a typo or tiny tweak, a small change, a new feature, a big redesign or hard bug). A model the user's
+    // connection can't run falls back to the provider's default model, and a level the model lacks to its default.
+    'auto_models' => [
+        'claude' => [['claude-sonnet-5', 'low'], ['claude-sonnet-5', 'medium'], ['claude-opus-5-5', 'high'], ['claude-opus-5-5', 'xhigh']],
+        'codex' => [['gpt-6-luna', 'low'], ['gpt-6-sol', 'medium'], ['gpt-6-sol', 'high'], ['gpt-6-astra', 'xhigh']],
+        'openrouter' => [['google/gemini-3.8-flash', 'low'], ['anthropic/claude-sonnet-5', 'medium'], ['anthropic/claude-opus-5.5', 'high'], ['anthropic/claude-opus-5.5', 'xhigh']],
+        'gemini' => [['gemini-3.8-flash', 'low'], ['gemini-3.8-flash', 'medium'], ['gemini-3.1-pro-preview', 'high'], ['gemini-3.1-pro-preview', 'high']],
+        'ollama' => [['glm-5.3', 'low'], ['glm-5.3', 'high'], ['glm-5.3', 'high'], ['glm-5.3', 'max']],
+    ],
+
     // Whether a user's own Ollama server may be on a private or loopback address (AI-006). The platform
     // calls that URL, so it's off on servers; a local install runs Docker sandboxes that can reach the machine.
     'ollama_private_servers' => (bool) env('SANDBOX_OLLAMA_PRIVATE_SERVERS', env('APP_ENV') === 'local'),

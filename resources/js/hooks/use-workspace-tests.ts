@@ -12,6 +12,14 @@ export type TestResult = {
     ran_at: string;
     /** The actions and checks the test made, in order (TEST-005). */
     steps?: TestStep[];
+    /** For a failure, why Jev thinks it failed (TEST-008); null while it's worked out or when Jev wasn't sure. */
+    triage?: TestTriage | null;
+};
+
+/** Jev's verdict on a failure: the app broke, the test is out of date, or it's flaky or timing. */
+export type TestTriage = {
+    verdict: 'app' | 'test' | 'flaky';
+    probability: number;
 };
 
 /** One action or check in a test, e.g. "Click" on getByRole('button'), at a line of the test's file. */
@@ -38,10 +46,15 @@ export type TestsState = {
     /** Why the tests couldn't be listed or run (e.g. a syntax error), from Playwright. */
     error: string | null;
     tests: WorkspaceTest[];
+    /** Jev is still working out why some tests failed (TEST-008). */
+    triage_pending?: boolean;
 };
 
 /** How often a run is checked on while it goes, in ms. */
 const POLL_MS = 2000;
+
+/** Most checks for Jev's verdicts on failures, after a run. */
+const MAX_TRIAGE_CHECKS = 15;
 
 function xsrfToken(): string {
     const token = document.cookie
@@ -65,6 +78,11 @@ export function useWorkspaceTests(
     const [error, setError] = useState<string | null>(null);
     const [starting, setStarting] = useState(false);
     const [checks, setChecks] = useState(0);
+    /** How often the run that finished at `run` has been checked for verdicts. */
+    const [triageChecks, setTriageChecks] = useState<{
+        run: string | null;
+        n: number;
+    }>({ run: null, n: 0 });
     const alive = useRef(true);
 
     useEffect(() => {
@@ -126,6 +144,28 @@ export function useWorkspaceTests(
 
         return () => window.clearTimeout(timer);
     }, [enabled, running, load, checks]);
+
+    // Once a run is over, check back a few times for Jev's verdicts on its failures.
+    const triagePending = !running && (state?.triage_pending ?? false);
+    const finishedAt = state?.finished_at ?? null;
+    const triageChecked = triageChecks.run === finishedAt ? triageChecks.n : 0;
+
+    useEffect(() => {
+        if (!enabled || !triagePending || triageChecked >= MAX_TRIAGE_CHECKS) {
+            return;
+        }
+
+        const timer = window.setTimeout(() => {
+            void load(true).then(() =>
+                setTriageChecks((c) => ({
+                    run: finishedAt,
+                    n: (c.run === finishedAt ? c.n : 0) + 1,
+                })),
+            );
+        }, POLL_MS);
+
+        return () => window.clearTimeout(timer);
+    }, [enabled, triagePending, triageChecked, finishedAt, load]);
 
     /** Run all the tests, or some: files, `file:line`, or tags such as `@REQ-001`. */
     const run = useCallback(

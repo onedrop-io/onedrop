@@ -13,6 +13,7 @@ use App\Enums\PublishStatus;
 use App\Enums\PublishTarget;
 use App\Enums\PublishVisibility;
 use App\Enums\TaskStage;
+use App\Enums\TurnOutcome;
 use App\Sandbox\Agents\Conversation;
 use Database\Factories\ProjectFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -40,6 +41,7 @@ use Illuminate\Support\Str;
  * @property AgentProvider|null $agent_provider
  * @property string|null $agent_model
  * @property string|null $agent_variant
+ * @property bool $agent_auto
  * @property PublishStatus|null $publish_status
  * @property PublishVisibility|null $publish_visibility
  * @property PublishTarget|null $publish_target
@@ -56,6 +58,7 @@ use Illuminate\Support\Str;
  * @property string|null $publish_waiting_for
  * @property Carbon|null $pinned_at
  * @property Carbon|null $read_at
+ * @property TurnOutcome|null $turn_outcome
  * @property Carbon|null $archived_at
  * @property int|null $sidebar_position Where the owner dragged it in the sidebar (PRJ-010); null until they do
  * @property string|null $backup_commit
@@ -75,7 +78,7 @@ use Illuminate\Support\Str;
  * @property-read string|null $last_reply_at When the agent last replied (loaded with withMax, for the sidebar).
  * @property-read bool|null $task_working Whether any of its tasks' agents is running (loaded with withExists, for the sidebar).
  */
-#[Fillable(['organization_id', 'name', 'prompt', 'status', 'agent_session_id', 'sign_in_retry_message_id', 'agent_harness', 'agent_provider', 'agent_model', 'agent_variant', 'publish_status', 'publish_visibility', 'publish_target', 'published_url', 'published_at', 'published_by', 'publish_error', 'publish_login_url', 'publish_waiting_for', 'onedrop_enabled', 'onedrop_client_id', 'onedrop_client_secret', 'onedrop_callback_path', 'onedrop_group_ids', 'pinned_at', 'read_at', 'archived_at', 'sidebar_position', 'backup_commit', 'backed_up_at', 'icon_path', 'icon_mime', 'icon_hash', 'git_remote_url', 'git_remote_username', 'git_remote_token', 'git_sync_status', 'git_sync_error', 'git_synced_at', 'github_installation_id', 'autofix', 'track_requirements'])]
+#[Fillable(['organization_id', 'name', 'prompt', 'status', 'agent_session_id', 'sign_in_retry_message_id', 'agent_harness', 'agent_provider', 'agent_model', 'agent_variant', 'agent_auto', 'publish_status', 'publish_visibility', 'publish_target', 'published_url', 'published_at', 'published_by', 'publish_error', 'publish_login_url', 'publish_waiting_for', 'onedrop_enabled', 'onedrop_client_id', 'onedrop_client_secret', 'onedrop_callback_path', 'onedrop_group_ids', 'pinned_at', 'read_at', 'archived_at', 'sidebar_position', 'backup_commit', 'backed_up_at', 'icon_path', 'icon_mime', 'icon_hash', 'git_remote_url', 'git_remote_username', 'git_remote_token', 'git_sync_status', 'git_sync_error', 'git_synced_at', 'github_installation_id', 'autofix', 'track_requirements', 'turn_outcome'])]
 #[Hidden(['onedrop_client_secret', 'git_remote_token'])]
 class Project extends Model implements Conversation
 {
@@ -120,6 +123,7 @@ class Project extends Model implements Conversation
             'status' => ProjectStatus::class,
             'autofix' => 'boolean',
             'track_requirements' => 'boolean',
+            'agent_auto' => 'boolean',
             'agent_harness' => AgentHarness::class,
             'agent_provider' => AgentProvider::class,
             'publish_status' => PublishStatus::class,
@@ -131,6 +135,7 @@ class Project extends Model implements Conversation
             'onedrop_group_ids' => 'array',
             'pinned_at' => 'datetime',
             'read_at' => 'datetime',
+            'turn_outcome' => TurnOutcome::class,
             'archived_at' => 'datetime',
             'backed_up_at' => 'datetime',
             'git_remote_token' => 'encrypted',
@@ -334,6 +339,16 @@ class Project extends Model implements Conversation
     public function share(): HasOne
     {
         return $this->hasOne(ProjectShare::class);
+    }
+
+    /**
+     * The hosted install's abuse check of its public app and share page (PUB-003).
+     *
+     * @return HasOne<AbuseReview, $this>
+     */
+    public function abuseReview(): HasOne
+    {
+        return $this->hasOne(AbuseReview::class);
     }
 
     /**

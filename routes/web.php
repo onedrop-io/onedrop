@@ -1,8 +1,10 @@
 <?php
 
 use App\Http\Controllers\AcceptInvitationController;
+use App\Http\Controllers\Admin\AbuseReviewController;
 use App\Http\Controllers\Admin\BrandingController;
 use App\Http\Controllers\Admin\DatabaseBackupController;
+use App\Http\Controllers\Admin\OrganizationController as AdminOrganizationController;
 use App\Http\Controllers\Admin\SandboxProviderController;
 use App\Http\Controllers\Admin\ServerController;
 use App\Http\Controllers\Admin\ServerMonitoringController;
@@ -18,6 +20,7 @@ use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OneDropOAuthController;
 use App\Http\Controllers\OpenRouterAuthController;
 use App\Http\Controllers\OrganizationController;
+use App\Http\Controllers\OrganizationMemberController;
 use App\Http\Controllers\ProjectAgentController;
 use App\Http\Controllers\ProjectAttachmentController;
 use App\Http\Controllers\ProjectAuthController;
@@ -260,8 +263,8 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
         Route::post('ssh-keys', [SshKeyController::class, 'store'])->name('ssh-keys.store');
         Route::delete('ssh-keys/{sshKey}', [SshKeyController::class, 'destroy'])->name('ssh-keys.destroy');
         Route::patch('projects/{project}/agent', [ProjectAgentController::class, 'update'])->name('projects.agent.update');
-        Route::get('projects/{project}/claude-login', [ClaudeLoginController::class, 'show'])->middleware('throttle:30,1')->name('projects.claude-login.show');
-        Route::post('projects/{project}/claude-login/resume', [ClaudeLoginController::class, 'resume'])->middleware('throttle:30,1')->name('projects.claude-login.resume');
+        Route::get('projects/{project}/claude-login', [ClaudeLoginController::class, 'show'])->middleware('throttle:claude-login')->name('projects.claude-login.show');
+        Route::post('projects/{project}/claude-login/resume', [ClaudeLoginController::class, 'resume'])->middleware('throttle:claude-login')->name('projects.claude-login.resume');
         Route::patch('projects/{project}/agent/autofix', [ProjectAgentController::class, 'autofix'])->name('projects.agent.autofix');
         Route::post('projects/{project}/agent/stop', [ProjectAgentController::class, 'stop'])->name('projects.agent.stop');
         Route::delete('projects/{project}/messages/{message}', [ProjectMessageController::class, 'destroy'])->name('projects.messages.destroy');
@@ -284,8 +287,21 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
 
     Route::get('usage', [UsageController::class, 'index'])->name('usage.index');
 
-    // An organization's invites and groups (ORG-004, ORG-005). Anything from another organization is a 404.
+    // Another organization, owned by its maker, on the hosted install (ORG-003).
+    Route::post('organizations', [OrganizationController::class, 'store'])->name('organizations.store');
+
+    // An organization's settings, members, usage, invites and groups (ORG-004, ORG-005). Anything from another
+    // organization is a 404.
     Route::prefix('o/{organization}')->group(function () {
+        Route::get('settings', [OrganizationController::class, 'edit'])->name('organizations.edit');
+        Route::patch('/', [OrganizationController::class, 'update'])->name('organizations.update');
+        Route::patch('members/{user}', [OrganizationMemberController::class, 'update'])->name('organizations.members.update');
+        Route::delete('members/{user}', [OrganizationMemberController::class, 'destroy'])->name('organizations.members.destroy');
+        Route::get('usage', [UsageController::class, 'organization'])->name('organizations.usage');
+        Route::get('logo', [OrganizationController::class, 'logo'])->name('organizations.logo');
+        Route::post('logo', [OrganizationController::class, 'storeLogo'])->name('organizations.logo.store');
+        Route::delete('logo', [OrganizationController::class, 'destroyLogo'])->name('organizations.logo.destroy');
+
         Route::get('invitations', [InvitationController::class, 'index'])->name('invitations.index');
         Route::post('invitations', [InvitationController::class, 'store'])->name('invitations.store');
         Route::delete('invitations/{invitation}', [InvitationController::class, 'destroy'])->name('invitations.destroy');
@@ -305,8 +321,10 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
         Route::patch('users/{user}', [UserController::class, 'update'])->name('users.update');
     });
 
-    // Install-wide settings (ADMIN-001 to ADMIN-005).
+    // Install-wide settings (ADMIN-001 to ADMIN-006).
     Route::middleware('can:administer')->prefix('admin')->name('admin.')->group(function () {
+        Route::get('organizations', [AdminOrganizationController::class, 'index'])->name('organizations.index');
+
         Route::get('general', [BrandingController::class, 'edit'])->name('general.edit');
         Route::patch('general', [BrandingController::class, 'update'])->name('general.update');
         Route::post('general/logo', [BrandingController::class, 'storeLogo'])->name('general.logo.store');
@@ -327,6 +345,11 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
         Route::get('backups/{backup}', [DatabaseBackupController::class, 'download'])->name('backups.download');
         Route::delete('backups/{backup}', [DatabaseBackupController::class, 'destroy'])->name('backups.destroy');
         Route::post('backups/{backup}/restore', [DatabaseBackupController::class, 'restore'])->name('backups.restore');
+
+        // Projects the hosted install's abuse check held for review (ADMIN-006).
+        Route::get('reviews', [AbuseReviewController::class, 'index'])->name('reviews.index');
+        Route::post('reviews/{review}/approve', [AbuseReviewController::class, 'approve'])->name('reviews.approve');
+        Route::post('reviews/{review}/take-down', [AbuseReviewController::class, 'takeDown'])->name('reviews.take-down');
     });
 });
 

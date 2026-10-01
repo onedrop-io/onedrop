@@ -2,6 +2,7 @@
 
 namespace App\Sandbox\Agents;
 
+use App\Enums\AgentFailure;
 use App\Enums\AgentHarness;
 use App\Enums\AgentProvider;
 use App\Enums\CredentialType;
@@ -32,7 +33,7 @@ class CodexEvents extends AgentEvents
             // Codex retries a failed request a few times before giving up with turn.failed.
             'error' => str_starts_with((string) ($event['message'] ?? ''), 'Reconnecting') ? $this->say($conversation, MessageRole::Activity, 'Reconnecting to OpenAI') : null,
             'turn.completed' => $this->turnCompleted($conversation, is_array($event['usage'] ?? null) ? $event['usage'] : [], $event['model'] ?? null),
-            'turn.failed' => $this->say($conversation, MessageRole::Assistant, $this->explainError($conversation, $this->errorMessage($event['error']['message'] ?? null))),
+            'turn.failed' => $this->sayFailure($conversation, $this->explainError($conversation, $this->errorMessage($event['error']['message'] ?? null))),
             'onedrop.exit' => $this->finish($conversation, (int) ($event['code'] ?? 0), (string) ($event['stderr'] ?? ''), (bool) ($event['reported'] ?? false)),
             default => null,
         };
@@ -146,7 +147,26 @@ class CodexEvents extends AgentEvents
                 ? 'OpenAI turned down your ChatGPT sign-in. Sign in with ChatGPT again in Settings → AI.'
                 : 'OpenAI rejected your API key. Reconnect Codex in Settings → AI.',
             Str::contains($message, ['Too Many Requests', 'rate limit', 'overloaded', 'Service Unavailable'], ignoreCase: true) => 'OpenAI is busy right now. Try again in a minute.',
-            default => 'Something went wrong: '.Str::limit($message, 300),
+            default => $this->unmatched($message, 'Something went wrong: '.Str::limit($message, 300)),
+        };
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function failureMessage(Conversation $conversation, AgentFailure $failure): ?string
+    {
+        $chatGpt = $this->signedInWithChatGpt($conversation);
+
+        return match ($failure) {
+            AgentFailure::BadKey => $chatGpt
+                ? 'OpenAI turned down your ChatGPT sign-in. Sign in with ChatGPT again in Settings → AI.'
+                : 'OpenAI rejected your API key. Reconnect Codex in Settings → AI.',
+            AgentFailure::OutOfCredits => $chatGpt
+                ? "Your ChatGPT plan's Codex usage limit is used up for now. Try again when it resets, or connect an OpenAI API key in Settings → AI."
+                : 'Your OpenAI account is out of credits. Add credits at platform.openai.com, then try again.',
+            AgentFailure::RateLimited => 'OpenAI is busy right now. Try again in a minute.',
+            default => parent::failureMessage($conversation, $failure),
         };
     }
 

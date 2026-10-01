@@ -237,3 +237,13 @@ test('only people who can change the project open or close the test runner', fun
 
     expect($this->provider->executed)->toBe([]);
 })->group('TEST-004');
+
+test('the guides tell the agent requirements and tests apply to every stack, from the turn that builds the app', function () {
+    $requirements = file_get_contents(base_path('docker/sandbox/guides/requirements.md'));
+    $tests = file_get_contents(base_path('docker/sandbox/guides/tests.md'));
+
+    expect($requirements)->toContain('whatever its stack')
+        ->toContain('The request that first builds the app is its first requirement')
+        ->and($tests)->toContain('on every stack')
+        ->toContain('including the turn that first builds the app');
+})->group('TEST-002');

@@ -102,6 +102,16 @@ OneDrop asks **Which AI do you use?** and shows five icons: Claude, Codex, OpenR
       On a local install (`APP_ENV=local`), private addresses are allowed. In Docker sandboxes, `http://localhost:11434` is your own machine. Self-hosters can allow private addresses on a server with `SANDBOX_OLLAMA_PRIVATE_SERVERS=true`.
     </Note>
 
+    ### Run OneDrop's checks on your server
+
+    OneDrop runs small checks around the agent: how a turn ended, whether a message holds a secret, which preview errors are real, how big a request is for **Auto**. They normally use Jev on OpenRouter. If you pull [Nimble](https://ollama.com/library/nimble) on your server, OneDrop asks it there instead, so those checks are free and stay on your server:
+
+    ```bash
+    ollama pull nimble
+    ```
+
+    OneDrop sees Nimble within an hour (it rereads your server's model list hourly). Nimble needs Ollama 0.35 or later. If Nimble fails, that check is skipped. OneDrop doesn't send it to OpenRouter instead.
+
   </Tab>
   <Tab title="OpenRouter">
     Click **Sign in with OpenRouter** and approve access. OpenRouter creates a key you control and can revoke. A small link lets you paste an existing OpenRouter key instead.
@@ -144,6 +154,19 @@ Each project runs on the model you pick. The picker sits under the chat box, in 
 - **Recent:** the models you picked last are listed first under each provider.
 - **Favorites:** hover a model and click its star.
 - **Reasoning:** the button next to the model sets how hard it thinks, from the levels that model supports (for example Low, Medium, High, Extra high, Max). **Default** uses the model's own default.
+
+### Auto
+
+In the project chat, **Auto** at the top of a provider's list lets OneDrop pick the model and reasoning level for each message, from that provider. When you send a message, [Jev](https://openrouter.ai/docs/guides/community/jev), a small decision model on OpenRouter, sizes the request, and the run uses:
+
+| Request | Claude | OpenAI | OpenRouter | Gemini | Ollama |
+| --- | --- | --- | --- | --- | --- |
+| A typo or tiny tweak | Sonnet 5, Low | GPT-6 Luna, Low | Gemini 3.8 Flash, Low | Gemini 3.8 Flash, Low | GLM-5.3, Low |
+| A small change | Sonnet 5, Medium | GPT-6 Sol, Medium | Claude Sonnet 5, Medium | Gemini 3.8 Flash, Medium | GLM-5.3, High |
+| A new feature | Opus 5.5, High | GPT-6 Sol, High | Claude Opus 5.5, High | Gemini 3.1 Pro, High | GLM-5.3, High |
+| A big redesign or hard bug | Opus 5.5, Extra high | GPT-6 Astra, Extra high | Claude Opus 5.5, Extra high | Gemini 3.1 Pro, High | GLM-5.3, Max |
+
+The chat shows what Auto picked for each run, for example "Auto picked Claude Sonnet 5 with low reasoning, for a small change". Without OpenRouter set up (your connection or the platform's key), or when Jev doesn't answer in time, Auto uses the provider's default model. A model your connection can't run (for example one a ChatGPT plan doesn't include) falls back to the default too. Whoever runs OneDrop can change the table (`sandbox.auto_models`).
 
 Changing the model takes effect on your next message; the agent keeps the conversation. Each model shows its context size and price per million tokens (input/output).
 

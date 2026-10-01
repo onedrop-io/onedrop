@@ -22,11 +22,14 @@ use App\Sandbox\SystemConfig;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Foundation\DevCommands;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
@@ -84,6 +87,12 @@ class AppServiceProvider extends ServiceProvider
 
         Gate::define('manage-users', fn (User $user): bool => $user->is_admin);
         Gate::define('administer', fn (User $user): bool => $user->is_admin);
+
+        // Each chat checks its Claude sign-in every few seconds while signed out (AI-005); a bucket per chat, so several open
+        // chats don't use each other's up (or the user's shared one) and lose the "Sign in to Claude" button.
+        RateLimiter::for('claude-login', fn (Request $request): Limit => Limit::perMinute(60)->by(
+            $request->user()?->id.'|'.$request->route()?->originalParameter('project').'|'.$request->input('task'),
+        ));
 
         // When and how each person last signed in, for admins (USR-002). Remember-me cookies picking a session back up aren't a sign-in.
         Event::listen(function (Login $event): void {

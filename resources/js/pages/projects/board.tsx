@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { WAITING_LABELS } from '@/lib/waiting-for';
 import { useWorkspaceLinks } from '@/lib/workspace-view';
 import { board, show } from '@/routes/projects';
 import {
@@ -49,7 +50,10 @@ export default function Board({
     stages: Stage[];
     tasks: BoardTask[];
 }) {
-    const working = tasks.some((task) => task.status === 'working');
+    // Also while a finished turn is checked for whether it's waiting for the user (PRJ-011).
+    const working = tasks.some(
+        (task) => task.status === 'working' || task.checking,
+    );
     const { start, stop } = usePoll(
         1500,
         { only: ['tasks'] },
@@ -256,6 +260,14 @@ function Card({
                         data-test="board-card-activity"
                     >
                         {task.activity ?? 'Working…'}
+                    </p>
+                )}
+                {!working && task.waiting_for && (
+                    <p
+                        className="mt-1 truncate pl-6 text-xs text-amber-600 dark:text-amber-400"
+                        data-test="board-card-waiting"
+                    >
+                        {WAITING_LABELS[task.waiting_for]}
                     </p>
                 )}
             </Link>

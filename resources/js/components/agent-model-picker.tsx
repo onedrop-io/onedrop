@@ -4,6 +4,7 @@ import {
     ChevronDown,
     ChevronRight,
     Search,
+    Sparkles,
     Star,
 } from 'lucide-react';
 import { router } from '@inertiajs/react';
@@ -162,12 +163,15 @@ export default function AgentModelPicker({
     onChange,
     disabled = false,
     harnessLocked = null,
+    allowAuto = false,
 }: {
     selection: AgentSelection;
     onChange: (selection: AgentSelection) => void;
     disabled?: boolean;
     /** Why the agent can't be switched right now (e.g. it's working), if it can't. */
     harnessLocked?: string | null;
+    /** Offer Auto (AGT-011): the model and reasoning picked for each message. */
+    allowAuto?: boolean;
 }) {
     return (
         <div
@@ -184,8 +188,9 @@ export default function AgentModelPicker({
                 selection={selection}
                 onChange={onChange}
                 disabled={disabled}
+                allowAuto={allowAuto}
             />
-            {selection.efforts.length > 0 && (
+            {!selection.auto && selection.efforts.length > 0 && (
                 <ReasoningMenu
                     selection={selection}
                     onChange={onChange}
@@ -200,10 +205,12 @@ function ModelMenu({
     selection,
     onChange,
     disabled,
+    allowAuto,
 }: {
     selection: AgentSelection;
     onChange: (selection: AgentSelection) => void;
     disabled: boolean;
+    allowAuto: boolean;
 }) {
     const [open, setOpen] = useState(false);
     const [catalog, setCatalog] = useState<Catalog | null>(null);
@@ -314,6 +321,7 @@ function ModelMenu({
                 selection.variant && model.efforts.includes(selection.variant)
                     ? selection.variant
                     : null,
+            auto: false,
         });
         setOpen(false);
         setQuery('');
@@ -329,6 +337,31 @@ function ModelMenu({
             cachedCatalog = Promise.resolve(next);
         }
     };
+
+    // Auto runs on the provider's default model whenever Jev can't size a message.
+    const chooseAuto = (provider: CatalogProvider) => {
+        const model = provider.models.find(
+            (item) => item.id === provider.default_model,
+        );
+
+        onChange({
+            harness: selection.harness,
+            provider: provider.id,
+            model: provider.default_model,
+            name: model?.name ?? provider.default_model,
+            efforts: model?.efforts ?? [],
+            variant: null,
+            auto: true,
+        });
+        setOpen(false);
+        setQuery('');
+    };
+    const autoProvider =
+        allowAuto && catalog && tab !== 'favorites' && !query.trim()
+            ? harnessProviders(catalog, selection.harness).find(
+                  (provider) => provider.id === tab,
+              )
+            : undefined;
 
     const toggleFavorite = (provider: AgentProvider, model: string) => {
         if (!catalog) {
@@ -365,7 +398,9 @@ function ModelMenu({
     }) => {
         const key = `${provider.id}:${model.id}`;
         const selected =
-            provider.id === selection.provider && model.id === selection.model;
+            !selection.auto &&
+            provider.id === selection.provider &&
+            model.id === selection.model;
         const details = [
             provider.label,
             formatContext(model.context),
@@ -436,7 +471,9 @@ function ModelMenu({
                         provider={selection.provider}
                         className="size-4 shrink-0 text-[9px]"
                     />
-                    <span className="truncate">{selection.name}</span>
+                    <span className="truncate">
+                        {selection.auto ? 'Auto' : selection.name}
+                    </span>
                     <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
                 </button>
             </DropdownMenuTrigger>
@@ -488,6 +525,35 @@ function ModelMenu({
                         />
                     </label>
                     <div className="flex-1 overflow-y-auto p-1">
+                        {autoProvider && !error && (
+                            <button
+                                type="button"
+                                onClick={() => chooseAuto(autoProvider)}
+                                className={cn(
+                                    'flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-muted',
+                                    selection.auto &&
+                                        selection.provider ===
+                                            autoProvider.id &&
+                                        'bg-muted',
+                                )}
+                                data-test="model-auto"
+                            >
+                                <Sparkles className="size-5 shrink-0 p-0.5 text-muted-foreground" />
+                                <span className="min-w-0 flex-1">
+                                    <span className="block truncate text-sm">
+                                        Auto
+                                    </span>
+                                    <span className="block truncate text-xs text-muted-foreground">
+                                        Picks a {autoProvider.label} model and
+                                        reasoning level for each message
+                                    </span>
+                                </span>
+                                {selection.auto &&
+                                    selection.provider === autoProvider.id && (
+                                        <Check className="size-4 shrink-0" />
+                                    )}
+                            </button>
+                        )}
                         {error ? (
                             <p className="p-3 text-sm text-red-600">{error}</p>
                         ) : !catalog ? (

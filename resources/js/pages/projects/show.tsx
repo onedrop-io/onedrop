@@ -8,6 +8,7 @@ import {
 } from '@inertiajs/react';
 import {
     Ban,
+    Brush,
     Check,
     ChevronDown,
     ClipboardList,
@@ -18,6 +19,7 @@ import {
     FileText,
     GitMerge,
     Kanban,
+    LoaderCircle,
     Pencil,
     Monitor,
     Columns2,
@@ -36,13 +38,21 @@ import {
     Wrench,
     X,
 } from 'lucide-react';
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import {
+    Fragment,
+    useCallback,
+    useEffect,
+    useLayoutEffect,
+    useRef,
+    useState,
+} from 'react';
 import type { CSSProperties } from 'react';
 import ProjectAgentController from '@/actions/App/Http/Controllers/ProjectAgentController';
 import ProjectMessageController from '@/actions/App/Http/Controllers/ProjectMessageController';
 import TaskController from '@/actions/App/Http/Controllers/TaskController';
 import TaskMessageController from '@/actions/App/Http/Controllers/TaskMessageController';
 import AgentModelPicker from '@/components/agent-model-picker';
+import HeldMessagePrompt from '@/components/held-message-prompt';
 import ClaudeLoginStatus from '@/components/claude-login-status';
 import HeaderActions from '@/components/header-actions';
 import Markdown from '@/components/markdown';
@@ -50,6 +60,14 @@ import MessageAttachments from '@/components/message-attachments';
 import NotificationsPrompt from '@/components/notifications-prompt';
 import type { AttachmentPreview } from '@/components/message-attachments';
 import PromptComposer from '@/components/prompt-composer';
+import type { AttachedFile } from '@/components/prompt-composer';
+import PreviewAnnotator, {
+    annotationText,
+    capturePreview,
+    captureTab,
+    inspectPreview,
+} from '@/components/workspace/preview-annotator';
+import type { PreviewCapture } from '@/components/workspace/preview-annotator';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
     DropdownMenu,
@@ -95,6 +113,17 @@ import {
 import { useLiveReload, useProjectChannel } from '@/lib/realtime';
 import { cn } from '@/lib/utils';
 import {
+    isPagePath,
+    loadChat,
+    loadWorkspace,
+    newShellSession,
+    previewUrlAt,
+    saveChat,
+    saveWorkspace,
+} from '@/lib/workspace-state';
+import type { SavedShell } from '@/lib/workspace-state';
+import {
+    askAgent,
     onAskAgent,
     onOpenWorkspaceTool,
     setWorkspaceView,
@@ -389,7 +418,48 @@ function ChatPanel({
     onClaudeSignedIn: () => void;
 }) {
     const bottom = useRef<HTMLDivElement>(null);
+    const scroller = useRef<HTMLDivElement>(null);
     const [draft, setDraft] = useState<string | undefined>(undefined);
+    const chat = task ? `task-${task.id}` : newTask ? 'new' : 'main';
+    // A reload brings back the half-typed message and, if it was scrolled up, where the chat was (LAYOUT-005).
+    const keptScroll = useRef(false);
+    const draftRef = useRef(draft);
+
+    useEffect(() => {
+        draftRef.current = draft;
+    }, [draft]);
+
+    useLayoutEffect(() => {
+        const saved = loadChat(project.id, chat);
+
+        if (saved.draft) {
+            setDraft(saved.draft);
+        }
+
+        if (saved.scrollTop !== null && scroller.current) {
+            scroller.current.scrollTop = saved.scrollTop;
+            keptScroll.current = true;
+        }
+
+        const save = () => {
+            const box = scroller.current;
+            const atBottom =
+                !box ||
+                box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+
+            saveChat(project.id, chat, {
+                draft: draftRef.current ?? '',
+                scrollTop: atBottom ? null : box.scrollTop,
+            });
+        };
+
+        window.addEventListener('pagehide', save);
+
+        return () => {
+            window.removeEventListener('pagehide', save);
+            save();
+        };
+    }, [project.id, chat]);
 
     // Stop the agent; any queued messages come back into the box for editing.
     const stop = () =>
@@ -411,13 +481,26 @@ function ChatPanel({
             },
         );
 
-    // "Ask" on a hunk of a diff (GIT-011): the hunk goes in the chat box, with the cursor after it for the question.
+    // Files from outside the chat box (a marked-up picture of the preview, AGT-013), until it has them.
+    const [incomingFiles, setIncomingFiles] = useState<AttachedFile[]>([]);
+
+    // "Ask" on a hunk of a diff (GIT-011), or a marked-up preview (AGT-013): the text goes in the chat box, with the
+    // cursor after it for the question.
     useEffect(
         () =>
-            onAskAgent((text) => {
-                setDraft((current) =>
-                    current?.trim() ? `${current.trimEnd()}\n\n${text}` : text,
-                );
+            onAskAgent((text, files) => {
+                if (text) {
+                    setDraft((current) =>
+                        current?.trim()
+                            ? `${current.trimEnd()}\n\n${text}`
+                            : text,
+                    );
+                }
+
+                if (files.length > 0) {
+                    setIncomingFiles(files);
+                }
+
                 requestAnimationFrame(() => {
                     const box = document.getElementById(
                         'composer-content',
@@ -431,6 +514,12 @@ function ChatPanel({
     );
 
     useEffect(() => {
+        if (keptScroll.current) {
+            keptScroll.current = false;
+
+            return;
+        }
+
         bottom.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages.length, queued.length, working]);
 
@@ -453,7 +542,10 @@ function ChatPanel({
                     working={working}
                 />
             )}
-            <div className="flex-1 space-y-5 overflow-y-auto p-4">
+            <div
+                ref={scroller}
+                className="flex-1 space-y-5 overflow-y-auto p-4"
+            >
                 {(newTask || task) && messages.length === 0 && !working && (
                     <TaskEmptyState
                         task={task}
@@ -542,6 +634,8 @@ function ChatPanel({
                     working={working}
                     onStop={stop}
                     attachments
+                    incomingFiles={incomingFiles}
+                    onIncomingFilesAdded={() => setIncomingFiles([])}
                     history={messages
                         .filter(
                             (message) =>
@@ -551,6 +645,11 @@ function ChatPanel({
                         .map((message) => message.content)}
                     value={draft}
                     onValueChange={(next) => setDraft(next)}
+                    // Jev's checks as it's sent: a secret, an earlier decision, queue or send now (SECRET-002, REQ-003, AGT-012).
+                    extraData={newTask ? undefined : { checks: '1' }}
+                    renderHeld={(held, actions) => (
+                        <HeldMessagePrompt held={held} actions={actions} />
+                    )}
                     autoFocus={newTask}
                     placeholder={
                         working
@@ -564,6 +663,7 @@ function ChatPanel({
                             {agent && (
                                 <AgentModelPicker
                                     selection={agent}
+                                    allowAuto
                                     harnessLocked={
                                         working
                                             ? 'Stop the agent or wait for it to finish to switch agents'
@@ -579,6 +679,7 @@ function ChatPanel({
                                                 agent_provider: next.provider,
                                                 agent_model: next.model,
                                                 agent_variant: next.variant,
+                                                agent_auto: next.auto ?? false,
                                             },
                                             { preserveScroll: true },
                                         )
@@ -744,11 +845,12 @@ function WorkspacePanel({
     const showTab = (kind: PaneTab, paneId?: number) =>
         setLayout((current) => panes.showTab(current, kind, paneId));
     const [draggedTab, setDraggedTab] = useState<PaneTab | null>(null);
-    /** How each open Shell started: in a folder (FILE-005) or on Claude Code's sign-in; missing is the usual start. */
+    /**
+     * Each open Shell's tmux session, so a reload reattaches to it (LAYOUT-005), and how it started: in a
+     * folder (FILE-005) or on Claude Code's sign-in.
+     */
     const [shellStarts, setShellStarts] = useState<
-        Partial<
-            Record<ShellTab, { folder: string | null; claudeLogin: boolean }>
-        >
+        Partial<Record<ShellTab, ShellStart>>
     >({});
     const panesArea = useRef<HTMLElement>(null);
 
@@ -880,8 +982,14 @@ function WorkspacePanel({
         setPreviewSize(size);
     };
 
+    /** The app's page the preview is on, as the page reports it, and the one the preview (re)loads on. */
+    const [previewPage, setPreviewPage] = useState<string | null>(null);
+    const [previewStart, setPreviewStart] = useState<string | null>(null);
+
+    // Like a browser's reload, the preview stays on the app's page it was on.
     const reloadPreview = () => {
         previewErrors.clear();
+        setPreviewStart(previewPage);
         setReloadKey((key) => key + 1);
     };
 
@@ -901,6 +1009,68 @@ function WorkspacePanel({
         setSeenWakes(wakes);
         reloadPreview();
     }
+
+    // Annotate (AGT-013): a picture of the preview to draw on, then into the chat box with what the marks point at.
+    const [annotation, setAnnotation] = useState<PreviewCapture | null>(null);
+    const [capturing, setCapturing] = useState(false);
+    // Which picture failed: the page's own (the tab can be shared instead), or the shared tab's.
+    const [annotateError, setAnnotateError] = useState<'page' | 'tab' | null>(
+        null,
+    );
+
+    const annotate = async (fromTab = false) => {
+        const frame = previewFrame.current;
+
+        if (!frame || capturing) {
+            return;
+        }
+
+        setCapturing(true);
+        setAnnotateError(null);
+
+        try {
+            setAnnotation(
+                await (fromTab ? captureTab(frame) : capturePreview(frame)),
+            );
+        } catch {
+            setAnnotateError(fromTab ? 'tab' : 'page');
+        } finally {
+            setCapturing(false);
+        }
+    };
+
+    const addAnnotation = async (
+        image: File,
+        marks: Parameters<
+            React.ComponentProps<typeof PreviewAnnotator>['onDone']
+        >[1],
+    ) => {
+        const capture = annotation;
+        const elements = previewFrame.current
+            ? await inspectPreview(
+                  previewFrame.current,
+                  marks.map((mark) => mark.region),
+              )
+            : [];
+
+        setAnnotation(null);
+
+        if (!capture) {
+            return;
+        }
+
+        if (!chatOpen) {
+            onToggleChat();
+        }
+
+        // Only the picture shows in the chat; what the marks point at goes to the agent with it.
+        askAgent('', [
+            {
+                file: image,
+                context: annotationText(capture, marks, elements, image.name),
+            },
+        ]);
+    };
 
     // Ask the agent to fix what the preview reported (queued if it's busy).
     const fixPreviewErrors = () => {
@@ -1026,7 +1196,7 @@ function WorkspacePanel({
 
         setShellStarts((starts) => ({
             ...starts,
-            [shell]: { folder, claudeLogin },
+            [shell]: { session: newShellSession(), folder, claudeLogin },
         }));
         setLayout((current) =>
             split
@@ -1056,6 +1226,157 @@ function WorkspacePanel({
     }, []);
 
     const openShellIn = (folder: string) => openShell({ folder });
+
+    useEffect(() => {
+        const onMessage = (event: MessageEvent) => {
+            const data = event.data as { onedrop?: string; page?: unknown };
+
+            if (
+                event.source === previewFrame.current?.contentWindow &&
+                data?.onedrop === 'location' &&
+                isPagePath(data.page)
+            ) {
+                setPreviewPage(data.page);
+            }
+        };
+
+        window.addEventListener('message', onMessage);
+
+        return () => window.removeEventListener('message', onMessage);
+    }, []);
+
+    // Reloading the page comes back to the workspace as it was in this browser tab (LAYOUT-005): read before the
+    // first paint (not in the server's HTML, so it matches), then saved on every change. A tab the URL asks for
+    // (a link from another of the project's pages) is shown on top of it.
+    const [restored, setRestored] = useState(false);
+
+    useLayoutEffect(() => {
+        const saved = loadWorkspace(project.id);
+        const savedLayout = panes.restoreLayout(saved?.layout);
+        let next = savedLayout ?? layout;
+        const asked = panes.focusedTab(layout);
+        const savedFocus = panes.focusedTab(next);
+        const shownFromUrl = initialView.tab !== null || initialView.tool;
+
+        if (
+            savedLayout &&
+            shownFromUrl &&
+            (panes.isShell(asked)
+                ? !panes.isShell(savedFocus)
+                : asked !== savedFocus)
+        ) {
+            next = panes.isShell(asked)
+                ? panes.showTab(next, panes.nextShellTab(next))
+                : panes.showTab(next, asked);
+        }
+
+        const path =
+            initialView.file ??
+            (typeof saved?.openPath === 'string' ? saved.openPath : null);
+
+        if (!path) {
+            next = panes.closeTab(next, 'file');
+        }
+
+        const browser = saved?.browserSession;
+        const keptBrowser =
+            browser &&
+            typeof browser.url === 'string' &&
+            typeof browser.test === 'string'
+                ? browser
+                : null;
+
+        if (!keptBrowser) {
+            next = panes.closeTab(next, 'browser');
+        }
+
+        const savedShells = saved?.shells ?? {};
+        const starts: Partial<Record<ShellTab, ShellStart>> = {};
+
+        next.panes
+            .flatMap((pane) => pane.tabs)
+            .filter(panes.isShell)
+            .forEach((shell) => {
+                const kept = savedShells[shell];
+
+                starts[shell] = {
+                    session:
+                        typeof kept?.session === 'string'
+                            ? kept.session
+                            : newShellSession(),
+                    folder:
+                        typeof kept?.folder === 'string' ? kept.folder : null,
+                    claudeLogin: false,
+                };
+            });
+
+        setLayout(next);
+        setShellStarts(starts);
+        setOpenPath(path);
+        setBrowserSession(keptBrowser);
+
+        if (!initialView.tool && typeof saved?.tool === 'string') {
+            setTool(saved.tool);
+        }
+
+        if (Array.isArray(saved?.recentFiles)) {
+            setRecentFiles(
+                saved.recentFiles
+                    .filter((file) => typeof file === 'string')
+                    .slice(0, 20),
+            );
+        }
+
+        if (
+            typeof saved?.fileSearch?.folder === 'string' &&
+            typeof saved.fileSearch.query === 'string'
+        ) {
+            setFileSearch(saved.fileSearch);
+        }
+
+        if (typeof saved?.testsFocus === 'string') {
+            setTestsFocus(saved.testsFocus);
+        }
+
+        if (isPagePath(saved?.previewPage)) {
+            setPreviewPage(saved.previewPage);
+            setPreviewStart(saved.previewPage);
+        }
+
+        setRestored(true);
+        // Once, on opening the page.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    useEffect(() => {
+        if (!restored) {
+            return;
+        }
+
+        saveWorkspace(project.id, {
+            layout,
+            shells: shellStarts,
+            openPath,
+            tool,
+            recentFiles,
+            fileSearch,
+            testsFocus,
+            browserSession,
+            previewPage,
+        });
+    }, [
+        restored,
+        project.id,
+        layout,
+        shellStarts,
+        openPath,
+        tool,
+        recentFiles,
+        fileSearch,
+        testsFocus,
+        browserSession,
+        previewPage,
+    ]);
 
     // The open file (or a folder it's in) was renamed: keep it open under its new name.
     const followRename = (from: string, to: string) => {
@@ -1212,21 +1533,18 @@ function WorkspacePanel({
         }[kind];
     };
 
-    const shellSrc = (shell: ShellTab, sandbox: SandboxState): string => {
-        const start = shellStarts[shell];
-
-        if (start?.folder) {
-            return shellUrlIn(
-                sandbox.shell_url!,
-                sandbox.shell_via_gateway,
-                start.folder,
-            );
-        }
-
-        return start?.claudeLogin && sandbox.claude_login_url
-            ? sandbox.claude_login_url
-            : sandbox.shell_url!;
-    };
+    const shellSrc = (start: ShellStart, sandbox: SandboxState): string =>
+        shellUrlWith(
+            start.claudeLogin && sandbox.claude_login_url
+                ? sandbox.claude_login_url
+                : sandbox.shell_url!,
+            sandbox.shell_via_gateway,
+            [
+                ...(start.folder ? ['cd', start.folder] : []),
+                'session',
+                start.session,
+            ],
+        );
 
     // Panes sit in one grid, side by side or stacked, with a 1px line between each. Every tab's content is a
     // child of the grid in a fixed order, placed in its pane's cell, so moving a tab to another pane never
@@ -1534,6 +1852,17 @@ function WorkspacePanel({
                                         </DropdownMenuContent>
                                     </DropdownMenu>
                                     <IconButton
+                                        label="Annotate"
+                                        onClick={() => annotate()}
+                                        testId="preview-annotate"
+                                    >
+                                        {capturing ? (
+                                            <LoaderCircle className="size-4 animate-spin" />
+                                        ) : (
+                                            <Brush className="size-4" />
+                                        )}
+                                    </IconButton>
+                                    <IconButton
                                         label="Reload preview"
                                         onClick={reloadPreview}
                                     >
@@ -1652,7 +1981,7 @@ function WorkspacePanel({
 
                 {content(
                     'preview',
-                    url ? (
+                    url && restored ? (
                         <div
                             className={cn(
                                 'relative flex flex-1 flex-col',
@@ -1663,7 +1992,11 @@ function WorkspacePanel({
                             <iframe
                                 ref={previewFrame}
                                 key={reloadKey}
-                                src={url}
+                                src={previewUrlAt(
+                                    url,
+                                    previewStart,
+                                    sandbox?.shell_via_gateway ?? false,
+                                )}
                                 title="App preview"
                                 data-test="preview-frame"
                                 style={{
@@ -1682,6 +2015,41 @@ function WorkspacePanel({
                                     errors={previewErrors.errors}
                                     onFix={fixPreviewErrors}
                                     onDismiss={previewErrors.clear}
+                                />
+                            )}
+                            {annotateError && (
+                                <div
+                                    className="absolute inset-x-3 top-3 z-10 flex items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm shadow"
+                                    data-test="annotate-error"
+                                >
+                                    <span className="flex-1">
+                                        {annotateError === 'page'
+                                            ? "The preview couldn't take a picture of itself."
+                                            : "Couldn't take a picture of the preview."}
+                                    </span>
+                                    {annotateError === 'page' && (
+                                        <button
+                                            type="button"
+                                            onClick={() => annotate(true)}
+                                            className="font-medium underline-offset-4 hover:underline"
+                                            data-test="annotate-share-tab"
+                                        >
+                                            Share the tab instead
+                                        </button>
+                                    )}
+                                    <IconButton
+                                        label="Dismiss"
+                                        onClick={() => setAnnotateError(null)}
+                                    >
+                                        <X className="size-4" />
+                                    </IconButton>
+                                </div>
+                            )}
+                            {annotation && (
+                                <PreviewAnnotator
+                                    capture={annotation}
+                                    onCancel={() => setAnnotation(null)}
+                                    onDone={addAnnotation}
                                 />
                             )}
                         </div>
@@ -1761,7 +2129,7 @@ function WorkspacePanel({
                 {shells.map((shell) =>
                     content(
                         shell,
-                        shellReady ? (
+                        shellReady && shellStarts[shell] ? (
                             // Stays mounted while the tab is open so the session survives tab switches and moves.
                             <iframe
                                 ref={(frame) => {
@@ -1771,7 +2139,7 @@ function WorkspacePanel({
                                         delete shellFrames.current[shell];
                                     }
                                 }}
-                                src={shellSrc(shell, sandbox)}
+                                src={shellSrc(shellStarts[shell], sandbox)}
                                 title={panes.shellLabel(shell)}
                                 onLoad={() =>
                                     tab === shell &&
@@ -1941,25 +2309,30 @@ function WorkspacePanel({
     );
 }
 
+type ShellStart = SavedShell & { claudeLogin: boolean };
+
 /**
- * The Shell's address, starting in a folder of the workspace (docker/sandbox/shell-entry's `cd`; FILE-005).
- * Through the gateway, the shell's own address goes in the gateway's `path`.
+ * The Shell's address with more docker/sandbox/shell-entry arguments: start in a folder (`cd`; FILE-005),
+ * in a tmux session (`session`; LAYOUT-005). Through the gateway, the shell's own address is in its `path`.
  */
-function shellUrlIn(
+function shellUrlWith(
     shellUrl: string,
     viaGateway: boolean,
-    folder: string,
+    args: string[],
 ): string {
-    const args = new URLSearchParams([
-        ['arg', 'cd'],
-        ['arg', folder || '.'],
-    ]);
     const url = new URL(shellUrl, window.location.origin);
+    const append = (params: URLSearchParams) =>
+        args.forEach((arg) => params.append('arg', arg));
 
     if (viaGateway) {
-        url.searchParams.set('path', `/?${args}`);
+        const path = new URL(
+            url.searchParams.get('path') ?? '/',
+            'http://shell',
+        );
+        append(path.searchParams);
+        url.searchParams.set('path', `${path.pathname}${path.search}`);
     } else {
-        args.forEach((value, key) => url.searchParams.append(key, value));
+        append(url.searchParams);
     }
 
     return url.href;
