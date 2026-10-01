@@ -210,8 +210,8 @@ class ClaudeCodeEvents extends AgentEvents
         return match (true) {
             Str::contains($message, 'credit balance is too low', ignoreCase: true) => ['Your Anthropic account is out of credits. Add credits at console.anthropic.com, then try again.', false],
             Str::contains($message, ['usage limit', 'hit your limit', 'limit reached', 'out of extra usage'], ignoreCase: true) => ["Your Claude plan's usage limit is used up for now. Try again when it resets, or connect an Anthropic API key in Settings → AI.", false],
-            Str::contains($message, ['Not logged in', 'Please run /login'], ignoreCase: true) => ['Sign in to Claude to build on your subscription: click **Sign in to Claude** under the chat box.'.$retry, true],
-            $authFailed && $subscription => ['Your Claude sign-in has expired or was signed out. Click **Sign in to Claude** under the chat box to sign in again.'.$retry, true],
+            Str::contains($message, ['Not logged in', 'Please run /login'], ignoreCase: true) => ['Sign in to Claude to build on your subscription: click **Sign in to Claude** above the chat box.'.$retry, true],
+            $authFailed && $subscription => ['Your Claude sign-in has expired or was signed out. Click **Sign in to Claude** above the chat box to sign in again.'.$retry, true],
             $authFailed => ['Claude rejected your API key. Reconnect Claude in Settings → AI.', false],
             $status === 429 || $status === 529 || Str::contains($message, 'overloaded', ignoreCase: true) => ['Claude is overloaded right now. Try again in a minute.', false],
             default => [$this->unmatched($message, 'Something went wrong: '.Str::limit($message, 300)), false],
@@ -227,7 +227,7 @@ class ClaudeCodeEvents extends AgentEvents
 
         return match ($failure) {
             AgentFailure::BadKey => $subscription
-                ? 'Your Claude sign-in has expired or was signed out. Click **Sign in to Claude** under the chat box to sign in again.'
+                ? 'Your Claude sign-in has expired or was signed out. Click **Sign in to Claude** above the chat box to sign in again.'
                 : 'Claude rejected your API key. Reconnect Claude in Settings → AI.',
             AgentFailure::OutOfCredits => $subscription
                 ? "Your Claude plan's usage limit is used up for now. Try again when it resets, or connect an Anthropic API key in Settings → AI."

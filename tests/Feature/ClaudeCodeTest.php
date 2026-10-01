@@ -302,7 +302,7 @@ test('failed Claude Code runs are explained once', function (array $result, stri
     expect($project->messages()->pluck('content')->all())->toBe([$expected])
         ->and($project->fresh()->status)->toBe(ProjectStatus::Idle);
 })->with([
-    'not signed in' => [['result' => 'Not logged in · Please run /login'], "Sign in to Claude to build on your subscription: click **Sign in to Claude** under the chat box. I'll pick up your message as soon as you're signed in."],
+    'not signed in' => [['result' => 'Not logged in · Please run /login'], "Sign in to Claude to build on your subscription: click **Sign in to Claude** above the chat box. I'll pick up your message as soon as you're signed in."],
     'plan limit' => [['result' => "You've hit your limit · resets 5pm"], "Your Claude plan's usage limit is used up for now. Try again when it resets, or connect an Anthropic API key in Settings → AI."],
     'no API credits' => [['result' => 'Credit balance is too low'], 'Your Anthropic account is out of credits. Add credits at console.anthropic.com, then try again.'],
     'overloaded' => [['api_error_status' => 529, 'result' => 'Overloaded'], 'Claude is overloaded right now. Try again in a minute.'],
@@ -345,7 +345,7 @@ test('a run whose Claude sign-in is rejected tries once more before asking the u
     // Turned down again: sign Claude Code out so the chat box offers to sign in, and wait for it.
     sendClaudeEvents($project, $rejected);
 
-    expect($project->messages()->reorder()->latest('id')->value('content'))->toBe("Your Claude sign-in has expired or was signed out. Click **Sign in to Claude** under the chat box to sign in again. I'll pick up your message as soon as you're signed in.")
+    expect($project->messages()->reorder()->latest('id')->value('content'))->toBe("Your Claude sign-in has expired or was signed out. Click **Sign in to Claude** above the chat box to sign in again. I'll pick up your message as soon as you're signed in.")
         ->and($project->fresh()->status)->toBe(ProjectStatus::Idle)
         ->and($project->fresh()->sign_in_retry_message_id)->toBe($message->id)
         ->and($logouts())->toBe(1);

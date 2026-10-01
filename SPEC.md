@@ -167,12 +167,12 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 ## AI-005: Use a Claude subscription through Claude Code's own sign-in
 
 - User should be able to choose "Use my Claude subscription" on the Claude card (the first option; pasting a key is the small link); OneDrop never asks for, receives or stores their Claude login or token (Anthropic requires sign-in to go through its own flow).
-- User should be able to sign in from the project: "Sign in to Claude" under the chat box opens the Shell tab running Claude Code's own `claude auth login`.
+- User should be able to sign in from the project: "Sign in to Claude" above the chat box opens the Shell tab running Claude Code's own `claude auth login`.
 - User should be taken back to the Preview tab once that sign-in succeeds (e.g. after pasting the code in the Shell and seeing "Login successful").
-- User should see who they're signed in to Claude as under the chat box, once signed in.
+- User should see who they're signed in to Claude as above the chat box, once signed in.
 - One sign-in should work in all of the user's sandboxes where the sandbox provider supports a shared login folder (Docker); elsewhere each sandbox signs in once. The folder is only mounted into sandboxes of projects the user owns.
 - User should be told to sign in to Claude, or sign in again, when a Claude Code run finds they aren't signed in or their sign-in expired.
-- User should see "Sign in to Claude" under the chat box whenever a message is waiting for them to sign in, even if the sign-in can't be checked right now (e.g. the sandbox is paused, or several chats are checking at once).
+- User should see "Sign in to Claude" above the chat box whenever a message is waiting for them to sign in, even if the sign-in can't be checked right now (e.g. the sandbox is paused, or several chats are checking at once).
 - When Claude rejects the sign-in (e.g. a token revoked because the shared login was refreshed elsewhere), the message should run once more by itself; if it's rejected again, Claude Code should be signed out in that sandbox, so the chat box stops saying they're signed in and shows "Sign in to Claude" instead.
 - Once the user signs in (e.g. in the Shell tab), the chat should carry on by itself: the message that failed because they weren't signed in runs again, unless they've sent another since. This should also happen when the chat was reloaded or reopened while they signed in.
 - Pasting a Claude subscription token (`sk-ant-oat…`) should be refused with a pointer to "Use my Claude subscription"; tokens saved before this change are deleted.
