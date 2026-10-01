@@ -498,6 +498,8 @@ test('preview pages reload after a build or a PHP change, and published pages ne
             ->and(trim($curl('-o', '/dev/null', '-w', '%{http_code}', '-H', 'Host: my-app.tail1.ts.net', 'http://127.0.0.1:8081/__onedrop/live')))->toBe('404')
             ->and($listen('echo "<?php // changed" >> /workspace/public/index.php'))->toContain('data: reload')
             ->and($listen('echo "{}" > /workspace/public/build/manifest.json'))->toContain('data: reload')
+            // A rebuild that writes the same files again (one set off by a request writing a log) changes nothing.
+            ->and($listen('echo "{}" > /workspace/public/build/manifest.json'))->not->toContain('data: reload')
             ->and($listen('echo "x" > /workspace/resources/app.tsx; mkdir -p /workspace/vendor/x && echo "<?php" > /workspace/vendor/x/a.php'))->not->toContain('data: reload');
     } finally {
         $docker->destroy($id);
@@ -625,6 +627,25 @@ test('a checkpoint is backed up and restored, with its branches, into a fresh sa
         $docker->destroy($new);
     }
 })->group('SBX-006');
+
+test('a checkpoint leaves the platform\'s logs out, and untracks ones committed before', function () {
+    $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
+    $id = $docker->create(new SandboxSpec('onedrop-test-'.bin2hex(random_bytes(3))));
+    $git = fn (string $command) => trim($docker->exec($id, ['bash', '-c', "cd /workspace && {$command}"])->output);
+
+    try {
+        $git('git init -q -b main && mkdir -p .onedrop && echo "{}" > .onedrop/access.log && echo "<h1>Timer</h1>" > index.html'
+            .' && git add -A && git -c user.name=a -c user.email=a@b.c commit -qm old');
+
+        $git('echo "{}" >> .onedrop/access.log && echo "{}" > .onedrop/errors.log && echo "Build a timer" | /opt/onedrop/checkpoint');
+
+        expect($git('git ls-files'))->toBe('index.html')
+            ->and($git('git status --porcelain'))->toBe('')
+            ->and($git('git check-ignore -q .onedrop/metrics.log && echo ignored'))->toBe('ignored');
+    } finally {
+        $docker->destroy($id);
+    }
+})->group('LIVE-002');
 
 test('the git tool commits, lists and restores in a real container', function () {
     $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));

@@ -6,7 +6,7 @@
 // Apps that ignore X-Forwarded-Host write their own address as localhost into pages (asset URLs,
 // redirects); text responses get those links pointed back at the address the visitor used.
 import { spawn } from 'node:child_process';
-import { timingSafeEqual } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import {
     appendFile,
     closeSync,
@@ -522,8 +522,41 @@ const liveClients = new Set();
 let liveWatcher = null;
 let liveReloadTimer = null;
 let liveStopTimer = null;
+// What each written file held when last seen. `vite build --watch` writes the same files again on every rebuild,
+// and a rebuild set off by something that isn't the app (a log Tailwind scans) would otherwise reload the
+// preview, write that log again, and loop.
+const liveContents = new Map();
+const liveWritten = new Set();
+
+function contentOf(path) {
+    try {
+        return createHash('sha1').update(readFileSync(path)).digest('hex');
+    } catch {
+        return null;
+    }
+}
 
 function tellPagesToReload() {
+    const written = [...liveWritten];
+    liveWritten.clear();
+
+    const changed = written.filter((path) => {
+        const content = contentOf(path);
+        const before = liveContents.get(path);
+
+        if (content === null) {
+            liveContents.delete(path);
+        } else {
+            liveContents.set(path, content);
+        }
+
+        return before === undefined || content !== before;
+    });
+
+    if (changed.length === 0) {
+        return;
+    }
+
     for (const res of liveClients) {
         res.write('data: reload\n\n');
     }
@@ -563,6 +596,7 @@ function watchForReloads() {
 
     createInterface({ input: watcher.stdout }).on('line', (path) => {
         if (LIVE_CHANGE.test(path)) {
+            liveWritten.add(path);
             clearTimeout(liveReloadTimer);
             liveReloadTimer = setTimeout(tellPagesToReload, LIVE_QUIET_MS);
         }
@@ -575,6 +609,7 @@ function stopWatchingSoon() {
         if (liveClients.size === 0 && liveWatcher) {
             liveWatcher.kill();
             liveWatcher = null;
+            liveContents.clear();
         }
     }, LIVE_LINGER_MS);
 }

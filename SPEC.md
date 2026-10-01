@@ -826,6 +826,8 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see the agent's changes in the preview as it makes them, not only when it finishes.
 - Apps whose dev server has hot reload (Vite, Next.js…) should keep using it.
 - Apps without it (the default Laravel stack builds assets with `vite build --watch`; plain PHP pages) should reload in the preview once a build under `public/build/` has been written or a PHP file changed (outside `vendor`, `storage`, `node_modules`, `.git`, `bootstrap/cache` and `.onedrop`), after writes have been quiet for a moment.
+- A rebuild that writes the same files again (nothing in the app changed) should not reload the preview.
+- The platform's own logs in `.onedrop` should never set off a rebuild, nor be committed to the project's git.
 - Only preview pages should listen; published addresses should never reload by themselves.
 
 ## RT-001: Realtime in apps

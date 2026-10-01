@@ -38,7 +38,7 @@ test('the board lists every task with its column and what its agent is doing', f
             ->has('tasks', 2)
             ->where('tasks.0.title', 'Dark mode')
             ->where('tasks.0.stage', 'in_progress')
-            ->where('tasks.0.activity', 'Editing app.css')
+            ->where('tasks.0.activity', 'Styling the app')
             ->where('tasks.1.stage', 'done'));
 })->group('TASK-002');
 
