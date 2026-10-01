@@ -89,7 +89,7 @@ class AbuseReviewController extends Controller
                 'publish_visibility' => $project->publish_visibility,
                 'published_url' => $project->published_url,
                 'share_url' => $project->share?->url(),
-                'organization' => $project->organization?->name,
+                'organization' => $project->organization->name,
             ],
             'owner' => $project->user ? [
                 ...$project->user->only('id', 'name', 'email'),

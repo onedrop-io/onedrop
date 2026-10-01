@@ -52,7 +52,7 @@ class TriageFailingTests implements ShouldQueue
      * `triage_pending` when some are still being worked out, starting that for the failures without one.
      * Without a key to ask Jev with, nothing is added.
      *
-     * @param  array{tests: list<array<string, mixed>>}  $status
+     * @param  array{tests: list<array{id: string, file: string, line: int, title: string, result: array<string, mixed>|null}>}  $status  as WorkspaceTests::status() gives it
      * @return array<string, mixed>
      */
     public static function annotate(Project $project, array $status): array
@@ -64,9 +64,13 @@ class TriageFailingTests implements ShouldQueue
         $untriaged = [];
 
         foreach ($status['tests'] as $i => $test) {
-            if (($test['result']['status'] ?? null) !== 'failed') {
+            $result = $test['result'];
+
+            if ($result === null || ($result['status'] ?? null) !== 'failed') {
                 continue;
             }
+
+            $test = ['id' => $test['id'], 'file' => $test['file'], 'line' => $test['line'], 'title' => $test['title'], 'result' => $result];
 
             $kept = Cache::get(self::verdictKey($project, $test));
             $status['tests'][$i]['result']['triage'] = is_array($kept) && $kept['verdict'] !== null ? $kept : null;
@@ -170,8 +174,7 @@ class TriageFailingTests implements ShouldQueue
                 'title' => Str::limit($test['title'], 300),
                 'file' => $test['file'],
                 'error' => Str::limit((string) ($test['result']['error'] ?? ''), 1500),
-                'steps_run' => collect($test['result']['steps'] ?? [])->take(30)
-                    ->map(fn (array $step) => Str::limit(trim(($step['title'] ?? '').' '.($step['subtitle'] ?? '')), 150))->all(),
+                'steps_run' => self::stepsRun($test['result']['steps'] ?? []),
                 'source' => self::testSource($sources[$test['file']] ?? '', (int) $test['line']),
             ])])->all(),
         ];
@@ -192,6 +195,17 @@ class TriageFailingTests implements ShouldQueue
         }
 
         return Str::limit(rtrim(implode("\n", $lines)), 3000);
+    }
+
+    /**
+     * The steps a failed run got through, as short lines.
+     *
+     * @return list<string>
+     */
+    protected static function stepsRun(mixed $steps): array
+    {
+        return array_values(collect(is_array($steps) ? $steps : [])->filter(fn (mixed $step) => is_array($step))->take(30)
+            ->map(fn (array $step) => Str::limit(trim(($step['title'] ?? '').' '.($step['subtitle'] ?? '')), 150))->all());
     }
 
     /**

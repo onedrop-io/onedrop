@@ -1,5 +1,9 @@
 export type AgentProvider =
-    'claude' | 'codex' | 'openrouter' | 'gemini' | 'ollama';
+    | 'claude'
+    | 'codex'
+    | 'openrouter'
+    | 'gemini'
+    | 'ollama';
 
 /** The coding agent that works in the sandbox. */
 export type AgentHarness = 'opencode' | 'claude_code' | 'codex';

@@ -31,12 +31,12 @@ can be made from it. Switching providers then means changing `SANDBOX_PROVIDER`,
 
 Split so the frequent snapshot stays small:
 
-| Layer | Contents | Changes |
-|---|---|---|
-| `workspace` | `/workspace` without dependency folders, including uncommitted files and `.git` | every turn |
-| `home` | `/home/sandbox` minus caches (`.cache`, `.npm`, agent temp) | often |
-| `storage` | `$APP_STORAGE_DIR` (App Storage) | when the app writes |
-| `deps` | `node_modules`, `vendor`, keyed by a hash of the lockfiles | when lockfiles change |
+| Layer       | Contents                                                                        | Changes               |
+| ----------- | ------------------------------------------------------------------------------- | --------------------- |
+| `workspace` | `/workspace` without dependency folders, including uncommitted files and `.git` | every turn            |
+| `home`      | `/home/sandbox` minus caches (`.cache`, `.npm`, agent temp)                     | often                 |
+| `storage`   | `$APP_STORAGE_DIR` (App Storage)                                                | when the app writes   |
+| `deps`      | `node_modules`, `vendor`, keyed by a hash of the lockfiles                      | when lockfiles change |
 
 Each layer's hash is computed in the sandbox (file list, sizes and mtimes; content hash for `deps` keys). A layer
 whose hash matches the previous snapshot is referenced, not uploaded again.

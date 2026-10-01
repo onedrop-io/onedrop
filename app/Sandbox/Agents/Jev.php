@@ -126,7 +126,7 @@ class Jev
      */
     public static function scoreQuestion(string $instructions, array $scale): array
     {
-        return ['type' => 'score', 'instructions' => $instructions, 'criteria' => array_values($scale)];
+        return ['type' => 'score', 'instructions' => $instructions, 'criteria' => $scale];
     }
 
     /**

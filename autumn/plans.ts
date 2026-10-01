@@ -1,3 +1,3 @@
-import { plan } from "atmn";
+import { plan } from 'atmn';
 
 export const plans = [];

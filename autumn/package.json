@@ -1,8 +1,8 @@
 {
-	"name": "@onedrop/autumn",
-	"private": true,
-	"type": "module",
-	"dependencies": {
-		"atmn": "^2.0.57"
-	}
+    "name": "@onedrop/autumn",
+    "private": true,
+    "type": "module",
+    "dependencies": {
+        "atmn": "^2.0.57"
+    }
 }

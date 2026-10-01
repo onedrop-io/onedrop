@@ -18,6 +18,7 @@ use App\Sandbox\Publishing\Publishers;
 use App\Sandbox\Publishing\PublishException;
 use DOMDocument;
 use DOMElement;
+use DOMNode;
 use DOMXPath;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
@@ -142,7 +143,7 @@ class AbuseCheck
         }
 
         $answers = array_map(fn (float $probability) => round($probability, 3), $answers);
-        $score = max($answers);
+        $score = $answers === [] ? 0.0 : max($answers);
         $held = $score >= self::THRESHOLD;
 
         $project->abuseReview()->updateOrCreate([], [
@@ -245,7 +246,7 @@ class AbuseCheck
 
         return [
             'project_name' => Str::limit($project->name, 100),
-            'prompts' => $prompts->map(fn (string $prompt) => Str::limit(Str::squish($prompt), 500))->values()->all(),
+            'prompts' => array_values($prompts->map(fn (string $prompt) => Str::limit(Str::squish($prompt), 500))->all()),
             'page' => $this->page($project),
         ];
     }
@@ -290,14 +291,14 @@ class AbuseCheck
         @$document->loadHTML('<?xml encoding="UTF-8">'.$html, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
         $xpath = new DOMXPath($document);
 
-        $title = Str::squish((string) $xpath->query('//title')->item(0)?->textContent);
+        $title = Str::squish(self::text($xpath, '//title'));
 
-        foreach (iterator_to_array($xpath->query('//script|//style|//noscript|//template|//svg|//title')) as $node) {
+        foreach (self::nodes($xpath, '//script|//style|//noscript|//template|//svg|//title') as $node) {
             $node->parentNode?->removeChild($node);
         }
 
-        $fields = collect(iterator_to_array($xpath->query('//input|//select|//textarea')))
-            ->filter(fn ($node) => $node instanceof DOMElement && $node->getAttribute('type') !== 'hidden')
+        $fields = collect(self::nodes($xpath, '//input|//select|//textarea'))
+            ->filter(fn (DOMNode $node) => $node instanceof DOMElement && $node->getAttribute('type') !== 'hidden')
             ->map(fn (DOMElement $field) => Str::limit(Str::squish(implode(' ', array_filter([
                 $field->getAttribute('type') ?: $field->tagName,
                 $field->getAttribute('name'),
@@ -306,15 +307,36 @@ class AbuseCheck
             ]))), 120))
             ->unique()->take(30)->values()->all();
 
-        $actions = collect(iterator_to_array($xpath->query('//form[@action]')))
+        $actions = collect(self::nodes($xpath, '//form[@action]'))
+            ->filter(fn (DOMNode $node) => $node instanceof DOMElement)
             ->map(fn (DOMElement $form) => Str::limit($form->getAttribute('action'), 200))
             ->filter()->unique()->take(10)->values()->all();
 
         return [
             'title' => Str::limit($title, 200),
-            'text' => Str::limit(Str::squish((string) $xpath->query('//body')->item(0)?->textContent), 3000),
-            'fields' => $fields,
-            'form_actions' => $actions,
+            'text' => Str::limit(Str::squish(self::text($xpath, '//body')), 3000),
+            'fields' => array_values($fields),
+            'form_actions' => array_values($actions),
         ];
+    }
+
+    /**
+     * The elements an XPath query finds (none when it's invalid).
+     *
+     * @return list<DOMNode>
+     */
+    protected static function nodes(DOMXPath $xpath, string $query): array
+    {
+        $found = $xpath->query($query);
+
+        return $found === false ? [] : array_values(array_filter(iterator_to_array($found), fn ($node) => $node instanceof DOMNode));
+    }
+
+    /**
+     * The text of the first element an XPath query finds, or an empty string.
+     */
+    protected static function text(DOMXPath $xpath, string $query): string
+    {
+        return self::nodes($xpath, $query)[0]->textContent ?? '';
     }
 }

@@ -8,7 +8,23 @@
         return;
     }
 
-    const INLINE = new Set(['SPAN', 'B', 'I', 'EM', 'STRONG', 'SMALL', 'svg', 'path', 'g', 'use', 'circle', 'rect', 'line', 'polyline', 'polygon']);
+    const INLINE = new Set([
+        'SPAN',
+        'B',
+        'I',
+        'EM',
+        'STRONG',
+        'SMALL',
+        'svg',
+        'path',
+        'g',
+        'use',
+        'circle',
+        'rect',
+        'line',
+        'polyline',
+        'polygon',
+    ]);
     const SKIP = new Set(['HTML', 'BODY', 'HEAD', 'SCRIPT', 'STYLE']);
     const COLOR = '#3b82f6';
     const DRAG_PX = 5;
@@ -38,11 +54,17 @@
         }
     };
 
-    const isOurs = (element) => element === host || (host && host.contains(element));
+    const isOurs = (element) =>
+        element === host || (host && host.contains(element));
 
     /** The element an action is about: skipping the icons and formatting inside it (a button, not its svg). */
     const meaningful = (element) => {
-        while (element && INLINE.has(element.tagName) && element.parentElement && !SKIP.has(element.parentElement.tagName)) {
+        while (
+            element &&
+            INLINE.has(element.tagName) &&
+            element.parentElement &&
+            !SKIP.has(element.parentElement.tagName)
+        ) {
             element = element.parentElement;
         }
 
@@ -77,10 +99,18 @@
             return '#' + CSS.escape(element.id);
         }
 
-        for (const attribute of ['data-testid', 'data-test', 'name', 'aria-label']) {
+        for (const attribute of [
+            'data-testid',
+            'data-test',
+            'name',
+            'aria-label',
+        ]) {
             const value = element.getAttribute(attribute);
 
-            if (value && unique(tag + '[' + attribute + '="' + CSS.escape(value) + '"]')) {
+            if (
+                value &&
+                unique(tag + '[' + attribute + '="' + CSS.escape(value) + '"]')
+            ) {
                 return tag + '[' + attribute + '="' + value + '"]';
             }
         }
@@ -88,7 +118,12 @@
         const path = [];
         let node = element;
 
-        while (node && node.parentElement && !SKIP.has(node.tagName) && path.length < 5) {
+        while (
+            node &&
+            node.parentElement &&
+            !SKIP.has(node.tagName) &&
+            path.length < 5
+        ) {
             let part = node.tagName.toLowerCase();
 
             if (node.id) {
@@ -97,12 +132,19 @@
             }
 
             // Classes that read like names, not utilities (Tailwind's `md:px-4`, `w-[3px]`).
-            const classes = typeof node.className === 'string'
-                ? node.className.trim().split(/\s+/).filter((name) => name && !/[:[\]/]/.test(name)).slice(0, 2)
-                : [];
+            const classes =
+                typeof node.className === 'string'
+                    ? node.className
+                          .trim()
+                          .split(/\s+/)
+                          .filter((name) => name && !/[:[\]/]/.test(name))
+                          .slice(0, 2)
+                    : [];
             part += classes.map((name) => '.' + CSS.escape(name)).join('');
 
-            const same = Array.from(node.parentElement.children).filter((sibling) => sibling.tagName === node.tagName);
+            const same = Array.from(node.parentElement.children).filter(
+                (sibling) => sibling.tagName === node.tagName,
+            );
 
             if (same.length > 1) {
                 part += ':nth-of-type(' + (same.indexOf(node) + 1) + ')';
@@ -121,8 +163,15 @@
     };
 
     const textOf = (element) => {
-        const text = (element.innerText || element.getAttribute('aria-label') || element.getAttribute('placeholder')
-            || element.getAttribute('alt') || element.getAttribute('title') || element.getAttribute('name') || '')
+        const text = (
+            element.innerText ||
+            element.getAttribute('aria-label') ||
+            element.getAttribute('placeholder') ||
+            element.getAttribute('alt') ||
+            element.getAttribute('title') ||
+            element.getAttribute('name') ||
+            ''
+        )
             .replace(/\s+/g, ' ')
             .trim();
 
@@ -141,7 +190,10 @@
             // A plain path.
         }
 
-        path = path.replace(/^\/@fs/, '').replace(/^\/workspace\//, '').replace(/^\//, '');
+        path = path
+            .replace(/^\/@fs/, '')
+            .replace(/^\/workspace\//, '')
+            .replace(/^\//, '');
 
         return /node_modules|^@vite|^@react-refresh/.test(path) ? null : path;
     };
@@ -152,7 +204,9 @@
             return null;
         }
 
-        for (const match of String(stack.stack || stack).matchAll(/(https?:\/\/[^\s)]+?):\d+:\d+/g)) {
+        for (const match of String(stack.stack || stack).matchAll(
+            /(https?:\/\/[^\s)]+?):\d+:\d+/g,
+        )) {
             const path = appPath(match[1]);
 
             if (path) {
@@ -165,33 +219,64 @@
 
     /** The component that rendered the element and where, for React and Vue apps in development. */
     const componentOf = (element) => {
-        const fiberKey = Object.keys(element).find((key) => key.startsWith('__reactFiber$') || key.startsWith('__reactInternalInstance$'));
+        const fiberKey = Object.keys(element).find(
+            (key) =>
+                key.startsWith('__reactFiber$') ||
+                key.startsWith('__reactInternalInstance$'),
+        );
 
         if (fiberKey) {
             const fiber = element[fiberKey];
             let owner = fiber._debugOwner;
 
-            if (!owner || typeof owner.type !== 'function' && typeof owner.type !== 'object') {
+            if (
+                !owner ||
+                (typeof owner.type !== 'function' &&
+                    typeof owner.type !== 'object')
+            ) {
                 owner = fiber.return;
 
-                while (owner && typeof owner.type !== 'function' && !(owner.type && typeof owner.type === 'object')) {
+                while (
+                    owner &&
+                    typeof owner.type !== 'function' &&
+                    !(owner.type && typeof owner.type === 'object')
+                ) {
                     owner = owner.return;
                 }
             }
 
-            const type = owner && owner.type && (owner.type.render || owner.type.type || owner.type);
-            const name = owner && ((owner.type && owner.type.displayName) || (type && (type.displayName || type.name))) || null;
+            const type =
+                owner &&
+                owner.type &&
+                (owner.type.render || owner.type.type || owner.type);
+            const name =
+                (owner &&
+                    ((owner.type && owner.type.displayName) ||
+                        (type && (type.displayName || type.name)))) ||
+                null;
             const source = fiber._debugSource
-                ? appPath(fiber._debugSource.fileName) + (fiber._debugSource.lineNumber ? ':' + fiber._debugSource.lineNumber : '')
+                ? appPath(fiber._debugSource.fileName) +
+                  (fiber._debugSource.lineNumber
+                      ? ':' + fiber._debugSource.lineNumber
+                      : '')
                 : fileFromStack(fiber._debugStack);
 
-            return name || source ? { name: name || null, source: source && !source.startsWith('null') ? source : null } : null;
+            return name || source
+                ? {
+                      name: name || null,
+                      source:
+                          source && !source.startsWith('null') ? source : null,
+                  }
+                : null;
         }
 
         const vue = element.__vueParentComponent;
 
         if (vue && vue.type) {
-            return { name: vue.type.__name || vue.type.name || null, source: appPath(vue.type.__file) };
+            return {
+                name: vue.type.__name || vue.type.name || null,
+                source: appPath(vue.type.__file),
+            };
         }
 
         return null;
@@ -213,15 +298,31 @@
     const label = (element) => {
         const about = describe(element);
 
-        return about.selector + (about.component ? ' · ' + about.component : '');
+        return (
+            about.selector + (about.component ? ' · ' + about.component : '')
+        );
     };
 
     // Drawing: outlines in a shadow root on top of the page, so the app's styles can't touch them.
     const box = (rect, color, dashed) => {
         const div = document.createElement('div');
-        div.style.cssText = 'position:fixed;pointer-events:none;box-sizing:border-box;border-radius:3px;'
-            + 'left:' + rect.left + 'px;top:' + rect.top + 'px;width:' + rect.width + 'px;height:' + rect.height + 'px;'
-            + 'border:2px ' + (dashed ? 'dashed ' : 'solid ') + color + ';background:' + color + '1a';
+        div.style.cssText =
+            'position:fixed;pointer-events:none;box-sizing:border-box;border-radius:3px;' +
+            'left:' +
+            rect.left +
+            'px;top:' +
+            rect.top +
+            'px;width:' +
+            rect.width +
+            'px;height:' +
+            rect.height +
+            'px;' +
+            'border:2px ' +
+            (dashed ? 'dashed ' : 'solid ') +
+            color +
+            ';background:' +
+            color +
+            '1a';
 
         return div;
     };
@@ -229,10 +330,17 @@
     const tag = (text, rect, color) => {
         const span = document.createElement('span');
         span.textContent = text;
-        span.style.cssText = 'position:fixed;pointer-events:none;font:600 11px/1.6 ui-sans-serif,system-ui,sans-serif;'
-            + 'color:#fff;background:' + color + ';padding:0 6px;border-radius:3px;white-space:nowrap;max-width:60vw;'
-            + 'overflow:hidden;text-overflow:ellipsis;left:' + Math.max(0, rect.left) + 'px;'
-            + 'top:' + (rect.top > 20 ? rect.top - 19 : rect.bottom + 2) + 'px';
+        span.style.cssText =
+            'position:fixed;pointer-events:none;font:600 11px/1.6 ui-sans-serif,system-ui,sans-serif;' +
+            'color:#fff;background:' +
+            color +
+            ';padding:0 6px;border-radius:3px;white-space:nowrap;max-width:60vw;' +
+            'overflow:hidden;text-overflow:ellipsis;left:' +
+            Math.max(0, rect.left) +
+            'px;' +
+            'top:' +
+            (rect.top > 20 ? rect.top - 19 : rect.bottom + 2) +
+            'px';
 
         return span;
     };
@@ -255,19 +363,46 @@
                 const rect = drag.target.getBoundingClientRect();
 
                 if (drag.position === 'swap') {
-                    layer.append(box(rect, '#22c55e', true), tag('Swap', rect, '#22c55e'));
+                    layer.append(
+                        box(rect, '#22c55e', true),
+                        tag('Swap', rect, '#22c55e'),
+                    );
                 } else {
                     const line = document.createElement('div');
                     const before = drag.position === 'before';
-                    line.style.cssText = 'position:fixed;pointer-events:none;background:#22c55e;border-radius:2px;' + (drag.horizontal
-                        ? 'top:' + rect.top + 'px;height:' + rect.height + 'px;width:4px;left:' + ((before ? rect.left : rect.right) - 2) + 'px'
-                        : 'left:' + rect.left + 'px;width:' + rect.width + 'px;height:4px;top:' + ((before ? rect.top : rect.bottom) - 2) + 'px');
-                    layer.append(line, tag(before ? 'Move before' : 'Move after', rect, '#22c55e'));
+                    line.style.cssText =
+                        'position:fixed;pointer-events:none;background:#22c55e;border-radius:2px;' +
+                        (drag.horizontal
+                            ? 'top:' +
+                              rect.top +
+                              'px;height:' +
+                              rect.height +
+                              'px;width:4px;left:' +
+                              ((before ? rect.left : rect.right) - 2) +
+                              'px'
+                            : 'left:' +
+                              rect.left +
+                              'px;width:' +
+                              rect.width +
+                              'px;height:4px;top:' +
+                              ((before ? rect.top : rect.bottom) - 2) +
+                              'px');
+                    layer.append(
+                        line,
+                        tag(
+                            before ? 'Move before' : 'Move after',
+                            rect,
+                            '#22c55e',
+                        ),
+                    );
                 }
             }
         } else if (hovered) {
             const rect = hovered.getBoundingClientRect();
-            layer.append(box(rect, '#f97316', true), tag(label(hovered), rect, '#f97316'));
+            layer.append(
+                box(rect, '#f97316', true),
+                tag(label(hovered), rect, '#f97316'),
+            );
         }
     };
 
@@ -301,8 +436,12 @@
         }
 
         // Dropping on the only thing inside a wrapper means the wrapper (a card, not the text in it).
-        while (target.parentElement && target.parentElement !== document.body && target.parentElement.children.length === 1
-            && !target.parentElement.contains(dragged)) {
+        while (
+            target.parentElement &&
+            target.parentElement !== document.body &&
+            target.parentElement.children.length === 1 &&
+            !target.parentElement.contains(dragged)
+        ) {
             target = target.parentElement;
         }
 
@@ -311,18 +450,36 @@
         }
 
         const rect = target.getBoundingClientRect();
-        const parent = target.parentElement ? getComputedStyle(target.parentElement) : null;
+        const parent = target.parentElement
+            ? getComputedStyle(target.parentElement)
+            : null;
         const display = getComputedStyle(target).display;
-        const horizontal = (parent && /flex/.test(parent.display) && !/column/.test(parent.flexDirection))
-            || (parent && parent.display === 'grid' && rect.width < target.parentElement.getBoundingClientRect().width * 0.9)
-            || /^inline/.test(display);
-        const along = horizontal ? (x - rect.left) / rect.width : (y - rect.top) / rect.height;
+        const horizontal =
+            (parent &&
+                /flex/.test(parent.display) &&
+                !/column/.test(parent.flexDirection)) ||
+            (parent &&
+                parent.display === 'grid' &&
+                rect.width <
+                    target.parentElement.getBoundingClientRect().width * 0.9) ||
+            display.startsWith('inline');
+        const along = horizontal
+            ? (x - rect.left) / rect.width
+            : (y - rect.top) / rect.height;
 
-        return { target, horizontal, position: along < 0.3 ? 'before' : along > 0.7 ? 'after' : 'swap' };
+        return {
+            target,
+            horizontal,
+            position: along < 0.3 ? 'before' : along > 0.7 ? 'after' : 'swap',
+        };
     };
 
     const hide = (element, changes) => {
-        changes.push({ element, display: element.style.getPropertyValue('display'), priority: element.style.getPropertyPriority('display') });
+        changes.push({
+            element,
+            display: element.style.getPropertyValue('display'),
+            priority: element.style.getPropertyPriority('display'),
+        });
         element.style.setProperty('display', 'none', 'important');
     };
 
@@ -348,7 +505,11 @@
                     }
                 });
             } else if (change.display) {
-                change.element.style.setProperty('display', change.display, change.priority);
+                change.element.style.setProperty(
+                    'display',
+                    change.display,
+                    change.priority,
+                );
             } else {
                 change.element.style.removeProperty('display');
             }
@@ -361,7 +522,10 @@
         const atDragged = document.createComment('');
         const atTarget = document.createComment('');
         dragged.parentNode.insertBefore(atDragged, dragged);
-        target.parentNode.insertBefore(atTarget, position === 'after' ? target.nextSibling : target);
+        target.parentNode.insertBefore(
+            atTarget,
+            position === 'after' ? target.nextSibling : target,
+        );
 
         const shown = copyAt(dragged, atTarget, changes);
 
@@ -379,16 +543,32 @@
                 item.shown = shown;
             }
         });
-        items.push({ id: nextId++, kind: 'move', element: describe(dragged), target: describe(target), position, shown, changes });
+        items.push({
+            id: nextId++,
+            kind: 'move',
+            element: describe(dragged),
+            target: describe(target),
+            position,
+            shown,
+            changes,
+        });
     };
 
     const togglePick = (element) => {
-        const existing = items.findIndex((item) => item.kind === 'pick' && item.shown === element);
+        const existing = items.findIndex(
+            (item) => item.kind === 'pick' && item.shown === element,
+        );
 
         if (existing !== -1) {
             items.splice(existing, 1);
         } else {
-            items.push({ id: nextId++, kind: 'pick', element: describe(element), shown: element, changes: [] });
+            items.push({
+                id: nextId++,
+                kind: 'pick',
+                element: describe(element),
+                shown: element,
+                changes: [],
+            });
         }
 
         report();
@@ -406,7 +586,14 @@
 
         if (event.button === 0) {
             const element = elementAt(event.clientX, event.clientY);
-            drag = element ? { element, x: event.clientX, y: event.clientY, started: false } : null;
+            drag = element
+                ? {
+                      element,
+                      x: event.clientX,
+                      y: event.clientY,
+                      started: false,
+                  }
+                : null;
         }
     };
 
@@ -414,21 +601,37 @@
         pointer = { x: event.clientX, y: event.clientY };
 
         if (drag) {
-            if (!drag.started && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) > DRAG_PX) {
+            if (
+                !drag.started &&
+                Math.hypot(event.clientX - drag.x, event.clientY - drag.y) >
+                    DRAG_PX
+            ) {
                 const rect = drag.element.getBoundingClientRect();
                 drag.started = true;
-                drag.offset = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+                drag.offset = {
+                    x: event.clientX - rect.left,
+                    y: event.clientY - rect.top,
+                };
                 drag.ghost = drag.element.cloneNode(true);
                 drag.ghost.removeAttribute('id');
-                drag.ghost.style.cssText += ';position:fixed;pointer-events:none;opacity:0.75;z-index:2147483646;margin:0;'
-                    + 'width:' + rect.width + 'px;height:' + rect.height + 'px;box-shadow:0 8px 24px rgba(0,0,0,.25)';
+                drag.ghost.style.cssText +=
+                    ';position:fixed;pointer-events:none;opacity:0.75;z-index:2147483646;margin:0;' +
+                    'width:' +
+                    rect.width +
+                    'px;height:' +
+                    rect.height +
+                    'px;box-shadow:0 8px 24px rgba(0,0,0,.25)';
                 document.documentElement.appendChild(drag.ghost);
             }
 
             if (drag.started) {
                 drag.ghost.style.left = event.clientX - drag.offset.x + 'px';
                 drag.ghost.style.top = event.clientY - drag.offset.y + 'px';
-                Object.assign(drag, { target: null, position: null }, dropAt(event.clientX, event.clientY) || {});
+                Object.assign(
+                    drag,
+                    { target: null, position: null },
+                    dropAt(event.clientX, event.clientY) || {},
+                );
             }
         } else {
             hovered = elementAt(event.clientX, event.clientY);
@@ -480,12 +683,15 @@
         ['dragstart', swallow],
         ['submit', swallow],
         ['keydown', onKeyDown],
-        ['mouseout', (event) => {
-            if (!event.relatedTarget) {
-                hovered = null;
-                redraw();
-            }
-        }],
+        [
+            'mouseout',
+            (event) => {
+                if (!event.relatedTarget) {
+                    hovered = null;
+                    redraw();
+                }
+            },
+        ],
         ['scroll', redraw],
         ['resize', redraw],
     ];
@@ -497,14 +703,18 @@
 
         active = true;
         host = document.createElement('onedrop-inspector');
-        host.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:2147483647';
+        host.style.cssText =
+            'position:fixed;inset:0;pointer-events:none;z-index:2147483647';
         layer = document.createElement('div');
         host.attachShadow({ mode: 'open' }).append(layer);
         document.documentElement.appendChild(host);
         cursorStyle = document.createElement('style');
-        cursorStyle.textContent = '*{cursor:crosshair!important;user-select:none!important}';
+        cursorStyle.textContent =
+            '*{cursor:crosshair!important;user-select:none!important}';
         (document.head || document.documentElement).appendChild(cursorStyle);
-        LISTENERS.forEach(([type, listener]) => window.addEventListener(type, listener, true));
+        LISTENERS.forEach(([type, listener]) =>
+            window.addEventListener(type, listener, true),
+        );
         report();
     };
 
@@ -515,9 +725,14 @@
         }
 
         active = false;
-        LISTENERS.forEach(([type, listener]) => window.removeEventListener(type, listener, true));
+        LISTENERS.forEach(([type, listener]) =>
+            window.removeEventListener(type, listener, true),
+        );
 
-        items.slice().reverse().forEach((item) => revert(item.changes));
+        items
+            .slice()
+            .reverse()
+            .forEach((item) => revert(item.changes));
 
         if (drag && drag.ghost) {
             drag.ghost.remove();
@@ -550,7 +765,10 @@
                 report();
             }
         } else if (data.onedrop === 'inspector-parent') {
-            const item = items.find((candidate) => candidate.id === data.item && candidate.kind === 'pick');
+            const item = items.find(
+                (candidate) =>
+                    candidate.id === data.item && candidate.kind === 'pick',
+            );
             const parent = item && meaningful(item.shown.parentElement);
 
             if (item && parent) {
@@ -565,7 +783,13 @@
                 rects: items.map((item) => {
                     const rect = item.shown.getBoundingClientRect();
 
-                    return { id: item.id, x: rect.left, y: rect.top, width: rect.width, height: rect.height };
+                    return {
+                        id: item.id,
+                        x: rect.left,
+                        y: rect.top,
+                        width: rect.width,
+                        height: rect.height,
+                    };
                 }),
             });
         }

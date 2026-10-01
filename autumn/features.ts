@@ -1,3 +1,3 @@
-import { feature } from "atmn";
+import { feature } from 'atmn';
 
 export const features = [];

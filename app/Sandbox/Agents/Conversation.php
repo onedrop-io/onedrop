@@ -66,4 +66,11 @@ interface Conversation
      * @return mixed
      */
     public function getAttribute($key);
+
+    /**
+     * The conversation's id.
+     *
+     * @return mixed
+     */
+    public function getKey();
 }
