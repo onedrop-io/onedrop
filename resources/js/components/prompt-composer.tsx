@@ -1,6 +1,6 @@
 import { useForm } from '@inertiajs/react';
 import type { RouteDefinition } from '@/wayfinder';
-import { ArrowUp, Paperclip, Square, Zap } from 'lucide-react';
+import { ArrowUp, FileCode, Paperclip, Square, X, Zap } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import type { ClipboardEvent, DragEvent, KeyboardEvent } from 'react';
@@ -25,6 +25,9 @@ type PickedFile = {
 
 /** A file attached from outside the box, with an optional note for the agent that the chat doesn't show. */
 export type AttachedFile = { file: File; context?: string };
+
+/** The file open in the workspace's editor, sent along for the agent (AGT-015). */
+export type ContextFile = { path: string; dirty: boolean };
 
 /**
  * While the agent works: "auto" lets the server decide (queue it, or send it now when it corrects the work in
@@ -71,6 +74,8 @@ export default function PromptComposer({
     attachments = false,
     incomingFiles = [],
     onIncomingFilesAdded,
+    contextFile = null,
+    onRemoveContextFile,
     renderHeld,
 }: {
     action: RouteDefinition<'post'>;
@@ -104,6 +109,9 @@ export default function PromptComposer({
     /** Files to attach from outside (e.g. a marked-up picture of the preview, AGT-013); added once, then reported. */
     incomingFiles?: AttachedFile[];
     onIncomingFilesAdded?: () => void;
+    /** The file open in the editor, shown as a chip and told to the agent until removed (AGT-015). */
+    contextFile?: ContextFile | null;
+    onRemoveContextFile?: () => void;
     /**
      * Show a message the server held (the page's `held` prop) above the box; without it, held messages aren't expected.
      * The text and files stay in the box until it's sent.
@@ -287,8 +295,10 @@ export default function PromptComposer({
                 ? { ...replies.current, ...reply, check: held.check }
                 : {};
 
-        const agentContext = picked
-            .map((item) => item.context)
+        const agentContext = [
+            ...picked.map((item) => item.context),
+            contextFile && openFileNote(contextFile),
+        ]
             .filter(Boolean)
             .join('\n\n');
 
@@ -369,6 +379,29 @@ export default function PromptComposer({
                         onRemove={removeFile}
                         className="px-4 pt-4"
                     />
+                )}
+                {contextFile && (
+                    <div className="flex px-4 pt-3">
+                        <span
+                            className="flex max-w-full items-center gap-1.5 rounded-md border bg-muted/50 py-0.5 pr-0.5 pl-2 text-xs text-muted-foreground"
+                            title={`${contextFile.path}: the agent is told you have this file open`}
+                            data-test="composer-context-file"
+                        >
+                            <FileCode className="size-3.5 shrink-0" />
+                            <span className="truncate">
+                                {contextFile.path.split('/').pop()}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={onRemoveContextFile}
+                                aria-label={`Don't send ${contextFile.path}`}
+                                data-test="remove-context-file"
+                                className="flex size-4 shrink-0 items-center justify-center rounded hover:bg-muted hover:text-foreground"
+                            >
+                                <X className="size-3" />
+                            </button>
+                        </span>
+                    </div>
                 )}
                 {header}
                 <label htmlFor={`composer-${field}`} className="sr-only">
@@ -489,6 +522,13 @@ export default function PromptComposer({
             </form>
         </>
     );
+}
+
+/** What the agent is told about the file open in the editor (AGT-015). */
+function openFileNote({ path, dirty }: ContextFile): string {
+    return dirty
+        ? `(The user has ${path} open in the editor, with unsaved changes you can't see.)`
+        : `(The user has ${path} open in the editor.)`;
 }
 
 /** The first server error about anything else sent (`attachments.N`, or extra data like `repository`). */

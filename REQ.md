@@ -73,7 +73,7 @@ ORG-001..007 (see `docs/plans/organizations.md`; all built: the boundary, the sw
 
 ## AI connections and agents
 
-AI-001..007, AGT-001..014, USAGE-001.
+AI-001..007, AGT-001..015, USAGE-001.
 Users connect an AI before building; each project picks its agent (OpenCode, Claude Code or Codex), model and reasoning level; runs can be stopped, queued or sent now; prompts can be recalled; attachments work; usage and estimated cost are tracked per agent, model and project.
 
 ### Decisions
@@ -108,6 +108,8 @@ Users connect an AI before building; each project picks its agent (OpenCode, Cla
 - **2026-10-01: Components are read from the page's own DOM:** React's fiber on the element (`__reactFiber$…`): `_debugOwner` for the component, `_debugSource` for file and line (React 18), or the first app file in `_debugStack` (React 19, file only, because the stack isn't source-mapped). Vue's `__vueParentComponent` gives `__name` and `__file`. Production builds have none of these, so the agent gets the selector and text only.
 - **2026-10-01: Moves are shown with copies, and the originals are hidden, never moved.** Moving an element React or Vue manages breaks the framework's next update ("removeChild" errors). A copy isn't the framework's, so it can't break it, and stopping removes the copies and shows the originals again. Removing a move from the list puts the page back the same way. The app's code and files never change; the agent makes the move.
 - **2026-10-01: Dropping on the outer 30% of an element at either end moves before or after it; the middle 40% swaps.** Along the row for flex rows, inline elements and grid cells, otherwise down the column. Swapping is the common ask ("swap these buttons"), so it gets the biggest area.
+- **2026-10-01: The file open in the editor goes with every message automatically, as a chip the user can remove (AGT-015).** Users say "this file" while looking at it; making them attach it each time is a step they'd skip. Only the path is sent, as an `agent_context` note (not in the chat), never the contents: the agent reads the file in the sandbox itself, and a big file would bloat every prompt. Unsaved changes are mentioned, since the agent can't see them.
+- **2026-10-01: Removing the chip lasts until another file is opened, not just for one message.** Bringing it back after every send would make the user remove it again and again for the same file.
 - **2026-10-01: While inspecting, the page's clicks, presses, drags and form submits are swallowed** (capture-phase listeners on the window), so picking a link or button doesn't use it. Esc in the page stops inspecting, and the inspector stops when the preview reloads, since a reloaded page has lost its picks.
 - **2026-09-30: A user's own Ollama server with Nimble pulled answers the platform's checks in Jev's place (AI-007).** Nimble (Bespoke Labs, 9B, Apache 2.0) speaks Jev's API at `/v1/systemone`, so the questions and thresholds are unchanged; only where they're sent differs. It's free for the user, and keeps their prompts and code on the server they chose instead of sending them to OpenRouter. Self-hosted only: Nimble isn't on Ollama Cloud.
 - **2026-09-30: Nimble on the server comes before the owner's OpenRouter key.** Someone who points the platform at their own server wants it used. It's found by name (`nimble` or `nimble:*`) in the server's cached model list (an hour), so pulling it takes effect within the hour, and nothing new to set up.

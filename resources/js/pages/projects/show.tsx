@@ -63,7 +63,7 @@ import MessageAttachments from '@/components/message-attachments';
 import NotificationsPrompt from '@/components/notifications-prompt';
 import type { AttachmentPreview } from '@/components/message-attachments';
 import PromptComposer from '@/components/prompt-composer';
-import type { AttachedFile } from '@/components/prompt-composer';
+import type { AttachedFile, ContextFile } from '@/components/prompt-composer';
 import PreviewAnnotator, {
     annotationText,
     capturePreview,
@@ -312,6 +312,8 @@ export default function ShowProject({
     });
     // Bumped when the sandbox's files come or go (FILE-004): the Files panel checks whether they're its own.
     const [filesChanges, setFilesChanges] = useState(0);
+    // The file open in the editor, which the chat sends along for the agent (AGT-015).
+    const [openFile, setOpenFile] = useState<ContextFile | null>(null);
     // Pushed updates (LIVE-001): the chat, the agent's progress and the sandbox's status, as they change.
     const live = useProjectChannel(project.id, {
         ProjectUpdated: reloadLive,
@@ -383,6 +385,7 @@ export default function ShowProject({
                             : null
                     }
                     onClaudeSignedIn={claudeSignedIn}
+                    openFile={openFile}
                 />
                 {chatOpen && (
                     <ResizeHandle
@@ -412,6 +415,7 @@ export default function ShowProject({
                     onToggleChat={toggleChat}
                     onShowChat={showChat}
                     mobileHidden={mobileView !== 'workspace'}
+                    onOpenFileChange={setOpenFile}
                 />
             </div>
         </>
@@ -432,6 +436,7 @@ function ChatPanel({
     mobileHidden,
     claudeSignIn,
     onClaudeSignedIn,
+    openFile,
 }: {
     project: Project;
     task: TaskDetail | null;
@@ -450,6 +455,8 @@ function ChatPanel({
     claudeSignIn: (() => void) | null;
     /** That sign-in succeeded. */
     onClaudeSignedIn: () => void;
+    /** The file open in the editor (AGT-015). */
+    openFile: ContextFile | null;
 }) {
     const bottom = useRef<HTMLDivElement>(null);
     const scroller = useRef<HTMLDivElement>(null);
@@ -514,6 +521,11 @@ function ChatPanel({
                 },
             },
         );
+
+    // The open file goes with each message unless the user removed it; opening another file brings the chip back (AGT-015).
+    const [removedFile, setRemovedFile] = useState<string | null>(null);
+    const contextFile =
+        openFile && openFile.path !== removedFile ? openFile : null;
 
     // Files from outside the chat box (a marked-up picture of the preview, AGT-013), until it has them.
     const [incomingFiles, setIncomingFiles] = useState<AttachedFile[]>([]);
@@ -671,6 +683,10 @@ function ChatPanel({
                     attachments
                     incomingFiles={incomingFiles}
                     onIncomingFilesAdded={() => setIncomingFiles([])}
+                    contextFile={contextFile}
+                    onRemoveContextFile={() =>
+                        setRemovedFile(contextFile?.path ?? null)
+                    }
                     history={messages
                         .filter(
                             (message) =>
@@ -811,6 +827,7 @@ function WorkspacePanel({
     onToggleChat,
     onShowChat,
     mobileHidden,
+    onOpenFileChange,
 }: {
     project: Project;
     /** Where the chat on screen sends messages. */
@@ -839,6 +856,8 @@ function WorkspacePanel({
     onShowChat: () => void;
     /** The chat tab is showing on a small screen (LAYOUT-006). */
     mobileHidden: boolean;
+    /** Reports the file open in the editor, for the chat to send along (AGT-015). */
+    onOpenFileChange: (file: ContextFile | null) => void;
 }) {
     const running = sandbox?.status === 'running';
     const isRemoteBrowser = useIsRemote();
@@ -961,6 +980,12 @@ function WorkspacePanel({
     const [file, setFile] = useState<WorkspaceFile | null>(null);
     const [fileError, setFileError] = useState<string | null>(null);
     const [fileDirty, setFileDirty] = useState(false);
+
+    useEffect(() => {
+        onOpenFileChange(
+            openPath ? { path: openPath, dirty: fileDirty } : null,
+        );
+    }, [openPath, fileDirty, onOpenFileChange]);
     const files = useWorkspaceFiles(project.id);
     const filesVersion = useFilesVersion(project.id, running && filesOpen, {
         live,

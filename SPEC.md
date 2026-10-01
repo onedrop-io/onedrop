@@ -856,6 +856,13 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be able to click "Add to chat" to attach a picture of the page as it looks then, with the picks and moves outlined and numbered, and nothing else in the chat box.
 - The agent should be told, with the message but not in the chat, the page, and for each number the element (selector, text, component and its source file when known), the user's note, and for a move where it went ("swap with", "move before", "move after"), so it can make the change in the code.
 
+## AGT-015: The open file goes with the message
+
+- User should see the file open in the editor as a chip above the chat box (its name, with the full path on hover), without adding it themselves.
+- The agent should be told, with the message but not in the chat, which file the user has open (and that it has unsaved changes, when it does), so "this file" or "here" means that file.
+- User should be able to remove the chip so the message goes without it; it stays removed for that file until they open another one.
+- Opening another file should show that one instead; closing the file should remove the chip.
+
 ## AGT-008: Laravel by default
 
 - When the user doesn't name a stack, the agent should build the app on Laravel's React starter kit (sign-in, SQLite database, queues, realtime with Reverb, file storage), so it can grow without a rewrite.
