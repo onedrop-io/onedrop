@@ -1,5 +1,9 @@
 import type { RealtimeConfig } from '@/lib/realtime';
 import type { Auth } from '@/types/auth';
+import type {
+    CurrentOrganization,
+    OrganizationSummary,
+} from '@/types/organizations';
 import type { OpenProject, SidebarProjects } from '@/types/projects';
 
 declare module 'react' {
@@ -15,6 +19,14 @@ declare module '@inertiajs/core' {
             /** The install's own logo (ADMIN-001), or null for the droplet. */
             logo: string | null;
             auth: Auth;
+            /** The organization the page is in (ORG-002); null when signed out. */
+            organization: CurrentOrganization | null;
+            /** Every organization the user belongs to, for the switcher. */
+            organizations: OrganizationSummary[] | null;
+            /** Whether the install serves many organizations (hosted) rather than one (self-hosted). */
+            multiTenant: boolean;
+            /** The admin signed in as this user (USR-003); null when nobody is impersonating. */
+            impersonator: { id: number; name: string } | null;
             sidebarOpen: boolean;
             sidebarWidth: number | null;
             sidebarProjects: SidebarProjects | null;

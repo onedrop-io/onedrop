@@ -88,7 +88,7 @@ test('the picker lists each agent with the providers it can use', function () {
 test('a project can be started on Claude Code with a Claude model', function () {
     Queue::fake();
 
-    $this->actingAs($this->user)->post(route('projects.store'), [
+    $this->actingAs($this->user)->post(route('projects.store', $this->user->currentOrganization()), [
         'prompt' => 'a timer',
         'agent_harness' => 'claude_code',
         'agent_provider' => 'claude',
@@ -102,7 +102,7 @@ test('new projects default to the AI subscription over other connections', funct
     AgentConnection::factory()->for($this->user)->provider(AgentProvider::OpenRouter)->create(['is_default' => true]);
 
     $this->actingAs($this->user)
-        ->get(route('dashboard'))
+        ->followingRedirects()->get(route('dashboard'))
         ->assertInertia(fn ($page) => $page
             ->where('agent.harness', 'claude_code')
             ->where('agent.provider', 'claude')
@@ -124,7 +124,7 @@ test('the agent the user picks sticks for new projects until they pick another',
     Queue::fake();
     AgentConnection::factory()->for($this->user)->provider(AgentProvider::OpenRouter)->create(['is_default' => false]);
 
-    $this->actingAs($this->user)->post(route('projects.store'), [
+    $this->actingAs($this->user)->post(route('projects.store', $this->user->currentOrganization()), [
         'prompt' => 'a timer',
         'agent_harness' => 'opencode',
         'agent_provider' => 'openrouter',
@@ -132,7 +132,7 @@ test('the agent the user picks sticks for new projects until they pick another',
         'agent_variant' => null,
     ])->assertSessionHasNoErrors();
 
-    $this->get(route('dashboard'))
+    $this->followingRedirects()->get(route('dashboard'))
         ->assertInertia(fn ($page) => $page->where('agent.harness', 'opencode')->where('agent.model', 'moonshotai/kimi-k3'));
 
     $this->patch(route('projects.agent.update', Project::factory()->for($this->user)->create()), [
@@ -153,7 +153,7 @@ test('the agent the user picks sticks for new projects until they pick another',
 test('starting a project on the default does not pin it', function () {
     Queue::fake();
 
-    $this->actingAs($this->user)->post(route('projects.store'), [
+    $this->actingAs($this->user)->post(route('projects.store', $this->user->currentOrganization()), [
         'prompt' => 'a timer',
         'agent_harness' => 'claude_code',
         'agent_provider' => 'claude',
@@ -172,7 +172,7 @@ test('a choice the user can no longer run falls back to the subscription', funct
 test('a project started without a choice is saved on the default agent', function () {
     Queue::fake();
 
-    $this->actingAs($this->user)->post(route('projects.store'), ['prompt' => 'a timer'])->assertSessionHasNoErrors();
+    $this->actingAs($this->user)->post(route('projects.store', $this->user->currentOrganization()), ['prompt' => 'a timer'])->assertSessionHasNoErrors();
 
     expect($this->user->projects()->sole())
         ->agent_harness->toBe(AgentHarness::ClaudeCode)

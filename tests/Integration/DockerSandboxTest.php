@@ -319,7 +319,7 @@ test('the host proxy records requests and resource samples for monitoring', func
         expect(count($lines()))->toBe($before);
 
         // A published-address request is logged with its status, visitor IP and origin.
-        $docker->exec($id, ['curl', '-s', '-o', '/dev/null', '-H', 'Host: my-app.tail1.ts.net', '-H', 'X-Forwarded-For: 203.0.113.7', '-H', 'Referer: https://news.example.com/post', '-H', 'User-Agent: TestBrowser/1.0', '-H', 'CF-IPCountry: ca', 'http://127.0.0.1:8081/missing?x=1']);
+        $docker->exec($id, ['curl', '-s', '-o', '/dev/null', '-H', 'Host: my-app.tail1.ts.net', '-H', 'X-Forwarded-For: 203.0.113.7', '-H', 'Referer: https://news.example.com/post', '-H', 'User-Agent: TestBrowser/1.0', '-H', 'CF-IPCountry: ca', '-H', 'X-OneDrop-Geo-City: Montr%C3%A9al', '-H', 'X-OneDrop-Geo-Region: Quebec', '-H', 'X-OneDrop-Geo-Latitude: 45.50884', '-H', 'X-OneDrop-Geo-Longitude: -73.58781', 'http://127.0.0.1:8081/missing?x=1']);
         $latest = retry(20, function () use ($lines, $before) {
             $all = $lines();
             throw_unless(count($all) > $before, new RuntimeException('not logged yet'));
@@ -327,8 +327,8 @@ test('the host proxy records requests and resource samples for monitoring', func
             return end($all);
         }, 250);
 
-        // With what Growth needs: page (no query string), referring site, browser and country.
-        expect($latest)->toMatchArray(['s' => 404, 'ip' => '203.0.113.7', 'pub' => true, 'm' => 'GET', 'p' => '/missing', 'r' => 'news.example.com', 'ua' => 'TestBrowser/1.0', 'c' => 'CA'])
+        // With what Growth needs: page (no query string), referring site, browser and location (coordinates to ~1km).
+        expect($latest)->toMatchArray(['s' => 404, 'ip' => '203.0.113.7', 'pub' => true, 'm' => 'GET', 'p' => '/missing', 'r' => 'news.example.com', 'ua' => 'TestBrowser/1.0', 'c' => 'CA', 'rg' => 'Quebec', 'ci' => 'Montréal', 'la' => 45.51, 'lo' => -73.59])
             ->and($latest['d'])->toBeInt()
             ->and(collect($lines())->where('s', 200)->every(fn ($line) => $line['pub'] === false))->toBeTrue();
 

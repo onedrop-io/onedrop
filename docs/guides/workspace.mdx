@@ -100,11 +100,16 @@ Numbers are collected inside the sandbox: its proxy logs each request and sample
 | **Page views**                                         | Successful page loads (not scripts, styles, images, or form posts)                                          |
 | **Signed-in users**                                    | Your app's users who signed in during the period. Needs sign-in from [Users & Auth](/guides/users-and-auth) |
 | **Visitors over time**                                 | Visitors per hour (per day for 30 days)                                                                     |
-| **Top pages, referrers, countries, browsers, devices** | The ten biggest of each. Referrers are other sites that linked to yours                                     |
+| **Where visitors are**                                 | A world map: countries shaded by visitors, a bubble per city sized by visitors. Hover for details           |
+| **Top pages, referrers, countries, cities, browsers, devices** | The ten biggest of each. Referrers are other sites that linked to yours                             |
 
 <Note>
-    Countries come from the country header a CDN such as Cloudflare adds in
-    front of the published app. Without one, the Countries list stays empty.
+    Locations come from what sits in front of your app. On OneDrop's hosted
+    service, the Cloudflare gateway adds each visitor's country, region, city
+    and approximate coordinates (rounded to about 1 km). Self-hosted, a CDN that
+    adds location headers (Cloudflare, CloudFront or Vercel) does the same.
+    Without one (local Docker, Tailscale), the map and the Countries and Cities
+    lists stay empty. Nothing is looked up from IP addresses.
 </Note>
 
 The numbers come from the same request log as Monitoring (`/workspace/.onedrop/access.log`), so there's nothing extra to install and nothing leaves the sandbox. Requests logged before Growth existed count as visitors, but they have no page, browser or referrer.

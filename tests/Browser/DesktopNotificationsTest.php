@@ -50,7 +50,7 @@ test('the dev user turns on desktop notifications and is notified when a project
         ->assertSeeIn('@notifications-status', 'On.')
         ->assertSeeIn('@fake-notification', 'Notifications are on')
         ->keys('@settings-modal', 'Escape')
-        ->assertPathIs('/dashboard');
+        ->assertPathIs(orgPath());
 
     $project->update(['status' => ProjectStatus::Idle]);
 

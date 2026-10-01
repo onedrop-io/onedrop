@@ -1,6 +1,6 @@
 ---
-title: 'Build a project'
-description: 'Describe an app, watch the agent build it, and keep improving it through chat.'
+title: "Build a project"
+description: "Describe an app, watch the agent build it, and keep improving it through chat."
 ---
 
 ## Start a project
@@ -20,6 +20,26 @@ You land in the project's workspace: chat on the left, preview on the right.
 Under the message box are templates for apps teams usually keep in spreadsheets: **Sales CRM**, **Project Tracker**, **Content Calendar**, **Inventory**, **Hiring Pipeline**, **Event Planner**, **Help Desk**, **Time-Off Tracker**, and **Expense Approvals**.
 
 Picking one fills the message box with a full description: the records the app keeps, the views it shows (tables, boards, calendars, public forms), who signs in, and sample data to try it with. Change anything you like before sending, such as "for our three warehouses" or "add a field for the lead source". The project is named after the template; rename it from the sidebar any time.
+
+### Start from a repository
+
+To work on an app you already have, click **Repository** next to the agent picker under the message box. A repository field opens above the message box (the templates hide while it's open). Enter any of these:
+
+- `owner/name`, for a GitHub repository
+- A GitHub link, such as `https://github.com/acme/website`. A link to a branch (`…/tree/redesign`) imports that branch instead of the default one.
+- Any HTTPS git URL, such as a GitLab or Forgejo repository anyone can read
+
+The message box becomes optional: say what you want done, like "add dark mode", or leave it empty and the agent gets the app running in the preview. Press Enter to start.
+
+OneDrop checks it can reach the repository first, and tells you if it can't. It then creates a project named after the repository, brings the branch into the project's sandbox, connects the repository in [Tools → Git](/guides/git) so you can pull and push later, and starts the agent.
+
+<Note>
+    Private repositories need GitHub connected. If your OneDrop has the GitHub
+    App set up, click **Connect GitHub** under the repository field, choose
+    which repositories OneDrop can reach, and you come back with your
+    repositories listed as you type. Public repositories work without connecting
+    anything; to push to one later, connect it with a token in Tools → Git.
+</Note>
 
 ### What your app is built with
 
@@ -73,7 +93,19 @@ Attachments stay in the chat, and only people who can see the project can open t
 
 ## Your projects
 
-Your projects are listed in the sidebar: pinned ones under **Pinned**, your 10 most recent others under **Recent**, and archived ones under **Archived** (click it to expand). Only you (and admins) can see your projects.
+Your projects are listed in the sidebar: pinned ones under **Pinned**, the first 10 others under **Recent**, and archived ones under **Archived** (click it to expand). Only you (and admins) can see your projects.
+
+### Sort your projects
+
+Click the sort button (↑↓) next to **Recent** to choose how pinned and recent projects are ordered:
+
+| Sort             | Order                                                                              |
+| ---------------- | ---------------------------------------------------------------------------------- |
+| **Last updated** | The default. Projects you worked on most recently come first.                      |
+| **Created**      | Newest projects first.                                                             |
+| **Manual**       | The order you dragged them into. New projects show at the top until you move them. |
+
+To put a project where you want it, drag it up or down within **Pinned** or **Recent**. Dropping it switches the sort to **Manual**, and **Recent** becomes **Projects**. Press Escape while dragging to put it back. Your sort and order are saved to your account, so they follow you to other devices.
 
 Click **Search** at the top of the sidebar to find any of your projects by name, archived ones included. Use the arrow keys and Enter to open one. The pencil icon next to **Search** starts a new project.
 
@@ -93,13 +125,13 @@ When you collapse the sidebar, your pinned and recent projects stay as tiles wit
 
 Hover a project in the sidebar and click **⋮** for its menu. While the menu is open, you can also press the letter next to an action.
 
-| Action                                | Key | What it does                                                                                                                                                                                              |
-| ------------------------------------- | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Pin** / **Unpin**                   | `P` | Keeps the project at the top of the sidebar under **Pinned**.                                                                                                                                             |
+| Action                                | Key | What it does                                                                                                                                                                                                                        |
+| ------------------------------------- | --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Pin** / **Unpin**                   | `P` | Keeps the project at the top of the sidebar under **Pinned**.                                                                                                                                                                       |
 | **Mark as unread** / **Mark as read** | `U` | Brings the unread dot back, as a reminder to come back to it. Doing this on the project you have open takes you to the new-project page, since opening the project marks it read again. Marking as read clears its tasks' dots too. |
-| **Rename**                            | `R` | Changes the project's name. Renaming, regenerating the title, pinning, and marking don't move it in **Recent**.                                                                                           |
-| **Regenerate title**                  |     | Has the project's AI read the chat and come up with a short title. A spinner shows next to the project until it's ready. The sandbox must be running; if the AI can't be asked, the name stays as it was. |
-| **Share**                             |     | Shows your published app's link so you can copy it. If the app isn't published yet, [publish it](/guides/publish) first.                                                                                  |
-| **Copy link**                         | `C` | Copies the link to the project's workspace. Only you and admins can open it.                                                                                                                              |
-| **Archive** / **Unarchive**           | `A` | Moves the project out of **Pinned** and **Recent** into **Archived**. Nothing is deleted, and the app stays published.                                                                                    |
-| **Delete**                            | `D` | After you confirm, takes the app offline and permanently deletes the chat, attachments, and the sandbox with all its files. This can't be undone.                                                         |
+| **Rename**                            | `R` | Changes the project's name. Renaming, regenerating the title, pinning, and marking don't move it in **Recent**.                                                                                                                     |
+| **Regenerate title**                  |     | Has the project's AI read the chat and come up with a short title. A spinner shows next to the project until it's ready. The sandbox must be running; if the AI can't be asked, the name stays as it was.                           |
+| **Share**                             |     | Shows your published app's link so you can copy it. If the app isn't published yet, [publish it](/guides/publish) first.                                                                                                            |
+| **Copy link**                         | `C` | Copies the link to the project's workspace. Only you and admins can open it.                                                                                                                                                        |
+| **Archive** / **Unarchive**           | `A` | Moves the project out of **Pinned** and **Recent** into **Archived**. Nothing is deleted, and the app stays published.                                                                                                              |
+| **Delete**                            | `D` | After you confirm, takes the app offline and permanently deletes the chat, attachments, and the sandbox with all its files. This can't be undone.                                                                                   |

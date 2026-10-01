@@ -1,8 +1,10 @@
 <?php
 
+use App\Http\Middleware\BlockWhileImpersonating;
 use App\Http\Middleware\EnsureAgentConnected;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\ResolveOrganization;
 use App\Http\Middleware\UseBuiltAssetsForRemoteRequests;
 use App\Http\Middleware\UseTaskSandbox;
 use Illuminate\Foundation\Application;
@@ -10,6 +12,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Middleware\SubstituteBindings;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -39,14 +42,19 @@ return Application::configure(basePath: dirname(__DIR__))
             $middleware->trustProxies(at: ['127.0.0.1', '::1']);
         }
 
+        // It needs the address's organization bound to its model first.
+        $middleware->appendToPriorityList(SubstituteBindings::class, ResolveOrganization::class);
+
         $middleware->alias([
             'agent.connected' => EnsureAgentConnected::class,
+            'organization' => ResolveOrganization::class,
         ]);
 
         $middleware->web(append: [
             UseBuiltAssetsForRemoteRequests::class,
             HandleAppearance::class,
             HandleInertiaRequests::class,
+            BlockWhileImpersonating::class,
             UseTaskSandbox::class,
             AddLinkHeadersForPreloadedAssets::class,
         ]);

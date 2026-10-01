@@ -166,7 +166,7 @@ test('the sidebar lists open tasks under their project, and a working task makes
     Task::factory()->for($this->project)->working()->create(['title' => 'Dark mode']);
     Task::factory()->for($this->project)->create(['title' => 'Old one', 'stage' => TaskStage::Done]);
 
-    $this->get(route('dashboard'))
+    $this->followingRedirects()->get(route('dashboard'))
         ->assertInertia(fn ($page) => $page
             ->where('sidebarProjects.recent.0.working', true)
             ->has('sidebarProjects.recent.0.tasks', 1)
@@ -188,7 +188,7 @@ test('an opened project shows in the sidebar with all its tasks, only for its ow
     $stranger = Project::factory()->create();
 
     $this->withUnencryptedCookie('open_project', (string) $stranger->id)
-        ->get(route('dashboard'))
+        ->followingRedirects()->get(route('dashboard'))
         ->assertInertia(fn ($page) => $page->where('openProject', null));
 })->group('TASK-001');
 

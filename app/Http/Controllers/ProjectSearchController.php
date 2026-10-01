@@ -2,19 +2,21 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Middleware\ResolveOrganization;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class ProjectSearchController extends Controller
 {
     /**
-     * The user's projects whose name matches the query, most recently updated first.
+     * The user's projects in the organization whose name matches the query, most recently updated first.
      */
     public function __invoke(Request $request): JsonResponse
     {
         $query = trim($request->validate(['q' => ['nullable', 'string', 'max:255']])['q'] ?? '');
 
         $projects = $request->user()->projects()
+            ->inOrganization(ResolveOrganization::current($request))
             ->select(['id', 'name', 'archived_at'])
             ->when($query !== '', fn ($projects) => $projects->whereLike('name', "%{$query}%"))
             ->latest('updated_at')

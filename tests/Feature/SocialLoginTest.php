@@ -385,3 +385,13 @@ test('log in with GitHub falls back to the GitHub App credentials', function () 
 
     expect($override['github'])->toMatchArray(['client_id' => 'Ov23.oauth', 'client_secret' => 'oauth-secret']);
 })->group('AUTH-003');
+
+test('signing in with a provider records it as the last sign-in method', function () {
+    $account = SocialAccount::factory()->create(['provider_id' => 'provider-123']);
+    fakeIdentity('github');
+
+    $this->get(route('social.callback', ['provider' => 'github', 'code' => 'abc']));
+
+    expect(Auth::id())->toBe($account->user_id)
+        ->and($account->user->fresh()->last_login_method)->toBe('github');
+})->group('USR-002');

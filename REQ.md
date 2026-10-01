@@ -12,7 +12,7 @@ Everything OneDrop has to be, in one place: the requirements (the stories in `SP
 
 ### Decisions
 
-- **2026-09-30: One codebase for self-hosting and for our multi-tenant hosted OneDrop.** Anyone can self-host one install; we also run one hosted install that serves many companies, so organizations must be a real boundary, not a kind of group. Groups stay as teams inside an organization.
+- **2026-09-30: One codebase for self-hosting and for our multi-tenant hosted OneDrop.** Anyone can self-host one install; we also run one hosted install that serves many companies, so organizations must be a real boundary, not a kind of group. Groups stay as teams inside an organization (see Organizations).
 
 - **2026-09-30: Name is OneDrop, never "zap".** `zap` is only the local checkout folder. Use `onedrop` in code, paths, images, headers; `APP_*` env vars on the platform server, `ONEDROP_*` inside sandboxes (where `APP_*` belongs to the user's app). Everything was renamed as a clean break, no migration for old sandboxes.
 - **2026-09-28: Source available under the Elastic License 2.0.** Say "source available", never "open source".
@@ -23,7 +23,7 @@ Everything OneDrop has to be, in one place: the requirements (the stories in `SP
 
 ## Accounts, people and settings
 
-AUTH-001..003, GRP-001..003, USR-001, INV-001, SET-001, BRAND-001.
+AUTH-001..003, GRP-001..003, USR-001..003, INV-001, SET-001, BRAND-001.
 Email/password (Fortify) plus Google, Microsoft, GitHub, GitLab and OIDC sign-in; two-factor and passkeys; groups with owners; admin user management; invite links; an account menu with settings in a modal.
 
 ### Decisions
@@ -35,6 +35,30 @@ Email/password (Fortify) plus Google, Microsoft, GitHub, GitLab and OIDC sign-in
 - **2026-09-29: One GitHub App covers Tools → Git and "Continue with GitHub"** (`GITHUB_APP_CLIENT_ID/SECRET`); `GITHUB_CLIENT_*` override it for a separate OAuth app.
 - **2026-09-28: Trust Laravel Cloud's load balancer** so OAuth callbacks come out as `https://` (the loopback-only `trustProxies()` had turned Cloud's handling off).
 - **2026-09-28: Groups, Invite people and Users live in the settings modal,** not as top-level pages.
+- **2026-09-30: An admin's user page (USR-002) shows what the install holds about the person, never their secrets.** AI connections show only their hint, GitHub only the login. Changing admin access stays on the list. Projects link only when the admin could open them anyway, so a platform admin still can't open another organization's projects (ORG-006). Recent sessions show only when sessions are kept in the database.
+- **2026-09-30: Its usage section reuses the Usage page's report (`UsageReport`), fixed at 30 days,** plus all-time totals, so the two pages can't disagree about the numbers.
+- **2026-09-30: Sign-ins are recorded on the user (`last_login_at`, `last_login_method`), not in a log table.** Admins needed "when did they last sign in" for support; a full history wasn't asked for. The method comes from the route that signed them in; a remember-me cookie resuming a session isn't recorded, and a provider sign-in that goes through the two-factor challenge still records the provider.
+- **2026-09-30: The first admin actions on a user are Sign out everywhere and Reset two-factor,** the two support requests that come up most. Both ask for confirmation, not the admin's password, and neither works on the admin themselves (they have Settings → Security for that, and resetting your own two-factor there needs your password). Sign out everywhere deletes their database sessions and rotates the remember-me token. Suspending and deleting users were left for later: each needs its own decisions (what happens to their projects).
+- **2026-09-30: Admins can impersonate users (USR-003), with an audit trail and guardrails.** It's a session swap (`Auth::login` as the user, the `impersonations` row's id kept in the session), not a package, so stopping signs the admin back in without a password. Other admins can't be impersonated, so one admin can't act as another and hide behind their name; the target already being a non-admin also keeps admin pages out of reach while impersonating. The user's profile, password, two-factor, passkeys, sign-in providers and account deletion are blocked by route name (`BlockWhileImpersonating`), so the admin can see and act as them but not take the account over. Everything else works as the user, including running agents on their AI connection. Every impersonation is a row (admin, user, IP, start, end) listed on the user's page; signing out ends it, and a session that just expires leaves it "not stopped". The banner is a fixed pill at the bottom, above the settings modal, because the sidebar is fixed full-height. Stopping only needs `auth`, since the user may not have verified their email. Confirming is enough; no password re-entry, like the other admin actions.
+
+## Organizations
+
+ORG-001..007 (see `docs/plans/organizations.md`; phase 1, the boundary, is built: ORG-001, ORG-002 without the switcher, ORG-007). Organizations are the boundary between companies: projects, groups, invites and skills belong to one, and nothing crosses it.
+
+### Decisions
+
+- **2026-09-30: Organizations always exist, on every install.** A self-hosted install has one, made by a migration that moves everything into it; the hosted install has many. One code path, not an "org mode", so self-hosted can't drift from hosted. No making "organization" a kind of group: groups have no settings, admins or data of their own, and it would mix a company boundary with a team inside it.
+- **2026-09-30: A person can belong to several organizations and switch between them.** Adding this later would mean re-keying every membership, and consultants and agencies need it.
+- **2026-09-30: The current organization comes from the URL, not the session.** Two tabs can be in two organizations, and a link always opens in the right one. Organization pages live under `/o/{slug}/` (new project, groups, invites; search and creating projects too). `/o/` rather than a bare `/{slug}` so a slug can never clash with a top-level route (`login`, `s`, `invite`, …). Project pages keep `/projects/{id}`: the project already names its organization, and putting the slug in every project route would have changed about 150 routes, every link to them and ~700 test lines for no gain in isolation. Opening an organization page or a project makes that organization the user's current one, and `/dashboard` (where signing in lands) redirects to it.
+- **2026-09-30: Things that belong to a person stay with the person, outside any organization:** profile, password and 2FA, passkeys, social logins, SSH keys, AI connections (bring your own AI, REQ Product), and for now the GitHub accounts they connected and their own AI usage. Projects, groups, invites and skills belong to an organization. A person's own skills stay in the organization they made them in. An organization's AI usage comes with ORG-005.
+- **2026-09-30: Two kinds of admin.** Platform admin (`users.is_admin`) runs the install: sandbox providers, server, monitoring, backups, and on hosted, the list of organizations. Organization owners and admins run their organization: members, groups, invites, name and logo, usage. Being a platform admin gives no access to an organization's projects on the hosted install. On a self-hosted install platform admins also run its one organization, so making someone admin on the Users page still works as before, and the first account owns it.
+- **2026-09-30: "Everyone" means everyone in the organization,** never everyone on the server: sharing a skill, Sign in with OneDrop set to everyone, its group picker and `groups` claim, and privately published apps. On the hosted install the old meaning would reach other customers. The Users list stays a platform-admin tool for the whole install until an organization gets its own members page (ORG-004).
+- **2026-09-30: Sign-up depends on the install.** Self-hosted: new sign-ups join the one organization, as today (sign-up stays open). Hosted (`APP_MULTI_TENANT=true`, an `APP_` variable because it's the platform's own setting): signing up without an invite creates "<first name>'s organization", owned by that person; an invite joins the inviter's instead. New self-hosted accounts join as members.
+- **2026-09-30: Something in another organization is a 404, not a 403,** so nobody can learn that another company's project, skill, group or invite exists. That includes a group or invite opened under the address of a different organization the person is also in.
+- **2026-09-30: Leaving an organization takes away its projects, even your own.** Projects stay with the organization, where its owners and admins can still open them.
+- **2026-09-30: Groups only take people from their organization,** and adding someone from outside gets the same message as an unknown email, so it doesn't reveal who is on the install.
+- **2026-09-30: The migration names the install's organization after the install (ADMIN-001's name) and makes its admins its owners** (the first account when there's no admin). A fresh install gets its organization when its first account signs up.
+- **2026-09-30: Tenancy first, billing later.** Plans and billing attach to the organization, but are a separate piece of work once the boundary is in place.
 
 ## AI connections and agents
 
@@ -45,6 +69,7 @@ Users connect an AI before building; each project picks its agent (OpenCode, Cla
 
 - **The platform never pools subscriptions.** Every run uses the project owner's own connection. Keys are encrypted and never sent back to the browser.
 - **2026-09-29: Claude subscriptions use Claude Code's own sign-in** (`claude auth login` in the Shell tab). No token is stored; pasted setup tokens are refused and saved ones deleted. One sign-in covers all of a user's Docker sandboxes (per-user `CLAUDE_CONFIG_DIR`).
+- **2026-09-30: The chat carries on after a Claude sign-in whenever it sees Claude Code signed in while a message waits for one** (the server says so: `waiting_for_sign_in`). It used to need to see "signed out" then "signed in" in the same page load, so switching tabs or reloading during the sign-in left the chat stuck until something else woke it.
 - **2026-09-30: A rejected Claude sign-in is retried once,** because Claude Code refreshing a shared login elsewhere revokes the token a run started with. Rejected twice, Claude Code is signed out in that sandbox so the chat offers to sign in.
 - **2026-09-29: A run that failed because Claude Code wasn't signed in is remembered** and re-run once the user signs in.
 - **2026-09-30: Codex is a third agent** next to OpenCode and Claude Code. Codex gets the ChatGPT tokens without the refresh token; the platform keeps refreshing it.
@@ -59,11 +84,23 @@ Users connect an AI before building; each project picks its agent (OpenCode, Cla
 
 ## Projects and the workspace
 
-PRJ-001..008, LAYOUT-004, NOTIF-001, TAB-001, FILE-001..006, LIVE-001..002, TASK-001..004, ERR-001, DEVTOOLS-001.
-Chat on the left, live preview on the right; resizable panels; files, shell and tools tabs; a sidebar with project menus, search and status; templates; icons; desktop notifications; parallel tasks with their own copy of the app and a kanban board; the agent sees and fixes the app's errors.
+PRJ-001..010, LAYOUT-004, NOTIF-001, TAB-001, FILE-001..006, LIVE-001..002, TASK-001..004, ERR-001, DEVTOOLS-001.
+Chat on the left, live preview on the right; resizable panels; files, shell and tools tabs; a sidebar with project menus, search and status; templates; icons; desktop notifications; parallel tasks with their own copy of the app and a kanban board; the agent sees and fixes the app's errors; starting a project from a repository.
 
 ### Decisions
 
+- **2026-09-30: The sidebar's pinned and recent projects can be sorted by last updated (default), created, or manual (PRJ-010),** chosen from a sort menu on the "Recent" heading. One sort covers both lists, so pinned ones no longer stay in the order they were pinned. Archived stays newest-archived first.
+- **2026-09-30: Dragging a project switches the sort to manual,** like Finder, rather than only allowing drags once "Manual" is picked. Projects not dragged keep the order they were shown in, placed after the dragged list, so switching doesn't reshuffle anything. New projects go to the top of a manual order. Under manual, "Recent" reads "Projects", since it's no longer by date.
+- **2026-09-30: The sort and order are saved on the account** (`users.project_sort`, `projects.sidebar_position`), not in `localStorage`, because "Recent" is limited to 10 on the server and they should follow the user across devices. Reordering doesn't touch `updated_at`, so it doesn't change "Last updated".
+- **2026-09-30: Drag and drop uses the browser's own HTML drag events, no library,** to avoid a new dependency for two short lists. Drags stay within one list; pinning still moves a project between them.
+
+- **2026-09-30: A project can start from a repository, through a "Repository" toggle next to the agent picker on the new-project prompt (PRJ-009),** not a separate page or dialog, so it's one more way to fill the same prompt. The repository is the input; the prompt becomes optional, and the templates hide since they describe an app to build from nothing.
+- **2026-09-30: The import reuses Tools → Git's pull (GIT-004/005): the new, empty sandbox gets the branch as a git bundle made on the platform,** so no token ever enters the sandbox. It runs as its own job between creating the sandbox and the agent's first run; if it fails, the chain stops and the chat says why, so the agent never starts on an empty project.
+- **2026-09-30: The repository is checked before the project is made** (the GitHub API for GitHub App repositories, `git ls-remote` without credentials otherwise), so a typo, a private repository without GitHub connected, or an empty one is refused on the form instead of leaving a broken project behind.
+- **2026-09-30: Private repositories come only through the GitHub App; there's no token field on the new-project page.** Anything else must be readable by anyone. Tokens for other hosts can still be added afterwards in Tools → Git (GIT-004). A public repository is connected without a token, so pulls work and pushing asks for one.
+- **2026-09-30: A blank prompt asks the agent to get the imported app running in the preview,** because an imported repository usually has no `.onedrop/dev` and the preview stays on the placeholder until the agent sets one up.
+- **2026-09-30: The project is named after the repository ("team-timer" → "Team Timer"),** not the prompt, since the prompt is often a task ("add dark mode") rather than a description of the app.
+- **2026-09-30: Connecting GitHub from the new-project page uses the same GitHub App flow with no project in the session;** GitHub's return goes back to the new-project page with the Repository field open (flashed, since `/dashboard` redirects on to the organization's page).
 - **2026-09-28: Panel widths are remembered:** chat and files in `localStorage`, the sidebar in a cookie so the server renders it without a jump.
 - **Inputs revealed by a click get focus automatically** (dialogs, inline forms).
 - **2026-09-29: Each task gets its own copy of Main's sandbox,** forked at one instant for any stack (live rsync, then a second pass with processes frozen ~1s). Apply to Main / Update from Main merge through git bundles and hand stack-specific follow-up (deps, migrations, conflicts) to the agent.
@@ -87,7 +124,7 @@ Chat on the left, live preview on the right; resizable panels; files, shell and 
 
 ## Sandboxes
 
-SBX-001..007, TOOL-001, and every workspace tool (DB-001, SECRET-001, STORE-001, FLAG-001, MON-001, APPAUTH-001..002, GROW-001..002, RT-001).
+SBX-001..007, TOOL-001, and every workspace tool (DB-001, SECRET-001, STORE-001, FLAG-001, MON-001, APPAUTH-001..002, GROW-001..003, RT-001).
 One sandbox per project, on Docker locally and Blaxel (or Runtime Cloud) in production, kept up to date, checkpointed after every turn, backed up outside the provider, and suspended when idle.
 
 ### Decisions
@@ -110,6 +147,9 @@ One sandbox per project, on Docker locally and Blaxel (or Runtime Cloud) in prod
 - **2026-09-30: Docker inside sandboxes is one admin setting per provider** (Docker: off, privileged, runtime), not per project for now. Privileged is refused outside a local install. Each sandbox gets its own anonymous volume at `/var/lib/docker`, deleted with it and not carried across updates, because two sandboxes (old and new during an update) must never share one Docker data directory. Images re-download after an update; data in the project folder is kept.
 - **2026-09-30: `.onedrop/dev` stays the start contract for compose projects.** `/opt/onedrop/compose init` writes it (`COMPOSE_FILE` plus `compose up --preview <port>`), and a small TCP forwarder takes `$PORT` to the stack's port, so the preview, host proxy and gateway don't change. `up` doesn't `--build`: compose builds only images it doesn't have, so a restart doesn't rebuild.
 - **2026-09-30 (docs/plans/docker-compose-projects.md), started with SBX-008 (local Docker):** general for any repo, not one customer's. The platform detects how a repo runs (Compose file sets and profiles, devcontainer hints, its own Devbox setup) and the user picks. A project's own `docker-compose.yml` runs unmodified with Docker inside its sandbox on every provider (Sysbox or gVisor on servers, never `--privileged` outside local). No translating services to Nix, because Mongo and Elasticsearch are unfree there and an app's own Dockerfile can't be translated. No sibling containers on the host, because that only works with the Docker provider. Tested locally 2026-09-30: platform2's full stack ran this way on OrbStack. Docker's data must be on its own volume, because overlay on overlay fails.
+- **2026-09-30: Visitor locations (GROW-003) come from what's in front of the app, not an IP database.** OneDrop's Cloudflare Worker (production previews and published apps) copies `request.cf` (country, region, city, coordinates) into `X-OneDrop-Geo-*` headers and drops any a browser sent; Caddy on servers strips them too. The proxy also reads Cloudflare's, CloudFront's and Vercel's own location headers. No MaxMind/DB-IP lookup, because it would need a new dependency, a license key or a monthly download, and IPs would leave the request path; so local Docker and Tailscale traffic has no location (the map says so). Revisit if self-hosted servers need it.
+- **2026-09-30: Coordinates are rounded to 2 decimals (~1 km) in the proxy,** before they're written to the log. City-level is enough for a map; exact points aren't needed.
+- **2026-09-30: The Growth map is our own SVG, no map library or tiles:** Natural Earth 1:110m countries (public domain), projected once with the Natural Earth projection by `scripts/world-map.mjs` into a static JSON asset (~43 KB gzipped) that's fetched only when a map is shown; the same projection places cities in the browser. No d3/topojson/Leaflet, because dependencies need approval and tiles would be an outside service seeing every viewer. Antarctica is left out (no visitors, lots of space). Countries use the sequential blue ramp (log scale, 5 steps; the dark ramp starts brighter so one visitor still shows against land), cities the orange hue, per the dataviz skill.
 
 ## Previews, publishing and sharing
 
@@ -120,7 +160,7 @@ Every app is reachable while it's built; publish to Tailscale or to the server's
 
 - **Every path to a sandbox goes through the platform's auth check** (`SandboxGatewayController`). Never hand out a provider's own preview URL.
 - **2026-09-29: On Laravel Cloud, previews and shells go through a Cloudflare Worker** on `*.<domain>`, because Blaxel's and Runtime's preview cookies don't work inside OneDrop's frame (Runtime didn't load at all; Blaxel lost CSS/JS in Safari). The browser only ever sees OneDrop addresses and cookies.
-- **2026-09-29: Publish targets: Your domain or Tailscale,** remembered per project. Private on your domain means anyone signed in to OneDrop, not only the project's people. A project named like a preview address gets an `app-` prefix so it can't take one over.
+- **2026-09-30: Publish targets: Your domain or Tailscale,** remembered per project. Private on your domain means anyone in the project's organization (ORG-007), not only the project's people. A project named like a preview address gets an `app-` prefix so it can't take one over.
 - **2026-09-30: Tailscale publishing checks the node's capabilities (`https`, and `funnel` for Public) before running `tailscale serve`/`funnel`, and waits for them.** With Funnel off, `tailscale funnel` prints an enable link and blocks until someone turns it on; our timeout killed the job and left the project "Publishing…" forever while the command kept waiting in the container (so the URL later worked but the panel never updated). Now the panel links to the setting and publishing carries on once it's on. Both publishing jobs also mark the project Failed if they crash.
 - **2026-09-29: Share cards are rendered in the sandbox** with headless Chromium (1200×630, prompt beside the app).
 
@@ -151,7 +191,7 @@ SKILL-001..004. Reusable instructions for the agent in the open Agent Skills for
 ### Decisions
 
 - **2026-09-30: Both a library and project skills,** because a team wants the same skill across projects (library) and a skill that travels with one repo (project). Library skills live in the app's database, never in the repo.
-- **2026-09-30: Sharing is all or nothing: private, or everyone on the server.** No per-group or per-person picker for now. Only the owner (or an admin) edits a shared skill. Stopping sharing turns it off in other people's projects, so nobody keeps running a skill they can't see anymore.
+- **2026-09-30: Sharing is all or nothing: private, or everyone in the skill's organization (ORG-007).** No per-group or per-person picker for now. Only the owner (or an admin) edits a shared skill. Stopping sharing turns it off in other people's projects, so nobody keeps running a skill they can't see anymore.
 - **2026-09-30: Add menu: write one, create with agent, import from GitHub, upload.** Writing, importing and uploading add to the user's skills and turn it on in the current project. "Create with agent" writes a project skill in `.agents/skills` (following `guides/skills.md`), because the agent works on the repo; "Save to your skills" copies it into the library.
 - **2026-09-30: The app puts skills in place before each run** (`SandboxSkills`, `docker/sandbox/skills.php`): library skills go to `~/.claude/skills` for Claude Code and `~/.agents/skills` for OpenCode and Codex. The bundle is only uploaded when it changed (the sandbox keeps a hash), so an unchanged run costs one exec. Only one of the two folders is filled at a time, because OpenCode reads both and would see every skill twice.
 - **2026-09-30: Every agent sees every project skill.** Claude Code only reads `.claude/skills` and Codex only `.agents/skills`, so project skills from the other folders are copied into the agent's home skills folder. New project skills go in `.agents/skills`, the open standard's folder.

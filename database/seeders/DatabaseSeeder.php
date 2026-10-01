@@ -5,8 +5,10 @@ namespace Database\Seeders;
 use App\Enums\AgentProvider;
 use App\Enums\CredentialType;
 use App\Enums\GroupRole;
+use App\Enums\OrganizationRole;
 use App\Models\AgentConnection;
 use App\Models\Group;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
@@ -35,6 +37,11 @@ class DatabaseSeeder extends Seeder
             'name' => 'Sam Member',
             'email' => 'sam@example.com',
         ]);
+
+        // Everyone on a self-hosted install is in its one organization (ORG-001); the dev user owns it.
+        $organization = Organization::install();
+        $organization->addMember($dev, OrganizationRole::Owner);
+        $organization->addMember($member);
 
         Group::factory()
             ->ownedBy($dev)

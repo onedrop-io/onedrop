@@ -9,7 +9,7 @@ test('a user creates an invite, copies the link, and the invitee signs up with i
     $dev = User::where('email', 'dev@example.com')->sole();
     $this->actingAs($dev);
 
-    $page = visit('/invitations')
+    $page = visit(orgPath('/invitations'))
         ->fill('email', 'newbie@example.com')
         ->press('@create-invite')
         ->assertSee('Invite link created');

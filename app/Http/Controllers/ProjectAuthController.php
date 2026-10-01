@@ -171,7 +171,7 @@ class ProjectAuthController extends Controller
     }
 
     /**
-     * Who may use Sign in with OneDrop: everyone (null) or members of these groups.
+     * Who may use Sign in with OneDrop: everyone in the project's organization (null) or members of these of its groups.
      */
     public function oneDropAccess(Request $request, Project $project): JsonResponse
     {
@@ -179,7 +179,7 @@ class ProjectAuthController extends Controller
 
         $validated = $request->validate([
             'group_ids' => ['present', 'nullable', 'array'],
-            'group_ids.*' => ['integer', 'exists:groups,id'],
+            'group_ids.*' => ['integer', Rule::exists('groups', 'id')->where('organization_id', $project->organization_id)],
         ]);
 
         $project->update(['onedrop_group_ids' => $validated['group_ids'] === null ? null : array_values(array_unique(array_map(intval(...), $validated['group_ids'])))]);
@@ -290,7 +290,7 @@ class ProjectAuthController extends Controller
         return [
             'enabled' => (bool) $project->onedrop_enabled,
             'group_ids' => $project->onedrop_group_ids,
-            'groups' => array_values(Group::orderBy('name')->get(['id', 'name'])->map(fn (Group $group) => $group->only('id', 'name'))->all()),
+            'groups' => array_values($project->organization->groups()->orderBy('name')->get(['id', 'name'])->map(fn (Group $group) => $group->only('id', 'name'))->all()),
         ];
     }
 

@@ -21,7 +21,7 @@ test('the sidebar says which projects have an agent working', function () {
     Project::factory()->for($this->user)->create(['name' => 'Busy', 'status' => ProjectStatus::Working]);
     Project::factory()->for($this->user)->create(['name' => 'Done', 'status' => ProjectStatus::Idle]);
 
-    $recent = $this->actingAs($this->user)->get(route('dashboard'))->inertiaProps('sidebarProjects.recent');
+    $recent = $this->actingAs($this->user)->followingRedirects()->get(route('dashboard'))->inertiaProps('sidebarProjects.recent');
 
-    expect(array_column($recent, 'working', 'name'))->toBe(['Busy' => true, 'Done' => false]);
+    expect(array_column($recent, 'working', 'name'))->toEqual(['Busy' => true, 'Done' => false]);
 })->group('NOTIF-001');

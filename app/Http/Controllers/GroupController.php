@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\GroupRole;
+use App\Http\Middleware\ResolveOrganization;
 use App\Http\Requests\StoreGroupRequest;
 use App\Models\Group;
 use App\Models\User;
@@ -15,13 +16,14 @@ use Inertia\Response;
 class GroupController extends Controller
 {
     /**
-     * List the groups the user belongs to (all groups for admins).
+     * List the organization's groups the user belongs to (all of them for its admins).
      */
     public function index(Request $request): Response
     {
         $user = $request->user();
+        $organization = ResolveOrganization::current($request);
 
-        $groups = ($user->is_admin ? Group::query() : $user->groups())
+        $groups = ($organization->isManagedBy($user) ? $organization->groups() : $user->groups()->inOrganization($organization))
             ->withCount('members')
             ->orderBy('name')
             ->get();
@@ -44,13 +46,13 @@ class GroupController extends Controller
      */
     public function store(StoreGroupRequest $request): RedirectResponse
     {
-        $group = Group::create($request->validated());
+        $group = Group::create([...$request->validated(), 'organization_id' => ResolveOrganization::current($request)->id]);
 
         $group->members()->attach($request->user(), ['role' => GroupRole::Owner->value]);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Group created.')]);
 
-        return to_route('groups.show', $group);
+        return to_route('groups.show', [$group->organization, $group]);
     }
 
     /**
@@ -89,7 +91,7 @@ class GroupController extends Controller
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Group updated.')]);
 
-        return to_route('groups.show', $group);
+        return to_route('groups.show', [$group->organization, $group]);
     }
 
     /**
@@ -103,6 +105,6 @@ class GroupController extends Controller
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Group deleted.')]);
 
-        return to_route('groups.index');
+        return to_route('groups.index', $group->organization);
     }
 }

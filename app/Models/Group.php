@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Concerns\BelongsToOrganization;
 use App\Enums\GroupRole;
 use Database\Factories\GroupFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -12,16 +13,18 @@ use Illuminate\Support\Carbon;
 
 /**
  * @property int $id
+ * @property int $organization_id
  * @property string $name
  * @property string|null $description
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
+ * @property-read GroupMember $pivot Set on groups loaded through a user's groups
  */
-#[Fillable(['name', 'description'])]
+#[Fillable(['organization_id', 'name', 'description'])]
 class Group extends Model
 {
     /** @use HasFactory<GroupFactory> */
-    use HasFactory;
+    use BelongsToOrganization, HasFactory;
 
     /**
      * The users that belong to the group.

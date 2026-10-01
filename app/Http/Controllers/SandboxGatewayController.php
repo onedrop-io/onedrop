@@ -23,11 +23,11 @@ class SandboxGatewayController extends Controller
      */
     public function open(Request $request, Project $project, string $kind, Gateway $gateway): RedirectResponse
     {
-        // A project published privately to the domain opens for anyone signed in to OneDrop, not just its owners.
+        // A project published privately to the domain opens for anyone in its organization, not just its owners (ORG-007).
         if ($kind === Gateway::APP) {
             $sandbox = $project->sandbox;
 
-            abort_unless($sandbox && $gateway->parse((string) parse_url((string) $project->published_url, PHP_URL_HOST)) !== null, 404);
+            abort_unless($sandbox && $request->user()->belongsToOrganization($project->organization_id) && $gateway->parse((string) parse_url((string) $project->published_url, PHP_URL_HOST)) !== null, 404);
 
             $path = (string) $request->query('path', '/');
 
@@ -108,8 +108,12 @@ class SandboxGatewayController extends Controller
                 return $this->loginRequired($target, $pass ? 'expired' : 'no-cookie', $sandbox->project);
             }
 
-            // Previews and shells are for the project's people; a privately published app for anyone signed in.
-            if ($target['kind'] !== Gateway::APP && $user->cannot('view', $sandbox->project)) {
+            // Previews and shells are for the project's people; a privately published app for its organization.
+            $allowed = $target['kind'] === Gateway::APP
+                ? $user->belongsToOrganization($sandbox->project->organization_id)
+                : $user->can('view', $sandbox->project);
+
+            if (! $allowed) {
                 return response('Forbidden', 403);
             }
         }

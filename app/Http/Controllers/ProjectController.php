@@ -6,12 +6,15 @@ use App\Actions\DeleteProject;
 use App\Concerns\RendersWorkspace;
 use App\Concerns\ValidatesAgentSelection;
 use App\Enums\AppTemplate;
+use App\Enums\GitSyncStatus;
 use App\Enums\MessageRole;
 use App\Enums\ProjectStatus;
 use App\Enums\SandboxStatus;
+use App\Http\Middleware\ResolveOrganization;
 use App\Http\Requests\StoreProjectRequest;
 use App\Http\Requests\UpdateProjectRequest;
 use App\Jobs\CreateSandbox;
+use App\Jobs\ImportRepository;
 use App\Jobs\RegenerateProjectName;
 use App\Jobs\RunAgentTask;
 use App\Models\Attachment;
@@ -19,11 +22,15 @@ use App\Models\Project;
 use App\Models\Task;
 use App\Sandbox\Agents\ModelCatalog;
 use App\Sandbox\Agents\ProjectNamer;
+use App\Sandbox\GitException;
+use App\Sandbox\GitHubApp;
+use App\Sandbox\RepositoryImport;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -34,7 +41,7 @@ class ProjectController extends Controller
     /**
      * Show the "what are we working on today?" prompt.
      */
-    public function create(Request $request, ModelCatalog $catalog): Response
+    public function create(Request $request, ModelCatalog $catalog, GitHubApp $github): Response
     {
         $agent = $catalog->newProjectAgent($request->user());
 
@@ -44,16 +51,37 @@ class ProjectController extends Controller
             'templates' => AppTemplate::options(),
             // "Remix this" on a share page (SHARE-002) opens this page with the shared prompt filled in.
             'remix' => $request->session()->pull('remix'),
+            // Importing a repository (PRJ-009): private GitHub ones need the GitHub App.
+            'github' => [
+                'configured' => $configured = $github->configured(),
+                'signed_in' => $configured && $request->user()->githubInstallations()->exists() && $github->userToken($request->user()) !== null,
+                'connect_url' => $configured ? route('github-app.install') : null,
+                // Back from connecting it: open the import, with GitHub's error if it failed.
+                'returned' => $request->session()->get('github_import'),
+            ],
         ]);
     }
 
     /**
-     * Create a project from a description (or a template's) and start the agent on it.
+     * Create a project from a description (or a template's), or from a repository, and start the agent on it.
      */
-    public function store(StoreProjectRequest $request, ModelCatalog $catalog): RedirectResponse
+    public function store(StoreProjectRequest $request, ModelCatalog $catalog, RepositoryImport $import): RedirectResponse
     {
         $prompt = (string) $request->validated('prompt');
         $template = $request->enum('template', AppTemplate::class);
+        $repository = null;
+
+        if ($request->filled('repository')) {
+            try {
+                $repository = $import->resolve($request->user(), (string) $request->validated('repository'));
+            } catch (GitException $e) {
+                throw ValidationException::withMessages(['repository' => $e->getMessage()]);
+            }
+
+            $template = null;
+            $prompt = trim($prompt) !== '' ? $prompt : __('I imported this app from its repository. Get it running in the preview.');
+        }
+
         $default = $catalog->newProjectAgent($request->user());
         $agent = $this->validatedAgentSelection($request, $request->user(), $catalog);
 
@@ -69,9 +97,15 @@ class ProjectController extends Controller
         $agent ??= $default ?? [];
 
         $project = $request->user()->projects()->create([
-            'name' => $template?->label() ?? Project::nameFromPrompt($prompt),
+            'organization_id' => ResolveOrganization::current($request)->id,
+            'name' => $repository['name'] ?? $template?->label() ?? Project::nameFromPrompt($prompt),
             'prompt' => $prompt,
             ...$agent,
+            ...($repository ? [
+                'git_remote_url' => $repository['url'],
+                'github_installation_id' => $repository['installation_id'],
+                'git_sync_status' => GitSyncStatus::Pulling,
+            ] : []),
         ]);
 
         // Show "Thinking…" right away: the page only polls for updates while the agent is working,
@@ -92,10 +126,11 @@ class ProjectController extends Controller
             'status' => SandboxStatus::Creating,
         ]);
 
-        Bus::chain([
+        Bus::chain(array_values(array_filter([
             new CreateSandbox($project),
+            $repository ? new ImportRepository($project, $message, $repository['branch']) : null,
             new RunAgentTask($project, $message),
-        ])->dispatch();
+        ])))->dispatch();
 
         return to_route('projects.show', $project);
     }

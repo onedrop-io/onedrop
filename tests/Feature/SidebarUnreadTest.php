@@ -25,7 +25,7 @@ beforeEach(function () {
  */
 function sidebarProject(): array
 {
-    return test()->get(route('dashboard'))->inertiaProps('sidebarProjects.recent.0');
+    return test()->followingRedirects()->get(route('dashboard'))->inertiaProps('sidebarProjects.recent.0');
 }
 
 function reply(Project $project, ?Task $task = null): void

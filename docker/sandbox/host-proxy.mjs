@@ -300,14 +300,14 @@ function logRequest(req, status, startedAt) {
         d: Math.round(performance.now() - startedAt),
         ip: clientIp(req),
         pub: !isPreview(host),
-        // Growth analytics: which page, which site sent them, browser/device, and country.
+        // Growth analytics: which page, which site sent them, browser/device, and where they are.
         m: req.method,
         p: String(req.url ?? '/')
             .split('?')[0]
             .slice(0, 200),
         r: referrerHost(req.headers.referer, host),
         ua: String(req.headers['user-agent'] ?? '').slice(0, 300) || undefined,
-        c: country(req.headers),
+        ...location(req.headers),
     });
 }
 
@@ -331,17 +331,95 @@ function referrerHost(referer, host) {
     }
 }
 
-/** Two-letter country code, when a CDN in front of the app (Cloudflare, CloudFront, Vercel...) adds one. */
-function country(headers) {
-    const code = String(
-        headers['cf-ipcountry'] ??
-            headers['cloudfront-viewer-country'] ??
-            headers['x-vercel-ip-country'] ??
-            headers['x-country-code'] ??
-            '',
-    ).toUpperCase();
+/**
+ * Where the visitor is, when something in front of the app says: OneDrop's Cloudflare Worker (X-OneDrop-Geo-*,
+ * from Cloudflare's own lookup), or a CDN's location headers (Cloudflare, CloudFront, Vercel). Country code
+ * (c), region (rg), city (ci), and coordinates rounded to ~1km (la, lo).
+ */
+function location(headers) {
+    const first = (...names) => {
+        for (const name of names) {
+            const value = String(headers[name] ?? '').trim();
 
-    return /^[A-Z]{2}$/.test(code) && code !== 'XX' ? code : undefined;
+            if (value !== '') {
+                try {
+                    return decodeURIComponent(value);
+                } catch {
+                    return value;
+                }
+            }
+        }
+
+        return undefined;
+    };
+    const text = (value) => value?.slice(0, 80) || undefined;
+    const coordinate = (value, limit) => {
+        const number = Number(value);
+
+        return value !== undefined &&
+            Number.isFinite(number) &&
+            Math.abs(number) <= limit
+            ? Math.round(number * 100) / 100
+            : undefined;
+    };
+
+    const code = String(
+        first(
+            'x-onedrop-geo-country',
+            'cf-ipcountry',
+            'cloudfront-viewer-country',
+            'x-vercel-ip-country',
+            'x-country-code',
+        ) ?? '',
+    ).toUpperCase();
+    const c =
+        /^[A-Z]{2}$/.test(code) && !['XX', 'T1'].includes(code)
+            ? code
+            : undefined;
+
+    if (!c) {
+        return {};
+    }
+
+    const la = coordinate(
+        first(
+            'x-onedrop-geo-latitude',
+            'cf-iplatitude',
+            'cloudfront-viewer-latitude',
+            'x-vercel-ip-latitude',
+        ),
+        90,
+    );
+    const lo = coordinate(
+        first(
+            'x-onedrop-geo-longitude',
+            'cf-iplongitude',
+            'cloudfront-viewer-longitude',
+            'x-vercel-ip-longitude',
+        ),
+        180,
+    );
+
+    return {
+        c,
+        rg: text(
+            first(
+                'x-onedrop-geo-region',
+                'cf-region',
+                'cloudfront-viewer-country-region-name',
+                'x-vercel-ip-country-region',
+            ),
+        ),
+        ci: text(
+            first(
+                'x-onedrop-geo-city',
+                'cf-ipcity',
+                'cloudfront-viewer-city',
+                'x-vercel-ip-city',
+            ),
+        ),
+        ...(la !== undefined && lo !== undefined ? { la, lo } : {}),
+    };
 }
 
 // Custom analytics events (docker/sandbox/guides/analytics.md): the app POSTs

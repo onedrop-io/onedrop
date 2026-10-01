@@ -3,6 +3,12 @@ import { RefreshCw } from 'lucide-react';
 import { useState } from 'react';
 import { ProviderIcon } from '@/components/agent-model-picker';
 import AreaLinesChart from '@/components/charts/area-lines-chart';
+import {
+    formatCost,
+    formatTokens,
+    HARNESS_COLORS,
+    HARNESS_LABELS,
+} from '@/lib/usage';
 import { cn } from '@/lib/utils';
 import { index } from '@/routes/usage';
 import type { AgentHarness, AgentProvider } from '@/types/agents';
@@ -47,36 +53,6 @@ const RANGES: { value: Range; label: string }[] = [
     { value: '30d', label: '30 days' },
     { value: '90d', label: '90 days' },
 ];
-
-const HARNESS_COLORS: Record<AgentHarness, string> = {
-    claude_code: 'var(--viz-2)',
-    opencode: 'var(--viz-1)',
-    codex: 'var(--viz-3)',
-};
-
-const HARNESS_LABELS: Record<AgentHarness, string> = {
-    claude_code: 'Claude Code',
-    opencode: 'OpenCode',
-    codex: 'Codex',
-};
-
-function formatCost(value: number): string {
-    if (value > 0 && value < 0.01) {
-        return '<$0.01';
-    }
-
-    return value.toLocaleString(undefined, {
-        style: 'currency',
-        currency: 'USD',
-    });
-}
-
-function formatTokens(value: number): string {
-    return value.toLocaleString(undefined, {
-        notation: 'compact',
-        maximumFractionDigits: value >= 1000 ? 2 : 0,
-    });
-}
 
 function formatShare(part: number, whole: number): string {
     return `${whole > 0 ? ((part / whole) * 100).toFixed(1) : '0.0'}%`;

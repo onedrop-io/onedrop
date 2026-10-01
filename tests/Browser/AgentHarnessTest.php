@@ -102,6 +102,26 @@ test('users sign in to Claude from the chat in Claude Code\'s own sign-in in the
     expect($project->fresh()->sign_in_retry_message_id)->toBeNull();
 })->group('AI-005');
 
+test('the chat carries on when it opens already signed in to Claude, e.g. after a reload mid sign-in', function () {
+    $provider = new FakeSandboxProvider;
+    $provider->execUsing = fn (array $command) => new ExecResult(0, json_encode(['loggedIn' => true, 'authMethod' => 'claude.ai', 'email' => 'dev@example.com']));
+    app()->instance(SandboxProvider::class, $provider);
+    $user = User::factory()->create();
+    AgentConnection::factory()->for($user)->claudeLogin()->create();
+    $project = Project::factory()->for($user)->create(['agent_harness' => AgentHarness::ClaudeCode]);
+    Sandbox::factory()->for($project)->create(['status' => SandboxStatus::Running, 'preview_url' => null, 'shell_url' => 'http://127.0.0.1:7681']);
+    $failed = $project->messages()->create(['role' => MessageRole::User, 'content' => 'Build a timer']);
+    $project->update(['sign_in_retry_message_id' => $failed->id]);
+    $this->actingAs($user);
+
+    visit("/projects/{$project->id}")
+        ->assertSeeIn('@claude-login-status', 'Claude Code is signed in as dev@example.com')
+        ->assertSee('Signed in to Claude, picking up where it left off')
+        ->assertNoJavaScriptErrors();
+
+    expect($project->fresh()->sign_in_retry_message_id)->toBeNull();
+})->group('AI-005');
+
 test('connecting a Claude subscription in settings unlocks Claude Code in the chat without a reload', function () {
     $user = User::factory()->create();
     AgentConnection::factory()->for($user)->provider(AgentProvider::OpenRouter)->create(['is_default' => true]);

@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Organization;
 use App\Sandbox\ExecResult;
 use App\Sandbox\Providers\FakeSandboxProvider;
 use App\Sandbox\WorkspaceAuth;
@@ -299,4 +300,12 @@ function fakeStorageSandbox(string $root): FakeSandboxProvider
         : new ExecResult(0, '');
 
     return $provider;
+}
+
+/**
+ * An address in the install's one organization (ORG-002), e.g. orgPath('/groups') is `/o/onedrop/groups`.
+ */
+function orgPath(string $path = ''): string
+{
+    return '/o/'.Organization::install()->slug.$path;
 }

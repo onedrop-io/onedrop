@@ -4,6 +4,7 @@ use App\Enums\PublishStatus;
 use App\Enums\PublishTarget;
 use App\Enums\PublishVisibility;
 use App\Models\AgentConnection;
+use App\Models\Organization;
 use App\Models\Project;
 use App\Models\Sandbox;
 use App\Models\User;
@@ -66,7 +67,7 @@ test('a private app sends visitors to sign in, then back to the page they asked 
         ->assertHeaderMissing('X-OneDrop-Upstream');
 })->group('PUB-002');
 
-test('anyone signed in to OneDrop can open a private app, not only the project\'s people', function () {
+test('anyone in the project\'s organization can open a private app, not only the project\'s people', function () {
     $project = publishToDomain($this->project, $this->owner, 'private');
     $colleague = User::factory()->create();
 
@@ -230,3 +231,18 @@ test('once published, the workspace says who can open it there', function (strin
     'domain, public' => ['domain', 'public', 'Anyone on the internet with the URL'],
     'tailscale, private' => ['tailscale', 'private', "People on your team's tailnet"],
 ])->group('PUB-002');
+
+test('a private app does not open for people outside its organization', function () {
+    $project = publishToDomain($this->project, $this->owner, 'private');
+    config(['app.multi_tenant' => true]);
+    $outsider = User::factory()->has(AgentConnection::factory())->create();
+    Organization::factory()->create()->addMember($outsider);
+
+    $this->actingAs($outsider)->get(route('projects.gateway.open', [$project, 'app']))->assertNotFound();
+
+    $this->withHeaders(['X-Forwarded-Host' => appHost($project)])
+        ->withCookie(Gateway::COOKIE, app(Gateway::class)->pass($outsider->id, app(Gateway::class)->parse(appHost($project))))
+        ->get(route('sandbox-gateway.authorize'))
+        ->assertForbidden()
+        ->assertHeaderMissing('X-OneDrop-Upstream');
+})->group('ORG-007');

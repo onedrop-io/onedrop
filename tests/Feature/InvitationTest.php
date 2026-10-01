@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Invitation;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\TestResponse;
@@ -23,8 +24,8 @@ function registerThroughInvite(Invitation $invitation, string $email): TestRespo
 
 test('users can create an invite link, optionally for an email', function () {
     $this->actingAs($this->user)
-        ->post(route('invitations.store'), ['email' => 'Sam@Example.com'])
-        ->assertRedirect(route('invitations.index'));
+        ->post(route('invitations.store', Organization::install()), ['email' => 'Sam@Example.com'])
+        ->assertRedirect(route('invitations.index', Organization::install()));
 
     $invitation = Invitation::sole();
 
@@ -51,7 +52,7 @@ test('the invites page lists links with status and copyable urls', function () {
     Invitation::factory()->create(['invited_by' => User::factory()->create()->id]);
 
     $this->actingAs($this->user)
-        ->get(route('invitations.index'))
+        ->get(route('invitations.index', Organization::install()))
         ->assertInertia(fn ($page) => $page
             ->component('invitations/index')
             ->has('invitations', 2)
@@ -138,8 +139,8 @@ test('users can revoke their own unused invites only', function () {
     $mine = Invitation::issue($this->user);
     $theirs = Invitation::issue(User::factory()->create());
 
-    $this->actingAs($this->user)->delete(route('invitations.destroy', $mine))->assertRedirect(route('invitations.index'));
-    $this->actingAs($this->user)->delete(route('invitations.destroy', $theirs))->assertForbidden();
+    $this->actingAs($this->user)->delete(route('invitations.destroy', [$mine->organization, $mine]))->assertRedirect(route('invitations.index', Organization::install()));
+    $this->actingAs($this->user)->delete(route('invitations.destroy', [$theirs->organization, $theirs]))->assertForbidden();
 
     expect($mine->fresh()->status())->toBe('revoked')
         ->and($theirs->fresh()->status())->toBe('waiting');
@@ -147,7 +148,7 @@ test('users can revoke their own unused invites only', function () {
 
 test('an invalid email is rejected', function () {
     $this->actingAs($this->user)
-        ->post(route('invitations.store'), ['email' => 'not-an-email'])
+        ->post(route('invitations.store', Organization::install()), ['email' => 'not-an-email'])
         ->assertSessionHasErrors('email');
 
     expect(Invitation::count())->toBe(0);

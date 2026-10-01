@@ -23,6 +23,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { useCurrentUrl } from '@/hooks/use-current-url';
+import { useOrganization } from '@/hooks/use-organization';
 import { settingsReturnUrl } from '@/lib/settings';
 import { cn, toUrl } from '@/lib/utils';
 import { dashboard } from '@/routes';
@@ -54,13 +55,18 @@ const accountSection: NavSection = {
     ],
 };
 
-const peopleSection: NavSection = {
+/** The organization's people (ORG-004, ORG-005). */
+const peopleSection = (organization: string): NavSection => ({
     title: 'People',
     items: [
-        { title: 'Groups', href: groupsIndex(), icon: Users },
-        { title: 'Invite people', href: invitationsIndex(), icon: UserPlus },
+        { title: 'Groups', href: groupsIndex(organization), icon: Users },
+        {
+            title: 'Invite people',
+            href: invitationsIndex(organization),
+            icon: UserPlus,
+        },
     ],
-};
+});
 
 const adminSection: NavSection = {
     title: 'Admin',
@@ -77,11 +83,13 @@ const adminSection: NavSection = {
 /** Settings pages render in a modal over the app; closing it returns to the page you came from. */
 export default function SettingsLayout({ children }: PropsWithChildren) {
     const { auth } = usePage().props;
+    const organization = useOrganization();
     const { isCurrentOrParentUrl } = useCurrentUrl();
 
+    const people = peopleSection(organization.slug);
     const sections = auth.user.is_admin
-        ? [accountSection, peopleSection, adminSection]
-        : [accountSection, peopleSection];
+        ? [accountSection, people, adminSection]
+        : [accountSection, people];
 
     const close = () => {
         router.visit(settingsReturnUrl() ?? dashboard().url);

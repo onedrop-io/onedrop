@@ -22,7 +22,9 @@ class DashboardTest extends TestCase
         $user = User::factory()->has(AgentConnection::factory())->create();
         $this->actingAs($user);
 
-        $response = $this->get(route('dashboard'));
+        $this->get(route('dashboard'))->assertRedirect(route('organizations.home', $user->currentOrganization()));
+
+        $response = $this->get(route('organizations.home', $user->currentOrganization()));
         $response->assertOk();
     }
 }

@@ -1,4 +1,4 @@
-import { Form, Head, Link, usePage } from '@inertiajs/react';
+import { Form, Head, Link, setLayoutProps, usePage } from '@inertiajs/react';
 import GroupController from '@/actions/App/Http/Controllers/GroupController';
 import GroupMemberController from '@/actions/App/Http/Controllers/GroupMemberController';
 import Heading from '@/components/heading';
@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useOrganization } from '@/hooks/use-organization';
 import { index } from '@/routes/groups';
 import type { GroupMember } from '@/types';
 
@@ -32,7 +33,12 @@ export default function GroupShow({
 }) {
     const { auth, errors } = usePage<{ errors: Record<string, string> }>()
         .props;
+    const organization = useOrganization();
     const isMember = members.some((member) => member.id === auth.user.id);
+
+    setLayoutProps({
+        breadcrumbs: [{ title: 'Groups', href: index(organization.slug) }],
+    });
 
     return (
         <>
@@ -79,6 +85,7 @@ export default function GroupShow({
                                     {can.update && (
                                         <Link
                                             href={GroupMemberController.update({
+                                                organization: organization.slug,
                                                 group: group.id,
                                                 user: member.id,
                                             })}
@@ -102,6 +109,8 @@ export default function GroupShow({
                                         <Link
                                             href={GroupMemberController.destroy(
                                                 {
+                                                    organization:
+                                                        organization.slug,
                                                     group: group.id,
                                                     user: member.id,
                                                 },
@@ -129,7 +138,10 @@ export default function GroupShow({
                             description="Add someone who already has an account"
                         />
                         <Form
-                            {...GroupMemberController.store.form(group.id)}
+                            {...GroupMemberController.store.form([
+                                organization.slug,
+                                group.id,
+                            ])}
                             options={{ preserveScroll: true }}
                             resetOnSuccess
                             className="flex flex-wrap items-start gap-3"
@@ -180,7 +192,10 @@ export default function GroupShow({
                     <section className="space-y-4">
                         <Heading variant="small" title="Group details" />
                         <Form
-                            {...GroupController.update.form(group.id)}
+                            {...GroupController.update.form([
+                                organization.slug,
+                                group.id,
+                            ])}
                             options={{ preserveScroll: true }}
                             className="grid gap-4"
                         >
@@ -243,7 +258,10 @@ export default function GroupShow({
                                 </DialogClose>
                                 <Button variant="destructive" asChild>
                                     <Link
-                                        href={GroupController.destroy(group.id)}
+                                        href={GroupController.destroy([
+                                            organization.slug,
+                                            group.id,
+                                        ])}
                                         as="button"
                                     >
                                         Delete group
@@ -263,7 +281,3 @@ export default function GroupShow({
         </>
     );
 }
-
-GroupShow.layout = {
-    breadcrumbs: [{ title: 'Groups', href: index() }],
-};

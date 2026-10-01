@@ -44,7 +44,9 @@ class OneDropOAuthController extends Controller
         }
 
         if (! $oneDrop->allows($project, $request->user())) {
-            return $this->explain(__('You can\'t sign in to :app', ['app' => $project->name]), __('It only lets in members of certain groups on OneDrop. Ask its owner, :owner, to add you.', ['owner' => $project->user->name]), 403);
+            return $this->explain(__('You can\'t sign in to :app', ['app' => $project->name]), $request->user()->belongsToOrganization($project->organization_id)
+                ? __('It only lets in members of certain groups on OneDrop. Ask its owner, :owner, to add you.', ['owner' => $project->user->name])
+                : __('It only lets in people in :organization on OneDrop.', ['organization' => $project->organization->name]), 403);
         }
 
         return $back(['code' => $oneDrop->issueCode($project, $request->user(), [
@@ -90,13 +92,13 @@ class OneDropOAuthController extends Controller
      */
     public function userinfo(Request $request, OneDropSignIn $oneDrop): JsonResponse
     {
-        $user = $request->bearerToken() ? $oneDrop->userForToken($request->bearerToken()) : null;
+        $grant = $request->bearerToken() ? $oneDrop->grantForToken($request->bearerToken()) : null;
 
-        if (! $user) {
+        if (! $grant) {
             return response()->json(['error' => 'invalid_token'], 401)->header('WWW-Authenticate', 'Bearer error="invalid_token"');
         }
 
-        return response()->json($oneDrop->claims($user))->header('Cache-Control', 'no-store');
+        return response()->json($oneDrop->claims($grant['user'], $grant['project']))->header('Cache-Control', 'no-store');
     }
 
     protected function oauthError(string $error, int $status = 400): JsonResponse

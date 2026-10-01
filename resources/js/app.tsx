@@ -4,6 +4,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { initializeTheme } from '@/hooks/use-appearance';
 import AppLayout from '@/layouts/app-layout';
 import AuthLayout from '@/layouts/auth-layout';
+import OnboardingLayout from '@/layouts/onboarding-layout';
 import SettingsLayout from '@/layouts/settings/layout';
 import { isSettingsPage } from '@/lib/settings';
 import { markUnseenReloads } from '@/lib/unseen-reloads';
@@ -23,8 +24,9 @@ void createInertiaApp({
             case name === 'welcome':
             case name === 'pricing':
             case name.startsWith('share/'):
-            case name.startsWith('onboarding/'):
                 return null;
+            case name.startsWith('onboarding/'):
+                return OnboardingLayout;
             case name.startsWith('auth/'):
                 return AuthLayout;
             case isSettingsPage(name):

@@ -11,6 +11,8 @@ import {
 import { useCallback, useEffect, useState } from 'react';
 import ProjectGrowthController from '@/actions/App/Http/Controllers/ProjectGrowthController';
 import TimeLineChart from '@/components/charts/time-line-chart';
+import WorldMap from '@/components/charts/world-map';
+import type { MapCity } from '@/components/charts/world-map';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -56,6 +58,7 @@ type Growth = {
         countries: Row[];
         browsers: Row[];
         devices: Row[];
+        locations: { countries: Row[]; cities: MapCity[] };
     };
     events: { set_up: boolean; events: CustomEvent[] };
     signed_in_users: number | null;
@@ -77,6 +80,14 @@ const countryNames =
     typeof Intl.DisplayNames === 'function'
         ? new Intl.DisplayNames(undefined, { type: 'region' })
         : null;
+
+function countryName(code: string): string {
+    try {
+        return countryNames?.of(code) ?? code;
+    } catch {
+        return code;
+    }
+}
 
 /**
  * Growth: an agent-run SEO check, and who visits the app (from the sandbox's own request log).
@@ -253,6 +264,28 @@ export default function GrowthPanel({
                             bucketSeconds={analytics.bucket_seconds}
                             testId="chart-visitors"
                         />
+                        {analytics.locations.countries.length === 0 ? (
+                            <figure data-test="growth-map">
+                                <figcaption className="mb-2 text-sm font-medium">
+                                    Where visitors are
+                                </figcaption>
+                                <p className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">
+                                    No location data yet. Visitors are placed on
+                                    the map when the app is reached through
+                                    OneDrop's Cloudflare gateway or a CDN that
+                                    adds location headers (Cloudflare,
+                                    CloudFront, Vercel).
+                                </p>
+                            </figure>
+                        ) : (
+                            <WorldMap
+                                title="Where visitors are"
+                                countries={analytics.locations.countries}
+                                cities={analytics.locations.cities}
+                                countryName={countryName}
+                                testId="growth-map"
+                            />
+                        )}
                         <div className="grid gap-6 @3xl:grid-cols-2 @6xl:grid-cols-3">
                             <TopList
                                 title="Top pages"
@@ -273,12 +306,22 @@ export default function GrowthPanel({
                                 unit="visitors"
                                 rows={analytics.countries.map((row) => ({
                                     ...row,
-                                    label:
-                                        countryNames?.of(row.label) ??
-                                        row.label,
+                                    label: countryName(row.label),
                                 }))}
                                 empty="No country data. Countries show when a CDN such as Cloudflare sits in front of the published app."
                                 testId="top-countries"
+                            />
+                            <TopList
+                                title="Top cities"
+                                unit="visitors"
+                                rows={analytics.locations.cities
+                                    .slice(0, 10)
+                                    .map((city) => ({
+                                        label: `${city.city}, ${city.region && city.region !== city.city ? `${city.region}, ` : ''}${city.country}`,
+                                        count: city.count,
+                                    }))}
+                                empty="No city data. Cities show when the app is reached through OneDrop's Cloudflare gateway or a CDN that adds them."
+                                testId="top-cities"
                             />
                             <TopList
                                 title="Top browsers"

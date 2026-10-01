@@ -12,7 +12,7 @@ beforeEach(function () {
 
 test('the new-project page offers every template', function () {
     $this->actingAs($this->user)
-        ->get(route('dashboard'))
+        ->followingRedirects()->get(route('dashboard'))
         ->assertInertia(fn ($page) => $page
             ->component('projects/create')
             ->has('templates', count(AppTemplate::cases()))
@@ -29,7 +29,7 @@ test('a project started from a template is named after it and keeps the edited p
 
     $prompt = AppTemplate::Crm->prompt().' Also track which trade show each lead came from.';
 
-    $this->actingAs($this->user)->post(route('projects.store'), [
+    $this->actingAs($this->user)->post(route('projects.store', $this->user->currentOrganization()), [
         'prompt' => $prompt,
         'template' => 'crm',
     ]);
@@ -44,7 +44,7 @@ test('a project started from a template is named after it and keeps the edited p
 test('without a template the project is named from the prompt', function () {
     Queue::fake();
 
-    $this->actingAs($this->user)->post(route('projects.store'), [
+    $this->actingAs($this->user)->post(route('projects.store', $this->user->currentOrganization()), [
         'prompt' => 'a recipe box',
         'template' => '',
     ]);
@@ -54,7 +54,7 @@ test('without a template the project is named from the prompt', function () {
 
 test('an unknown template is rejected', function () {
     $this->actingAs($this->user)
-        ->post(route('projects.store'), ['prompt' => 'a recipe box', 'template' => 'spaceship'])
+        ->post(route('projects.store', $this->user->currentOrganization()), ['prompt' => 'a recipe box', 'template' => 'spaceship'])
         ->assertSessionHasErrors('template');
 
     expect(Project::count())->toBe(0);

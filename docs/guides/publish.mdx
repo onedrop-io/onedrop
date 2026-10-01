@@ -31,10 +31,10 @@ Publishing gives a project its own address. On a [server install](/install#insta
 
 |             | Your domain                         | Tailscale                                              |
 | ----------- | ----------------------------------- | ------------------------------------------------------ |
-| **Private** | Anyone signed in to OneDrop         | People on your team's tailnet (Tailscale Serve)        |
+| **Private** | Anyone in the project's organization | People on your team's tailnet (Tailscale Serve)        |
 | **Public**  | Anyone on the internet with the URL | Anyone on the internet with the URL (Tailscale Funnel) |
 
-Someone who opens a private app on your domain without being signed in is sent to sign in to OneDrop first, then back to the page they asked for. They don't need to set up an AI or be part of the project.
+Someone who opens a private app on your domain without being signed in is sent to sign in to OneDrop first, then back to the page they asked for. They need to be in the project's [organization](/guides/organizations), but don't need to set up an AI or be part of the project.
 
 If OneDrop has no Tailscale auth key configured, publishing to Tailscale shows **Approve in Tailscale**. Open the link, approve the device in your Tailscale account, and publishing continues on its own. You only approve each project once.
 

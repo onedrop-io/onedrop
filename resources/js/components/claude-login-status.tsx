@@ -12,12 +12,14 @@ const RECHECK_MS = 5000;
 /**
  * Whether Claude Code in this chat's sandbox is signed in to the user's Claude subscription (AI-005),
  * with a button that opens Claude Code's own sign-in in the Shell tab. Signing in picks the chat back
- * up: a message that failed because Claude Code wasn't signed in runs again.
+ * up: a message that failed because Claude Code wasn't signed in runs again, however the sign-in was
+ * seen (the chat may have been reloaded or reopened since it failed).
  */
 export default function ClaudeLoginStatus({
     projectId,
     taskId,
     working,
+    waitingForSignIn,
     onSignIn,
 }: {
     projectId: number;
@@ -25,6 +27,8 @@ export default function ClaudeLoginStatus({
     taskId: number | null;
     /** Checked again after each run, which may have found the sign-in expired. */
     working: boolean;
+    /** A message failed because Claude Code wasn't signed in, and runs again once it is. */
+    waitingForSignIn: boolean;
     onSignIn: () => void;
 }) {
     const [status, setStatus] = useState<Status | null>(null);
@@ -36,7 +40,6 @@ export default function ClaudeLoginStatus({
 
         let timer: ReturnType<typeof setTimeout>;
         let cancelled = false;
-        let signedOut = false;
 
         const check = async () => {
             try {
@@ -57,13 +60,9 @@ export default function ClaudeLoginStatus({
 
                 setStatus(next);
 
-                if (next.signed_in === false) {
-                    signedOut = true;
-                }
-
                 if (next.signed_in !== true) {
                     timer = setTimeout(check, RECHECK_MS);
-                } else if (signedOut) {
+                } else if (waitingForSignIn) {
                     void resume();
                 }
             } catch {
@@ -94,7 +93,7 @@ export default function ClaudeLoginStatus({
             cancelled = true;
             clearTimeout(timer);
         };
-    }, [projectId, taskId, working]);
+    }, [projectId, taskId, working, waitingForSignIn]);
 
     if (status?.signed_in === true) {
         return (

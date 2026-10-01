@@ -18,6 +18,11 @@ import { useState } from 'react';
 import ProjectController from '@/actions/App/Http/Controllers/ProjectController';
 import AgentModelPicker from '@/components/agent-model-picker';
 import PromptComposer from '@/components/prompt-composer';
+import RepositoryPicker, {
+    RepositoryToggle,
+} from '@/components/repository-picker';
+import type { ImportGitHub } from '@/components/repository-picker';
+import { useOrganization } from '@/hooks/use-organization';
 import { cn } from '@/lib/utils';
 import type { AgentSelection, AppTemplate } from '@/types';
 import { dashboard } from '@/routes';
@@ -39,17 +44,24 @@ export default function CreateProject({
     agent,
     templates,
     remix,
+    github,
 }: {
     defaultAi: string | null;
     agent: AgentSelection | null;
     templates: AppTemplate[];
     /** "Remix this" on a share page: the shared project's name and prompt (SHARE-002). */
     remix: { name: string; prompt: string } | null;
+    /** Importing a repository instead (PRJ-009). */
+    github: ImportGitHub;
 }) {
     const [selection, setSelection] = useState(agent);
     const { auth } = usePage().props;
+    const organization = useOrganization();
     const [prompt, setPrompt] = useState(remix?.prompt ?? '');
     const [template, setTemplate] = useState<string | null>(null);
+    // Back from connecting GitHub here: open the import again.
+    const [importing, setImporting] = useState(github.returned !== null);
+    const [repository, setRepository] = useState('');
     const firstName = auth.user.name.split(' ')[0];
 
     const pickTemplate = (picked: AppTemplate) => {
@@ -87,9 +99,13 @@ export default function CreateProject({
                     )}
 
                     <PromptComposer
-                        action={ProjectController.store()}
+                        action={ProjectController.store(organization.slug)}
                         field="prompt"
-                        placeholder="Describe the app you want to build…"
+                        placeholder={
+                            importing
+                                ? 'What should the agent do with it? (optional)'
+                                : 'Describe the app you want to build…'
+                        }
                         value={prompt}
                         onValueChange={(value) => {
                             setPrompt(value);
@@ -98,11 +114,23 @@ export default function CreateProject({
                                 setTemplate(null);
                             }
                         }}
-                        autoFocus
+                        autoFocus={!importing}
                         attachments
+                        allowEmpty={importing && repository.trim() !== ''}
+                        header={
+                            importing && (
+                                <RepositoryPicker
+                                    value={repository}
+                                    onChange={setRepository}
+                                    onClose={() => setImporting(false)}
+                                    github={github}
+                                />
+                            )
+                        }
                         size="large"
                         extraData={{
-                            template,
+                            template: importing ? null : template,
+                            repository: importing ? repository : null,
                             ...(selection && {
                                 agent_harness: selection.harness,
                                 agent_provider: selection.provider,
@@ -111,23 +139,29 @@ export default function CreateProject({
                             }),
                         }}
                         footer={
-                            selection ? (
-                                <AgentModelPicker
-                                    selection={selection}
-                                    onChange={setSelection}
+                            <>
+                                {selection ? (
+                                    <AgentModelPicker
+                                        selection={selection}
+                                        onChange={setSelection}
+                                    />
+                                ) : (
+                                    defaultAi && (
+                                        <span className="inline-flex items-center gap-1">
+                                            <Sparkles className="size-3" />
+                                            {defaultAi}
+                                        </span>
+                                    )
+                                )}
+                                <RepositoryToggle
+                                    pressed={importing}
+                                    onPressedChange={setImporting}
                                 />
-                            ) : (
-                                defaultAi && (
-                                    <span className="inline-flex items-center gap-1">
-                                        <Sparkles className="size-3" />
-                                        {defaultAi}
-                                    </span>
-                                )
-                            )
+                            </>
                         }
                     />
 
-                    <div className="space-y-3">
+                    <div className={cn('space-y-3', importing && 'hidden')}>
                         <p className="text-sm text-muted-foreground">
                             Or start from a template
                         </p>

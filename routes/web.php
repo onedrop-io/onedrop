@@ -12,10 +12,12 @@ use App\Http\Controllers\ClaudeLoginController;
 use App\Http\Controllers\GitHubAppController;
 use App\Http\Controllers\GroupController;
 use App\Http\Controllers\GroupMemberController;
+use App\Http\Controllers\ImpersonationController;
 use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OneDropOAuthController;
 use App\Http\Controllers\OpenRouterAuthController;
+use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\ProjectAgentController;
 use App\Http\Controllers\ProjectAttachmentController;
 use App\Http\Controllers\ProjectAuthController;
@@ -31,6 +33,7 @@ use App\Http\Controllers\ProjectIconController;
 use App\Http\Controllers\ProjectLogController;
 use App\Http\Controllers\ProjectMessageController;
 use App\Http\Controllers\ProjectMonitoringController;
+use App\Http\Controllers\ProjectOrderController;
 use App\Http\Controllers\ProjectPublicationController;
 use App\Http\Controllers\ProjectRequirementsController;
 use App\Http\Controllers\ProjectSearchController;
@@ -110,7 +113,10 @@ Route::post('sandbox-events/{sandbox}/files', [SandboxEventController::class, 'f
     ->middleware(['signed:relative', 'throttle:600,1'])
     ->name('sandbox-events.files');
 
-Route::middleware(['auth', 'verified'])->group(function () {
+// Back to the admin's own account (USR-003). Only `auth`: the person being impersonated may not have verified their email.
+Route::delete('impersonation', [ImpersonationController::class, 'destroy'])->middleware('auth')->name('impersonation.destroy');
+
+Route::middleware(['auth', 'verified', 'organization'])->group(function () {
     Route::get('oauth/authorize', [OneDropOAuthController::class, 'authorize'])->middleware('throttle:60,1')->name('onedrop.authorize');
     Route::get('onboarding/ai', [OnboardingController::class, 'ai'])->name('onboarding.ai');
     Route::get('auth/openrouter', [OpenRouterAuthController::class, 'redirect'])->name('openrouter.redirect');
@@ -122,10 +128,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('projects/{project}/open/{kind}', [SandboxGatewayController::class, 'open'])->name('projects.gateway.open');
 
     Route::middleware('agent.connected')->group(function () {
-        Route::get('dashboard', [ProjectController::class, 'create'])->name('dashboard');
+        // Where signing in lands: the new-project page of the organization the user used last (ORG-002).
+        Route::get('dashboard', [OrganizationController::class, 'current'])->name('dashboard');
 
-        Route::post('projects', [ProjectController::class, 'store'])->name('projects.store');
-        Route::get('projects/search', ProjectSearchController::class)->name('projects.search');
+        Route::prefix('o/{organization}')->group(function () {
+            Route::get('/', [ProjectController::class, 'create'])->name('organizations.home');
+            Route::post('projects', [ProjectController::class, 'store'])->name('projects.store');
+            Route::get('projects/search', ProjectSearchController::class)->name('projects.search');
+            Route::put('projects/sort', [ProjectOrderController::class, 'sort'])->name('projects.sort');
+            Route::put('projects/order', [ProjectOrderController::class, 'update'])->name('projects.order');
+        });
+
         Route::get('projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
         Route::patch('projects/{project}', [ProjectController::class, 'update'])->name('projects.update');
         Route::delete('projects/{project}', [ProjectController::class, 'destroy'])->name('projects.destroy');
@@ -203,6 +216,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('projects/{project}/git/github-app/availability', [GitHubAppController::class, 'availability'])->name('projects.git.github-app.availability');
         Route::post('projects/{project}/git/github-app/repositories', [GitHubAppController::class, 'create'])->name('projects.git.github-app.create');
         Route::put('projects/{project}/git/github-app/remote', [GitHubAppController::class, 'connect'])->name('projects.git.github-app.connect');
+        Route::get('github/install', [GitHubAppController::class, 'installForImport'])->name('github-app.install');
+        Route::get('github/repositories', [GitHubAppController::class, 'importable'])->name('github-app.repositories');
         Route::get('github/callback', [GitHubAppController::class, 'callback'])->name('github-app.callback');
         Route::get('projects/{project}/git', [ProjectGitController::class, 'index'])->name('projects.git.index');
         Route::get('projects/{project}/git/commits', [ProjectGitController::class, 'log'])->name('projects.git.log');
@@ -269,17 +284,24 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('usage', [UsageController::class, 'index'])->name('usage.index');
 
-    Route::get('invitations', [InvitationController::class, 'index'])->name('invitations.index');
-    Route::post('invitations', [InvitationController::class, 'store'])->name('invitations.store');
-    Route::delete('invitations/{invitation}', [InvitationController::class, 'destroy'])->name('invitations.destroy');
+    // An organization's invites and groups (ORG-004, ORG-005). Anything from another organization is a 404.
+    Route::prefix('o/{organization}')->group(function () {
+        Route::get('invitations', [InvitationController::class, 'index'])->name('invitations.index');
+        Route::post('invitations', [InvitationController::class, 'store'])->name('invitations.store');
+        Route::delete('invitations/{invitation}', [InvitationController::class, 'destroy'])->name('invitations.destroy');
 
-    Route::resource('groups', GroupController::class)->except(['create', 'edit']);
-    Route::post('groups/{group}/members', [GroupMemberController::class, 'store'])->name('groups.members.store');
-    Route::patch('groups/{group}/members/{user}', [GroupMemberController::class, 'update'])->name('groups.members.update');
-    Route::delete('groups/{group}/members/{user}', [GroupMemberController::class, 'destroy'])->name('groups.members.destroy');
+        Route::resource('groups', GroupController::class)->except(['create', 'edit']);
+        Route::post('groups/{group}/members', [GroupMemberController::class, 'store'])->name('groups.members.store');
+        Route::patch('groups/{group}/members/{user}', [GroupMemberController::class, 'update'])->name('groups.members.update');
+        Route::delete('groups/{group}/members/{user}', [GroupMemberController::class, 'destroy'])->name('groups.members.destroy');
+    });
 
     Route::middleware('can:manage-users')->group(function () {
         Route::get('users', [UserController::class, 'index'])->name('users.index');
+        Route::get('users/{user}', [UserController::class, 'show'])->name('users.show');
+        Route::post('users/{user}/sign-out', [UserController::class, 'signOut'])->name('users.sign-out');
+        Route::delete('users/{user}/two-factor', [UserController::class, 'resetTwoFactor'])->name('users.two-factor.destroy');
+        Route::post('users/{user}/impersonate', [ImpersonationController::class, 'store'])->name('users.impersonate');
         Route::patch('users/{user}', [UserController::class, 'update'])->name('users.update');
     });
 

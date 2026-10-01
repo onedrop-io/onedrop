@@ -37,13 +37,13 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 - User should be able to create a group with a name and optional description.
 - User should become the owner of a group they create.
-- User should see only the groups they belong to; admins see every group.
+- User should see only the groups they belong to in the organization; its admins see every group in it.
 - User should not be able to view a group they don't belong to.
 
 ## GRP-002: Manage group members
 
-- Group owner should be able to add an existing user by email as a member or owner.
-- Group owner should see an error when the email doesn't match a user or the user is already a member.
+- Group owner should be able to add someone in the organization by email as a member or owner.
+- Group owner should see an error when the email doesn't match anyone in the organization or the user is already a member.
 - Group owner should be able to change a member's role and remove members.
 - Member should be able to leave a group.
 - A group should always keep at least one owner.
@@ -54,7 +54,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Group owner should be able to rename a group and change its description.
 - Group owner should be able to delete a group.
 - Members who aren't owners should not be able to edit or delete it.
-- Admins should be able to manage any group.
+- Organization admins should be able to manage any group in their organization.
 
 ## USR-001: Manage users (admin)
 
@@ -62,6 +62,74 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Admin should be able to grant or revoke admin access for other users.
 - Admin should not be able to change their own admin access.
 - Non-admins should not be able to see the users list.
+
+## USR-002: See everything about a user (admin)
+
+- Admin should be able to click a user in Settings → Users and see everything the install knows about them: account (joined, last sign-in and how, who invited them, email verified, password, two-factor, passkeys), organizations and roles, groups and roles, projects (with organization, agent, sandbox status, messages, tasks, git remote and published address), AI connections, sign-in providers, GitHub, invites they sent, agent skills, SSH keys and recent signed-in browsers.
+- Admin should see a project's sandbox, publish and git sync errors on the user's page.
+- Admin should see the user's AI usage: all-time cost, tokens and runs, and the past 30 days as a daily cost chart by agent, broken down by model and by project.
+- Each sign-in should record when it happened and how (password, passkey, or the sign-in provider); a remember-me cookie picking a session back up doesn't count.
+- Admin should be able to sign the user out everywhere (every session ends and remember-me stops working) and reset their two-factor sign-in, each after confirming; neither works on themselves.
+- Admin should be able to open a listed project only when they could open it anyway.
+- Admin should never see the user's secrets (password, AI keys, tokens).
+- Non-admins should not be able to see a user's details or use these actions.
+
+## USR-003: Impersonate a user (admin)
+
+- Admin should be able to sign in as another user from their page in Settings → Users, after confirming, to see the app as they do.
+- Admin should not be able to impersonate themselves or another admin.
+- While impersonating, admin should see a banner on every page saying who they're signed in as, with a Stop impersonating button that signs them back in as themselves.
+- While impersonating, admin should not be able to change the user's profile, password, two-factor, passkeys or sign-in providers, or delete their account.
+- Impersonating should not count as the user's sign-in.
+- Every impersonation should be recorded (admin, IP address, when it started and ended) and listed on the user's page; signing out while impersonating ends it.
+- Non-admins should not be able to impersonate anyone.
+
+## ORG-001: Organizations
+
+- Every project, group, invite and skill should belong to one organization.
+- User should only see and open things in organizations they belong to; anything in another organization should be a 404, even a group or invite opened under the address of another organization they're in.
+- A self-hosted install should have one organization that everything already there moves into, and look the same as before (no switcher).
+- User's profile, sign-in methods, SSH keys and AI connections should stay theirs in every organization they belong to.
+
+## ORG-002: Switch organizations (switcher planned)
+
+- An organization's own pages (new project, groups, invites) should have addresses under `/o/<slug>/`; a project's pages keep `/projects/<id>` and are in the project's organization. Two tabs can be in two organizations.
+- The sidebar should list the projects of the organization the page is in; new projects and search should stay in it.
+- Opening an organization's page or a project should make it the user's current organization; signing in (and `/dashboard`) should take them there.
+- (Planned) User who belongs to more than one organization should be able to switch from the sidebar, and land on that organization's new-project page.
+
+## ORG-003: Create an organization (planned)
+
+- On the hosted install, someone signing up without an invite should get a new organization they own, named after them ("Ada's organization"); someone signing up through an invite should join the inviter's organization instead.
+- (Planned) User should be able to rename their organization.
+- On the hosted install, user should be able to create another organization and become its owner.
+- On a self-hosted install, new sign-ups should join the one organization, and creating more should not be offered.
+
+## ORG-004: Manage an organization's members (planned)
+
+- Organization owners and admins should be able to see its members, change their role (owner, admin, member) and remove them.
+- An organization should always keep at least one owner.
+- A member should be able to leave an organization.
+- A removed member should lose access to its projects at once; their projects should stay in the organization. (Built.)
+- Invites should be for an organization: accepting one should join it (signing up first if needed). (Built.)
+
+## ORG-005: Organization settings (planned)
+
+- Organization owners and admins should be able to change its name, slug and logo, and see its AI usage.
+- Groups should belong to an organization, and only its members can be added to them. (Built.)
+- Organization owners and admins should be able to manage every group and project in their organization. (Built.)
+
+## ORG-006: Platform admin (planned)
+
+- Platform admins should keep the install-wide settings: sandbox providers, server, monitoring and backups.
+- On the hosted install, platform admins should see every organization with its member and project counts.
+- Being a platform admin should not give access to an organization's projects, groups or members on the hosted install; on a self-hosted install platform admins run its one organization. (Built.)
+
+## ORG-007: "Everyone" means the organization
+
+- Sharing a skill should share it with everyone in the organization, not the server.
+- Sign in with OneDrop set to everyone should let in members of the project's organization only, and its group picker and `groups` claim should only list that organization's groups.
+- Previews and shells should only open for the project's people, and a privately published app only for members of the project's organization.
 
 ## AI-001: Set up AI after sign-up
 
@@ -100,7 +168,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - One sign-in should work in all of the user's sandboxes where the sandbox provider supports a shared login folder (Docker); elsewhere each sandbox signs in once. The folder is only mounted into sandboxes of projects the user owns.
 - User should be told to sign in to Claude, or sign in again, when a Claude Code run finds they aren't signed in or their sign-in expired.
 - When Claude rejects the sign-in (e.g. a token revoked because the shared login was refreshed elsewhere), the message should run once more by itself; if it's rejected again, Claude Code should be signed out in that sandbox, so the chat box stops saying they're signed in and shows "Sign in to Claude" instead.
-- Once the user signs in (e.g. in the Shell tab), the chat should carry on by itself: the message that failed because they weren't signed in runs again, unless they've sent another since.
+- Once the user signs in (e.g. in the Shell tab), the chat should carry on by itself: the message that failed because they weren't signed in runs again, unless they've sent another since. This should also happen when the chat was reloaded or reopened while they signed in.
 - Pasting a Claude subscription token (`sk-ant-oat…`) should be refused with a pointer to "Use my Claude subscription"; tokens saved before this change are deleted.
 - Disconnecting the Claude subscription should sign Claude Code out in the user's running sandboxes and delete the shared login folder.
 
@@ -207,6 +275,26 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see the same dots in an opened project's sidebar, on "Main" and on each task.
 - A reply that arrives while the user is in another tab or app should stay unread, even on the chat that's open; coming back to that chat clears it.
 - Marking a project read (U) clears its tasks' dots too.
+
+## PRJ-009: Start a project from a repository
+
+- User should see a "Repository" toggle next to the agent picker on the new-project prompt; turning it on shows a repository field above the prompt and hides the templates.
+- User should be able to type `owner/name`, paste a GitHub link (a `/tree/<branch>` link imports that branch), or any HTTPS git URL, and send it to create a project from that repository.
+- When they've connected GitHub (the GitHub App), user should see their repositories (across their installations, most recently pushed first, private ones marked, empty ones left out) suggested as they type, and be able to pick one.
+- When the GitHub App is set up but they haven't connected it, user should see "Connect GitHub" to import private repositories, which comes back to the new-project page with the Repository field open.
+- The prompt should be optional with a repository; left blank, the agent is asked to get the imported app running in the preview.
+- The project should be named after the repository, connected to it as its remote (through the GitHub App when the user can reach it that way, no token kept; otherwise without a token), and the repository's branch (its default one unless the link names another) should be brought into the sandbox before the agent starts.
+- A repository that can't be reached (private without GitHub connected, or missing), has no commits, or isn't HTTPS should be refused with the reason, and no project made.
+- If bringing it in fails after the project is made, user should see why in the chat, and the agent shouldn't start.
+
+## PRJ-010: Sort the sidebar's projects
+
+- User should be able to sort their pinned and recent projects by "Last updated" (the default), "Created", or "Manual" from a sort menu next to the "Recent" heading (or "Pinned" when there are no recent ones).
+- User should be able to drag a pinned or recent project up or down to reorder it; dropping it switches the sort to "Manual" and keeps the new order.
+- User should see projects they haven't placed yet (new ones) at the top of a manual order.
+- Under "Manual", the "Recent" heading should read "Projects", since the list isn't by date anymore.
+- The sort and the order should be remembered on their account, across devices.
+- User should not be able to reorder someone else's projects.
 
 ## SBX-001: A sandbox per project
 
@@ -475,6 +563,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Someone opening an invite link should land on sign-up, with the email filled in when the invite has one.
 - Signing up through an invite should mark it accepted; signing up with the invited email should skip email verification.
 - An invite link should work once and expire after 7 days; an expired, used, or revoked link should explain that clearly.
+- Signing up through an invite should join the inviter's organization.
 - Sign-up stays open to everyone; invites are a convenience.
 
 ## DEP-001: Run on a server
@@ -750,6 +839,16 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Once set up, user should be able to describe more events to track and click "Add with agent".
 - The agent uses the model chosen for the project (AGT-002); there is no separate plan to pick.
 
+## GROW-003: Visitor locations on a map
+
+- User should see where visitors are on a world map in Growth's Analytics: countries shaded by visitors (more is darker in light mode, brighter in dark mode), and a bubble per city sized by its visitors.
+- User should be able to hover (or focus) a country or city to see its name, region and country, and visitors.
+- User should see a legend (visitors per country, city bubbles) and be able to open a table of countries and a table of cities.
+- User should see top cities (city, region, country) next to top countries.
+- Locations come from OneDrop's Cloudflare gateway (Cloudflare's own lookup: country, region, city, coordinates) or a CDN's location headers (Cloudflare, CloudFront, Vercel) in front of the app; without them, user should see that there's no location data.
+- Coordinates should be rounded to about 1 km before they're logged, and a browser should never be able to set its own location through the gateway.
+- The map follows the time range and traffic filter (all or published only), and draws without any map service or tiles.
+
 ## SECRET-001: Secrets
 
 - User should see a Secrets section under Tools listing the app's secrets (the variables in its `.env` file) by name, with values hidden.
@@ -913,7 +1012,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 - User should be able to turn on "OneDrop accounts" as a sign-in method for their app, so people sign in to the app with their OneDrop account.
 - Turning it on should set up the app's keys automatically (no provider console) and ask the agent to add the button.
-- User should be able to choose who can sign in this way: everyone with a OneDrop account, or only members of chosen groups.
+- User should be able to choose who can sign in this way: everyone in the project's organization, or only members of chosen groups in it.
 - Someone signing in should use their OneDrop login (signing in to OneDrop first if needed) and land back in the app signed in, with their name and email.
 - Someone not allowed in should see a clear explanation and not be signed in to the app.
 - It should follow OAuth 2.0 (authorization code, optional PKCE) with a user-info endpoint, so any stack's auth library can use it; codes work once and expire quickly, and only the app's own callback addresses are accepted.
@@ -992,7 +1091,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 - On a server install (INSTALL-002), user should be able to choose where to publish in the Publish panel: Your domain or Tailscale. The domain is the default; on a laptop only Tailscale is offered.
 - Published to the domain, the project should get https://<name>-<id>.<domain>, with its own certificate. A project whose name reads like a preview address (e.g. "Preview") gets an `app-` prefix so it never takes over a preview.
-- Public should let anyone open it without signing in; Private should let anyone signed in to OneDrop open it (not only the project's people, and without having set up an AI). Someone who isn't signed in should be sent to sign in and then back to the page they asked for.
+- Public should let anyone open it without signing in; Private should let anyone in the project's organization open it (not only the project's people, and without having set up an AI). Someone who isn't signed in should be sent to sign in and then back to the page they asked for.
 - User should see where it's published and who can open it (in the Publish panel, Tools → Publishing, and Developer tools).
 - Moving a published project to the other target should take it down from the first. Unpublishing, or a failed publish, should stop it being served on the domain.
 - With the Cloudflare preview gateway (GW-002, e.g. on Laravel Cloud), the Worker serves published apps the same way: public ones without a cookie (its answer shared for a minute), private ones by passing the sign-in redirect on. Names under the domain that only look like a published app still reach their own origin.
@@ -1042,7 +1141,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be able to turn each of their own or shared skills on or off for this project; the agent uses the change on its next run, and the sandbox doesn't need to be running to switch.
 - User should be able to open a skill to read its instructions and see its other files.
 - User should be able to edit and delete their own skills (deleting asks first and turns it off everywhere); an admin can edit and delete anyone's.
-- User should be able to share a skill with everyone on the server, or stop sharing it (which turns it off in other people's projects). Others can turn a shared skill on in their projects but can't change it.
+- User should be able to share a skill with everyone in the organization, or stop sharing it (which turns it off in other people's projects). Others can turn a shared skill on in their projects but can't change it.
 - Two skills with the same name can't both be on in one project; a project skill wins over one of the user's skills with the same name, and the list says so.
 - User should see "No skills yet" when there are none, and a link to learn more about skills.
 

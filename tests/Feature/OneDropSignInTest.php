@@ -1,6 +1,8 @@
 <?php
 
+use App\Models\AgentConnection;
 use App\Models\Group;
+use App\Models\Organization;
 use App\Models\Project;
 use App\Models\Sandbox;
 use App\Models\User;
@@ -141,3 +143,35 @@ test('turning it off stops sign-ins through OneDrop right away', function () {
     authorizeApp($this->person)->assertStatus(400);
     $this->withToken($token)->get(route('onedrop.userinfo'))->assertUnauthorized();
 })->group('APPAUTH-002');
+
+test('only people in the app\'s organization can sign in, and the app only sees their groups there', function () {
+    config(['app.multi_tenant' => true]);
+    $outsider = User::factory()->create();
+    Organization::factory()->create()->addMember($outsider);
+
+    authorizeApp($outsider)->assertForbidden()->assertSee("It only lets in people in {$this->project->organization->name} on OneDrop.");
+
+    $here = Group::factory()->create(['name' => 'Engineering', 'organization_id' => $this->project->organization_id]);
+    $elsewhere = Group::factory()->create(['name' => 'Elsewhere', 'organization_id' => Organization::factory()->create()->id]);
+    $here->members()->attach($this->person, ['role' => 'member']);
+    $elsewhere->members()->attach($this->person, ['role' => 'member']);
+
+    $token = exchangeCode(codeFrom(authorizeApp($this->person)))->json('access_token');
+    $this->withToken($token)->get(route('onedrop.userinfo'))->assertOk()->assertJsonPath('groups', ['Engineering']);
+})->group('ORG-007');
+
+test('the group picker only offers and accepts the organization\'s groups', function () {
+    $here = Group::factory()->create(['name' => 'Engineering', 'organization_id' => $this->project->organization_id]);
+    $elsewhere = Group::factory()->create(['organization_id' => Organization::factory()->create()->id]);
+    AgentConnection::factory()->for($this->owner)->create();
+
+    $this->actingAs($this->owner)
+        ->putJson(route('projects.auth.onedrop', $this->project), ['group_ids' => [$elsewhere->id]])
+        ->assertJsonValidationErrors('group_ids.0');
+
+    $this->actingAs($this->owner)
+        ->putJson(route('projects.auth.onedrop', $this->project), ['group_ids' => [$here->id]])
+        ->assertOk()
+        ->assertJsonPath('group_ids', [$here->id])
+        ->assertJsonPath('groups', [['id' => $here->id, 'name' => 'Engineering']]);
+})->group('ORG-007');

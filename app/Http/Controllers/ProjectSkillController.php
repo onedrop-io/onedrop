@@ -124,6 +124,7 @@ class ProjectSkillController extends Controller
     {
         Gate::authorize('update', $project);
         Gate::authorize('view', $skill);
+        abort_unless($skill->organization_id === $project->organization_id, 404);
 
         $enabled = (bool) $request->validate(['enabled' => ['required', 'boolean']])['enabled'];
 
@@ -186,11 +187,11 @@ class ProjectSkillController extends Controller
         return $this->fromSandbox($project, function (Sandbox $sandbox) use ($request, $project, $skills, $path) {
             $skill = SkillPackage::fromFiles($skills->projectSkillFiles($sandbox, $path));
 
-            if ($problem = $this->nameTaken($request->user(), $skill['name'])) {
+            if ($problem = $this->nameTaken($request->user(), $project, $skill['name'])) {
                 throw new SkillException($problem);
             }
 
-            $request->user()->skills()->create([...$skill, 'source' => SkillSource::Project]);
+            $request->user()->skills()->create([...$skill, 'source' => SkillSource::Project, 'organization_id' => $project->organization_id]);
 
             return ['skills' => $this->skills($request->user(), $project)];
         });
@@ -204,13 +205,13 @@ class ProjectSkillController extends Controller
     protected function add(User $user, Project $project, array $attributes): JsonResponse
     {
         $problem = SkillDocument::problem($attributes['name'], $attributes['description'])
-            ?? $this->nameTaken($user, $attributes['name']);
+            ?? $this->nameTaken($user, $project, $attributes['name']);
 
         if ($problem) {
             return response()->json(['message' => $problem, 'errors' => ['name' => [$problem]]], 422);
         }
 
-        $skill = $user->skills()->create($attributes);
+        $skill = $user->skills()->create([...$attributes, 'organization_id' => $project->organization_id]);
 
         if (! $project->skills()->where('name', $skill->name)->exists()) {
             $project->skills()->attach($skill);
@@ -219,9 +220,9 @@ class ProjectSkillController extends Controller
         return response()->json(['skill' => $skill->id, 'skills' => $this->skills($user, $project)], 201);
     }
 
-    protected function nameTaken(User $user, string $name): ?string
+    protected function nameTaken(User $user, Project $project, string $name): ?string
     {
-        if (! $user->skills()->where('name', $name)->exists()) {
+        if (! $user->skills()->inOrganization($project->organization)->where('name', $name)->exists()) {
             return null;
         }
 
@@ -238,8 +239,7 @@ class ProjectSkillController extends Controller
         $enabled = $project->skills()->pluck('skills.id')->all();
 
         return array_values(Skill::query()
-            ->visibleTo($user)
-            ->orWhereIn('id', $enabled)
+            ->where(fn ($query) => $query->visibleTo($user, $project->organization)->orWhereIn('id', $enabled))
             ->with('user:id,name')
             ->orderBy('name')
             ->get()

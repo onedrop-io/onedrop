@@ -364,3 +364,49 @@ test('a GitHub App whose Callback URL is the login one still brings Tools → Gi
     $this->flushSession();
     $this->get('/login/github/callback?code=x&state=other')->assertNotFound();
 })->group('GIT-005');
+
+test('GitHub can be connected from the new-project page, which it comes back to with the import open', function () {
+    $this->get(route('github-app.install'))->assertRedirect('https://github.com/apps/onedrop-test/installations/new?state='.session('github_app.state'));
+    expect(session('github_app'))->toHaveKey('project', null);
+
+    Http::fake([
+        'github.com/login/oauth/access_token' => Http::response(['access_token' => 'ghu_new']),
+        'api.github.com/user' => Http::response(['login' => 'dev']),
+        'api.github.com/user/installations*' => Http::response(['installations' => [
+            ['id' => 777, 'account' => ['login' => 'dev', 'type' => 'User', 'avatar_url' => null], 'repository_selection' => 'all'],
+        ]]),
+    ]);
+
+    $this->withSession(['github_app' => ['state' => 'abc', 'project' => null]])
+        ->get(route('github-app.callback', ['state' => 'abc', 'code' => 'oauth-code']))
+        ->assertRedirect(route('dashboard'))
+        ->assertSessionHas('github_import', ['error' => null]);
+
+    expect(session('github_app'))->toBeNull()
+        ->and($this->user->githubInstallations()->pluck('installation_id')->all())->toBe([777]);
+})->group('PRJ-009');
+
+test('the new-project page offers the user\'s repositories to import, newest first, leaving out empty ones', function () {
+    ($this->github)([
+        'api.github.com/user/installations/888/repositories*' => Http::response(['repositories' => [
+            ($this->repository)('acme/site', ['pushed_at' => '2026-09-25T10:00:00Z', 'private' => false]),
+            ($this->repository)('acme/blank', ['size' => 0]),
+        ]]),
+    ]);
+
+    $this->getJson(route('github-app.repositories'))
+        ->assertOk()
+        ->assertExactJson(['repositories' => [
+            ['full_name' => 'acme/site', 'private' => false, 'html_url' => 'https://github.com/acme/site', 'pushed_at' => '2026-09-25T10:00:00Z'],
+            ['full_name' => 'dev/timer', 'private' => true, 'html_url' => 'https://github.com/dev/timer', 'pushed_at' => '2026-09-20T10:00:00Z'],
+            ['full_name' => 'dev/old-site', 'private' => true, 'html_url' => 'https://github.com/dev/old-site', 'pushed_at' => '2025-01-01T00:00:00Z'],
+        ]]);
+
+    config(['inertia.ssr.enabled' => false]);
+
+    $this->get(route('organizations.home', $this->user->currentOrganization()))
+        ->assertInertia(fn ($page) => $page
+            ->where('github.configured', true)
+            ->where('github.signed_in', true)
+            ->where('github.connect_url', route('github-app.install')));
+})->group('PRJ-009');

@@ -59,7 +59,7 @@ test('a message needs text or an attachment, and attachments have limits', funct
 ])->group('AGT-006');
 
 test('a new project can start from an attached mockup', function () {
-    $this->post(route('projects.store'), [
+    $this->post(route('projects.store', $this->user->currentOrganization()), [
         'prompt' => 'build this',
         'attachments' => [UploadedFile::fake()->image('mockup.png')],
     ])->assertRedirect();

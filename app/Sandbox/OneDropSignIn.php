@@ -83,15 +83,18 @@ class OneDropSignIn
     }
 
     /**
-     * Whether this person may sign in to the project's app: its owner, and everyone or the chosen groups.
+     * Whether this person may sign in to the project's app: people in its organization (never anyone else on the
+     * install, ORG-007), and of those its owner and everyone or the chosen groups.
      */
     public function allows(Project $project, User $user): bool
     {
         $groups = $project->onedrop_group_ids;
 
-        return $groups === null
+        return $user->belongsToOrganization($project->organization_id) && (
+            $groups === null
             || $user->id === $project->user_id
-            || $user->groups()->whereIn('groups.id', $groups)->exists();
+            || $user->groups()->inOrganization($project->organization)->whereIn('groups.id', $groups)->exists()
+        );
     }
 
     /**
@@ -137,30 +140,32 @@ class OneDropSignIn
     }
 
     /**
-     * The person an access token belongs to, while their app still has OneDrop sign-in and still lets them in.
+     * The app and person an access token belongs to, while the app still has OneDrop sign-in and still lets them in.
+     *
+     * @return array{project: Project, user: User}|null
      */
-    public function userForToken(string $token): ?User
+    public function grantForToken(string $token): ?array
     {
         $grant = Cache::get($this->key('token', $token));
         $project = is_array($grant) ? Project::query()->whereKey($grant['project'])->first() : null;
         $user = $project?->onedrop_enabled ? User::query()->whereKey($grant['user'])->first() : null;
 
-        return $user && $this->allows($project, $user) ? $user : null;
+        return $user && $this->allows($project, $user) ? ['project' => $project, 'user' => $user] : null;
     }
 
     /**
-     * Standard OpenID Connect claims for the app.
+     * Standard OpenID Connect claims for the app, with the person's groups in its organization.
      *
      * @return array{sub: string, name: string, email: string, email_verified: bool, groups: list<string>}
      */
-    public function claims(User $user): array
+    public function claims(User $user, Project $project): array
     {
         return [
             'sub' => (string) $user->id,
             'name' => $user->name,
             'email' => $user->email,
             'email_verified' => $user->email_verified_at !== null,
-            'groups' => array_values($user->groups()->orderBy('name')->get()->map(fn (Group $group): string => $group->name)->all()),
+            'groups' => array_values($user->groups()->inOrganization($project->organization)->orderBy('name')->get()->map(fn (Group $group): string => $group->name)->all()),
         ];
     }
 

@@ -1,4 +1,4 @@
-import { Form, Head, Link } from '@inertiajs/react';
+import { Form, Head, Link, setLayoutProps } from '@inertiajs/react';
 import { Check, Copy } from 'lucide-react';
 import InvitationController from '@/actions/App/Http/Controllers/InvitationController';
 import Heading from '@/components/heading';
@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useClipboard } from '@/hooks/use-clipboard';
+import { useOrganization } from '@/hooks/use-organization';
 import { index } from '@/routes/invitations';
 
 type InvitationRow = {
@@ -43,6 +44,13 @@ export default function Invitations({
     invitations: InvitationRow[];
 }) {
     const [copiedText, copy] = useClipboard();
+    const organization = useOrganization();
+
+    setLayoutProps({
+        breadcrumbs: [
+            { title: 'Invite people', href: index(organization.slug) },
+        ],
+    });
 
     return (
         <>
@@ -55,7 +63,7 @@ export default function Invitations({
                 />
 
                 <Form
-                    {...InvitationController.store.form()}
+                    {...InvitationController.store.form(organization.slug)}
                     resetOnSuccess
                     className="flex flex-wrap items-end gap-3"
                 >
@@ -145,7 +153,10 @@ export default function Invitations({
                                             </Button>
                                             <Link
                                                 href={InvitationController.destroy(
-                                                    invitation.id,
+                                                    [
+                                                        organization.slug,
+                                                        invitation.id,
+                                                    ],
                                                 )}
                                                 as="button"
                                                 preserveScroll
@@ -164,7 +175,3 @@ export default function Invitations({
         </>
     );
 }
-
-Invitations.layout = {
-    breadcrumbs: [{ title: 'Invite people', href: index() }],
-};

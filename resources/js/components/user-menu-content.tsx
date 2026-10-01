@@ -24,6 +24,7 @@ import { UserInfo } from '@/components/user-info';
 import type { Appearance } from '@/hooks/use-appearance';
 import { useAppearance } from '@/hooks/use-appearance';
 import { useMobileNavigation } from '@/hooks/use-mobile-navigation';
+import { useOrganization } from '@/hooks/use-organization';
 import { DOCUMENTATION_URL, REPOSITORY_URL } from '@/lib/links';
 import { logout } from '@/routes';
 import { index as invitationsIndex } from '@/routes/invitations';
@@ -43,6 +44,7 @@ const THEMES: { value: Appearance; label: string }[] = [
 
 export function UserMenuContent({ user }: Props) {
     const cleanup = useMobileNavigation();
+    const organization = useOrganization();
     const { appearance, updateAppearance } = useAppearance();
 
     const handleLogout = () => {
@@ -86,7 +88,7 @@ export function UserMenuContent({ user }: Props) {
                 <DropdownMenuItem asChild>
                     <Link
                         className="w-full cursor-pointer"
-                        href={invitationsIndex()}
+                        href={invitationsIndex(organization.slug)}
                         prefetch
                         onClick={cleanup}
                     >

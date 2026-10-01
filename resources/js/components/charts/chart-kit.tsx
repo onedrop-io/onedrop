@@ -159,15 +159,17 @@ export function DataTable({
     caption,
     columns,
     rows,
+    summary = 'Show data table',
 }: {
     caption: string;
+    summary?: string;
     columns: string[];
     rows: (string | number)[][];
 }) {
     return (
         <details className="mt-2 text-xs">
             <summary className="cursor-pointer text-muted-foreground select-none">
-                Show data table
+                {summary}
             </summary>
             <div className="mt-2 max-h-56 overflow-auto rounded-md border">
                 <table className="w-full text-left">

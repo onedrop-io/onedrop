@@ -8,6 +8,8 @@ export type Project = {
     autofix: boolean;
     /** The agent keeps what the user asks for, and why, in .onedrop/REQ.md (REQ-002). */
     track_requirements: boolean;
+    /** A message that failed because Claude Code wasn't signed in waits to run again (AI-005); workspace only. */
+    waiting_for_sign_in?: boolean;
 };
 
 export type ProjectSummary = Pick<Project, 'id' | 'name'>;
@@ -36,6 +38,8 @@ export type TaskDetail = Task & {
     /** Why the last merge failed. */
     sync_error: string | null;
     applied_at: string | null;
+    /** A message that failed because Claude Code wasn't signed in waits to run again (AI-005). */
+    waiting_for_sign_in: boolean;
 };
 
 /** A task as listed in the sidebar. */
@@ -93,10 +97,14 @@ export type SidebarProject = ProjectSummary & {
     tasks: SidebarTask[];
 };
 
+/** How the sidebar orders pinned and recent projects (PRJ-010). */
+export type ProjectSort = 'updated' | 'created' | 'manual';
+
 export type SidebarProjects = {
     pinned: SidebarProject[];
     recent: SidebarProject[];
     archived: SidebarProject[];
+    sort: ProjectSort;
 };
 
 export type MessageAttachment = {

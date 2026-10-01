@@ -16,7 +16,7 @@ test('describing an app creates a project and opens the chat + preview workspace
         ->fill('email', 'dev@example.com')
         ->fill('password', 'password')
         ->press('@login-button')
-        ->assertPathIs('/dashboard')
+        ->assertPathIs(orgPath())
         ->assertSee('Dev, what are we working on today?')
         ->fill('#composer-prompt', 'A time-off tracker for my team')
         ->press('@composer-send')

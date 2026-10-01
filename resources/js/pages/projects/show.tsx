@@ -518,6 +518,9 @@ function ChatPanel({
                         projectId={project.id}
                         taskId={task?.id ?? null}
                         working={working}
+                        waitingForSignIn={
+                            (task ?? project).waiting_for_sign_in ?? false
+                        }
                         onSignIn={claudeSignIn}
                     />
                 )}

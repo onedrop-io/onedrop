@@ -5,10 +5,10 @@ description: 'Organize people into groups and manage admin access.'
 
 ## Groups
 
-Open **Groups** in [Settings](/guides/settings) to see the groups you belong to.
+Open **Groups** in [Settings](/guides/settings) to see the groups you belong to in your current [organization](/guides/organizations). Each group belongs to one organization.
 
 - Anyone can create a group and becomes its owner
-- Owners can add existing users by email, change roles between owner and member, remove members, rename the group, and delete it
+- Owners can add people from the same organization by email, change roles between owner and member, remove members, rename the group, and delete it
 - Members can leave a group
 - A group always keeps at least one owner
 
@@ -17,8 +17,12 @@ Open **Groups** in [Settings](/guides/settings) to see the groups you belong to.
 Admins see **Users** under **Admin** in [Settings](/guides/settings). From there they can:
 
 - See every user and how many groups they're in
+- Click a user to see everything about them: their account (last sign-in and how, who invited them, verification, password, two-factor, passkeys), organizations, groups, projects with their sandboxes and any sandbox, publish or git errors, AI connections, sign-in providers, GitHub, invites they sent, agent skills, SSH keys, and recent sessions. Secrets such as AI keys are never shown.
+- See a user's AI usage: all-time cost and tokens, a daily cost chart for the past 30 days, and which models and projects it went to
+- **Sign out everywhere** to end every session a user has, or **Reset two-factor** for someone who lost their device. Neither works on your own account; use Security settings for that.
+- **Impersonate** a user to see the app as they do. A banner at the bottom of every page shows who you're signed in as, with **Stop impersonating** to go back to your own account. You can't impersonate yourself or another admin, and while impersonating you can't change the user's profile, password, two-factor, passkeys or sign-in providers, or delete their account. Each impersonation (who, from which IP, when it started and stopped) is listed on the user's page.
 - Grant or revoke admin access for other users (not themselves)
 
-Admins can also see and manage every group, project, and invite, and change install-wide settings. See [Administer OneDrop](/self-hosting/administration).
+On a self-hosted install, admins also run its one [organization](/guides/organizations): they can see and manage every group, project, and invite in it. They change install-wide settings too. See [Administer OneDrop](/self-hosting/administration).
 
 The seeded dev user (`dev@example.com`) is an admin.

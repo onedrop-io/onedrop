@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\AgentConnection;
+use App\Models\Organization;
 use App\Models\Project;
 use App\Models\User;
 
@@ -15,7 +16,7 @@ test('search finds the user\'s projects by name, case-insensitively, newest firs
     Project::factory()->create(['name' => 'Someone else\'s todo']);
 
     $this->actingAs($this->user)
-        ->getJson(route('projects.search', ['q' => 'TODO']))
+        ->getJson(route('projects.search', [Organization::install(), 'q' => 'TODO']))
         ->assertOk()
         ->assertJsonPath('projects.*.name', ['Old todos', 'Todo App'])
         ->assertJsonPath('projects.0', ['id' => $archived->id, 'name' => 'Old todos', 'archived' => true]);
@@ -26,11 +27,11 @@ test('an empty search lists the user\'s most recent projects', function () {
     Project::factory()->create();
 
     $this->actingAs($this->user)
-        ->getJson(route('projects.search'))
+        ->getJson(route('projects.search', Organization::install()))
         ->assertOk()
         ->assertJsonCount(20, 'projects');
 })->group('PRJ-005');
 
 test('guests cannot search projects', function () {
-    $this->getJson(route('projects.search', ['q' => 'todo']))->assertUnauthorized();
+    $this->getJson(route('projects.search', [Organization::install(), 'q' => 'todo']))->assertUnauthorized();
 })->group('PRJ-005');

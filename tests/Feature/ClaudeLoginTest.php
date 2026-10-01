@@ -132,6 +132,15 @@ test('the workspace offers Claude Code\'s own sign-in in the Shell tab', functio
     'runtime, whose address carries its token' => ['https://7681-abc.runtimehost.com/?runtime_preview_token=t', 'https://7681-abc.runtimehost.com/?runtime_preview_token=t&arg=claude-login'],
 ])->group('AI-005');
 
+test('the workspace tells the chat when a message is waiting for a Claude sign-in', function (bool $waiting) {
+    $message = $this->project->messages()->create(['role' => MessageRole::User, 'content' => 'Build a timer']);
+    $this->project->update(['sign_in_retry_message_id' => $waiting ? $message->id : null]);
+
+    $this->actingAs($this->user)
+        ->get(route('projects.show', $this->project))
+        ->assertInertia(fn ($page) => $page->where('project.waiting_for_sign_in', $waiting));
+})->with(['waiting' => true, 'not waiting' => false])->group('AI-005');
+
 test('signing out logs Claude Code out in the user\'s running sandboxes and deletes their sign-in folder', function () {
     $root = storageRoot();
     config(['sandbox.providers.docker.storage_path' => $root]);

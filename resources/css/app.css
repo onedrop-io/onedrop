@@ -203,6 +203,13 @@
     --viz-grid: #e1e0d9;
     --viz-axis: #c3c2b7;
     --viz-muted: #898781;
+    /* Sequential blue, fewest to most (maps), and land with no data. */
+    --viz-seq-1: #b7d3f6;
+    --viz-seq-2: #86b6ef;
+    --viz-seq-3: #5598e7;
+    --viz-seq-4: #2a78d6;
+    --viz-seq-5: #184f95;
+    --viz-land: #e8e7e1;
     --background: oklch(1 0 0);
     --foreground: oklch(0.145 0 0);
     --card: oklch(1 0 0);
@@ -246,6 +253,12 @@
     --viz-grid: #2c2c2a;
     --viz-axis: #383835;
     --viz-muted: #898781;
+    --viz-seq-1: #1c5cab;
+    --viz-seq-2: #2a78d6;
+    --viz-seq-3: #5598e7;
+    --viz-seq-4: #86b6ef;
+    --viz-seq-5: #b7d3f6;
+    --viz-land: #383835;
     --background: oklch(0.145 0 0);
     --foreground: oklch(0.985 0 0);
     --card: oklch(0.145 0 0);

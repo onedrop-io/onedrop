@@ -103,13 +103,13 @@ test('others can\'t listen on a project\'s channel', function () {
 test('pages learn where to connect at runtime, or that there are no live updates', function () {
     $user = User::factory()->has(AgentConnection::factory())->create();
 
-    $this->actingAs($user)->get(route('dashboard'))
+    $this->actingAs($user)->followingRedirects()->get(route('dashboard'))
         ->assertInertia(fn ($page) => $page->where('realtime', null));
 
     // Servers: browsers come in on the app's own address.
     useReverb(['host' => '', 'port' => 443, 'scheme' => 'https']);
 
-    $this->actingAs($user)->get(route('dashboard'))
+    $this->actingAs($user)->followingRedirects()->get(route('dashboard'))
         ->assertInertia(fn ($page) => $page->where('realtime', ['key' => 'test-key', 'host' => null, 'port' => 443, 'scheme' => 'https']));
 })->group('LIVE-001');
 

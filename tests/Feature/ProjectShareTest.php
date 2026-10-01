@@ -318,11 +318,11 @@ test('a visitor who remixes signs up, then gets the prompt on the new-project pa
 
     $visitor = User::factory()->has(AgentConnection::factory())->create();
 
-    $this->actingAs($visitor)->get(route('dashboard'))
+    $this->actingAs($visitor)->followingRedirects()->get(route('dashboard'))
         ->assertInertia(fn ($page) => $page->where('remix', ['name' => 'Team CRM', 'prompt' => 'Remix me']));
 
     // Only once: the next visit starts empty.
-    $this->actingAs($visitor)->get(route('dashboard'))
+    $this->actingAs($visitor)->followingRedirects()->get(route('dashboard'))
         ->assertInertia(fn ($page) => $page->where('remix', null));
 })->group('SHARE-002');
 
@@ -332,6 +332,6 @@ test('a signed-in user who remixes goes straight to the new-project page', funct
 
     $this->actingAs($visitor)->post(route('shares.remix', $share))->assertRedirect(route('dashboard'));
 
-    $this->actingAs($visitor)->get(route('dashboard'))
+    $this->actingAs($visitor)->followingRedirects()->get(route('dashboard'))
         ->assertInertia(fn ($page) => $page->where('remix.prompt', 'Remix me'));
 })->group('SHARE-002');

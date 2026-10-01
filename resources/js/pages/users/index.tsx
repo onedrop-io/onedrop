@@ -2,7 +2,7 @@ import { Head, Link, usePage } from '@inertiajs/react';
 import UserController from '@/actions/App/Http/Controllers/UserController';
 import Heading from '@/components/heading';
 import { Badge } from '@/components/ui/badge';
-import { index } from '@/routes/users';
+import { index, show } from '@/routes/users';
 
 type UserRow = {
     id: number;
@@ -38,7 +38,12 @@ export default function UsersIndex({ users }: { users: UserRow[] }) {
                             {users.map((user) => (
                                 <tr key={user.id}>
                                     <td className="p-3 font-medium">
-                                        {user.name}
+                                        <Link
+                                            href={show(user.id)}
+                                            className="underline-offset-4 hover:underline"
+                                        >
+                                            {user.name}
+                                        </Link>
                                     </td>
                                     <td className="p-3">{user.email}</td>
                                     <td className="p-3">{user.groups_count}</td>

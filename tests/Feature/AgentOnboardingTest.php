@@ -12,7 +12,7 @@ test('users without an AI are sent to onboarding', function () {
 
 test('users with an AI can reach the dashboard', function () {
     $this->actingAs(User::factory()->has(AgentConnection::factory())->create())
-        ->get(route('dashboard'))
+        ->followingRedirects()->get(route('dashboard'))
         ->assertOk();
 })->group('AI-001');
 

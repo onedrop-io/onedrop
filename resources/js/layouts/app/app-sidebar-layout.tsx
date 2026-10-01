@@ -4,6 +4,7 @@ import { AppContent } from '@/components/app-content';
 import { AppShell } from '@/components/app-shell';
 import { AppSidebar } from '@/components/app-sidebar';
 import { AppSidebarHeader } from '@/components/app-sidebar-header';
+import ImpersonationBanner from '@/components/impersonation-banner';
 import { isSettingsPage, rememberSettingsReturnUrl } from '@/lib/settings';
 import type { AppLayoutProps } from '@/types';
 
@@ -26,6 +27,7 @@ export default function AppSidebarLayout({
                 <AppSidebarHeader breadcrumbs={breadcrumbs} />
                 {children}
             </AppContent>
+            <ImpersonationBanner />
         </AppShell>
     );
 }

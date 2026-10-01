@@ -29,6 +29,8 @@ export default function PromptComposer({
     value,
     onValueChange,
     footer,
+    header,
+    allowEmpty = false,
     autoFocus = false,
     size = 'default',
     disabled = false,
@@ -46,6 +48,10 @@ export default function PromptComposer({
     value?: string;
     onValueChange?: (value: string) => void;
     footer?: React.ReactNode;
+    /** Shown above the text (e.g. the repository to import). */
+    header?: React.ReactNode;
+    /** Allow sending with no text (e.g. importing a repository, where the prompt is optional). */
+    allowEmpty?: boolean;
     autoFocus?: boolean;
     size?: 'default' | 'large';
     /** Block sending (typing is still allowed). */
@@ -76,7 +82,7 @@ export default function PromptComposer({
     const [picked, setPicked] = useState<PickedFile[]>([]);
     const [attachError, setAttachError] = useState<string | null>(null);
     const [dragging, setDragging] = useState(false);
-    const canSend = text.trim() !== '' || picked.length > 0;
+    const canSend = allowEmpty || text.trim() !== '' || picked.length > 0;
 
     const addFiles = (files: File[]) => {
         const tooBig = files.filter((file) => file.size > MAX_ATTACHMENT_BYTES);
@@ -266,6 +272,7 @@ export default function PromptComposer({
                     className="px-4 pt-4"
                 />
             )}
+            {header}
             <label htmlFor={`composer-${field}`} className="sr-only">
                 {placeholder}
             </label>
@@ -367,12 +374,12 @@ export default function PromptComposer({
             </div>
             {(form.errors[field] ||
                 attachError ||
-                attachmentErrors(form.errors)) && (
+                otherErrors(form.errors)) && (
                 <InputError
                     message={
                         form.errors[field] ??
                         attachError ??
-                        attachmentErrors(form.errors)
+                        otherErrors(form.errors)
                     }
                     className="px-4 pb-3"
                 />
@@ -381,9 +388,7 @@ export default function PromptComposer({
     );
 }
 
-/** The first server error about the attachments (`attachments` or `attachments.N`). */
-function attachmentErrors(errors: Record<string, string>): string | undefined {
-    return Object.entries(errors).find(([key]) =>
-        key.startsWith('attachments'),
-    )?.[1];
+/** The first server error about anything else sent (`attachments.N`, or extra data like `repository`). */
+function otherErrors(errors: Record<string, string>): string | undefined {
+    return Object.values(errors)[0];
 }

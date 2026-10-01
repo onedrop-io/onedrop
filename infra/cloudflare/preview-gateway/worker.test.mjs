@@ -4,6 +4,7 @@ import test from 'node:test';
 import worker, {
     pointAtGateway,
     readCookie,
+    setLocation,
     withoutCookie,
     withoutFrameBlock,
 } from './worker.js';
@@ -106,6 +107,29 @@ test('the gateway cookie is read, and kept from the app in the sandbox', () => {
         'a=1; b=2',
     );
     assert.equal(withoutCookie('onedrop_gateway=abc', 'onedrop_gateway'), '');
+});
+
+test("the visitor's location comes from Cloudflare, never from the browser", () => {
+    const headers = new Headers({
+        'X-OneDrop-Geo-City': 'Faked',
+        'X-OneDrop-Geo-Region': 'Faked',
+    });
+
+    setLocation(headers, {
+        country: 'CA',
+        city: 'Montréal',
+        latitude: '45.50884',
+        longitude: '-73.58781',
+    });
+
+    assert.equal(headers.get('X-OneDrop-Geo-Country'), 'CA');
+    assert.equal(headers.get('X-OneDrop-Geo-City'), 'Montr%C3%A9al');
+    assert.equal(headers.get('X-OneDrop-Geo-Latitude'), '45.50884');
+    assert.equal(headers.get('X-OneDrop-Geo-Longitude'), '-73.58781');
+    assert.equal(headers.get('X-OneDrop-Geo-Region'), null);
+
+    setLocation(headers, undefined);
+    assert.equal(headers.get('X-OneDrop-Geo-Country'), null);
 });
 
 test("the app's own gateway pages can be shown in the workspace frame", () => {

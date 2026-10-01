@@ -131,6 +131,8 @@ async function forward(request, url, { upstream, header, token }) {
         headers.set(header, token);
     }
 
+    setLocation(headers, request.cf);
+
     const init = { method: request.method, headers, redirect: 'manual' };
 
     if (!['GET', 'HEAD'].includes(request.method)) {
@@ -145,6 +147,32 @@ async function forward(request, url, { upstream, header, token }) {
     const response = await fetch(target, init);
 
     return pointAtGateway(response, new URL(upstream).host, url.host);
+}
+
+/**
+ * Where the visitor is, from Cloudflare's own lookup, for the app's Growth analytics (the sandbox's proxy logs
+ * it). Whatever the browser sent under these names is dropped, so visitors can't place themselves.
+ */
+export function setLocation(headers, cf) {
+    const values = {
+        country: cf?.country,
+        region: cf?.region,
+        city: cf?.city,
+        latitude: cf?.latitude,
+        longitude: cf?.longitude,
+    };
+
+    for (const [name, value] of Object.entries(values)) {
+        headers.delete(`X-OneDrop-Geo-${name}`);
+
+        if (value !== undefined && value !== null && value !== '') {
+            // Header values are ASCII: names like Montréal are sent URL-encoded.
+            headers.set(
+                `X-OneDrop-Geo-${name}`,
+                encodeURIComponent(String(value)),
+            );
+        }
+    }
 }
 
 /**

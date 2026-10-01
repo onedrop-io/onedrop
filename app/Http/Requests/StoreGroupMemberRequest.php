@@ -32,26 +32,16 @@ class StoreGroupMemberRequest extends FormRequest
             'email' => [
                 'required',
                 'email',
-                Rule::exists('users', 'email'),
                 function (string $attribute, mixed $value, \Closure $fail) use ($group): void {
-                    if ($group->members()->where('email', $value)->exists()) {
+                    if (! $group->organization->members()->where('email', $value)->exists()) {
+                        // Said the same whether or not they're on the install, so other organizations' people stay private.
+                        $fail(__('No one in this organization has that email address.'));
+                    } elseif ($group->members()->where('email', $value)->exists()) {
                         $fail(__('That user is already a member of this group.'));
                     }
                 },
             ],
             'role' => ['required', Rule::enum(GroupRole::class)],
-        ];
-    }
-
-    /**
-     * Get custom messages for validator errors.
-     *
-     * @return array<string, string>
-     */
-    public function messages(): array
-    {
-        return [
-            'email.exists' => __('No user has that email address.'),
         ];
     }
 }

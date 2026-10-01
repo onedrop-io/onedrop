@@ -1,0 +1,50 @@
+---
+title: 'Organizations'
+description: 'How OneDrop keeps each company’s projects, groups, invites and skills apart.'
+---
+
+An organization is the boundary between companies. Its projects, groups, invites and shared skills are only seen by the people in it. Your profile, sign-in methods, SSH keys and AI connections belong to you and come with you to every organization you're in.
+
+## Your own install
+
+A self-hosted OneDrop has one organization, named after the install. Everyone who signs up joins it, and the first account owns it. Admins run it, so nothing changes for a single company.
+
+## The hosted install
+
+On the hosted OneDrop each company has its own organization:
+
+- Signing up gives you a new organization that you own, named after you.
+- Signing up through an [invite](/guides/invite-people) puts you in the inviter's organization instead.
+- You can belong to more than one organization.
+
+## Which organization you're in
+
+The address says which organization a page belongs to:
+
+| Address                                     | Organization                         |
+| ------------------------------------------- | ------------------------------------ |
+| `/o/<slug>`                                 | That organization's new-project page |
+| `/o/<slug>/groups`, `/o/<slug>/invitations` | Its groups and invites               |
+| `/projects/<id>`                            | The project's organization           |
+
+The sidebar lists the projects of the organization you're in, and new projects go into it. Opening an organization's page or one of its projects makes it your current organization, so signing in takes you back there. Two browser tabs can be in two different organizations.
+
+## What stays inside an organization
+
+- **Projects.** Only their owner and the organization's owners and admins can open them. If you leave an organization, you lose access to the projects you made there; they stay with the organization.
+- **Groups.** You can only add people from the same organization.
+- **Shared skills.** [Sharing a skill](/guides/agent-skills) shares it with everyone in its organization.
+- **Sign in with OneDrop.** [Your app's OneDrop sign-in](/guides/users-and-auth) only lets in people from the project's organization.
+- **Private apps.** An app [published](/guides/publish) as Private on your domain opens for people in the project's organization.
+
+Anything from another organization shows as not found, so nobody can tell whether it exists.
+
+## Roles
+
+| Role       | Can                                                                 |
+| ---------- | ------------------------------------------------------------------- |
+| **Owner**  | Everything an admin can                                             |
+| **Admin**  | Open and manage every project, group and invite in the organization |
+| **Member** | Work on their own projects and join groups                          |
+
+Platform admins run the install itself (see [Administer OneDrop](/self-hosting/administration)). On the hosted install that doesn't give them access to a company's projects.

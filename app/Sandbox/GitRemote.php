@@ -127,6 +127,20 @@ class GitRemote
     }
 
     /**
+     * The default branch of a repository anyone can read (no token), checked before importing it into a new project;
+     * null when it has no commits yet.
+     *
+     * @throws GitException when it can't be reached
+     */
+    public function defaultBranch(string $url): ?string
+    {
+        // A project that isn't saved has no token or installation, so the remote is asked anonymously.
+        $output = $this->run(new Project(['git_remote_url' => $url]), ['git', 'ls-remote', '--symref', $url, 'HEAD'], sys_get_temp_dir(), remote: true);
+
+        return preg_match('#^ref: refs/heads/(\S+)\s+HEAD#m', $output, $match) ? $match[1] : null;
+    }
+
+    /**
      * Make a new private (or public) repository on the token owner's GitHub account and return its HTTPS URL.
      *
      * @throws GitException

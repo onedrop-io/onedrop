@@ -56,9 +56,14 @@ trait RendersWorkspace
         $queued = $newTask ? collect() : $conversation->queuedMessages()->with('attachments')->get();
 
         return Inertia::render('projects/show', [
-            'project' => $project->only('id', 'name', 'status', 'autofix', 'track_requirements'),
+            'project' => [
+                ...$project->only('id', 'name', 'status', 'autofix', 'track_requirements'),
+                // A message that failed because Claude Code wasn't signed in, waiting to run again (AI-005).
+                'waiting_for_sign_in' => $project->sign_in_retry_message_id !== null,
+            ],
             'task' => $task ? [
                 ...$task->only('id', 'title', 'description', 'stage', 'status', 'sync_status', 'sync_error'),
+                'waiting_for_sign_in' => $task->sign_in_retry_message_id !== null,
                 'own_copy' => Task::getsCopies(),
                 'has_copy' => $sandbox !== null,
                 'applied_at' => $task->applied_at?->toIso8601String(),

@@ -12,7 +12,7 @@ test('the dev user sees the OneDrop name and links after logging in', function (
         ->fill('email', 'dev@example.com')
         ->fill('password', 'password')
         ->press('@login-button')
-        ->assertPathIs('/dashboard')
+        ->assertPathIs(orgPath())
         ->assertTitleContains('OneDrop')
         ->assertSee('OneDrop')
         ->assertDontSee('Laravel')

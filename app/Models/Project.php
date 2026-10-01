@@ -2,10 +2,12 @@
 
 namespace App\Models;
 
+use App\Concerns\BelongsToOrganization;
 use App\Concerns\BroadcastsProjectChanges;
 use App\Enums\AgentHarness;
 use App\Enums\AgentProvider;
 use App\Enums\GitSyncStatus;
+use App\Enums\ProjectSort;
 use App\Enums\ProjectStatus;
 use App\Enums\PublishStatus;
 use App\Enums\PublishTarget;
@@ -15,6 +17,7 @@ use App\Sandbox\Agents\Conversation;
 use Database\Factories\ProjectFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -26,6 +29,7 @@ use Illuminate\Support\Str;
 
 /**
  * @property int $id
+ * @property int $organization_id
  * @property int $user_id
  * @property string $name
  * @property string $prompt
@@ -53,6 +57,7 @@ use Illuminate\Support\Str;
  * @property Carbon|null $pinned_at
  * @property Carbon|null $read_at
  * @property Carbon|null $archived_at
+ * @property int|null $sidebar_position Where the owner dragged it in the sidebar (PRJ-010); null until they do
  * @property string|null $backup_commit
  * @property Carbon|null $backed_up_at
  * @property Carbon|null $created_at
@@ -70,14 +75,14 @@ use Illuminate\Support\Str;
  * @property-read string|null $last_reply_at When the agent last replied (loaded with withMax, for the sidebar).
  * @property-read bool|null $task_working Whether any of its tasks' agents is running (loaded with withExists, for the sidebar).
  */
-#[Fillable(['name', 'prompt', 'status', 'agent_session_id', 'sign_in_retry_message_id', 'agent_harness', 'agent_provider', 'agent_model', 'agent_variant', 'publish_status', 'publish_visibility', 'publish_target', 'published_url', 'published_at', 'published_by', 'publish_error', 'publish_login_url', 'publish_waiting_for', 'onedrop_enabled', 'onedrop_client_id', 'onedrop_client_secret', 'onedrop_callback_path', 'onedrop_group_ids', 'pinned_at', 'read_at', 'archived_at', 'backup_commit', 'backed_up_at', 'icon_path', 'icon_mime', 'icon_hash', 'git_remote_url', 'git_remote_username', 'git_remote_token', 'git_sync_status', 'git_sync_error', 'git_synced_at', 'github_installation_id', 'autofix', 'track_requirements'])]
+#[Fillable(['organization_id', 'name', 'prompt', 'status', 'agent_session_id', 'sign_in_retry_message_id', 'agent_harness', 'agent_provider', 'agent_model', 'agent_variant', 'publish_status', 'publish_visibility', 'publish_target', 'published_url', 'published_at', 'published_by', 'publish_error', 'publish_login_url', 'publish_waiting_for', 'onedrop_enabled', 'onedrop_client_id', 'onedrop_client_secret', 'onedrop_callback_path', 'onedrop_group_ids', 'pinned_at', 'read_at', 'archived_at', 'sidebar_position', 'backup_commit', 'backed_up_at', 'icon_path', 'icon_mime', 'icon_hash', 'git_remote_url', 'git_remote_username', 'git_remote_token', 'git_sync_status', 'git_sync_error', 'git_synced_at', 'github_installation_id', 'autofix', 'track_requirements'])]
 #[Hidden(['onedrop_client_secret', 'git_remote_token'])]
 class Project extends Model implements Conversation
 {
-    use BroadcastsProjectChanges;
-
     /** @use HasFactory<ProjectFactory> */
-    use HasFactory;
+    use BelongsToOrganization, HasFactory;
+
+    use BroadcastsProjectChanges;
 
     /**
      * Errors the preview shows after a turn go back to the agent unless turned off (ERR-001), and the agent
@@ -86,6 +91,23 @@ class Project extends Model implements Conversation
      * @var array<string, mixed>
      */
     protected $attributes = ['autofix' => true, 'track_requirements' => true];
+
+    /**
+     * Order projects the way the sidebar lists them (PRJ-010). Ties go to the newest.
+     *
+     * @param  Builder<static>  $query
+     */
+    public function scopeSortedBy(Builder $query, ProjectSort $sort): void
+    {
+        match ($sort) {
+            ProjectSort::Updated => $query->latest('updated_at'),
+            ProjectSort::Created => $query->latest('created_at'),
+            // Projects not placed yet (new ones) come first, the same way in SQLite and Postgres.
+            ProjectSort::Manual => $query->orderByRaw('case when sidebar_position is null then 0 else 1 end')->orderBy('sidebar_position')->latest('created_at'),
+        };
+
+        $query->latest('id');
+    }
 
     /**
      * Get the attributes that should be cast.
@@ -136,6 +158,14 @@ class Project extends Model implements Conversation
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * A new project goes in its owner's current organization, unless the code creating it says otherwise.
+     */
+    protected function defaultOrganization(): ?Organization
+    {
+        return $this->user?->currentOrganization();
     }
 
     /**

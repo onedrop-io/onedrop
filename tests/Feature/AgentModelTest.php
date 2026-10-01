@@ -100,7 +100,7 @@ test('the picker lists recently chosen models, newest first', function () {
 test('starting a project with a model remembers it as recent', function () {
     Queue::fake();
 
-    $this->actingAs($this->user)->post(route('projects.store'), ['prompt' => 'A todo app', 'agent_provider' => 'openrouter', 'agent_model' => 'anthropic/claude-sonnet-5']);
+    $this->actingAs($this->user)->post(route('projects.store', $this->user->currentOrganization()), ['prompt' => 'A todo app', 'agent_provider' => 'openrouter', 'agent_model' => 'anthropic/claude-sonnet-5']);
 
     expect($this->user->fresh()->recent_models)->toBe(['openrouter:anthropic/claude-sonnet-5']);
 })->group('AGT-002');
@@ -158,7 +158,7 @@ test('only the owner can change the model', function () {
 test('a model can be picked when starting a project', function () {
     Queue::fake();
 
-    $this->actingAs($this->user)->post(route('projects.store'), [
+    $this->actingAs($this->user)->post(route('projects.store', $this->user->currentOrganization()), [
         'prompt' => 'a timer',
         'agent_provider' => 'claude',
         'agent_model' => 'claude-opus-5-5',

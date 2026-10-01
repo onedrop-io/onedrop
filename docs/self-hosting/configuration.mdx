@@ -78,6 +78,7 @@ These are the defaults for new projects; users can pick any other model in the c
 | Variable            | Default | Description                                                                                   |
 | ------------------- | ------- | --------------------------------------------------------------------------------------------- |
 | `AUTH_VERIFY_EMAIL` | `true` (`false` when `APP_ENV=local`) | Require new accounts to verify their email. Set to `false` on servers without outgoing email. |
+| `APP_MULTI_TENANT` | `false` | Serve many [organizations](/guides/organizations), as the hosted OneDrop does: signing up without an invite makes a new organization. Leave it off for your own install, where everyone joins its one organization. |
 
 Make a user an admin with `php artisan onedrop:admin you@example.com`.
 

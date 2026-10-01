@@ -14,7 +14,7 @@ test('the dev user opens settings from the user menu, moves between sections, an
         ->fill('email', 'dev@example.com')
         ->fill('password', 'password')
         ->press('@login-button')
-        ->assertPathIs('/dashboard')
+        ->assertPathIs(orgPath())
         ->assertDontSee('Invite people')
         ->click('@sidebar-menu-button')
         ->assertSee('Invite people')
@@ -25,10 +25,10 @@ test('the dev user opens settings from the user menu, moves between sections, an
         ->assertSeeIn('@settings-modal', 'Users');
 
     $page->click('[data-test="settings-modal"] a:has-text("Invite people")')
-        ->assertPathIs('/invitations')
+        ->assertPathIs(orgPath('/invitations'))
         ->assertSeeIn('@settings-modal', 'Create invite link')
         ->keys('@settings-modal', 'Escape')
-        ->assertPathIs('/dashboard')
+        ->assertPathIs(orgPath())
         ->assertMissing('@settings-modal')
         ->assertNoJavaScriptErrors();
 })->group('SET-001');

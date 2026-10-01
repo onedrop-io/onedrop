@@ -25,7 +25,7 @@ test('the dev user logs in, chooses their Claude subscription, and lands on the 
         ->assertSee('Use an Anthropic API key instead');
 
     $page->press('@use-claude-subscription')
-        ->assertPathIs('/dashboard')
+        ->assertPathIs(orgPath())
         ->assertSee('Claude subscription added.')
         ->assertSee('Dev, what are we working on today?')
         ->assertNoJavaScriptErrors();
@@ -55,7 +55,7 @@ test('the dev user signs in with ChatGPT and lands on the new-project prompt', f
         ->assertSee('WXYZ-9876')
         ->assertSee('auth.openai.com/codex/device');
 
-    $page->assertPathIs('/dashboard')
+    $page->assertPathIs(orgPath())
         ->assertSee('ChatGPT connected.')
         ->assertSee('Dev, what are we working on today?')
         ->assertNoJavaScriptErrors();
@@ -79,7 +79,7 @@ test('the dev user can go back and pick a different AI, or paste a Claude API ke
         ->click('@switch-method-claude')
         ->fill('#credential-claude', 'sk-ant-api03-browser-test-key-abcd')
         ->press('@connect-claude')
-        ->assertPathIs('/dashboard')
+        ->assertPathIs(orgPath())
         ->assertNoJavaScriptErrors();
 })->group('AI-001');
 
@@ -94,7 +94,7 @@ test('the dev user picks Ollama and connects it with an Ollama Cloud key', funct
         ->click('@choose-ollama')
         ->fill('#credential-ollama', 'ollama-browser-test-key')
         ->press('@connect-ollama')
-        ->assertPathIs('/dashboard')
+        ->assertPathIs(orgPath())
         ->assertSee('Ollama connected.')
         ->assertNoJavaScriptErrors();
 })->group('AI-001', 'AI-006');
@@ -112,7 +112,7 @@ test('the dev user connects their own Ollama server by URL', function () {
         ->fill('#ollama-url', 'http://8.8.8.8:11434')
         ->fill('#ollama-key', 'server-key-1234')
         ->press('@connect-ollama-server')
-        ->assertPathIs('/dashboard')
+        ->assertPathIs(orgPath())
         ->assertSee('Ollama server connected.')
         ->assertNoJavaScriptErrors();
 })->group('AI-001', 'AI-006');
@@ -129,7 +129,7 @@ test('the Codex card still takes a pasted OpenAI API key', function () {
         ->click('@switch-method-codex')
         ->fill('#credential-codex', 'sk-proj-browser-test-key-abcd')
         ->press('@connect-codex')
-        ->assertPathIs('/dashboard')
+        ->assertPathIs(orgPath())
         ->assertSee('Codex connected.')
         ->assertNoJavaScriptErrors();
 })->group('AI-003');

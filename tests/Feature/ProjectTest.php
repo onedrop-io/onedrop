@@ -18,7 +18,7 @@ beforeEach(function () {
 
 test('the new-project prompt shows the default AI', function () {
     $this->actingAs($this->user)
-        ->get(route('dashboard'))
+        ->followingRedirects()->get(route('dashboard'))
         ->assertInertia(fn ($page) => $page
             ->component('projects/create')
             ->where('defaultAi', 'Claude'));
@@ -27,7 +27,7 @@ test('the new-project prompt shows the default AI', function () {
 test('submitting a description creates a named project and starts the agent', function () {
     Queue::fake();
 
-    $response = $this->actingAs($this->user)->post(route('projects.store'), [
+    $response = $this->actingAs($this->user)->post(route('projects.store', $this->user->currentOrganization()), [
         'prompt' => 'time-off tracker for my team, with approvals and a calendar',
     ]);
 
@@ -44,7 +44,7 @@ test('submitting a description creates a named project and starts the agent', fu
 })->group('PRJ-001');
 
 test('creating a project starts its sandbox', function () {
-    $this->actingAs($this->user)->post(route('projects.store'), ['prompt' => 'a todo app']);
+    $this->actingAs($this->user)->post(route('projects.store', $this->user->currentOrganization()), ['prompt' => 'a todo app']);
 
     $sandbox = $this->user->projects()->sole()->sandbox;
 
@@ -55,7 +55,7 @@ test('creating a project starts its sandbox', function () {
 
 test('a description is required', function () {
     $this->actingAs($this->user)
-        ->post(route('projects.store'), ['prompt' => ''])
+        ->post(route('projects.store', $this->user->currentOrganization()), ['prompt' => ''])
         ->assertSessionHasErrors(['prompt' => 'Describe what you want to build.']);
 
     expect(Project::count())->toBe(0);
@@ -63,14 +63,14 @@ test('a description is required', function () {
 
 test('users without an AI cannot create projects', function () {
     $this->actingAs(User::factory()->create())
-        ->post(route('projects.store'), ['prompt' => 'anything'])
+        ->post(route('projects.store', $this->user->currentOrganization()), ['prompt' => 'anything'])
         ->assertRedirect(route('onboarding.ai'));
 
     expect(Project::count())->toBe(0);
 })->group('PRJ-001');
 
 test('the placeholder agent replies, names the AI, and finishes', function () {
-    $this->actingAs($this->user)->post(route('projects.store'), ['prompt' => 'a vacation calendar']);
+    $this->actingAs($this->user)->post(route('projects.store', $this->user->currentOrganization()), ['prompt' => 'a vacation calendar']);
 
     $project = $this->user->projects()->sole();
     $messages = $project->messages;
@@ -87,7 +87,7 @@ test('the placeholder agent uses the default connection', function () {
     $this->user->agentConnections()->update(['is_default' => false]);
     $this->user->agentConnections()->where('provider', 'codex')->update(['is_default' => true]);
 
-    $this->actingAs($this->user)->post(route('projects.store'), ['prompt' => 'a CRM']);
+    $this->actingAs($this->user)->post(route('projects.store', $this->user->currentOrganization()), ['prompt' => 'a CRM']);
 
     expect($this->user->projects()->sole()->messages[2]->content)->toContain('using Codex');
 })->group('PRJ-002');
@@ -164,7 +164,7 @@ test('recent projects are shared with the sidebar', function () {
     Project::factory()->create(['name' => 'Someone else']);
 
     $this->actingAs($this->user)
-        ->get(route('dashboard'))
+        ->followingRedirects()->get(route('dashboard'))
         ->assertInertia(fn ($page) => $page
             ->has('sidebarProjects.recent', 1)
             ->where('sidebarProjects.recent.0.name', 'Mine'));

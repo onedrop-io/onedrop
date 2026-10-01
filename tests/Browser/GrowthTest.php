@@ -18,6 +18,14 @@ function fakeGrowthProvider(): FakeSandboxProvider
 {
     $now = time();
     $access = [];
+    $places = [
+        ['c' => 'CA', 'rg' => 'Quebec', 'ci' => 'Montréal', 'la' => 45.51, 'lo' => -73.59],
+        ['c' => 'CA', 'rg' => 'Ontario', 'ci' => 'Toronto', 'la' => 43.65, 'lo' => -79.38],
+        ['c' => 'CA', 'rg' => 'Quebec', 'ci' => 'Montréal', 'la' => 45.51, 'lo' => -73.59],
+        ['c' => 'GB', 'rg' => 'England', 'ci' => 'London', 'la' => 51.51, 'lo' => -0.13],
+        ['c' => 'JP', 'rg' => 'Tokyo', 'ci' => 'Tokyo', 'la' => 35.68, 'lo' => 139.69],
+        [],
+    ];
     $agents = [
         'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36',
         'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
@@ -26,7 +34,7 @@ function fakeGrowthProvider(): FakeSandboxProvider
         $access[] = json_encode([
             't' => ($now - $i * 3000) * 1000, 's' => 200, 'd' => 20, 'ip' => '10.0.0.'.($i % 6), 'pub' => $i % 2 === 0,
             'm' => 'GET', 'p' => ['/', '/pricing', '/about'][$i % 3], 'r' => $i % 4 === 0 ? 'news.example.com' : null,
-            'ua' => $agents[$i % 6 < 4 ? 0 : 1], 'c' => $i % 6 < 3 ? 'CA' : null,
+            'ua' => $agents[$i % 6 < 4 ? 0 : 1], ...$places[$i % 6],
         ]);
     }
     $seo = json_encode([
@@ -75,6 +83,8 @@ test('the growth section shows the seo rating and visitor analytics, and runs a 
         ->assertSeeIn('@top-pages', '/pricing')
         ->assertSeeIn('@top-referrers', 'news.example.com')
         ->assertSeeIn('@top-countries', 'Canada')
+        ->assertPresent('[data-test="growth-map"] svg path')
+        ->assertSeeIn('@top-cities', 'Montréal, Quebec, CA')
         ->assertSeeIn('@top-browsers', 'Safari')
         ->assertSeeIn('@top-devices', 'Mobile')
         ->click('[aria-checked="false"]')

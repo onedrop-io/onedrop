@@ -55,6 +55,13 @@ http://:8080 {
 		# Never trust a client-supplied upstream.
 		request_header -X-OneDrop-Upstream
 
+		# Only OneDrop's Cloudflare Worker says where a visitor is (Growth); a browser can't place itself.
+		request_header -X-OneDrop-Geo-Country
+		request_header -X-OneDrop-Geo-Region
+		request_header -X-OneDrop-Geo-City
+		request_header -X-OneDrop-Geo-Latitude
+		request_header -X-OneDrop-Geo-Longitude
+
 		# The app's hand-off lands here; Laravel sets this address's own onedrop_gateway cookie.
 		@enter path /__onedrop/enter
 		reverse_proxy @enter 127.0.0.1:8080

@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Enums\GroupRole;
 use App\Models\Group;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -20,6 +21,7 @@ class GroupFactory extends Factory
     public function definition(): array
     {
         return [
+            'organization_id' => fn () => Organization::install()->id,
             'name' => fake()->unique()->words(2, true),
             'description' => fake()->sentence(),
         ];

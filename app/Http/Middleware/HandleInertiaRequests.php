@@ -7,6 +7,8 @@ use App\Enums\ProjectStatus;
 use App\Enums\PublishStatus;
 use App\Enums\SandboxStatus;
 use App\Enums\TaskStage;
+use App\Models\Impersonation;
+use App\Models\Organization;
 use App\Models\Project;
 use App\Models\Task;
 use App\Models\User;
@@ -55,7 +57,15 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $request->user(),
             ],
-            'sidebarProjects' => fn () => $request->user() ? $this->sidebarProjects($request->user()) : null,
+            // The organization the page is in and the others the user can switch to (ORG-002).
+            'organization' => fn () => $request->user() ? $this->organization($request->user(), ResolveOrganization::current($request)) : null,
+            'organizations' => fn () => $request->user()?->organizations()->orderBy('name')->get(['organizations.id', 'name', 'slug'])
+                ->map(fn (Organization $organization): array => $organization->only('id', 'name', 'slug'))->all(),
+            'multiTenant' => Organization::multiTenant(),
+            'impersonator' => fn () => $request->user() && $request->session()->has(Impersonation::SESSION_KEY)
+                ? Impersonation::current()?->admin?->only('id', 'name')
+                : null,
+            'sidebarProjects' => fn () => $request->user() ? $this->sidebarProjects($request->user(), ResolveOrganization::current($request)) : null,
             // The project the user "opened" (TASK-001): the sidebar shows just it while they're on its pages.
             'openProject' => fn () => $request->user() ? $this->openProject($request->user(), (int) $request->cookie('open_project')) : null,
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
@@ -87,13 +97,27 @@ class HandleInertiaRequests extends Middleware
     }
 
     /**
-     * The user's projects for the sidebar: pinned ones, the 10 most recent others, and archived ones.
-     *
-     * @return array{pinned: list<array<string, mixed>>, recent: list<array<string, mixed>>, archived: list<array<string, mixed>>}
+     * @return array{id: int, name: string, slug: string, role: string|null, manages: bool}
      */
-    protected function sidebarProjects(User $user): array
+    protected function organization(User $user, Organization $organization): array
+    {
+        return [
+            ...$organization->only('id', 'name', 'slug'),
+            'role' => $user->organizationRole($organization)?->value,
+            'manages' => $organization->isManagedBy($user),
+        ];
+    }
+
+    /**
+     * The user's projects in the organization for the sidebar: pinned ones, the first 10 others, and archived ones,
+     * with pinned and others in the order the user chose (PRJ-010).
+     *
+     * @return array{pinned: list<array<string, mixed>>, recent: list<array<string, mixed>>, archived: list<array<string, mixed>>, sort: string}
+     */
+    protected function sidebarProjects(User $user, Organization $organization): array
     {
         $query = fn () => $user->projects()
+            ->inOrganization($organization)
             ->select(['id', 'name', 'status', 'pinned_at', 'read_at', 'archived_at', 'publish_status', 'published_url', 'icon_path', 'icon_hash'])
             ->with([
                 'sandbox:id,project_id,status',
@@ -102,9 +126,11 @@ class HandleInertiaRequests extends Middleware
             ->withExists(['tasks as task_working' => fn (Builder $query) => $query->where('status', ProjectStatus::Working)])
             ->withMax(['messages as last_reply_at' => fn (Builder $query) => $query->where('role', MessageRole::Assistant)], 'created_at');
 
+        $sort = $user->project_sort;
+
         $lists = [
-            'pinned' => $query()->whereNull('archived_at')->whereNotNull('pinned_at')->oldest('pinned_at')->get(),
-            'recent' => $query()->whereNull('archived_at')->whereNull('pinned_at')->latest('updated_at')->limit(10)->get(),
+            'pinned' => $query()->whereNull('archived_at')->whereNotNull('pinned_at')->sortedBy($sort)->get(),
+            'recent' => $query()->whereNull('archived_at')->whereNull('pinned_at')->sortedBy($sort)->limit(10)->get(),
             'archived' => $query()->whereNotNull('archived_at')->latest('archived_at')->limit(20)->get(),
         ];
 
@@ -129,7 +155,10 @@ class HandleInertiaRequests extends Middleware
             'drawing_icon' => in_array($project->id, $drawing, true),
         ];
 
-        return array_map(fn ($projects) => array_values($projects->map($summarize)->all()), $lists);
+        return [
+            ...array_map(fn ($projects) => array_values($projects->map($summarize)->all()), $lists),
+            'sort' => $sort->value,
+        ];
     }
 
     /**

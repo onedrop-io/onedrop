@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Concerns\BelongsToOrganization;
 use Database\Factories\InvitationFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -12,9 +13,10 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
 /**
- * A single-use link that brings someone into the app builder.
+ * A single-use link that brings someone into an organization (INV-001, ORG-004).
  *
  * @property int $id
+ * @property int $organization_id
  * @property string|null $email
  * @property string $token
  * @property string $token_hash
@@ -26,12 +28,12 @@ use Illuminate\Support\Str;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['email', 'token', 'token_hash', 'invited_by', 'accepted_by', 'accepted_at', 'expires_at', 'revoked_at'])]
+#[Fillable(['organization_id', 'email', 'token', 'token_hash', 'invited_by', 'accepted_by', 'accepted_at', 'expires_at', 'revoked_at'])]
 #[Hidden(['token', 'token_hash'])]
 class Invitation extends Model
 {
     /** @use HasFactory<InvitationFactory> */
-    use HasFactory;
+    use BelongsToOrganization, HasFactory;
 
     public const LIFETIME_DAYS = 7;
 
@@ -51,13 +53,15 @@ class Invitation extends Model
     }
 
     /**
-     * Create an invite from the given user, optionally for one email address.
+     * Create an invite from the given user to an organization (their current one by default), optionally for one
+     * email address.
      */
-    public static function issue(User $inviter, ?string $email = null): self
+    public static function issue(User $inviter, ?string $email = null, ?Organization $organization = null): self
     {
         $token = Str::random(40);
 
         return self::create([
+            'organization_id' => ($organization ?? $inviter->currentOrganization())->id,
             'email' => $email ? Str::lower($email) : null,
             'token' => $token,
             'token_hash' => hash('sha256', $token),
@@ -104,7 +108,8 @@ class Invitation extends Model
     }
 
     /**
-     * Mark the invite used by a newly registered user. Returns false if someone got there first.
+     * Mark the invite used by a newly registered user and add them to its organization. Returns false if someone
+     * got there first.
      */
     public function acceptFor(User $user): bool
     {
@@ -113,6 +118,11 @@ class Invitation extends Model
             ->whereNull('revoked_at')
             ->where('expires_at', '>', now())
             ->update(['accepted_by' => $user->id, 'accepted_at' => now()]);
+
+        if ($claimed) {
+            $this->organization->addMember($user);
+            $user->switchOrganization($this->organization);
+        }
 
         if ($claimed && $this->email !== null && Str::lower($user->email) === $this->email && $user->email_verified_at === null) {
             // Receiving the link at that address proves they own it.
@@ -128,6 +138,14 @@ class Invitation extends Model
     public function inviter(): BelongsTo
     {
         return $this->belongsTo(User::class, 'invited_by');
+    }
+
+    /**
+     * An invite is for its inviter's current organization, unless the code creating it says otherwise.
+     */
+    protected function defaultOrganization(): ?Organization
+    {
+        return $this->inviter?->currentOrganization();
     }
 
     /**

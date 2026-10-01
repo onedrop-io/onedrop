@@ -33,7 +33,7 @@ beforeEach(function () {
  */
 function sidebarProjects(User $user): array
 {
-    return test()->actingAs($user)->get(route('dashboard'))->inertiaProps('sidebarProjects');
+    return test()->actingAs($user)->followingRedirects()->get(route('dashboard'))->inertiaProps('sidebarProjects');
 }
 
 test('renaming a project changes its name without moving it in recent', function () {

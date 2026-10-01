@@ -26,7 +26,7 @@ class GroupMemberController extends Controller
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __(':name added.', ['name' => $user->name])]);
 
-        return to_route('groups.show', $group);
+        return to_route('groups.show', [$group->organization, $group]);
     }
 
     /**
@@ -48,7 +48,7 @@ class GroupMemberController extends Controller
 
         $group->members()->updateExistingPivot($user->id, ['role' => $role->value]);
 
-        return to_route('groups.show', $group);
+        return to_route('groups.show', [$group->organization, $group]);
     }
 
     /**
@@ -73,10 +73,10 @@ class GroupMemberController extends Controller
         if ($isLeaving && ! $request->user()->can('view', $group)) {
             Inertia::flash('toast', ['type' => 'success', 'message' => __('You left :group.', ['group' => $group->name])]);
 
-            return to_route('groups.index');
+            return to_route('groups.index', $group->organization);
         }
 
-        return to_route('groups.show', $group);
+        return to_route('groups.show', [$group->organization, $group]);
     }
 
     /**

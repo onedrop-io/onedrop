@@ -2,6 +2,9 @@
 
 namespace App\Providers;
 
+use App\Enums\SocialProvider;
+use App\Models\Impersonation;
+use App\Models\Organization;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Sandbox\Agents\AgentRunner;
@@ -17,11 +20,14 @@ use App\Sandbox\Publishing\TailscalePublisher;
 use App\Sandbox\SandboxProvider;
 use App\Sandbox\SystemConfig;
 use Carbon\CarbonImmutable;
+use Illuminate\Auth\Events\Login;
+use Illuminate\Auth\Events\Logout;
 use Illuminate\Foundation\DevCommands;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 use InvalidArgumentException;
@@ -73,8 +79,34 @@ class AppServiceProvider extends ServiceProvider
         SystemSetting::flush();
         SystemConfig::apply();
 
+        // `/o/{organization}` addresses (ORG-002). Bound explicitly: controllers take it from ResolveOrganization.
+        Route::model('organization', Organization::class);
+
         Gate::define('manage-users', fn (User $user): bool => $user->is_admin);
         Gate::define('administer', fn (User $user): bool => $user->is_admin);
+
+        // When and how each person last signed in, for admins (USR-002). Remember-me cookies picking a session back up aren't a sign-in.
+        Event::listen(function (Login $event): void {
+            $request = request();
+            $method = match ($request->route()?->getName()) {
+                'login.store', 'register.store' => 'password',
+                'passkey.login' => 'passkey',
+                'social.callback' => $request->route('provider') instanceof SocialProvider ? $request->route('provider')->value : null,
+                'two-factor.login.store' => $request->session()->pull('login.method', 'password'),
+                default => null,
+            };
+
+            if ($method !== null && $event->user instanceof User) {
+                $event->user->forceFill(['last_login_at' => now(), 'last_login_method' => $method])->saveQuietly();
+            }
+        });
+
+        // Signing out while impersonating ends it too (USR-003).
+        Event::listen(function (Logout $event): void {
+            if (request()->hasSession() && ($id = request()->session()->pull(Impersonation::SESSION_KEY))) {
+                Impersonation::query()->whereKey($id)->first()?->end();
+            }
+        });
 
         Event::listen(fn (SocialiteWasCalled $event) => $event->extendSocialite('microsoft', MicrosoftProvider::class));
 

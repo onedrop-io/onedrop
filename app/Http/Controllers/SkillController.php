@@ -48,7 +48,7 @@ class SkillController extends Controller
         $name = $data['name'] ?? $skill->name;
         $description = trim($data['description'] ?? $skill->description);
         $problem = SkillDocument::problem($name, $description)
-            ?? ($name !== $skill->name && $skill->user->skills()->where('name', $name)->exists()
+            ?? ($name !== $skill->name && $skill->user->skills()->inOrganization($skill->organization)->where('name', $name)->exists()
                 ? __('You already have a skill named ":name".', ['name' => $name])
                 : null);
 

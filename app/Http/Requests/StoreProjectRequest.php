@@ -19,7 +19,10 @@ class StoreProjectRequest extends FormRequest
     {
         return [
             ...Attachment::rules('prompt'),
+            // Imported from a repository (PRJ-009), the prompt is optional.
+            'prompt' => ['required_without_all:attachments,repository', 'nullable', 'string', 'max:5000'],
             'template' => ['nullable', Rule::enum(AppTemplate::class)],
+            'repository' => ['nullable', 'string', 'max:500'],
         ];
     }
 
@@ -31,7 +34,7 @@ class StoreProjectRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'prompt.required_without' => __('Describe what you want to build.'),
+            'prompt.required_without_all' => __('Describe what you want to build.'),
         ];
     }
 }

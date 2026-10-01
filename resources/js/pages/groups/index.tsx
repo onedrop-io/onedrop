@@ -1,4 +1,4 @@
-import { Form, Head, Link } from '@inertiajs/react';
+import { Form, Head, Link, setLayoutProps } from '@inertiajs/react';
 import GroupController from '@/actions/App/Http/Controllers/GroupController';
 import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
@@ -6,10 +6,17 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useOrganization } from '@/hooks/use-organization';
 import { index, show } from '@/routes/groups';
 import type { GroupSummary } from '@/types';
 
 export default function GroupsIndex({ groups }: { groups: GroupSummary[] }) {
+    const organization = useOrganization();
+
+    setLayoutProps({
+        breadcrumbs: [{ title: 'Groups', href: index(organization.slug) }],
+    });
+
     return (
         <>
             <Head title="Groups" />
@@ -21,7 +28,7 @@ export default function GroupsIndex({ groups }: { groups: GroupSummary[] }) {
                 />
 
                 <Form
-                    {...GroupController.store.form()}
+                    {...GroupController.store.form(organization.slug)}
                     resetOnSuccess
                     className="grid max-w-xl gap-4"
                 >
@@ -67,7 +74,7 @@ export default function GroupsIndex({ groups }: { groups: GroupSummary[] }) {
                         {groups.map((group) => (
                             <li key={group.id}>
                                 <Link
-                                    href={show(group.id)}
+                                    href={show([organization.slug, group.id])}
                                     className="flex items-center justify-between gap-4 p-4 hover:bg-muted/50"
                                 >
                                     <div className="min-w-0">
@@ -100,7 +107,3 @@ export default function GroupsIndex({ groups }: { groups: GroupSummary[] }) {
         </>
     );
 }
-
-GroupsIndex.layout = {
-    breadcrumbs: [{ title: 'Groups', href: index() }],
-};

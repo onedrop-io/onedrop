@@ -70,6 +70,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Multi-Tenant
+    |--------------------------------------------------------------------------
+    |
+    | Whether this install serves many organizations (our hosted OneDrop) or
+    | is one company's own (self-hosted, the default). Self-hosted installs
+    | have exactly one organization that every account joins (ORG-001).
+    |
+    */
+
+    'multi_tenant' => (bool) env('APP_MULTI_TENANT', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |

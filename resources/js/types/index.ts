@@ -7,3 +7,4 @@ export type * from './projects';
 export type * from './database';
 export type * from './app-auth';
 export type * from './storage';
+export type * from './organizations';

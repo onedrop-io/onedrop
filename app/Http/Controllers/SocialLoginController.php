@@ -72,7 +72,7 @@ class SocialLoginController extends Controller
             return to_route('login')->withErrors($e->errors());
         }
 
-        return $this->logIn($request, $user);
+        return $this->logIn($request, $user, $provider);
     }
 
     /**
@@ -98,10 +98,10 @@ class SocialLoginController extends Controller
     /**
      * Log the user in, asking for their two-factor code first if they use one.
      */
-    protected function logIn(Request $request, User $user): RedirectResponse
+    protected function logIn(Request $request, User $user, SocialProvider $provider): RedirectResponse
     {
         if (Features::enabled(Features::twoFactorAuthentication()) && $user->hasEnabledTwoFactorAuthentication()) {
-            $request->session()->put(['login.id' => $user->getKey(), 'login.remember' => false]);
+            $request->session()->put(['login.id' => $user->getKey(), 'login.remember' => false, 'login.method' => $provider->value]);
 
             return to_route('two-factor.login');
         }

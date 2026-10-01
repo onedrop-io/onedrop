@@ -105,7 +105,7 @@ test('the app\'s own favicon becomes the project\'s icon', function () {
         ->and(collect($provider->executed)->pluck('command')->flatten()->contains(fn ($part) => str_contains((string) $part, 'opencode run')))->toBeFalse()
         ->and(logoCall($provider)['env']['APP_CONTENT'])->toContain('src="/favicon.png?v='.substr($this->project->icon_hash, 0, 12).'"');
 
-    $sidebar = $this->actingAs($this->user)->get(route('dashboard'))->inertiaProps('sidebarProjects');
+    $sidebar = $this->actingAs($this->user)->followingRedirects()->get(route('dashboard'))->inertiaProps('sidebarProjects');
     expect($sidebar['recent'][0]['icon_url'])->toBe(ProjectIcons::url($this->project));
 
     $this->get($sidebar['recent'][0]['icon_url'])

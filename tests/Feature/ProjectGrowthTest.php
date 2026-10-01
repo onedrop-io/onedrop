@@ -75,6 +75,29 @@ test('it counts visitors against the previous period, over time, and by page, re
     expect($published['visitors'])->toBe(4);
 })->group('GROW-001');
 
+test('it places visitors on the map by country and city, with every country and the cities with the most visitors', function () {
+    $ago = fn (int $seconds) => $this->now - $seconds;
+    $montreal = ['c' => 'CA', 'rg' => 'Quebec', 'ci' => 'Montréal'];
+    $this->provider->execUsing = fn () => new ExecResult(0, implode("\n", array_map('json_encode', [
+        visit_($ago(60), '1.1.1.1', $montreal), // placed by a later entry
+        visit_($ago(70), '1.1.1.1', [...$montreal, 'la' => 45.51, 'lo' => -73.59]),
+        visit_($ago(80), '2.2.2.2', [...$montreal, 'la' => 45.52, 'lo' => -73.6]),
+        visit_($ago(90), '3.3.3.3', ['c' => 'US', 'ci' => 'Portland', 'rg' => 'Oregon', 'la' => 45.52, 'lo' => -122.68]),
+        visit_($ago(100), '4.4.4.4', ['c' => 'US', 'ci' => 'Portland', 'rg' => 'Maine', 'la' => 999, 'lo' => -70.26]), // another Portland, off the map
+        visit_($ago(110), '5.5.5.5', ['c' => 'JP']), // a country without a city
+        visit_($ago(120), '6.6.6.6', ['ci' => 'Nowhere']), // a city without a country
+    ])));
+
+    $locations = app(SandboxGrowth::class)->analytics($this->sandbox, '24h', now: $this->now)['locations'];
+
+    expect($locations['countries'])->toBe([['label' => 'CA', 'count' => 2], ['label' => 'US', 'count' => 2], ['label' => 'JP', 'count' => 1]])
+        ->and($locations['cities'])->toBe([
+            ['city' => 'Montréal', 'region' => 'Quebec', 'country' => 'CA', 'lat' => 45.51, 'lon' => -73.59, 'count' => 2],
+            ['city' => 'Portland', 'region' => 'Maine', 'country' => 'US', 'lat' => null, 'lon' => null, 'count' => 1],
+            ['city' => 'Portland', 'region' => 'Oregon', 'country' => 'US', 'lat' => 45.52, 'lon' => -122.68, 'count' => 1],
+        ]);
+})->group('GROW-003');
+
 test('it tells browsers and devices apart', function (string $userAgent, array $expected) {
     expect(SandboxGrowth::userAgent($userAgent))->toBe($expected);
 })->with([

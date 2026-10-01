@@ -16,6 +16,7 @@ use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 
@@ -44,6 +45,43 @@ class GitHubAppController extends Controller
     }
 
     /**
+     * The same from the new-project page, to import a private repository (PRJ-009); GitHub sends them back there.
+     */
+    public function installForImport(Request $request, GitHubApp $github): RedirectResponse
+    {
+        abort_unless($github->configured(), 404);
+
+        $state = Str::random(40);
+        $request->session()->put('github_app', ['state' => $state, 'project' => null]);
+
+        return redirect()->away($request->boolean('reconnect') ? $github->authorizeUrl($state) : $github->installUrl($state));
+    }
+
+    /**
+     * Every repository the user and the app can both reach, across their installations, most recently pushed
+     * first: the new-project page's picker for importing one (PRJ-009).
+     */
+    public function importable(Request $request, GitHubApp $github): JsonResponse
+    {
+        abort_unless($github->configured(), 404);
+
+        $user = $request->user();
+
+        return $this->fromGitHub(function () use ($github, $user) {
+            $repositories = $user->githubInstallations()->get()
+                ->flatMap(fn (GitHubInstallation $installation) => $github->repositories($user, $installation->installation_id))
+                ->reject(fn (array $repository) => $repository['empty'])
+                ->unique('full_name')
+                ->sortByDesc('pushed_at')
+                ->map(fn (array $repository) => Arr::only($repository, ['full_name', 'private', 'html_url', 'pushed_at']))
+                ->values()
+                ->all();
+
+            return ['repositories' => $repositories];
+        });
+    }
+
+    /**
      * Whether a request is GitHub coming back from a Tools → Git connection this session started.
      */
     public static function isReturning(Request $request): bool
@@ -64,8 +102,10 @@ class GitHubAppController extends Controller
         $pending = $request->session()->get('github_app');
         $projectId = is_array($pending) ? ($pending['project'] ?? null) : null;
         $project = is_int($projectId) ? Project::find($projectId) : null;
+        // Started from the new-project page, to import a repository (PRJ-009).
+        $forImport = is_array($pending) && array_key_exists('project', $pending) && $pending['project'] === null;
 
-        if (! is_array($pending) || ! hash_equals((string) $pending['state'], (string) $request->query('state')) || ! $project || $request->user()->cannot('update', $project)) {
+        if (! is_array($pending) || ! hash_equals((string) $pending['state'], (string) $request->query('state')) || (! $forImport && (! $project || $request->user()->cannot('update', $project)))) {
             abort(403, __('This GitHub connection was started from another session. Start again from Tools → Git.'));
         }
 
@@ -254,9 +294,14 @@ class GitHubAppController extends Controller
         }
     }
 
-    protected function backToGit(Request $request, Project $project, ?string $error = null): RedirectResponse
+    protected function backToGit(Request $request, ?Project $project, ?string $error = null): RedirectResponse
     {
         $request->session()->forget('github_app');
+
+        if ($project === null) {
+            // Flashed, not in the URL: the dashboard redirects on to the organization's new-project page.
+            return to_route('dashboard')->with('github_import', ['error' => $error]);
+        }
 
         return redirect()->to(route('projects.show', $project).'?'.http_build_query(array_filter(['tool' => 'git', 'github' => 'connect', 'github_error' => $error])));
     }

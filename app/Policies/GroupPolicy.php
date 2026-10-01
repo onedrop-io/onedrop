@@ -8,19 +8,12 @@ use App\Models\User;
 class GroupPolicy
 {
     /**
-     * Site admins can do anything with groups.
-     */
-    public function before(User $user): ?bool
-    {
-        return $user->is_admin ? true : null;
-    }
-
-    /**
-     * Determine whether the user can view the group.
+     * Determine whether the user can view the group: its members and its organization's admins.
      */
     public function view(User $user, Group $group): bool
     {
-        return $group->roleOf($user) !== null;
+        return ($group->roleOf($user) !== null && $user->belongsToOrganization($group->organization_id))
+            || $group->organization->isManagedBy($user);
     }
 
     /**
@@ -28,7 +21,8 @@ class GroupPolicy
      */
     public function update(User $user, Group $group): bool
     {
-        return $group->isOwnedBy($user);
+        return ($group->isOwnedBy($user) && $user->belongsToOrganization($group->organization_id))
+            || $group->organization->isManagedBy($user);
     }
 
     /**
@@ -36,6 +30,6 @@ class GroupPolicy
      */
     public function delete(User $user, Group $group): bool
     {
-        return $group->isOwnedBy($user);
+        return $this->update($user, $group);
     }
 }

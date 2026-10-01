@@ -16,7 +16,8 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { jsonRequest } from '@/lib/json-request';
-import { dashboard } from '@/routes';
+import { useOrganization } from '@/hooks/use-organization';
+import { home } from '@/routes/organizations';
 import { search, show } from '@/routes/projects';
 
 type SearchResult = { id: number; name: string; archived: boolean };
@@ -26,6 +27,7 @@ type SearchResult = { id: number; name: string; archived: boolean };
  */
 export function NavSearch() {
     const [open, setOpen] = useState(false);
+    const organization = useOrganization();
 
     return (
         <SidebarGroup className="px-2 py-0">
@@ -46,7 +48,7 @@ export function NavSearch() {
                         title="New project"
                     >
                         <Link
-                            href={dashboard()}
+                            href={home(organization.slug)}
                             prefetch
                             aria-label="New project"
                             data-test="sidebar-new-project"
@@ -68,6 +70,7 @@ function SearchDialog({
     open: boolean;
     onOpenChange: (open: boolean) => void;
 }) {
+    const organization = useOrganization();
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<SearchResult[] | null>(null);
     const [highlighted, setHighlighted] = useState(0);
@@ -80,7 +83,7 @@ function SearchDialog({
         let cancelled = false;
         const timer = setTimeout(() => {
             jsonRequest<{ projects: SearchResult[] }>(
-                search.url({ query: { q: query } }),
+                search.url(organization.slug, { query: { q: query } }),
             )
                 .then(({ projects }) => {
                     if (!cancelled) {
@@ -95,7 +98,7 @@ function SearchDialog({
             cancelled = true;
             clearTimeout(timer);
         };
-    }, [open, query]);
+    }, [open, query, organization.slug]);
 
     const close = (next: boolean) => {
         onOpenChange(next);
