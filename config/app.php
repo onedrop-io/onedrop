@@ -68,6 +68,10 @@ return [
 
     'install' => env('APP_INSTALL'),
 
+    // Set by Laravel Cloud on its instances. Cloud wakes a sleeping app for every scheduled task, so tasks that only
+    // matter on a host of our own (Docker sandboxes, server metrics) aren't scheduled there.
+    'laravel_cloud' => (bool) env('LARAVEL_CLOUD', false),
+
     /*
     |--------------------------------------------------------------------------
     | Multi-Tenant

@@ -392,6 +392,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Using the workspace (clicking, typing, scrolling, or clicking into the preview or shell) should wake a sandbox that had fallen asleep and reload its preview the same way.
 - A sandbox that stays suspended for a while (`SANDBOX_DOCKER_STOP_AFTER_MINUTES`, 5 by default; 0 turns it off) should be stopped, freeing its memory; it starts again by itself the same way, with its files, in a second or two, and should never be stopped while its agent is working or its project is published.
 - Task copies (TASK-003) should be suspended and woken the same way.
+- On Laravel Cloud, which has no Docker sandboxes, the idle check shouldn't be scheduled.
 - A sandbox whose container was removed outside the app should show as failed, with an error saying so.
 - A Docker sandbox stopped outside the app (Docker Desktop, a restart) should start again when its project is opened or its workspace is open, and its preview and shell links should keep working: each container keeps its host ports across restarts, and links are refreshed for containers made before that.
 - A Docker sandbox whose host folders (its App Storage, or its user's Claude sign-in) were deleted while it ran should mend itself the next time it's woken (its project opened, its workspace open): the folders are made again and the sandbox restarts so it can write to them, and its preview reloads. Otherwise a Claude sign-in there says "Login successful" but doesn't stick.
@@ -1226,7 +1227,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 ## ADMIN-003: Server monitoring
 
 - Admin should see the server's CPU use, memory used of total, disk space used of total, block I/O read and written, and network traffic in and out, in Settings → Monitoring, each as a current value and a chart over the past hour, day or week.
-- The server should record a sample every minute (kept for a week); charts should show I/O and network as rates, and totals since the server started.
+- The server should record a sample every minute (kept for a week; not on Laravel Cloud, which has no server of ours to sample); charts should show I/O and network as rates, and totals since the server started.
 - Admin should see Docker's disk usage (images, containers, volumes and build cache: size and reclaimable), loaded on its own so the rest of the page doesn't wait for it.
 - Admin should see how many projects, users and sandboxes (running and by provider) the install has.
 - Metrics the server can't report (e.g. CPU and memory on macOS, Docker when it isn't installed) should say so instead of showing zero.

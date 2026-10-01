@@ -57,4 +57,8 @@ You need your domain's DNS on Cloudflare, with a proxied wildcard record (`*.<do
     Laravel Cloud runs web requests and queue jobs on separate instances, each with its own local disk. Attach an object storage bucket to the environment as its **default disk**, so share cards, project icons, chat attachments and code backups are saved where every instance can read them.
 </Note>
 
+<Note>
+    Turn on the **Scheduler** for the environment's App cluster, so database backups and old sandbox image clean-up run. On Laravel Cloud, OneDrop leaves out the scheduled tasks that only matter on a server of your own (the Docker idle check and server monitoring), so the app can still sleep when nobody's using it.
+</Note>
+
 The Worker's own tests run with `node --test infra/cloudflare/preview-gateway/worker.test.mjs`.
