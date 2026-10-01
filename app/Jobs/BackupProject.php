@@ -8,8 +8,13 @@ use App\Sandbox\SandboxException;
 use Illuminate\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 
+/**
+ * Copy a project's git history out of its sandbox (SBX-006). A project deleted while this waits has nothing left to back up.
+ */
+#[DeleteWhenMissingModels]
 class BackupProject implements ShouldBeUniqueUntilProcessing, ShouldQueue
 {
     use Queueable;

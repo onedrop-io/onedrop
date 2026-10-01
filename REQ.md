@@ -141,6 +141,7 @@ One sandbox per project, on Docker locally and Blaxel (or Runtime Cloud) in prod
 - **2026-09-29: `sandbox:update` suspends each sandbox it updated,** to stay within Runtime's trial limit of 8 running sandboxes.
 - **`RUNTIME_FUNDING=trial` until the owner says to use paid credit.**
 - **Code backups (git bundles) live on a disk outside every sandbox provider,** so a lost sandbox can get its code back.
+- **2026-09-30: A queued project backup whose project was deleted is dropped (`DeleteWhenMissingModels`), not failed,** since there's nothing left to back up; it had shown up on Laravel Cloud as a failed job.
 - **2026-09-29: Share cards, icons, attachments and backups use the app's default disk,** because on Laravel Cloud web and queue instances don't share a local disk.
 - **Checkpoints never include `node_modules`, `vendor`, `.cache` or `.env`,** whatever the app's `.gitignore` says.
 - **2026-09-28: The sandbox's host proxy rewrites `localhost` links** to the visitor's address, so apps that ignore `X-Forwarded-Host` work in previews without per-app config.

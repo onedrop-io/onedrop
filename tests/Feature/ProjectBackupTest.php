@@ -12,6 +12,7 @@ use App\Sandbox\Providers\FakeSandboxProvider;
 use App\Sandbox\Publishing\FakePublisher;
 use App\Sandbox\Publishing\Publisher;
 use App\Sandbox\SandboxProvider;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -141,4 +142,16 @@ test('without a backup disk set, backups go to the app\'s default disk', functio
     BackupProject::dispatchSync($this->project);
 
     expect(Storage::disk('shared')->get("project-backups/{$this->project->id}/repo.bundle"))->toBe('bundle-bytes');
+})->group('SBX-006');
+
+test('a backup queued for a project that is then deleted is dropped, not failed', function () {
+    config(['queue.default' => 'database']);
+
+    BackupProject::dispatch($this->project);
+    $this->project->delete();
+
+    $this->artisan('queue:work', ['--once' => true, '--stop-when-empty' => true]);
+
+    expect(DB::table('jobs')->count())->toBe(0)
+        ->and(DB::table('failed_jobs')->count())->toBe(0);
 })->group('SBX-006');
