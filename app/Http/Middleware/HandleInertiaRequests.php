@@ -59,9 +59,10 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $request->user(),
             ],
-            // The organization the page is in and the others the user can switch to (ORG-002).
-            'organization' => fn () => $request->user() ? $this->organization($request->user(), ResolveOrganization::current($request)) : null,
-            'organizations' => fn () => $request->user()?->organizations()->orderBy('name')->get(['organizations.id', 'name', 'slug', 'logo_hash'])
+            // The organization the page is in and the others the user can switch to (ORG-002). Named so no page's own
+            // props (a user's organizations on their admin page, every organization on Admin → Organizations) replace them.
+            'currentOrganization' => fn () => $request->user() ? $this->organization($request->user(), ResolveOrganization::current($request)) : null,
+            'userOrganizations' => fn () => $request->user()?->organizations()->orderBy('name')->get(['organizations.id', 'name', 'slug', 'logo_hash'])
                 ->map(fn (Organization $organization): array => [...$organization->only('id', 'name', 'slug'), 'logo_url' => $organization->logoUrl()])->all(),
             'multiTenant' => Organization::multiTenant(),
             'impersonator' => fn () => $request->user() && $request->session()->has(Impersonation::SESSION_KEY)

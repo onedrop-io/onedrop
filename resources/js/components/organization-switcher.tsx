@@ -37,7 +37,7 @@ import { edit, home } from '@/routes/organizations';
  * organizations (ORG-002) or a new one (ORG-003, hosted only). A self-hosted install shows its one organization.
  */
 export function OrganizationSwitcher() {
-    const { organizations, multiTenant } = usePage().props;
+    const { userOrganizations: organizations, multiTenant } = usePage().props;
     const organization = useOrganization();
     const { state } = useSidebar();
     const isMobile = useIsMobile();

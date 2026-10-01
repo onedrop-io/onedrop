@@ -88,6 +88,8 @@ test('admins can see everything about a user, without their secrets', function (
     $response->assertInertia(fn ($page) => $page->component('users/show')
         ->where('user.email', $user->email)
         ->has('organizations', 1)
+        // The user's organizations don't replace the admin's own in the switcher.
+        ->where('userOrganizations.0.id', $admin->currentOrganization()->id)
         ->has('projects', 1)
         ->where('projects.0.name', 'Recipe box')
         ->where('projects.0.sandbox.status', 'running')

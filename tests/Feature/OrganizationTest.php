@@ -143,8 +143,8 @@ describe('on the hosted install', function () {
 
         $this->actingAs($ann)->get(route('organizations.home', $this->globex))
             ->assertInertia(fn ($page) => $page
-                ->where('organization.slug', 'globex')
-                ->where('organizations', [['id' => $this->acme->id, 'name' => 'Acme', 'slug' => 'acme', 'logo_url' => null], ['id' => $this->globex->id, 'name' => 'Globex', 'slug' => 'globex', 'logo_url' => null]])
+                ->where('currentOrganization.slug', 'globex')
+                ->where('userOrganizations', [['id' => $this->acme->id, 'name' => 'Acme', 'slug' => 'acme', 'logo_url' => null], ['id' => $this->globex->id, 'name' => 'Globex', 'slug' => 'globex', 'logo_url' => null]])
                 ->has('sidebarProjects.recent', 1)
                 ->where('sidebarProjects.recent.0.name', 'Globex CRM'));
         $this->get(route('dashboard'))->assertRedirect(route('organizations.home', $this->globex));
@@ -369,8 +369,8 @@ describe('more than one organization', function () {
 
         $this->actingAs($this->ann)->get(route('organizations.home', $this->acme))
             ->assertInertia(fn ($page) => $page
-                ->where('organization.logo_url', $logo)
-                ->where('organizations', [
+                ->where('currentOrganization.logo_url', $logo)
+                ->where('userOrganizations', [
                     ['id' => $this->acme->id, 'name' => 'Acme', 'slug' => 'acme', 'logo_url' => $logo],
                     ['id' => $globex->id, 'name' => 'Globex', 'slug' => 'globex', 'logo_url' => null],
                 ]));
@@ -414,7 +414,10 @@ describe('more than one organization', function () {
                 ->where('organizations.2.slug', 'acme')
                 ->where('organizations.2.owners.0.name', $this->ann->name)
                 ->where('organizations.2.members_count', 1)
-                ->where('organizations.2.projects_count', 1));
+                ->where('organizations.2.projects_count', 1)
+                // The page's own list doesn't replace the admin's organizations in the switcher.
+                ->where('userOrganizations.0.slug', 'operator')
+                ->has('userOrganizations', 1));
 
         $this->actingAs($admin)->get(route('projects.show', $project))->assertNotFound();
         $this->actingAs($this->ann)->get(route('admin.organizations.index'))->assertForbidden();

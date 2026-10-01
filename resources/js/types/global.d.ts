@@ -20,9 +20,9 @@ declare module '@inertiajs/core' {
             logo: string | null;
             auth: Auth;
             /** The organization the page is in (ORG-002); null when signed out. */
-            organization: CurrentOrganization | null;
+            currentOrganization: CurrentOrganization | null;
             /** Every organization the user belongs to, for the switcher. */
-            organizations: OrganizationSummary[] | null;
+            userOrganizations: OrganizationSummary[] | null;
             /** Whether the install serves many organizations (hosted) rather than one (self-hosted). */
             multiTenant: boolean;
             /** The admin signed in as this user (USR-003); null when nobody is impersonating. */
