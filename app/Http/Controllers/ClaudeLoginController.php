@@ -30,6 +30,8 @@ class ClaudeLoginController extends Controller
 
     /**
      * Once Claude Code is signed in, run the message that failed because it wasn't, so the chat carries on.
+     * `waiting` says whether a message still waits for that, so the chat asks again (e.g. the check couldn't
+     * reach the sandbox this time) instead of staying stuck.
      */
     public function resume(Request $request, Project $project, SandboxProvider $provider, AgentQueue $queue): JsonResponse
     {
@@ -40,7 +42,10 @@ class ClaudeLoginController extends Controller
             && $this->status($conversation, $provider)['signed_in'] === true
             && $queue->resumeAfterSignIn($conversation);
 
-        return response()->json(['resumed' => $resumed]);
+        return response()->json([
+            'resumed' => $resumed,
+            'waiting' => $conversation->getAttribute('sign_in_retry_message_id') !== null,
+        ]);
     }
 
     /**

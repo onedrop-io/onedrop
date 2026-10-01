@@ -124,7 +124,17 @@ To show the agent what to change in your app's UI, click **Annotate** (the brush
     this one, and OneDrop takes the picture from there.
 </Note>
 
-## Your projects
+## Inspect and rearrange the preview
+
+To point at exact parts of your app, or try a different layout, click **Inspect** (the pointer in a square) in the Preview's header. The preview stays live, but clicks go to the inspector instead of your app:
+
+- **Hover** to highlight an element. Its label shows how to find it (like `#save` or `nav > button`) and, for React or Vue apps in development, the component that draws it.
+- **Click** to pick an element. Each pick gets a number and shows in a list over the preview, where you can type a note ("make this green"), pick its parent instead (the arrow), or remove it.
+- **Drag** an element onto another. Drop it near either end of the other element to move it before or after; drop it in the middle to swap the two. The page shows the result straight away, only in your browser, and the move is listed with a number like a pick.
+
+Click **Add to chat** to attach a picture of the page as it looks, with the picks and moves outlined and numbered, then say what you want and send it. The agent is told what each number is (the element, its component and source file when known, your note, and where you moved it), so it can make the change in the code. Removing a move from the list, **Cancel**, Esc, or clicking **Inspect** again puts the page back.
+
+
 
 Your projects are listed in the sidebar: pinned ones under **Pinned**, the first 10 others under **Recent**, and archived ones under **Archived** (click it to expand). Only you (and admins) can see your projects.
 

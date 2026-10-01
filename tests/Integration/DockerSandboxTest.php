@@ -399,6 +399,22 @@ test('preview pages can take a picture of themselves for annotating', function (
     }
 })->group('AGT-013');
 
+test('preview pages load the inspector when the workspace turns it on', function () {
+    $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
+    $id = $docker->create(new SandboxSpec('onedrop-test-'.bin2hex(random_bytes(3))));
+    $curl = fn (string ...$args) => $docker->exec($id, ['curl', '-s', ...$args])->output;
+
+    try {
+        $script = retry(20, fn () => tap($curl('http://127.0.0.1:8081/__onedrop/errors.js'), fn (string $body) => throw_unless($body !== '', new RuntimeException('proxy not up'))), 250);
+
+        expect($script)->toContain("tag.src = '/__onedrop/inspector.js'")
+            ->and($curl('http://127.0.0.1:8081/__onedrop/inspector.js'))->toContain('window.__onedropInspector = {')
+            ->and($curl('-o', '/dev/null', '-w', '%{content_type}', 'http://127.0.0.1:8081/__onedrop/inspector.js'))->toBe('text/javascript; charset=utf-8');
+    } finally {
+        $docker->destroy($id);
+    }
+})->group('AGT-014');
+
 test('the host proxy records server errors, preview browser errors and the app being down', function () {
     $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
     $id = $docker->create(new SandboxSpec('onedrop-test-'.bin2hex(random_bytes(3))));

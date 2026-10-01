@@ -99,18 +99,34 @@ export default function ClaudeLoginStatus({
             }
         };
 
+        // A message still waiting after a failed try (e.g. the sandbox or database was busy) is tried again.
         const resume = async () => {
+            let waiting = true;
+
             try {
-                const { resumed } = await jsonRequest<{ resumed: boolean }>(
+                const result = await jsonRequest<{
+                    resumed: boolean;
+                    waiting: boolean;
+                }>(
                     ClaudeLoginController.resume.url(projectId),
                     taskId ? { task: taskId } : {},
                 );
 
-                if (resumed && !cancelled) {
+                if (cancelled) {
+                    return;
+                }
+
+                if (result.resumed || !result.waiting) {
                     router.reload();
                 }
+
+                waiting = result.waiting;
             } catch {
-                // The user can still send the message again themselves.
+                // Asked again below.
+            }
+
+            if (waiting && !cancelled) {
+                timer = setTimeout(check, RECHECK_MS);
             }
         };
 

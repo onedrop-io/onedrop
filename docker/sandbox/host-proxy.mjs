@@ -767,6 +767,9 @@ const ERROR_REPORTER = `(() => {
 const CAPTURE_SCRIPT_PATH = '/__onedrop/capture.js';
 const CAPTURE_LIBRARY =
     '/opt/onedrop/capture/node_modules/modern-screenshot/dist/index.js';
+// Inspect (AGT-014): inspector.js, next to this file, is loaded the same way when the workspace turns it on.
+const INSPECTOR_SCRIPT_PATH = '/__onedrop/inspector.js';
+const INSPECTOR_SCRIPT = new URL('./inspector.js', import.meta.url);
 const PREVIEW_ANNOTATOR = `(() => {
     if (window.__onedropAnnotator || window.parent === window) return;
     window.__onedropAnnotator = true;
@@ -782,6 +785,8 @@ const PREVIEW_ANNOTATOR = `(() => {
     // (a dashboard's main column) keep their scroll, since a copy of the page can't be scrolled.
     const capture = async () => {
         const shot = await load();
+        const inspector = window.__onedropInspector;
+        if (inspector) inspector.hide();
         const x = scrollX, y = scrollY;
         const scrolled = [];
         for (const element of document.body ? document.body.querySelectorAll('*') : []) {
@@ -817,8 +822,17 @@ const PREVIEW_ANNOTATOR = `(() => {
             });
         } finally {
             scrolled.forEach((element) => element.removeAttribute('data-onedrop-scroll'));
+            if (inspector) inspector.show();
         }
     };
+    let inspectorLoad;
+    const loadInspector = () => inspectorLoad || (inspectorLoad = new Promise((resolve, reject) => {
+        const tag = document.createElement('script');
+        tag.src = '${INSPECTOR_SCRIPT_PATH}';
+        tag.onload = () => { tag.remove(); resolve(window.__onedropInspector); };
+        tag.onerror = () => { tag.remove(); inspectorLoad = undefined; reject(new Error("Couldn't load the inspector")); };
+        (document.head || document.documentElement).appendChild(tag);
+    }));
     const INLINE = new Set(['SPAN', 'B', 'I', 'EM', 'STRONG', 'SMALL', 'svg', 'path', 'g', 'use', 'circle', 'rect', 'line', 'polyline', 'polygon']);
     const SKIP = new Set(['HTML', 'BODY']);
     const describe = (element) => {
@@ -863,7 +877,14 @@ const PREVIEW_ANNOTATOR = `(() => {
         const reply = (message) => {
             try { window.parent.postMessage({ ...message, id: data.id }, event.origin === 'null' ? '*' : event.origin); } catch {}
         };
-        if (data.onedrop === 'capture') {
+        // The inspector answers its own messages once it's loaded; the first one loads it.
+        if (data.onedrop === 'inspector-start' && !window.__onedropInspector) {
+            try {
+                (await loadInspector()).handle(data, event.origin);
+            } catch {
+                reply({ onedrop: 'inspector-exit', error: true });
+            }
+        } else if (data.onedrop === 'capture') {
             try {
                 reply({ onedrop: 'captured', image: await capture(), width: innerWidth, height: innerHeight, page: location.pathname + location.search + location.hash });
             } catch (error) {
@@ -896,6 +917,26 @@ function serveCaptureLibrary(res) {
         'cache-control': 'public, max-age=86400',
     });
     res.end(captureLibrary);
+}
+
+/** The inspector script (AGT-014), read once. */
+let inspectorScript;
+
+function serveInspector(res) {
+    try {
+        inspectorScript ??= readFileSync(INSPECTOR_SCRIPT);
+    } catch {
+        res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+        res.end('Inspector not installed');
+
+        return;
+    }
+
+    res.writeHead(200, {
+        'content-type': 'text/javascript; charset=utf-8',
+        'cache-control': 'no-cache',
+    });
+    res.end(inspectorScript);
 }
 
 /** Add the error reporter to a preview page, first thing in its head (or body), so it sees the app's first errors. */
@@ -1458,6 +1499,12 @@ const server = http.createServer((req, res) => {
 
     if (req.method === 'GET' && path === CAPTURE_SCRIPT_PATH) {
         serveCaptureLibrary(res);
+
+        return;
+    }
+
+    if (req.method === 'GET' && path === INSPECTOR_SCRIPT_PATH) {
+        serveInspector(res);
 
         return;
     }

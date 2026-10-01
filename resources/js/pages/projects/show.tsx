@@ -20,6 +20,7 @@ import {
     GitMerge,
     Kanban,
     LoaderCircle,
+    SquareMousePointer,
     Pencil,
     Monitor,
     Columns2,
@@ -68,6 +69,13 @@ import PreviewAnnotator, {
     inspectPreview,
 } from '@/components/workspace/preview-annotator';
 import type { PreviewCapture } from '@/components/workspace/preview-annotator';
+import PreviewInspectorPanel, {
+    inspectionImage,
+    inspectionText,
+    inspectorAction,
+    inspectorRects,
+    usePreviewInspector,
+} from '@/components/workspace/preview-inspector';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
     DropdownMenu,
@@ -1013,10 +1021,66 @@ function WorkspacePanel({
     // Annotate (AGT-013): a picture of the preview to draw on, then into the chat box with what the marks point at.
     const [annotation, setAnnotation] = useState<PreviewCapture | null>(null);
     const [capturing, setCapturing] = useState(false);
-    // Which picture failed: the page's own (the tab can be shared instead), or the shared tab's.
-    const [annotateError, setAnnotateError] = useState<'page' | 'tab' | null>(
-        null,
+    // Which picture failed: the page's own (the tab can be shared instead), the shared tab's, or Inspect's.
+    const [annotateError, setAnnotateError] = useState<
+        'page' | 'tab' | 'inspect' | null
+    >(null);
+
+    // Inspect (AGT-014): pick and move elements in the live preview, then into the chat box with a picture of it.
+    const [inspecting, setInspecting] = useState(false);
+    const [inspectNotes, setInspectNotes] = useState<Record<number, string>>(
+        {},
     );
+    const [inspectBusy, setInspectBusy] = useState(false);
+    const inspectItems = usePreviewInspector(previewFrame, inspecting, () =>
+        setInspecting(false),
+    );
+
+    const toggleInspecting = () => {
+        setInspectNotes({});
+        setAnnotateError(null);
+        setInspecting(!inspecting);
+    };
+
+    const addInspection = async () => {
+        const frame = previewFrame.current;
+
+        if (!frame || inspectBusy) {
+            return;
+        }
+
+        setInspectBusy(true);
+
+        try {
+            const rects = await inspectorRects(frame);
+            const capture = await capturePreview(frame);
+            const image = await inspectionImage(capture, inspectItems, rects);
+
+            if (!image) {
+                throw new Error("Couldn't make the picture.");
+            }
+
+            const context = inspectionText(
+                capture,
+                inspectItems,
+                inspectNotes,
+                image.name,
+            );
+
+            setInspecting(false);
+
+            if (!chatOpen) {
+                onToggleChat();
+            }
+
+            // Only the picture shows in the chat; what was picked and moved goes to the agent with it.
+            askAgent('', [{ file: image, context }]);
+        } catch {
+            setAnnotateError('inspect');
+        } finally {
+            setInspectBusy(false);
+        }
+    };
 
     const annotate = async (fromTab = false) => {
         const frame = previewFrame.current;
@@ -1024,6 +1088,8 @@ function WorkspacePanel({
         if (!frame || capturing) {
             return;
         }
+
+        setInspecting(false);
 
         setCapturing(true);
         setAnnotateError(null);
@@ -1851,6 +1917,21 @@ function WorkspacePanel({
                                             ))}
                                         </DropdownMenuContent>
                                     </DropdownMenu>
+                                    <button
+                                        type="button"
+                                        aria-label="Inspect"
+                                        title="Inspect"
+                                        aria-pressed={inspecting}
+                                        onClick={toggleInspecting}
+                                        data-test="preview-inspect"
+                                        className={cn(
+                                            'rounded p-1 hover:bg-muted',
+                                            inspecting &&
+                                                'bg-muted text-foreground',
+                                        )}
+                                    >
+                                        <SquareMousePointer className="size-4" />
+                                    </button>
                                     <IconButton
                                         label="Annotate"
                                         onClick={() => annotate()}
@@ -1992,6 +2073,8 @@ function WorkspacePanel({
                             <iframe
                                 ref={previewFrame}
                                 key={reloadKey}
+                                // A page that (re)loads has lost the inspector and what was picked (AGT-014).
+                                onLoad={() => setInspecting(false)}
                                 src={previewUrlAt(
                                     url,
                                     previewStart,
@@ -2025,7 +2108,9 @@ function WorkspacePanel({
                                     <span className="flex-1">
                                         {annotateError === 'page'
                                             ? "The preview couldn't take a picture of itself."
-                                            : "Couldn't take a picture of the preview."}
+                                            : annotateError === 'inspect'
+                                              ? "The preview couldn't take a picture of itself, so nothing was added to the chat."
+                                              : "Couldn't take a picture of the preview."}
                                     </span>
                                     {annotateError === 'page' && (
                                         <button
@@ -2044,6 +2129,35 @@ function WorkspacePanel({
                                         <X className="size-4" />
                                     </IconButton>
                                 </div>
+                            )}
+                            {inspecting && (
+                                <PreviewInspectorPanel
+                                    items={inspectItems}
+                                    notes={inspectNotes}
+                                    busy={inspectBusy}
+                                    onNote={(item, note) =>
+                                        setInspectNotes((current) => ({
+                                            ...current,
+                                            [item]: note,
+                                        }))
+                                    }
+                                    onParent={(item) =>
+                                        inspectorAction(
+                                            previewFrame.current,
+                                            'parent',
+                                            item,
+                                        )
+                                    }
+                                    onRemove={(item) =>
+                                        inspectorAction(
+                                            previewFrame.current,
+                                            'remove',
+                                            item,
+                                        )
+                                    }
+                                    onCancel={() => setInspecting(false)}
+                                    onDone={addInspection}
+                                />
                             )}
                             {annotation && (
                                 <PreviewAnnotator

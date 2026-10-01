@@ -75,7 +75,7 @@ const INSPECT_TIMEOUT_MS = 2_000;
 const MAX_IMAGE_BYTES = 9_500_000;
 
 /** Ask the preview's page (docker/sandbox/host-proxy.mjs) for something, and wait for its answer. */
-function askPreview<T>(
+export function askPreview<T>(
     frame: HTMLIFrameElement,
     message: Record<string, unknown>,
     answer: string,
@@ -934,17 +934,20 @@ function regionOf(mark: Mark, ratio: number): MarkRegion {
 }
 
 /** The marked-up picture as a file for the chat: PNG, or JPEG if that would be over the attachment limit. */
-async function toFile(canvas: HTMLCanvasElement): Promise<File | null> {
+export async function toFile(
+    canvas: HTMLCanvasElement,
+    baseName = 'preview-annotated',
+): Promise<File | null> {
     const blob = (type: string, quality?: number) =>
         new Promise<Blob | null>((resolve) =>
             canvas.toBlob(resolve, type, quality),
         );
     let image = await blob('image/png');
-    let name = 'preview-annotated.png';
+    let name = `${baseName}.png`;
 
     if (image && image.size > MAX_IMAGE_BYTES) {
         image = await blob('image/jpeg', 0.85);
-        name = 'preview-annotated.jpg';
+        name = `${baseName}.jpg`;
     }
 
     return image ? new File([image], name, { type: image.type }) : null;

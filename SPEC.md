@@ -174,7 +174,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be told to sign in to Claude, or sign in again, when a Claude Code run finds they aren't signed in or their sign-in expired.
 - User should see "Sign in to Claude" above the chat box whenever a message is waiting for them to sign in, even if the sign-in can't be checked right now (e.g. the sandbox is paused, or several chats are checking at once).
 - When Claude rejects the sign-in (e.g. a token revoked because the shared login was refreshed elsewhere), the message should run once more by itself; if it's rejected again, Claude Code should be signed out in that sandbox, so the chat box stops saying they're signed in and shows "Sign in to Claude" instead.
-- Once the user signs in (e.g. in the Shell tab), the chat should carry on by itself: the message that failed because they weren't signed in runs again, unless they've sent another since. This should also happen when the chat was reloaded or reopened while they signed in.
+- Once the user signs in (e.g. in the Shell tab), the chat should carry on by itself: the message that failed because they weren't signed in runs again, unless they've sent another since. This should also happen when the chat was reloaded or reopened while they signed in. If picking it back up fails (e.g. the sandbox or server was busy), the chat should keep trying while the message waits.
 - Pasting a Claude subscription token (`sk-ant-oat…`) should be refused with a pointer to "Use my Claude subscription"; tokens saved before this change are deleted.
 - Disconnecting the Claude subscription should sign Claude Code out in the user's running sandboxes and delete the shared login folder.
 
@@ -405,6 +405,17 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - `/opt/onedrop/compose init` should set a project up to start with its compose stack: it picks the compose files (the base file, its override, and an `arm64` overlay on arm64 machines), the web port the preview shows (or the one given), writes `.onedrop/dev`, and restarts the preview.
 - User should see the chosen service in the preview; restarting the preview restarts the stack.
 - `init` should say why a stack can't start (no compose file, a missing env file, a port the sandbox already uses).
+
+## SBX-009: Project snapshots in object storage (planned)
+
+- Each project's whole state should be kept in S3-compatible object storage (`SANDBOX_SNAPSHOT_DISK`), outside every sandbox provider: its workspace with uncommitted changes, the sandbox user's home folder (a database the agent set up, tools, the agent's history), App Storage, and its installed dependencies.
+- A snapshot should be taken after every agent turn, before an update or a provider move, and once a day for any sandbox that ran that day; a layer that hasn't changed isn't uploaded again.
+- A database in the sandbox should be snapshotted in a consistent state (the app's processes frozen while it's copied), and carry on where it was afterwards.
+- Sandboxes should upload and download their snapshots straight to and from storage through short-lived signed links, never through the platform's servers, and never hold storage credentials.
+- A new sandbox for a project, on any provider, should start from its latest snapshot, so updates, provider moves and a sandbox the provider deleted (an expiry, an outage) all keep the project's files; the old sandbox no longer needs to exist.
+- Installed dependencies (`node_modules`, `vendor`) should come back from the snapshot, not be installed again, when the lockfiles haven't changed.
+- An admin should see each project's last snapshot time and size, and be able to restore a project from an earlier one.
+- Old snapshots should be deleted on a schedule (the last 10, plus one a day for 7 days); deleting a project deletes its snapshots.
 
 ## AGT-001: Real coding agent
 
@@ -804,6 +815,15 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be able to cancel, or click "Add to chat" to put the marked-up picture in the chat box as an attachment, and nothing else; the chat opens if it was hidden, ready for them to say what to change.
 - The agent should be told, with the message but not in the chat, which page the picture is of and, for each numbered mark, the element it points at, written like a CSS selector with its text (`1. Box (red) around button#save ("Save changes")`), so it can find it in the code. Removing the picture before sending drops that too.
 - When the preview can't take its own picture (the page doesn't answer), the browser should ask to share the tab and use that instead; declining should leave the preview as it was and say it couldn't take a picture.
+
+## AGT-014: Inspect and rearrange the live preview
+
+- User should be able to click Inspect in the Preview's header to turn on inspecting the live app: hovering highlights the element under the pointer with its selector and, for React or Vue apps in development, its component.
+- While inspecting, clicks and drags go to the inspector, not the app; Esc or clicking Inspect again stops it and puts the page back as it was.
+- User should be able to click elements to pick them; each pick is numbered on the page and listed in a panel over the preview, where they can add a note, pick its parent instead, or remove it.
+- User should be able to drag an element onto another: dropped near the start or end of it, it moves before or after it; dropped in its middle, the two swap. The page shows the result right away (only in their browser, the app isn't changed), and the move is numbered and listed like a pick.
+- User should be able to click "Add to chat" to attach a picture of the page as it looks then, with the picks and moves outlined and numbered, and nothing else in the chat box.
+- The agent should be told, with the message but not in the chat, the page, and for each number the element (selector, text, component and its source file when known), the user's note, and for a move where it went ("swap with", "move before", "move after"), so it can make the change in the code.
 
 ## AGT-008: Laravel by default
 

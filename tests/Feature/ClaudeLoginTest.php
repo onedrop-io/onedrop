@@ -80,7 +80,7 @@ test('signing in runs the message that failed because Claude Code wasn\'t signed
 
     $this->actingAs($this->user)
         ->postJson(route('projects.claude-login.resume', $this->project))
-        ->assertExactJson(['resumed' => true]);
+        ->assertExactJson(['resumed' => true, 'waiting' => false]);
 
     $this->project->refresh();
     expect($this->project->status)->toBe(ProjectStatus::Working)
@@ -98,7 +98,7 @@ test('nothing runs again while Claude Code is still signed out, or when nothing 
 
     $this->actingAs($this->user)
         ->postJson(route('projects.claude-login.resume', $this->project))
-        ->assertExactJson(['resumed' => false]);
+        ->assertExactJson(['resumed' => false, 'waiting' => $pending]);
 
     expect($this->project->fresh()->sign_in_retry_message_id)->toBe($pending ? $message->id : null);
     Queue::assertNothingPushed();
