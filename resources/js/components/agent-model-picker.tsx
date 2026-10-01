@@ -170,7 +170,10 @@ export default function AgentModelPicker({
     harnessLocked?: string | null;
 }) {
     return (
-        <div className="flex items-center gap-1" data-test="agent-pickers">
+        <div
+            className="flex min-w-0 items-center gap-1"
+            data-test="agent-pickers"
+        >
             <HarnessMenu
                 selection={selection}
                 onChange={onChange}
@@ -426,12 +429,12 @@ function ModelMenu({
             <DropdownMenuTrigger asChild disabled={disabled}>
                 <button
                     type="button"
-                    className="inline-flex max-w-56 items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-foreground hover:bg-muted disabled:opacity-50"
+                    className="inline-flex min-w-0 max-w-56 items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-foreground hover:bg-muted disabled:opacity-50"
                     data-test="model-picker"
                 >
                     <ProviderIcon
                         provider={selection.provider}
-                        className="size-4 text-[9px]"
+                        className="size-4 shrink-0 text-[9px]"
                     />
                     <span className="truncate">{selection.name}</span>
                     <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
@@ -637,12 +640,13 @@ function HarnessMenu({
             <DropdownMenuTrigger asChild disabled={disabled || locked !== null}>
                 <button
                     type="button"
-                    className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-foreground hover:bg-muted disabled:opacity-50"
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-foreground hover:bg-muted disabled:opacity-50"
                     title={locked ?? 'Choose the agent'}
+                    aria-label={current?.label ?? selection.harness}
                     data-test="harness-picker"
                 >
                     <Bot className="size-3.5 shrink-0 text-muted-foreground" />
-                    <span className="whitespace-nowrap">
+                    <span className="hidden whitespace-nowrap @sm:inline">
                         {current?.label ?? selection.harness}
                     </span>
                     <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
@@ -746,7 +750,7 @@ function ReasoningMenu({
             <DropdownMenuTrigger asChild disabled={disabled}>
                 <button
                     type="button"
-                    className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-muted-foreground hover:bg-muted disabled:opacity-50"
+                    className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs whitespace-nowrap text-muted-foreground hover:bg-muted disabled:opacity-50"
                     data-test="reasoning-picker"
                 >
                     {effortLabel(selection.variant)}

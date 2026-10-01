@@ -2089,6 +2089,7 @@ function AutofixToggle({ project }: { project: Project }) {
                     ? 'Autofix is on: errors the preview shows after a turn go back to the agent. Click to turn off.'
                     : 'Autofix is off. Click to send errors the preview shows after a turn back to the agent.'
             }
+            aria-label="Autofix"
             data-test="composer-autofix"
             className={cn(
                 'flex h-7 shrink-0 items-center gap-1 rounded-full px-2 text-xs hover:bg-muted',
@@ -2098,7 +2099,7 @@ function AutofixToggle({ project }: { project: Project }) {
             )}
         >
             <Wrench className="size-3.5" />
-            Autofix
+            <span className="hidden @lg:inline">Autofix</span>
         </button>
     );
 }

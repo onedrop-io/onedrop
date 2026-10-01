@@ -587,6 +587,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see the models they chose most recently at the top of each provider's list, above the featured ones.
 - User should be able to choose a reasoning level supported by the chosen model (e.g. Low, Medium, High, Extra high, Max), or leave it on the default.
 - User should be able to pick the model when starting a new project, and change it in the project's chat at any time; the next message uses the new choice.
+- User should see the agent, model, reasoning and Autofix controls fit a narrow chat: the model name shortens and labels drop to icons instead of running under the send button.
 - The agent should use the key for the chosen model's provider, not just the default connection.
 - The model list should come from the models.dev catalog (the one OpenCode uses), cached, and still work with the configured defaults if the catalog is unreachable.
 

@@ -250,7 +250,7 @@ export default function PromptComposer({
                 submit();
             }}
             className={cn(
-                'rounded-2xl border border-input bg-card shadow-xs focus-within:ring-2 focus-within:ring-ring/30',
+                '@container rounded-2xl border border-input bg-card shadow-xs focus-within:ring-2 focus-within:ring-ring/30',
                 dragging && 'border-dashed border-ring ring-2 ring-ring/30',
             )}
             {...dragHandlers}
@@ -322,7 +322,7 @@ export default function PromptComposer({
                     )}
                     {footer}
                 </div>
-                <div className="flex items-center gap-1.5">
+                <div className="flex shrink-0 items-center gap-1.5">
                     {working && canSend && (
                         <button
                             type="button"

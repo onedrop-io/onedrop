@@ -126,3 +126,33 @@ test('connecting a Claude subscription in settings unlocks Claude Code in the ch
         ->assertSeeIn('@harness-picker', 'Claude Code')
         ->assertNoJavaScriptErrors();
 })->group('AGT-007');
+
+test('the composer controls fit a narrow chat without running under the send button', function () {
+    app()->instance(SandboxProvider::class, new FakeSandboxProvider);
+    $user = User::factory()->create();
+    AgentConnection::factory()->for($user)->provider(AgentProvider::OpenRouter)->create(['is_default' => true]);
+    $project = Project::factory()->for($user)->create();
+    Sandbox::factory()->for($project)->create(['preview_url' => null]);
+    $this->actingAs($user);
+
+    $page = visit("/projects/{$project->id}")
+        ->assertVisible('@composer-autofix')
+        ->assertVisible('@composer-send');
+
+    $layout = $page->script(<<<'JS'
+        async () => {
+            document.querySelector('[data-test="composer-send"]').closest('form').style.width = '340px';
+            await new Promise((resolve) => requestAnimationFrame(resolve));
+            const send = document.querySelector('[data-test="composer-send"]').getBoundingClientRect();
+            const autofix = document.querySelector('[data-test="composer-autofix"]').getBoundingClientRect();
+            const toolbar = document.querySelector('[data-test="composer-send"]').parentElement.parentElement;
+            return {
+                overlaps: autofix.right > send.left,
+                overflows: toolbar.scrollWidth > toolbar.clientWidth,
+                agentLabelShown: document.querySelector('[data-test="harness-picker"]').innerText.trim() !== '',
+            };
+        }
+    JS);
+
+    expect($layout)->toBe(['overlaps' => false, 'overflows' => false, 'agentLabelShown' => false]);
+})->group('AGT-002');
