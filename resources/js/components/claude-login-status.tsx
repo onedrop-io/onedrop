@@ -1,6 +1,6 @@
 import { router } from '@inertiajs/react';
 import { Check, LogIn } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import ClaudeLoginController from '@/actions/App/Http/Controllers/ClaudeLoginController';
 import { jsonRequest } from '@/lib/json-request';
 
@@ -13,7 +13,8 @@ const RECHECK_MS = 5000;
  * Whether Claude Code in this chat's sandbox is signed in to the user's Claude subscription (AI-005),
  * with a button that opens Claude Code's own sign-in in the Shell tab. Signing in picks the chat back
  * up: a message that failed because Claude Code wasn't signed in runs again, however the sign-in was
- * seen (the chat may have been reloaded or reopened since it failed).
+ * seen (the chat may have been reloaded or reopened since it failed). Once a sign-in it saw signed out
+ * succeeds, `onSignedIn` runs (the workspace shows the Preview tab again).
  */
 export default function ClaudeLoginStatus({
     projectId,
@@ -21,6 +22,7 @@ export default function ClaudeLoginStatus({
     working,
     waitingForSignIn,
     onSignIn,
+    onSignedIn,
 }: {
     projectId: number;
     /** The task whose chat this is (it may have its own copy of the app, with its own sign-in). */
@@ -30,8 +32,19 @@ export default function ClaudeLoginStatus({
     /** A message failed because Claude Code wasn't signed in, and runs again once it is. */
     waitingForSignIn: boolean;
     onSignIn: () => void;
+    onSignedIn: () => void;
 }) {
     const [status, setStatus] = useState<Status | null>(null);
+    const seenSignedOut = useRef(false);
+
+    useEffect(() => {
+        if (status?.signed_in === false) {
+            seenSignedOut.current = true;
+        } else if (status?.signed_in === true && seenSignedOut.current) {
+            seenSignedOut.current = false;
+            onSignedIn();
+        }
+    }, [status, onSignedIn]);
 
     useEffect(() => {
         if (working) {

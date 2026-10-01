@@ -164,6 +164,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 - User should be able to choose "Use my Claude subscription" on the Claude card (the first option; pasting a key is the small link); OneDrop never asks for, receives or stores their Claude login or token (Anthropic requires sign-in to go through its own flow).
 - User should be able to sign in from the project: "Sign in to Claude" under the chat box opens the Shell tab running Claude Code's own `claude auth login`.
+- User should be taken back to the Preview tab once that sign-in succeeds (e.g. after pasting the code in the Shell and seeing "Login successful").
 - User should see who they're signed in to Claude as under the chat box, once signed in.
 - One sign-in should work in all of the user's sandboxes where the sandbox provider supports a shared login folder (Docker); elsewhere each sandbox signs in once. The folder is only mounted into sandboxes of projects the user owns.
 - User should be told to sign in to Claude, or sign in again, when a Claude Code run finds they aren't signed in or their sign-in expired.

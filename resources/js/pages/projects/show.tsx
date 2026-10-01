@@ -193,6 +193,12 @@ export default function ShowProject({
 }) {
     // Bumped by "Sign in to Claude": the workspace opens the Shell tab on Claude Code's sign-in.
     const [claudeSignIns, setClaudeSignIns] = useState(0);
+    // Bumped when that sign-in succeeds: the workspace goes back to the Preview tab.
+    const [claudeSignInsDone, setClaudeSignInsDone] = useState(0);
+    const claudeSignedIn = useCallback(
+        () => setClaudeSignInsDone((count) => count + 1),
+        [],
+    );
     const working = task
         ? task.status === 'working'
         : !newTask && project.status === 'working';
@@ -318,6 +324,7 @@ export default function ShowProject({
                             ? () => setClaudeSignIns((count) => count + 1)
                             : null
                     }
+                    onClaudeSignedIn={claudeSignedIn}
                 />
                 {chatOpen && (
                     <ResizeHandle
@@ -339,6 +346,7 @@ export default function ShowProject({
                     working={working}
                     activity={messages.length}
                     claudeSignIns={claudeSignIns}
+                    claudeSignInsDone={claudeSignInsDone}
                     live={live}
                     filesChanges={filesChanges}
                     wakes={wakes}
@@ -362,6 +370,7 @@ function ChatPanel({
     width,
     hidden,
     claudeSignIn,
+    onClaudeSignedIn,
 }: {
     project: Project;
     task: TaskDetail | null;
@@ -376,6 +385,8 @@ function ChatPanel({
     hidden: boolean;
     /** Open Claude Code's sign-in, when the agent runs on the user's Claude subscription. */
     claudeSignIn: (() => void) | null;
+    /** That sign-in succeeded. */
+    onClaudeSignedIn: () => void;
 }) {
     const bottom = useRef<HTMLDivElement>(null);
     const [draft, setDraft] = useState<string | undefined>(undefined);
@@ -522,6 +533,7 @@ function ChatPanel({
                             (task ?? project).waiting_for_sign_in ?? false
                         }
                         onSignIn={claudeSignIn}
+                        onSignedIn={onClaudeSignedIn}
                     />
                 )}
                 <PromptComposer
@@ -655,6 +667,7 @@ function WorkspacePanel({
     working,
     activity,
     claudeSignIns,
+    claudeSignInsDone,
     live,
     filesChanges,
     wakes,
@@ -673,6 +686,8 @@ function WorkspacePanel({
     activity: number;
     /** Changes when the user asks to sign in to Claude: open the Shell tab on Claude Code's sign-in. */
     claudeSignIns: number;
+    /** Changes when that sign-in succeeds: show the Preview tab again. */
+    claudeSignInsDone: number;
     /** Live updates are flowing (LIVE-001), so there's no need to poll. */
     live: boolean;
     /** Changes when a sandbox of this project saw files come or go (FILE-004). */
@@ -1064,6 +1079,14 @@ function WorkspacePanel({
     if (seenClaudeSignIns !== claudeSignIns) {
         setSeenClaudeSignIns(claudeSignIns);
         openShell({ claudeLogin: true });
+    }
+
+    const [seenClaudeSignInsDone, setSeenClaudeSignInsDone] =
+        useState(claudeSignInsDone);
+
+    if (seenClaudeSignInsDone !== claudeSignInsDone) {
+        setSeenClaudeSignInsDone(claudeSignInsDone);
+        showTab('preview');
     }
 
     const closeTab = (kind: PaneTab) => {

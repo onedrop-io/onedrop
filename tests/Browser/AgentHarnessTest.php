@@ -71,7 +71,7 @@ test('users switch a project to Codex and pick from OpenAI models', function () 
         ->and($project->agent_session_id)->toBeNull();
 })->group('AGT-009');
 
-test('users sign in to Claude from the chat in Claude Code\'s own sign-in in the Shell tab, and the chat carries on', function () {
+test('users sign in to Claude from the chat in Claude Code\'s own sign-in in the Shell tab, then see the Preview, and the chat carries on', function () {
     $provider = new FakeSandboxProvider;
     $provider->execUsing = fn (array $command) => new ExecResult(1, json_encode(['loggedIn' => false, 'authMethod' => 'none']));
     app()->instance(SandboxProvider::class, $provider);
@@ -94,8 +94,10 @@ test('users sign in to Claude from the chat in Claude Code\'s own sign-in in the
     // Once Claude Code reports a sign-in, the chat shows who it's signed in as.
     $provider->execUsing = fn (array $command) => new ExecResult(0, json_encode(['loggedIn' => true, 'authMethod' => 'claude.ai', 'email' => 'dev@example.com']));
 
-    // ...and the chat picks the failed message back up.
+    // ...goes back to the Preview tab, and picks the failed message back up.
     $page->wait(6)->assertSeeIn('@claude-login-status', 'Claude Code is signed in as dev@example.com')
+        ->assertVisible('@preview-placeholder')
+        ->assertMissing('@shell-frame')
         ->assertSee('Signed in to Claude, picking up where it left off')
         ->assertNoJavaScriptErrors();
 
