@@ -115,6 +115,33 @@ test('the app\'s own favicon becomes the project\'s icon', function () {
         ->assertHeader('Content-Security-Policy');
 })->group('PRJ-007');
 
+test('a cloned repository\'s favicon outside the usual places becomes the project\'s icon', function () {
+    $provider = iconSandbox([
+        'docs/static/img/favicon.svg' => '<svg xmlns="http://www.w3.org/2000/svg" id="docs"/>',
+        'apps/web/favicon.png' => 'png',
+        'apps/web/favicon.svg' => '<svg xmlns="http://www.w3.org/2000/svg" id="web"/>',
+    ]);
+
+    UpdateProjectIcon::dispatchSync($this->project);
+
+    $this->project->refresh();
+    expect(Storage::disk(ProjectIcons::disk())->get($this->project->icon_path))->toContain('id="web"')
+        ->and($provider->written)->toBe([])
+        ->and(collect($provider->executed)->contains(fn ($call) => str_contains($call['command'][2] ?? '', 'opencode run')))->toBeFalse()
+        ->and(logoCall($provider))->toBeNull();
+})->group('PRJ-007');
+
+test('a favicon in the usual places wins over one elsewhere in the app', function () {
+    iconSandbox([
+        'src/favicon.svg' => '<svg xmlns="http://www.w3.org/2000/svg" id="src"/>',
+        'public/favicon.ico' => 'ico',
+    ]);
+
+    UpdateProjectIcon::dispatchSync($this->project);
+
+    expect($this->project->refresh()->icon_mime)->toBe('image/x-icon');
+})->group('PRJ-007');
+
 test('an unchanged favicon is not stored again', function () {
     iconSandbox(['public/favicon.svg' => '<svg xmlns="http://www.w3.org/2000/svg"/>']);
     UpdateProjectIcon::dispatchSync($this->project);

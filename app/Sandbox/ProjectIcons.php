@@ -203,20 +203,37 @@ class ProjectIcons
     }
 
     /**
-     * The app's own favicon (newest first, skipping empty files and the starter kit's logo), if it has one.
+     * The app's own favicon, if it has one: the usual places first (newest first), then any favicon elsewhere in
+     * the app, such as a cloned repository's src/favicon.ico or apps/web/public/favicon.svg (shallowest first,
+     * SVG over PNG over ICO). Empty files and the starter kit's logo are skipped.
      *
      * @return array{path: string, bytes: string, mime: string}|null
      */
     protected function appIcon(Sandbox $sandbox): ?array
     {
+        $script = <<<'SH'
+        cd "$1" || exit 0; shift
+        {
+            ls -t -- "$@" 2>/dev/null
+            find . -maxdepth 4 \( -name node_modules -o -name vendor -o -name .git -o -name dist -o -name build -o -name .next -o -name .nuxt -o -name storage -o -name coverage \) -prune \
+                -o -type f \( -iname 'favicon.*' -o -iname 'favicon-*.png' -o -iname 'icon.svg' -o -iname 'icon.png' -o -iname 'apple-touch-icon*.png' \) -print 2>/dev/null \
+                | sed 's|^\./||' | head -n 20
+        } | awk '!seen[$0]++' | while read -r f; do printf "%s\t" "$f"; head -c MAX_BYTES -- "$f" | base64 | tr -d "\n"; echo; done
+        SH;
+
         $result = $this->provider->exec($sandbox->external_id, [
-            'sh', '-c',
-            'cd "$1" || exit 0; shift; ls -t -- "$@" 2>/dev/null | while read -r f; do printf "%s\t" "$f"; head -c '.(self::MAX_BYTES + 1).' -- "$f" | base64 | tr -d "\n"; echo; done',
+            'sh', '-c', str_replace('MAX_BYTES', (string) (self::MAX_BYTES + 1), $script),
             'sh', WorkspaceFiles::ROOT, ...self::CANDIDATES,
         ]);
 
-        foreach (explode("\n", trim($result->output)) as $line) {
-            [$path, $encoded] = array_pad(explode("\t", $line, 2), 2, '');
+        $formats = array_flip(array_keys(self::MIME_TYPES));
+        $lines = collect(explode("\n", trim($result->output)))
+            ->map(fn (string $line) => array_pad(explode("\t", $line, 2), 2, ''))
+            ->sortBy(fn (array $file, int $order) => in_array($file[0], self::CANDIDATES, true)
+                ? [0, 0, 0, $order]
+                : [1, substr_count($file[0], '/'), $formats[strtolower(pathinfo($file[0], PATHINFO_EXTENSION))] ?? count($formats), $order]);
+
+        foreach ($lines as [$path, $encoded]) {
             $bytes = base64_decode($encoded, true);
             $mime = self::MIME_TYPES[strtolower(pathinfo($path, PATHINFO_EXTENSION))] ?? null;
 
