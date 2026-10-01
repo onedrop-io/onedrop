@@ -189,6 +189,43 @@ function toVisitor(text, req) {
     );
 }
 
+/**
+ * The preview is the app inside the workspace's frame, so an app's own clickjacking guard (Rails' and Django's
+ * `X-Frame-Options: SAMEORIGIN`, a CSP `frame-ancestors`) would leave it blank. Published addresses keep them.
+ */
+function allowFraming(headers) {
+    delete headers['x-frame-options'];
+
+    for (const name of [
+        'content-security-policy',
+        'content-security-policy-report-only',
+    ]) {
+        if (headers[name] === undefined) {
+            continue;
+        }
+
+        const policy = [headers[name]]
+            .flat()
+            .map((value) =>
+                String(value)
+                    .split(';')
+                    .filter(
+                        (directive) =>
+                            !/^\s*frame-ancestors(\s|$)/i.test(directive),
+                    )
+                    .join(';')
+                    .trim(),
+            )
+            .filter((value) => value.replace(/;/g, '').trim() !== '');
+
+        if (policy.length === 0) {
+            delete headers[name];
+        } else {
+            headers[name] = policy;
+        }
+    }
+}
+
 /** Send the app's answer on, with localhost links rewritten for visitors from other addresses. */
 function relay(req, res, response) {
     const headers = { ...response.headers };
@@ -197,6 +234,10 @@ function relay(req, res, response) {
 
     if (foreign && headers.location) {
         headers.location = toVisitor(String(headers.location), req);
+    }
+
+    if (isPreview(host)) {
+        allowFraming(headers);
     }
 
     if ((response.statusCode ?? 502) >= 500) {
