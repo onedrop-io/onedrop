@@ -50,7 +50,8 @@ class TemplateCatalog
             'logo' => null,
             'tags' => ['business'],
             'compose' => false,
-            'link' => null,
+            'version' => null,
+            'links' => ['website' => null, 'github' => null, 'docs' => null],
         ], AppTemplate::options());
 
         foreach ($this->registries() as $registry) {
@@ -74,6 +75,47 @@ class TemplateCatalog
         }
 
         return $templates;
+    }
+
+    /**
+     * Every registry's templates, the free apps under the prompt (PRJ-012): the popular ones first, then the rest.
+     *
+     * @return list<Template>
+     */
+    public function apps(): array
+    {
+        $popular = $this->popular();
+        $first = array_column($popular, 'value');
+        $rest = [];
+
+        foreach ($this->registries() as $registry) {
+            foreach ($registry->templates() as $template) {
+                if (! in_array($template['value'], $first, true)) {
+                    $rest[] = $template;
+                }
+            }
+        }
+
+        return [...$popular, ...$rest];
+    }
+
+    /**
+     * The popular free apps that have a picture, each with it as `cover`, for the coverflow (PRJ-012).
+     *
+     * @return list<Template&array{cover: string}>
+     */
+    public function featured(): array
+    {
+        $screenshots = app(AppScreenshots::class);
+        $featured = [];
+
+        foreach ($this->popular() as $template) {
+            if ($cover = $screenshots->cover($template)) {
+                $featured[] = [...$template, 'cover' => $cover];
+            }
+        }
+
+        return $featured;
     }
 
     /**

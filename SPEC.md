@@ -206,6 +206,8 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 ## PRJ-001: Start a new project
 
 - After logging in, user should see a "what are we working on today?" prompt with suggestions.
+- User should see the three ways to start labelled in plain words, each with a one-line explanation: "Start from scratch" (describe it), "Or start from a template", and "Or install a free app" (the popular open-source apps). The labels hide while starting from a repository.
+- When what the user types sounds like a template or free app that already exists (a word from its name, or two or more from its tags or description), user should see up to three of them under the prompt as "This might already exist", each marked Template or Free app. Picking one starts from it and keeps what they typed after its description; "No thanks" hides them until the prompt is cleared; sending starts from scratch as usual. Free apps that can't run here aren't offered.
 - User should be able to describe an app and submit it to create a project.
 - User should be taken to the project workspace after creating it.
 - The project should be named from the description.
@@ -246,12 +248,14 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## PRJ-012: Browse templates from other registries
 
-- User should see a few rows of popular open-source apps (from the configured registries, Dokploy's to start) under the built-in templates, with their logos, loaded after the page shows.
-- User should be able to open "Browse all templates" beside the templates heading: a dialog listing the built-in templates and every registry's as one list, each with its name, description and logo or icon, not grouped or labelled by the registry it came from.
-- User should be able to search the list by name, description or tag, and narrow it to a category (the most used tags, "Business" for the built-in ones).
-- User should be able to pick a template to fill in the prompt, then change it before sending; the project is named after the template.
+- User should see every open-source app from the configured registries (Dokploy's to start) under the built-in templates as "Or install a free app", popular ones first, each with its name, description and logo, loaded after the page shows and not grouped or labelled by the registry it came from.
+- User should see the popular free apps that have a picture in a coverflow above the list: one large in the middle with its logo, name and description over its picture (an app store screenshot if there is one, else its website's preview image), the next ones angled behind it. It moves on every few seconds, but not while hovered or focused, or when the system asks for reduced motion. Clicking a side app (or a dot below) brings it to the middle; clicking the middle one opens its details. It loads after the page shows, separately from the list; an app whose picture won't load is left out.
+- User should be able to search the apps by name, description or tag (Enter opens the first match), and narrow them to a category (the most used tags).
+- Clicking a free app (in the list or suggested for what they typed) should open its details: logo, name, "Free and open source", its version (unless the registry says only "latest"), categories, full description, what happens when they use it, and links to its website, source code and documentation (https only). "Use <name>" starts the project from it right away (with what they typed after its description, if it was suggested), showing "Starting…" and, if it can't, why; the project is named after it.
 - A registry template (a Docker Compose stack) should start the project with its `docker-compose.yml` and its registry settings in the workspace, and the agent should fill in its variables, set the stack up as the preview and get it running.
-- User should see registry templates (popular ones and in the dialog) as unavailable, with the reason, when new projects' sandboxes can't run Docker (SBX-008); picking one anyway should be refused.
+- User should see pictures of a free app at the top of its details, in a carousel they can step through (arrows, dots, or the arrow keys): first the preview image from the app's website (the one shown when its link is shared), then screenshots from the app stores that list it (Umbrel's and CasaOS's to start), each credited to where it came from. The pictures load when the details open; the carousel appears (fading in) only once one has loaded, and only steps through those that have, so an app with none never shows one. An admin should be able to turn off website previews or any app store in config.
+- On a phone, user should see the free apps' cards fit the screen (long words wrap), and a free app's details fill the whole screen, with "Use" and "Cancel" kept at the bottom.
+- User should see the free apps as unavailable (dimmed, and in their details with a disabled "Use" button), with the reason, when new projects' sandboxes can't run Docker (SBX-008); picking one anyway should be refused.
 - A registry that can't be reached should leave the built-in templates working; if a template's files can't be fetched when the project starts, the chat should say why and the agent shouldn't start.
 - An admin should be able to add another registry in the same format, or turn one off, in config.
 

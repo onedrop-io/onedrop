@@ -51,10 +51,11 @@ class ProjectController extends Controller
             'defaultAi' => $request->user()->agentConnections()->firstWhere('is_default', true)?->provider->label(),
             'agent' => $agent ? $catalog->describe(['provider' => $agent['agent_provider'], 'model' => $agent['agent_model'], 'variant' => $agent['agent_variant']], $agent['agent_harness']) : null,
             'templates' => AppTemplate::options(),
-            // Popular open-source apps under the built-in ones (PRJ-012), after the page shows, since the registry may be slow.
-            'popular' => Inertia::defer(fn () => $templates->popular()),
-            // "Browse all templates" loads the built-in and every registry's when it opens.
-            'catalog' => Inertia::optional(fn () => $templates->all()),
+            // Every free open-source app under the built-in templates (PRJ-012), after the page shows, since the registry may be slow.
+            'apps' => Inertia::defer(fn () => $templates->apps()),
+            // The popular apps with a picture each, for the coverflow above them; its own group, since finding a picture
+            // can mean fetching each app's website.
+            'featured' => Inertia::defer(fn () => $templates->featured(), 'featured'),
             'compose' => $templates->canRunCompose(),
             // "Remix this" on a share page (SHARE-002) opens this page with the shared prompt filled in.
             'remix' => $request->session()->pull('remix'),

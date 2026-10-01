@@ -22,6 +22,8 @@ abstract class TestCase extends BaseTestCase
             'dokploy.test/blueprints/n8n/docker-compose.yml' => Http::response(file_get_contents(__DIR__.'/Fixtures/dokploy-n8n-compose.yml')),
             'dokploy.test/blueprints/n8n/template.toml' => Http::response(file_get_contents(__DIR__.'/Fixtures/dokploy-n8n-template.toml')),
             'dokploy.test/*' => Http::response('', 404),
+            // App stores' screenshot galleries (PRJ-012): none unless a test lists some.
+            'github.test/*' => Http::response('', 404),
         ]);
     }
 

@@ -183,6 +183,34 @@ return [
         ],
     ],
 
+    /*
+    | Pictures of the free apps in their details (PRJ-012): the preview image from each app's website (its og:image,
+    | cached a week), then screenshots from app stores whose galleries are GitHub repositories. Each store's file list
+    | is read once a day through GitHub's API; the images load from jsDelivr. `pattern` picks a store's screenshots and
+    | captures the app's folder, matched to an app by its id or name (letters and digits only).
+    */
+    'app_screenshots' => [
+        'website_previews' => (bool) env('SANDBOX_APP_SCREENSHOTS_WEBSITE_PREVIEWS', true),
+        'github_url' => env('SANDBOX_APP_SCREENSHOTS_GITHUB_URL', 'https://api.github.com'),
+        'cdn_url' => env('SANDBOX_APP_SCREENSHOTS_CDN_URL', 'https://cdn.jsdelivr.net/gh'),
+        'galleries' => [
+            'umbrel' => [
+                'name' => 'Umbrel App Store',
+                'repository' => 'getumbrel/umbrel-apps-gallery',
+                'branch' => 'master',
+                'pattern' => '#^([^/]+)/\d+\.(?:jpe?g|png|webp)$#i',
+                'enabled' => (bool) env('SANDBOX_APP_SCREENSHOTS_UMBREL', true),
+            ],
+            'casaos' => [
+                'name' => 'CasaOS App Store',
+                'repository' => 'IceWhaleTech/CasaOS-AppStore',
+                'branch' => 'main',
+                'pattern' => '#^Apps/([^/]+)/screenshot-\d+\.(?:jpe?g|png|webp)$#i',
+                'enabled' => (bool) env('SANDBOX_APP_SCREENSHOTS_CASAOS', true),
+            ],
+        ],
+    ],
+
     // Where ChatGPT lists the models a signed-in account can use with Codex (its plan decides). Cached for an hour.
     'chatgpt_models_url' => env('SANDBOX_CHATGPT_MODELS_URL', 'https://chatgpt.com/backend-api/codex/models'),
 

@@ -42,6 +42,8 @@
         <env name="SANDBOX_MODEL_CATALOG_URL" value="https://models.test/api.json"/>
         <env name="SANDBOX_CHATGPT_MODELS_URL" value="https://chatgpt.test/models"/>
         <env name="SANDBOX_TEMPLATES_DOKPLOY_URL" value="https://dokploy.test"/>
+        <env name="SANDBOX_APP_SCREENSHOTS_GITHUB_URL" value="https://github.test"/>
+        <env name="SANDBOX_APP_SCREENSHOTS_WEBSITE_PREVIEWS" value="false"/>
         <env name="SANDBOX_AGENT" value="App\Sandbox\Agents\FakeAgentRunner"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>

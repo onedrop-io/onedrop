@@ -87,7 +87,7 @@ export type AppTemplate = {
     prompt: string;
 };
 
-/** A template in "Browse all templates" (App\Sandbox\Templates\TemplateCatalog, PRJ-012): built-in or from a registry. */
+/** A template from App\Sandbox\Templates\TemplateCatalog (PRJ-012): built-in or from a registry. */
 export type CatalogTemplate = AppTemplate & {
     /** The registry's name, e.g. "Dokploy"; null for the built-in ones. */
     registry: string | null;
@@ -95,9 +95,18 @@ export type CatalogTemplate = AppTemplate & {
     tags: string[];
     /** A Docker Compose stack, which needs Docker inside sandboxes. */
     compose: boolean;
-    /** The app's website. */
-    link: string | null;
+    /** The app's version in the registry, when it names one. */
+    version: string | null;
+    /** Where to read more about the app; only https links. */
+    links: {
+        website: string | null;
+        github: string | null;
+        docs: string | null;
+    };
 };
+
+/** A popular free app with the one picture shown for it in the coverflow (PRJ-012). */
+export type FeaturedApp = CatalogTemplate & { cover: string };
 
 /** A project as listed in the sidebar, with what its menu needs. */
 export type SidebarProject = ProjectSummary & {

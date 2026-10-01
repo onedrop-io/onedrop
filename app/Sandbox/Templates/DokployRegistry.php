@@ -57,7 +57,12 @@ class DokployRegistry implements TemplateRegistry
                 'logo' => $logo ? "{$this->url}/blueprints/{$id}/".rawurlencode($logo) : null,
                 'tags' => array_values(array_filter($entry['tags'] ?? [], 'is_string')),
                 'compose' => true,
-                'link' => collect([$links['website'] ?? null, $links['github'] ?? null])->first(fn ($link) => is_string($link) && str_starts_with($link, 'https://')),
+                // "latest" says nothing; a real version tells them what they'd get.
+                'version' => is_string($entry['version'] ?? null) && ! in_array($entry['version'], ['', 'latest'], true) ? $entry['version'] : null,
+                'links' => array_map(
+                    fn (string $kind) => is_string($links[$kind] ?? null) && str_starts_with($links[$kind], 'https://') ? $links[$kind] : null,
+                    ['website' => 'website', 'github' => 'github', 'docs' => 'docs'],
+                ),
             ];
         }
 

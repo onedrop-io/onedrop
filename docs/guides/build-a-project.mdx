@@ -5,7 +5,13 @@ description: "Describe an app, watch the agent build it, and keep improving it t
 
 ## Start a project
 
-After logging in you see **"what are we working on today?"** Type a description of the app you want, or pick a template, and press Enter.
+After logging in you see **"what are we working on today?"** and three ways to start:
+
+- **Start from scratch**: type a description of the app you want and press Enter.
+- **Or start from a template**: pick a ready-made business app, change anything, then send it.
+- **Or install a free app**: pick a popular open-source app, and OneDrop sets it up for you.
+
+As you type, OneDrop checks whether a template or free app already does what you describe. If one does, up to three show under the message box as **This might already exist**. Click one to start from it (what you typed is kept after its description), click **No thanks** to hide them, or just send yours to start from scratch.
 
 OneDrop then:
 
@@ -21,15 +27,11 @@ Under the message box are templates for apps teams usually keep in spreadsheets:
 
 Picking one fills the message box with a full description: the records the app keeps, the views it shows (tables, boards, calendars, public forms), who signs in, and sample data to try it with. Change anything you like before sending, such as "for our three warehouses" or "add a field for the lead source". The project is named after the template; rename it from the sidebar any time.
 
-### Popular open-source apps
+### Install a free app
 
-Below the templates are popular open-source apps, ready to run: Twenty CRM, Chatwoot, n8n, Cal.com, Plausible, NocoDB, Documenso, Plane and Metabase. They come from template registries, starting with [Dokploy's](https://templates.dokploy.com).
+Below the templates, under **Or install a free app**, are about 500 open-source apps, ready to run, with the popular ones first (Twenty CRM, Chatwoot, n8n, Cal.com, Plausible, NocoDB, Documenso, Plane, Metabase…). The popular ones also turn in a coverflow at the top: click one at the side to bring it forward, or the one in the middle to see its details. It pauses while your pointer is over it, and stays still if your system is set to reduce motion. They come from template registries, starting with [Dokploy's](https://templates.dokploy.com). Type in the search box to find one by name, description or tag (such as `analytics` or `cms`), or pick a category (Monitoring, Database, AI…). Click an app (or press Enter to open the first match) to see what it is: pictures of it (its website's preview image, then screenshots from the Umbrel and CasaOS app stores when they list it; use the arrows or the arrow keys to step through), its description, version, categories, links to its website, source code and docs, and what happens when you use it. Click **Use** to start the project from it straight away; ask for any changes in the chat once it's running.
 
-### Browse all templates
-
-**Browse all templates**, beside the "Or start from a template" heading, opens every template in one list: the built-in ones plus about 500 open-source apps. Type to search names, descriptions and tags (such as `analytics` or `cms`), or pick a category above the list (Business, Monitoring, Database, AI…). Use the arrow keys and Enter, or click one.
-
-A registry template is a Docker Compose stack. Picking one fills the message box with "Set up …"; add what you want changed (say, "use New York time"). When the project starts, OneDrop puts the template's `docker-compose.yml` in the project and its registry settings in `.onedrop/template.toml`. The agent then writes the `.env` (with new random passwords and secrets), sets the stack up as the preview, gets it running, and tells you how to sign in. The stack's containers show in the [Services tab](/guides/workspace#services).
+A registry template is a Docker Compose stack. Using one starts the project with "Set up …" as the first message. When the project starts, OneDrop puts the template's `docker-compose.yml` in the project and its registry settings in `.onedrop/template.toml`. The agent then writes the `.env` (with new random passwords and secrets), sets the stack up as the preview, gets it running, and tells you how to sign in. The stack's containers show in the [Services tab](/guides/workspace#services).
 
 <Info>
 Registry templates need Docker inside sandboxes, which an admin turns on in **Settings → Sandboxes → Docker** (see [Run a project's Docker Compose](/guides/docker-compose)). Until then they're greyed out.
@@ -38,6 +40,8 @@ Registry templates need Docker inside sandboxes, which an admin turns on in **Se
 If a registry can't be reached, the built-in templates still work and the registry's are tried again a few minutes later. If a template's files can't be downloaded when the project starts, the chat says so and the agent doesn't start.
 
 #### Add a registry
+
+The pictures are set in `config/sandbox.php` under `app_screenshots`: turn off website previews with `SANDBOX_APP_SCREENSHOTS_WEBSITE_PREVIEWS=false`, or an app store with `SANDBOX_APP_SCREENSHOTS_UMBREL=false` / `SANDBOX_APP_SCREENSHOTS_CASAOS=false`. Any app store whose screenshots are in a GitHub repository can be added there.
 
 Registries are listed in `config/sandbox.php` under `template_registries`. Each has a `name`, a `format`, a `url` and the `popular` template ids shown under the prompt; any registry laid out like Dokploy's (a `meta.json` index and a `blueprints/<id>/` folder per template), such as your own fork, works with `'format' => 'dokploy'`. Point the Dokploy entry somewhere else with `SANDBOX_TEMPLATES_DOKPLOY_URL`, or set it to an empty value to turn it off. Each registry's list is cached for a day.
 

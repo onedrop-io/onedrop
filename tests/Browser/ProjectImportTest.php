@@ -31,6 +31,7 @@ test('turning on Repository next to the agent picker starts the project from a r
         ->press('@repository-toggle')
         ->assertVisible('@repository-input')
         ->assertDontSee('Or start from a template')
+        ->assertDontSee('Start from scratch')
         ->assertSee('Paste a public repository’s link.')
         ->fill('@repository-input', "file://{$this->root}/team-timer.git")
         ->press('@composer-send')

@@ -39,17 +39,31 @@ test('the catalog lists the built-in templates, then each registry\'s, skipping 
             'logo' => 'https://dokploy.test/blueprints/n8n/n8n.png',
             'tags' => ['automation'],
             'compose' => true,
-            'link' => 'https://n8n.io/',
+            'version' => '1.104.0',
+            'links' => ['website' => 'https://n8n.io/', 'github' => 'https://github.com/n8n-io/n8n', 'docs' => 'https://docs.n8n.io/'],
         ]);
 })->group('PRJ-012');
 
-test('the new-project page loads the catalog only when asked, and says whether registry templates can run', function () {
+test('a registry template keeps only a real version and https links', function () {
+    config(['sandbox.template_registries.dokploy.url' => 'https://dokploy-other.test']);
+    Http::fake(['dokploy-other.test/meta.json' => Http::response([
+        ['id' => 'plane', 'name' => 'Plane', 'version' => 'latest', 'description' => 'Projects.', 'links' => ['website' => 'http://plane.so', 'github' => 'https://github.com/makeplane/plane']],
+    ])]);
+
+    expect(collect(app(TemplateCatalog::class)->apps())->sole())->toMatchArray([
+        'version' => null,
+        'links' => ['website' => null, 'github' => 'https://github.com/makeplane/plane', 'docs' => null],
+    ]);
+})->group('PRJ-012');
+
+test('the new-project page loads every free app after it shows, and says whether they can run', function () {
     $this->followingRedirects()->get(route('dashboard'))
         ->assertInertia(fn ($page) => $page
             ->component('projects/create')
-            ->missing('catalog')
+            ->has('templates', count(AppTemplate::cases()))
+            ->missing('apps')
             ->where('compose', true)
-            ->reloadOnly('catalog', fn ($reload) => $reload->has('catalog', count(AppTemplate::cases()) + 2)));
+            ->loadDeferredProps(fn ($reload) => $reload->has('apps', 2)));
 
     config(['sandbox.providers.docker.nested_docker' => 'off']);
 
@@ -72,11 +86,19 @@ test('popular templates are each registry\'s configured ids, in order, skipping 
     config(['sandbox.template_registries.dokploy.popular' => ['n8n', 'missing', 'ghost']]);
 
     expect(collect(app(TemplateCatalog::class)->popular())->pluck('value')->all())->toBe(['dokploy/n8n', 'dokploy/ghost']);
+})->group('PRJ-012');
+
+test('the free apps are every registry template once, the popular ones first', function () {
+    config(['sandbox.template_registries.dokploy.popular' => ['n8n']]);
+
+    expect(collect(app(TemplateCatalog::class)->apps())->pluck('value')->all())->toBe(['dokploy/n8n', 'dokploy/ghost']);
+
+    config(['sandbox.template_registries.dokploy.popular' => ['ghost']]);
+
+    expect(collect(app(TemplateCatalog::class)->apps())->pluck('value')->all())->toBe(['dokploy/ghost', 'dokploy/n8n']);
 
     $this->followingRedirects()->get(route('dashboard'))
-        ->assertInertia(fn ($page) => $page
-            ->missing('popular')
-            ->loadDeferredProps(fn ($reload) => $reload->has('popular', 2)->where('popular.0.label', 'n8n')));
+        ->assertInertia(fn ($page) => $page->loadDeferredProps(fn ($reload) => $reload->where('apps.0.label', 'Ghost')));
 })->group('PRJ-012');
 
 test('a registry with no url is off', function () {

@@ -55,6 +55,7 @@ use App\Http\Controllers\SshKeyController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TaskMessageController;
 use App\Http\Controllers\UsageController;
+use App\Http\Controllers\TemplateScreenshotController;
 use App\Http\Controllers\UserController;
 use App\Http\Middleware\HandleInertiaRequests;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
@@ -143,6 +144,7 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
         });
 
         Route::get('projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
+        Route::get('templates/screenshots', TemplateScreenshotController::class)->middleware('throttle:60,1')->name('templates.screenshots');
         Route::patch('projects/{project}', [ProjectController::class, 'update'])->name('projects.update');
         Route::delete('projects/{project}', [ProjectController::class, 'destroy'])->name('projects.destroy');
         Route::post('projects/{project}/name', [ProjectController::class, 'regenerateName'])->name('projects.name.regenerate');

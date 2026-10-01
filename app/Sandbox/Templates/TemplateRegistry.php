@@ -6,7 +6,7 @@ namespace App\Sandbox\Templates;
  * A registry of ready-made apps listed beside the built-in templates on the new-project page (PRJ-012), such as
  * Dokploy's. Each format (how a registry lays out its index and files) is one implementation.
  *
- * @phpstan-type Template array{value: string, label: string, description: string, prompt: string, registry: ?string, logo: ?string, tags: list<string>, compose: bool, link: ?string}
+ * @phpstan-type Template array{value: string, label: string, description: string, prompt: string, registry: ?string, logo: ?string, tags: list<string>, compose: bool, version: ?string, links: array{website: ?string, github: ?string, docs: ?string}}
  */
 interface TemplateRegistry
 {
