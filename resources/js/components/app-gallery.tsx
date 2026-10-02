@@ -28,6 +28,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Spinner } from '@/components/ui/spinner';
+import TurnOnDocker from '@/components/turn-on-docker';
 import { cn } from '@/lib/utils';
 import type { CatalogTemplate } from '@/types';
 
@@ -310,8 +311,7 @@ export function AppDetails({
                                 data-test="app-details-unavailable"
                             >
                                 This app needs Docker, which isn’t turned on
-                                here yet. An admin can turn it on in Settings →
-                                Sandboxes.
+                                here yet. <TurnOnDocker />
                             </p>
                         )}
 

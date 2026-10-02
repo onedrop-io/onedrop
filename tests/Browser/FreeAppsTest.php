@@ -59,6 +59,20 @@ test('registry templates can\'t be picked when sandboxes can\'t run Docker', fun
         ->assertVisible('@app-details-unavailable')
         ->assertVisible('[data-test="app-details-use"]:disabled')
         ->assertValue('#composer-prompt', '')
+        ->click('[data-test="app-details-unavailable"] [data-test="turn-on-docker-link"]')
+        ->assertPathIs('/admin/sandboxes')
+        ->assertNoJavaScriptErrors();
+})->group('PRJ-012');
+
+test('a member is told to ask an admin to turn on Docker, with no link to settings', function () {
+    AgentConnection::factory()->for(User::where('email', 'sam@example.com')->sole())->create();
+
+    visit('/login')
+        ->fill('email', 'sam@example.com')
+        ->fill('password', 'password')
+        ->press('@login-button')
+        ->assertSee('These run with Docker. An admin can turn on Docker inside sandboxes in Settings → Sandboxes.')
+        ->assertMissing('@turn-on-docker-link')
         ->assertNoJavaScriptErrors();
 })->group('PRJ-012');
 

@@ -17,6 +17,7 @@ import PromptComposer from '@/components/prompt-composer';
 import RepositoryPicker, {
     RepositoryToggle,
 } from '@/components/repository-picker';
+import TurnOnDocker from '@/components/turn-on-docker';
 import type { ImportGitHub } from '@/components/repository-picker';
 import AppGallery, {
     AppDetails,
@@ -326,9 +327,7 @@ export default function CreateProject({
                             />
                             {!compose && (
                                 <p className="text-xs text-muted-foreground">
-                                    These run with Docker. An admin can turn on
-                                    Docker inside sandboxes in Settings →
-                                    Sandboxes.
+                                    These run with Docker. <TurnOnDocker />
                                 </p>
                             )}
                             <Deferred

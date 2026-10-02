@@ -34,7 +34,7 @@ Below the templates, under **Or install a free app**, are about 500 open-source 
 A registry template is a Docker Compose stack. Using one starts the project with "Set up …" as the first message. When the project starts, OneDrop puts the template's `docker-compose.yml` in the project and its registry settings in `.onedrop/template.toml`. The agent then writes the `.env` (with new random passwords and secrets), sets the stack up as the preview, gets it running, and tells you how to sign in. The stack's containers show in the [Services tab](/guides/workspace#services).
 
 <Info>
-Registry templates need Docker inside sandboxes, which an admin turns on in **Settings → Sandboxes → Docker** (see [Run a project's Docker Compose](/guides/docker-compose)). Until then they're greyed out.
+Registry templates need Docker inside sandboxes, which an admin turns on in **Settings → Sandboxes → Docker** (see [Run a project's Docker Compose](/guides/docker-compose)). Until then they're greyed out; if you're an admin, the note under them links straight to that page.
 </Info>
 
 If a registry can't be reached, the built-in templates still work and the registry's are tried again a few minutes later. If a template's files can't be downloaded when the project starts, the chat says so and the agent doesn't start.
