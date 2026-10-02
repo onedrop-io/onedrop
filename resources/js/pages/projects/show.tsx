@@ -908,7 +908,7 @@ function WorkspacePanel({
                   ? (asked as PaneTab)
                   : 'preview';
 
-        return panes.initialLayout(panes.isPinned(first) ? [] : [first], first);
+        return panes.initialLayout(first);
     });
     const tab = panes.focusedTab(layout);
     const showTab = (kind: PaneTab, paneId?: number) =>
@@ -1977,10 +1977,13 @@ function WorkspacePanel({
                                         onSelect: () => addTab(kind, pane.id),
                                     }))}
                             />
-                            <div className="contents max-md:hidden">
-                                {pane.tabs.map((kind) =>
-                                    tabButton(kind, pane.id),
-                                )}
+                            <div className="flex min-w-0 items-center gap-1 max-md:hidden">
+                                {/* The tabs scroll when they don't fit, so the status and the tab's buttons stay in view. */}
+                                <div className="flex min-w-0 [scrollbar-width:none] items-center gap-1 overflow-x-auto">
+                                    {pane.tabs.map((kind) =>
+                                        tabButton(kind, pane.id),
+                                    )}
+                                </div>
                                 <DropdownMenu modal={false}>
                                     <DropdownMenuTrigger asChild>
                                         <button
@@ -2027,7 +2030,7 @@ function WorkspacePanel({
                             </div>
                             <span
                                 className={cn(
-                                    'ml-2 min-w-0 flex-1 truncate text-muted-foreground',
+                                    'ml-2 min-w-0 flex-[1_1_8rem] truncate text-muted-foreground',
                                     pane.active === 'preview' &&
                                         statusIsUrl &&
                                         'max-md:invisible',

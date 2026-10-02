@@ -291,8 +291,8 @@ test('each file and folder has a menu to rename, search, open the shell in, and 
         ->assertSeeIn('@files-panel', 'package.json')
         ->click('@file-menu-src')
         ->click('@file-action-shell')
-        ->assertVisible('@shell-frame')
-        ->assertScript('document.querySelector(\'[data-test="shell-frame"]\').getAttribute("src").startsWith("http://127.0.0.1:7681/?arg=cd&arg=src&arg=session&arg=")', true)
+        ->assertVisible('@shell-frame-2')
+        ->assertScript('document.querySelector(\'[data-test="shell-frame-2"]\').getAttribute("src").startsWith("http://127.0.0.1:7681/?arg=cd&arg=src&arg=session&arg=")', true)
         ->click('[data-test="file-menu-package.json"]')
         ->click('@file-action-delete')
         ->assertVisible('@file-delete-dialog');
@@ -364,8 +364,7 @@ test('cmd or ctrl+p in a shell opens go to file', function () {
     $this->actingAs($user);
 
     $page = visit("/projects/{$project->id}")
-        ->click('@add-tab')
-        ->click('@add-tab-shell')
+        ->click('@tab-shell')
         ->assertMissing('@quick-open');
 
     $page->withinFrame('[data-test="shell-frame"]', function ($frame) {

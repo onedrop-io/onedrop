@@ -87,8 +87,8 @@ test('users sign in to Claude from the chat in Claude Code\'s own sign-in in the
     $page = visit("/projects/{$project->id}")
         ->assertSeeIn('@harness-picker', 'Claude Code')
         ->click('@claude-sign-in')
-        ->assertVisible('@shell-frame')
-        ->assertScript('document.querySelector(\'[data-test="shell-frame"]\').getAttribute("src").startsWith("http://127.0.0.1:7681/?arg=claude-login&arg=session&arg=")', true)
+        ->assertVisible('@shell-frame-2')
+        ->assertScript('document.querySelector(\'[data-test="shell-frame-2"]\').getAttribute("src").startsWith("http://127.0.0.1:7681/?arg=claude-login&arg=session&arg=")', true)
         ->assertNoJavaScriptErrors();
 
     // Once Claude Code reports a sign-in, the chat shows who it's signed in as.
@@ -97,7 +97,7 @@ test('users sign in to Claude from the chat in Claude Code\'s own sign-in in the
     // ...goes back to the Preview tab, and picks the failed message back up.
     $page->wait(6)->assertSeeIn('@claude-login-status', 'Claude Code is signed in as dev@example.com')
         ->assertVisible('@preview-placeholder')
-        ->assertMissing('@shell-frame')
+        ->assertMissing('@shell-frame-2')
         ->assertSee('Signed in to Claude, picking up where it left off')
         ->assertNoJavaScriptErrors();
 
@@ -118,14 +118,14 @@ test('on a phone, "Sign in to Claude" switches to the workspace, and signing in 
         ->resize(390, 844)
         ->click('@claude-sign-in')
         ->assertAttribute('@mobile-tab-workspace', 'aria-selected', 'true')
-        ->assertVisible('@shell-frame')
+        ->assertVisible('@shell-frame-2')
         ->assertNoJavaScriptErrors();
 
     $provider->execUsing = fn (array $command) => new ExecResult(0, json_encode(['loggedIn' => true, 'authMethod' => 'claude.ai', 'email' => 'dev@example.com']));
 
     $page->wait(6)->assertAttribute('@mobile-tab-chat', 'aria-selected', 'true')
         ->assertSeeIn('@claude-login-status', 'Claude Code is signed in as dev@example.com')
-        ->assertMissing('@shell-frame')
+        ->assertMissing('@shell-frame-2')
         ->assertNoJavaScriptErrors();
 })->group('AI-005', 'LAYOUT-006');
 

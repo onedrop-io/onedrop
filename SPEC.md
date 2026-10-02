@@ -553,6 +553,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - A Shell tab should keep its session while the user switches tabs.
 - User should be able to type in the Shell tab straight away: the terminal gets the cursor when the tab opens or is switched back to.
 - User should see a OneDrop banner with the project's name and a few shell tips when a Shell tab (or SSH session) starts, once per terminal.
+- User should see Shell, Services and Console tabs open next to Tools and Preview when opening a project, with Preview showing.
 - User should have modern command-line tools in the Shell tab: `bat` (view files with highlighting), `rg` (search), `fd` (find files), `z` (jump to directories), `jq` (JSON), `btop` (processes), `lazygit` (git), `micro` (editor, also used for commit messages), `vim` and `ncdu` (what's using disk space).
 - User should see file listings (`ls`, `ll`, `la`, `tree`) with folders first, colours, a git column and relative times; `ls` with GNU-only flags (e.g. `-ltr`) should still work.
 - User should see a clear notice when the console or shell isn't available (e.g. sandbox not running, or an older sandbox without a shell).

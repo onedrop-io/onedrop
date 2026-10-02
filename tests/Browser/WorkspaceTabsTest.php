@@ -8,7 +8,7 @@ use App\Sandbox\ExecResult;
 use App\Sandbox\Providers\FakeSandboxProvider;
 use App\Sandbox\SandboxProvider;
 
-test('console and shell tabs can be added from the + menu and closed', function () {
+test('shell, services and console tabs are open by default, and can be shown from the + menu and closed', function () {
     $provider = new FakeSandboxProvider;
     $provider->execUsing = fn (array $command) => $command[0] === 'sh'
         ? new ExecResult(0, "42\n\e[32m  VITE v7 ready\e[0m in 300 ms\n")
@@ -21,14 +21,16 @@ test('console and shell tabs can be added from the + menu and closed', function 
     $this->actingAs($user);
 
     visit("/projects/{$project->id}")
+        ->assertScript('Array.from(document.querySelectorAll("button[data-test^=tab-]")).map((tab) => tab.dataset.test).join(",")', 'tab-tools,tab-preview,tab-shell,tab-services,tab-console')
+        ->assertVisible('@preview-placeholder')
         ->click('@add-tab')
         ->click('@add-tab-console')
         ->assertSeeIn('@console-output', 'VITE v7 ready in 300 ms')
         ->assertDontSeeIn('@console-output', '[32m')
         ->assertMissing('[role="menu"]')
-        ->click('@add-tab')
-        ->click('@add-tab-shell')
-        ->assertSeeIn('@tab-notice', "This sandbox doesn't have a shell")
+        ->assertMissing('@tab-console-2')
+        ->click('@tab-shell')
+        ->assertSeeIn('[data-test="tab-notice"]:visible', "This sandbox doesn't have a shell")
         ->click('@tab-console')
         ->assertSeeIn('@console-output', 'VITE v7 ready')
         ->click('[aria-label="Clear console"]')
@@ -48,9 +50,7 @@ test('the shell tab puts the cursor in the terminal when shown', function () {
     $shellFocused = 'document.activeElement?.dataset.test === "shell-frame"';
 
     visit("/projects/{$project->id}")
-        ->click('@add-tab')
-        ->click('@add-tab-shell')
-        ->wait(0.5) // let the menu finish closing; it hands focus back to "+" as it goes
+        ->click('@tab-shell')
         ->assertScript($shellFocused, true)
         ->click('@tab-preview')
         ->assertScript($shellFocused, false)
@@ -68,15 +68,10 @@ test('closable tabs can be dragged into a different order', function () {
     $order = 'Array.from(document.querySelectorAll("button[data-test^=tab-]")).map((tab) => tab.dataset.test).join(",")';
 
     visit("/projects/{$project->id}")
-        ->click('@add-tab')
-        ->click('@add-tab-console')
-        ->assertMissing('[role="menu"]')
-        ->click('@add-tab')
-        ->click('@add-tab-shell')
-        ->assertScript($order, 'tab-tools,tab-preview,tab-console,tab-shell')
-        ->drag('@tab-console', '@tab-shell')
-        ->assertScript($order, 'tab-tools,tab-preview,tab-shell,tab-console')
-        ->drag('@tab-console', '@tab-preview')
-        ->assertScript($order, 'tab-tools,tab-preview,tab-shell,tab-console')
+        ->assertScript($order, 'tab-tools,tab-preview,tab-shell,tab-services,tab-console')
+        ->drag('@tab-shell', '@tab-services')
+        ->assertScript($order, 'tab-tools,tab-preview,tab-services,tab-shell,tab-console')
+        ->drag('@tab-shell', '@tab-preview')
+        ->assertScript($order, 'tab-tools,tab-preview,tab-services,tab-shell,tab-console')
         ->assertNoJavaScriptErrors();
 })->group('TAB-001');

@@ -39,43 +39,43 @@ test('the workspace splits into panes with their own shells, and tabs move betwe
 
     $tabsIn = fn (int $pane) => "Array.from(document.querySelectorAll('[data-test=\"pane-{$pane}\"] button[data-test^=tab-]')).map((tab) => tab.dataset.test).join(',')";
     // Set on a Shell's page; a Shell that reloaded (a new session) loses it.
-    $mark = 'document.querySelector(\'[data-test="shell-frame-2"]\').contentWindow.marked = true';
-    $marked = 'document.querySelector(\'[data-test="shell-frame-2"]\')?.contentWindow?.marked === true';
+    $mark = 'document.querySelector(\'[data-test="shell-frame-3"]\').contentWindow.marked = true';
+    $marked = 'document.querySelector(\'[data-test="shell-frame-3"]\')?.contentWindow?.marked === true';
 
     $page = visit("/projects/{$project->id}")
         ->resize(1600, 900)
         ->click('@split-menu')
         ->click('@split-right')
         ->assertPresent('@pane-2')
-        ->assertScript($tabsIn(1), 'tab-tools,tab-preview')
-        ->assertScript($tabsIn(2), 'tab-shell')
-        ->assertPresent('@shell-frame')
+        ->assertScript($tabsIn(1), 'tab-tools,tab-preview,tab-shell,tab-services,tab-console')
+        ->assertScript($tabsIn(2), 'tab-shell-2')
+        ->assertPresent('@shell-frame-2')
         ->click('[data-test="pane-1"] [data-test="add-tab"]')
         ->click('@add-tab-shell')
-        ->assertScript($tabsIn(1), 'tab-tools,tab-preview,tab-shell-2')
-        ->assertSeeIn('@tab-shell-2', 'Shell 2')
-        ->assertPresent('@shell-frame-2');
+        ->assertScript($tabsIn(1), 'tab-tools,tab-preview,tab-shell,tab-services,tab-console,tab-shell-3')
+        ->assertSeeIn('@tab-shell-3', 'Shell 3')
+        ->assertPresent('@shell-frame-3');
 
     $page->script($mark);
 
-    $page->drag('@tab-shell-2', '[data-test="pane-2"] [data-test="sandbox-status"]')
-        ->assertScript($tabsIn(1), 'tab-tools,tab-preview')
-        ->assertScript($tabsIn(2), 'tab-shell,tab-shell-2')
+    $page->drag('@tab-shell-3', '[data-test="pane-2"] [data-test="sandbox-status"]')
+        ->assertScript($tabsIn(1), 'tab-tools,tab-preview,tab-shell,tab-services,tab-console')
+        ->assertScript($tabsIn(2), 'tab-shell-2,tab-shell-3')
         ->assertScript($marked, true)
         ->wait(0.3) // let the drag finish; a click straight after the drop is lost
         ->click('[data-test="pane-2"] [data-test="split-menu"]')
         ->click('@split-down')
-        ->assertScript($tabsIn(3), 'tab-shell-3')
+        ->assertScript($tabsIn(3), 'tab-shell-4')
         ->assertScript(
             'document.querySelector(\'[data-test="pane-3"]\').getBoundingClientRect().top > document.querySelector(\'[data-test="pane-1"]\').getBoundingClientRect().bottom',
             true,
         )
-        ->click('[data-test="tab-shell-3"] + button')
+        ->click('[data-test="tab-shell-4"] + button')
         ->assertMissing('@pane-3')
-        ->assertMissing('@tab-shell-3')
+        ->assertMissing('@tab-shell-4')
         ->click('[data-test="pane-2"] [data-test="close-pane"]')
         ->assertMissing('@pane-2')
-        ->assertScript($tabsIn(1), 'tab-tools,tab-preview,tab-shell,tab-shell-2')
+        ->assertScript($tabsIn(1), 'tab-tools,tab-preview,tab-shell,tab-services,tab-console,tab-shell-2,tab-shell-3')
         ->assertScript($marked, true)
         ->assertMissing('@close-pane')
         ->assertNoJavaScriptErrors();
@@ -97,10 +97,10 @@ test('a reload keeps the panes, tabs, Shell sessions, preview page and chat draf
         ->resize(1600, 900)
         ->click('@split-menu')
         ->click('@split-right')
-        ->assertPresent('@shell-frame')
+        ->assertPresent('@shell-frame-2')
         ->click('[data-test="pane-1"] [data-test="add-tab"]')
-        ->click('@add-tab-console')
-        ->click('@tab-preview')
+        ->click('@add-tab-tests')
+        ->click('[data-test="pane-1"] [data-test="tab-preview"]')
         ->type('#composer-content', 'half a thought');
 
     $page->script($navigatePreview);
@@ -108,8 +108,8 @@ test('a reload keeps the panes, tabs, Shell sessions, preview page and chat draf
     expect($session)->toContain('arg=session');
 
     $page->refresh()
-        ->assertScript($tabsIn(1), 'tab-tools,tab-preview,tab-console')
-        ->assertScript($tabsIn(2), 'tab-shell')
+        ->assertScript($tabsIn(1), 'tab-tools,tab-preview,tab-shell,tab-services,tab-console,tab-tests')
+        ->assertScript($tabsIn(2), 'tab-shell-2')
         ->assertScript($shellSrc, $session)
         ->assertScript("{$previewSrc}.endsWith('/settings?section=billing')", true)
         ->assertValue('#composer-content', 'half a thought')
@@ -119,7 +119,7 @@ test('a reload keeps the panes, tabs, Shell sessions, preview page and chat draf
     visit("/projects/{$project->id}")
         ->resize(1600, 900)
         ->assertMissing('@pane-2')
-        ->assertScript($tabsIn(1), 'tab-tools,tab-preview')
+        ->assertScript($tabsIn(1), 'tab-tools,tab-preview,tab-shell,tab-services,tab-console')
         ->assertValue('#composer-content', '');
 })->group('LAYOUT-005');
 
@@ -200,7 +200,7 @@ test('on a small screen a pane\'s tabs are one switcher, with the rest in a shee
         ->click('@mobile-add-tab-tests')
         ->assertMissing('@mobile-tab-sheet')
         ->assertSeeIn('@mobile-tab-switcher', 'Tests')
-        ->assertSeeIn('@mobile-tab-switcher', '3')
+        ->assertSeeIn('@mobile-tab-switcher', '6')
         ->click('@mobile-tab-switcher')
         ->assertMissing('@mobile-add-tab-tests')
         ->assertVisible('@mobile-add-tab-shell')
