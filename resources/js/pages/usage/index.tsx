@@ -183,14 +183,14 @@ function CreditsCard({
 
     return (
         <section
-            className="flex flex-wrap items-start gap-x-10 gap-y-5 rounded-xl border p-5"
+            className="flex flex-wrap items-start gap-x-10 gap-y-5 rounded-xl border border-violet-500/30 bg-violet-500/5 p-5"
             data-test="ai-credits-card"
         >
             <div className="min-w-48">
                 <div className="text-sm text-muted-foreground">AI credits</div>
-                <div className="mt-1 text-3xl font-medium tabular-nums">
+                <div className="mt-1 text-5xl font-semibold tracking-tight tabular-nums">
                     {formatCredits(credits.left)}
-                    <span className="ml-1.5 text-base font-normal text-muted-foreground">
+                    <span className="ml-2 text-lg font-normal tracking-normal text-muted-foreground">
                         left
                     </span>
                 </div>
@@ -405,7 +405,7 @@ export default function Usage({
                 <section className="grid gap-10 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
                     <div>
                         <div
-                            className="text-5xl font-semibold tracking-tight tabular-nums"
+                            className="text-3xl font-medium tabular-nums"
                             data-test="usage-total"
                         >
                             {metric === 'cost'
