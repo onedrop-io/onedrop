@@ -176,8 +176,9 @@ test('on a small screen the preview bar leaves out the address, the size menu an
         ->assertVisible('@preview-annotate')
         ->assertMissing('@preview-size')
         ->assertMissing('@split-menu')
-        ->assertScript("getComputedStyle(document.querySelector('[data-test=\"sandbox-status\"]')).visibility", 'hidden')
+        ->assertScript("getComputedStyle(document.querySelector('[data-test=\"preview-address\"]')).visibility", 'hidden')
         ->resize(1600, 900)
+        ->assertVisible('@preview-address')
         ->assertVisible('@preview-size')
         ->assertVisible('@split-menu')
         ->assertNoJavaScriptErrors();
@@ -189,8 +190,9 @@ test('on a small screen a pane\'s tabs are one switcher, with the rest in a shee
     Sandbox::factory()->for($project)->create(['preview_url' => 'http://127.0.0.1:49152', 'shell_url' => 'about:blank']);
     $this->actingAs($user);
 
+    // Opened on a phone: opened wide, the files panel would start open and cover the workspace once narrowed.
     $page = visit("/projects/{$project->id}")
-        ->resize(390, 844)
+        ->on()->mobile()
         ->click('@mobile-tab-workspace')
         ->assertMissing('@tab-preview')
         ->assertMissing('@add-tab')
@@ -252,11 +254,70 @@ test('the preview address copies only from its copy button', function () {
         });
     JS);
 
-    $page->click('@preview-address')
+    $page->assertValue('@preview-address', 'http://127.0.0.1:49152')
+        ->assertDontSeeIn('@sandbox-status', 'http://127.0.0.1:49152')
+        ->click('@preview-address')
         ->assertScript('window.copiedText ?? null', null)
         ->hover('@preview-address')
         ->click('@preview-address-copy')
         ->assertAttribute('@preview-address-copy', 'title', 'Copied')
         ->assertScript('window.copiedText', 'http://127.0.0.1:49152')
+        ->assertNoJavaScriptErrors();
+})->group('PRJ-002');
+
+test('the preview address follows the app page and goes where it is typed', function () {
+    $user = User::factory()->has(AgentConnection::factory())->create();
+    $project = Project::factory()->for($user)->create();
+    Sandbox::factory()->for($project)->create(['preview_url' => 'http://127.0.0.1:9']);
+    $this->actingAs($user);
+
+    // What the sandbox's preview script posts when the app's page changes.
+    $navigate = fn (string $page, bool $back) => 'window.dispatchEvent(new MessageEvent("message", {data: {onedrop: "location", page: "'.$page.'", back: '.($back ? 'true' : 'false').', forward: false}, source: document.querySelector(\'[data-test="preview-frame"]\').contentWindow}))';
+    $previewSrc = 'document.querySelector(\'[data-test="preview-frame"]\').getAttribute("src")';
+
+    $page = visit("/projects/{$project->id}")->resize(1600, 900)
+        ->assertValue('@preview-address', 'http://127.0.0.1:9')
+        ->assertAttribute('@preview-back', 'disabled', '')
+        ->assertAttribute('@preview-forward', 'disabled', '');
+
+    $page->script($navigate('/orders/12?tab=items', true));
+
+    $page->assertValue('@preview-address', 'http://127.0.0.1:9/orders/12?tab=items')
+        ->assertAttributeMissing('@preview-back', 'disabled')
+        ->assertAttribute('@preview-forward', 'disabled', '')
+        ->click('@preview-address')
+        ->type('@preview-address', '127.0.0.1:9/customers')
+        ->keys('@preview-address', 'Enter')
+        ->assertScript($previewSrc, 'http://127.0.0.1:9/customers')
+        // Another site isn't one of the app's pages: the typing stays to fix, and the preview stays put.
+        ->click('@preview-address')
+        ->type('@preview-address', 'https://example.com/')
+        ->keys('@preview-address', 'Enter')
+        ->assertValue('@preview-address', 'https://example.com/')
+        ->assertScript($previewSrc, 'http://127.0.0.1:9/customers')
+        ->keys('@preview-address', 'Escape')
+        ->assertValue('@preview-address', 'http://127.0.0.1:9/orders/12?tab=items')
+        ->assertNoJavaScriptErrors();
+})->group('PRJ-002');
+
+test('the preview back and forward buttons move the app page through its history', function () {
+    $user = User::factory()->has(AgentConnection::factory())->create();
+    $project = Project::factory()->for($user)->create();
+    // A preview page that answers back and forward the way the sandbox's preview script does.
+    $page = '<script>const send = (page, back, forward) => parent.postMessage({onedrop: "location", page, back, forward}, "*");'
+        .'send("/orders/12", true, false);'
+        .'addEventListener("message", (e) => e.data.onedrop === "go" && (e.data.delta === -1 ? send("/orders", false, true) : send("/orders/12", true, false)));</script>';
+    Sandbox::factory()->for($project)->create(['preview_url' => 'data:text/html,'.rawurlencode($page)]);
+    $this->actingAs($user);
+
+    visit("/projects/{$project->id}")->resize(1600, 900)
+        ->assertAttributeMissing('@preview-back', 'disabled')
+        ->assertAttribute('@preview-forward', 'disabled', '')
+        ->click('@preview-back')
+        ->assertAttribute('@preview-back', 'disabled', '')
+        ->assertAttributeMissing('@preview-forward', 'disabled')
+        ->click('@preview-forward')
+        ->assertAttributeMissing('@preview-back', 'disabled')
+        ->assertAttribute('@preview-forward', 'disabled', '')
         ->assertNoJavaScriptErrors();
 })->group('PRJ-002');

@@ -100,6 +100,44 @@ export function isPagePath(value: unknown): value is string {
     );
 }
 
+/** The preview's address as shown above it: its origin and the app's page, without the address's own query. */
+export function previewAddress(url: string, page: string | null): string {
+    const origin = new URL(url, window.location.origin).origin;
+
+    // An address with no origin of its own (a data: page) has no app pages to show.
+    if (origin === 'null') {
+        return url;
+    }
+
+    return page && page !== '/' && isPagePath(page) ? origin + page : origin;
+}
+
+/**
+ * The app's page an address typed above the preview means: a path (`/orders?status=open`), or an address on the
+ * preview's own host with or without `http://`. Null for anything else, so the preview never leaves the app.
+ */
+export function pageFromAddress(input: string, url: string): string | null {
+    const text = input.trim();
+
+    if (text.startsWith('/')) {
+        return isPagePath(text) ? text : null;
+    }
+
+    try {
+        const base = new URL(url, window.location.origin);
+        const target = new URL(
+            /^[a-z][a-z\d+.-]*:\/\//i.test(text)
+                ? text
+                : `${base.protocol}//${text}`,
+        );
+        const page = target.pathname + target.search + target.hash;
+
+        return target.host === base.host && isPagePath(page) ? page : null;
+    } catch {
+        return null;
+    }
+}
+
 /**
  * The preview's address on one of the app's pages. Through the gateway, the page goes in its `path`;
  * otherwise it replaces the address's path, keeping its query (e.g. a provider's preview token).
@@ -114,6 +152,10 @@ export function previewUrlAt(
     }
 
     const base = new URL(url, window.location.origin);
+
+    if (base.origin === 'null') {
+        return url;
+    }
 
     if (viaGateway) {
         base.searchParams.set('path', page);

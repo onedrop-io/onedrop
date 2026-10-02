@@ -29,7 +29,7 @@ You land in the project's workspace: chat on the left, preview on the right.
 
 Under the message box are templates for apps teams usually keep in spreadsheets: **Sales CRM**, **Project Tracker**, **Content Calendar**, **Inventory**, **Hiring Pipeline**, **Event Planner**, **Help Desk**, **Time-Off Tracker**, **Expense Approvals**, **Product Roadmap**, **Bug Tracker**, **Goals & OKRs**, **Customer Feedback**, **Team Directory**, **Employee Onboarding**, **Equipment Checkout**, **Shift Schedule**, **Client Portal**, **Grant Tracker**, **Volunteer Scheduling**, and **Rental Properties**.
 
-Picking one fills the message box with a full description: the records the app keeps, the views it shows (tables, boards, calendars, public forms), who signs in, and sample data to try it with. Change anything you like before sending, such as "for our three warehouses" or "add a field for the lead source". The project is named after the template; rename it from the sidebar any time.
+Picking one fills the message box with a full description: the records the app keeps, the views it shows (tables, boards, calendars, public forms), who signs in, and sample data to try it with. Change anything you like before sending, such as "for our three warehouses" or "add a field for the lead source". The project is named after the template; rename it from the sidebar any time. Every template asks for lists that work like a spreadsheet, built with the [table kit](/guides/tables).
 
 ### Install a free app
 
@@ -83,7 +83,7 @@ The chat updates on its own while the agent works:
 - Short grey lines show each step, such as "Creating src/App.tsx" or "Running Install dependencies"
 - The agent's replies appear as it writes them, formatted with headings, lists, links, tables, and syntax-highlighted code blocks (links open in a new tab)
 
-When the agent sets up the app's dev server, the preview switches from the placeholder to your app. It updates while the agent works: apps with hot reload (Vite, Next.js) update in place, and Laravel apps reload each time a rebuild changes their assets or a PHP file changes. It reloads once more when the agent finishes. To copy the preview's address, hover it and click the copy button.
+When the agent sets up the app's dev server, the preview switches from the placeholder to your app. It updates while the agent works: apps with hot reload (Vite, Next.js) update in place, and Laravel apps reload each time a rebuild changes their assets or a PHP file changes. It reloads once more when the agent finishes. The bar above the preview works like a browser's toolbar: **Back**, **Forward** and **Reload** on the left, then the address of the page you're on, then the preview's tools (size, inspect, annotate and open in a new tab). To go to another page of your app, click the address, type a path such as `/orders`, and press Enter (Esc puts it back). To copy the address, hover it and click the copy button.
 
 ## Keep going
 
@@ -132,7 +132,7 @@ Attachments stay in the chat, and only people who can see the project can open t
 
 ## Draw on the preview
 
-To show the agent what to change in your app's UI, click **Annotate** (the brush) in the Preview's header. The preview freezes as a picture of what's on screen: the page as you scrolled it, with any open menus and typed input.
+To show the agent what to change in your app's UI, click **Annotate** (the brush) in the bar above the preview. The preview freezes as a picture of what's on screen: the page as you scrolled it, with any open menus and typed input.
 
 <Steps>
     <Step title="Mark it up">
@@ -154,7 +154,7 @@ To show the agent what to change in your app's UI, click **Annotate** (the brush
 
 ## Inspect and rearrange the preview
 
-To point at exact parts of your app, or try a different layout, click **Inspect** (the pointer in a square) in the Preview's header. The preview stays live, but clicks go to the inspector instead of your app:
+To point at exact parts of your app, or try a different layout, click **Inspect** (the pointer in a square) in the bar above the preview. The preview stays live, but clicks go to the inspector instead of your app:
 
 - **Hover** to highlight an element. Its label shows how to find it (like `#save` or `nav > button`) and, for React or Vue apps in development, the component that draws it.
 - **Click** to pick an element. Each pick gets a number and shows in a list over the preview, where you can type a note ("make this green"), pick its parent instead (the arrow), or remove it.

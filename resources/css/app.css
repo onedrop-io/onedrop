@@ -319,6 +319,50 @@
     }
 }
 
+/*
+ * Thin, rounded scrollbars on a clear track, the same everywhere in the app: dark in dark mode, light in light mode.
+ * Chrome and Safari use the ::-webkit-scrollbar rules (Chrome ignores them once scrollbar-color is set, so that's
+ * left to Firefox, which has no ::-webkit-scrollbar). The Shell's terminal gets the same look from shell-keys.js.
+ */
+:root {
+    --scrollbar-thumb: oklch(0 0 0 / 0.18);
+    --scrollbar-thumb-hover: oklch(0 0 0 / 0.32);
+}
+
+.dark {
+    --scrollbar-thumb: oklch(1 0 0 / 0.14);
+    --scrollbar-thumb-hover: oklch(1 0 0 / 0.26);
+}
+
+@layer base {
+    ::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+    }
+
+    ::-webkit-scrollbar-track,
+    ::-webkit-scrollbar-corner {
+        background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        border: 2px solid transparent;
+        border-radius: 9999px;
+        background: var(--scrollbar-thumb) padding-box;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: var(--scrollbar-thumb-hover) padding-box;
+    }
+
+    @supports not selector(::-webkit-scrollbar) {
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: var(--scrollbar-thumb) transparent;
+        }
+    }
+}
+
 /* Syntax colors for highlighted code in chat replies (components/code-highlight.tsx). */
 @layer components {
     .tok-keyword,

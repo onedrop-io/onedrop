@@ -748,11 +748,30 @@ const ERROR_REPORTER = `(() => {
             try { window.parent.postMessage({ onedrop: 'error', error }, '*'); } catch {}
         }
     };
-    // Tell the workspace which page is showing, so reloading the workspace comes back to it (LAYOUT-005).
+    // Tell the workspace which page is showing, so reloading the workspace comes back to it (LAYOUT-005), and the
+    // address bar above the preview shows it with working back and forward buttons (PRJ-002). Back and forward go
+    // through the Navigation API, which only moves this frame: history.back() could take the workspace itself back
+    // once the frame has nowhere left to go. Without the API (older browsers) the buttons stay off.
     if (window.parent !== window) {
+        const nav = window.navigation;
         const where = () => {
-            try { window.parent.postMessage({ onedrop: 'location', page: location.pathname + location.search + location.hash }, '*'); } catch {}
+            try {
+                window.parent.postMessage({
+                    onedrop: 'location',
+                    page: location.pathname + location.search + location.hash,
+                    back: !!(nav && nav.canGoBack),
+                    forward: !!(nav && nav.canGoForward),
+                }, '*');
+            } catch {}
         };
+        addEventListener('message', (event) => {
+            const data = event.data;
+            if (event.source !== window.parent || !nav || !data || data.onedrop !== 'go') return;
+            const going = data.delta === -1 && nav.canGoBack ? nav.back() : data.delta === 1 && nav.canGoForward ? nav.forward() : null;
+            // Not the app's own errors, so they mustn't reach the error reporter below.
+            if (going) { going.committed.catch(() => {}); going.finished.catch(() => {}); }
+        });
+        if (nav) nav.addEventListener('currententrychange', where);
         for (const name of ['pushState', 'replaceState']) {
             const original = history[name];
             history[name] = function () {

@@ -7,6 +7,8 @@ import {
     usePoll,
 } from '@inertiajs/react';
 import {
+    ArrowLeft,
+    ArrowRight,
     Ban,
     Brush,
     Check,
@@ -128,6 +130,8 @@ import { useLiveReload, useProjectChannel } from '@/lib/realtime';
 import { cn } from '@/lib/utils';
 import {
     isPagePath,
+    pageFromAddress,
+    previewAddress,
     loadChat,
     loadWorkspace,
     newShellSession,
@@ -1069,12 +1073,28 @@ function WorkspacePanel({
     const [previewPage, setPreviewPage] = useState<string | null>(null);
     const [previewStart, setPreviewStart] = useState<string | null>(null);
 
-    // Like a browser's reload, the preview stays on the app's page it was on.
-    const reloadPreview = () => {
+    /** Whether the preview's page can go back or forward, as it reports it. */
+    const [previewHistory, setPreviewHistory] = useState({
+        back: false,
+        forward: false,
+    });
+
+    /** Load the preview on one of the app's pages, like typing an address in a browser. */
+    const openPreviewPage = (page: string | null) => {
         previewErrors.clear();
-        setPreviewStart(previewPage);
+        setPreviewStart(page);
         setReloadKey((key) => key + 1);
     };
+
+    // Like a browser's reload, the preview stays on the app's page it was on.
+    const reloadPreview = () => openPreviewPage(previewPage);
+
+    /** Back or forward in the preview's own history; the page does it, so the workspace page never moves. */
+    const goInPreview = (delta: -1 | 1) =>
+        previewFrame.current?.contentWindow?.postMessage(
+            { onedrop: 'go', delta },
+            '*',
+        );
 
     // Reload once the agent finishes so a newly started dev server shows up.
     if (wasWorking !== working) {
@@ -1388,7 +1408,12 @@ function WorkspacePanel({
 
     useEffect(() => {
         const onMessage = (event: MessageEvent) => {
-            const data = event.data as { onedrop?: string; page?: unknown };
+            const data = event.data as {
+                onedrop?: string;
+                page?: unknown;
+                back?: unknown;
+                forward?: unknown;
+            };
 
             if (
                 event.source === previewFrame.current?.contentWindow &&
@@ -1396,6 +1421,10 @@ function WorkspacePanel({
                 isPagePath(data.page)
             ) {
                 setPreviewPage(data.page);
+                setPreviewHistory({
+                    back: data.back === true,
+                    forward: data.forward === true,
+                });
             }
         };
 
@@ -1674,7 +1703,7 @@ function WorkspacePanel({
               failed: 'Sandbox failed to start',
           }[sandbox?.status ?? 'creating'];
 
-    // The preview's address says nothing new on a phone, where the bar has no room for it (LAYOUT-006).
+    // A running preview shows its address in the bar above it, with the preview's tools; a phone has no room for the address (LAYOUT-006).
     const statusIsUrl =
         sandbox?.status === 'running' && !sandbox.updating && !!url;
 
@@ -1686,13 +1715,14 @@ function WorkspacePanel({
         }
 
         return {
-            preview: statusText,
+            // A running preview's address has its own bar above the page.
+            preview: statusIsUrl ? '' : statusText,
             tools: '',
             file: openPath,
-            console: 'App output',
-            services: 'Processes, containers and ports',
-            requirements: '.onedrop/REQ.md',
-            tests: 'tests/e2e',
+            console: '',
+            services: '',
+            requirements: '',
+            tests: '',
             browser: '',
         }[kind];
     };
@@ -2029,120 +2059,11 @@ function WorkspacePanel({
                                 </DropdownMenu>
                             </div>
                             <span
-                                className={cn(
-                                    'ml-2 min-w-0 flex-[1_1_8rem] truncate text-muted-foreground',
-                                    pane.active === 'preview' &&
-                                        statusIsUrl &&
-                                        'max-md:invisible',
-                                )}
+                                className="ml-2 min-w-0 flex-[1_1_8rem] truncate text-muted-foreground"
                                 data-test="sandbox-status"
                             >
-                                {pane.active === 'preview' &&
-                                statusIsUrl &&
-                                url ? (
-                                    <CopyableAddress url={url} />
-                                ) : (
-                                    statusFor(pane.active)
-                                )}
+                                {statusFor(pane.active)}
                             </span>
-                            {pane.active === 'preview' && url && (
-                                <>
-                                    <DropdownMenu modal={false}>
-                                        <DropdownMenuTrigger asChild>
-                                            <button
-                                                type="button"
-                                                aria-label="Preview size"
-                                                title={`Preview size: ${PREVIEW_SIZES[previewSize].label}`}
-                                                data-test="preview-size"
-                                                className="rounded p-1 hover:bg-muted max-md:hidden"
-                                            >
-                                                {
-                                                    PREVIEW_SIZES[previewSize]
-                                                        .icon
-                                                }
-                                            </button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end">
-                                            {(
-                                                Object.keys(
-                                                    PREVIEW_SIZES,
-                                                ) as PreviewSize[]
-                                            ).map((size) => (
-                                                <DropdownMenuItem
-                                                    key={size}
-                                                    onSelect={() =>
-                                                        choosePreviewSize(size)
-                                                    }
-                                                    data-test={`preview-size-${size}`}
-                                                >
-                                                    {PREVIEW_SIZES[size].icon}
-                                                    <span className="flex-1">
-                                                        {
-                                                            PREVIEW_SIZES[size]
-                                                                .label
-                                                        }
-                                                    </span>
-                                                    {PREVIEW_SIZES[size]
-                                                        .width && (
-                                                        <span className="text-xs text-muted-foreground">
-                                                            {
-                                                                PREVIEW_SIZES[
-                                                                    size
-                                                                ].width
-                                                            }
-                                                            px
-                                                        </span>
-                                                    )}
-                                                    {size === previewSize && (
-                                                        <Check className="size-4" />
-                                                    )}
-                                                </DropdownMenuItem>
-                                            ))}
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                    <button
-                                        type="button"
-                                        aria-label="Inspect"
-                                        title="Inspect"
-                                        aria-pressed={inspecting}
-                                        onClick={toggleInspecting}
-                                        data-test="preview-inspect"
-                                        className={cn(
-                                            'rounded p-1 hover:bg-muted',
-                                            inspecting &&
-                                                'bg-muted text-foreground',
-                                        )}
-                                    >
-                                        <SquareMousePointer className="size-4" />
-                                    </button>
-                                    <IconButton
-                                        label="Annotate"
-                                        onClick={() => annotate()}
-                                        testId="preview-annotate"
-                                    >
-                                        {capturing ? (
-                                            <LoaderCircle className="size-4 animate-spin" />
-                                        ) : (
-                                            <Brush className="size-4" />
-                                        )}
-                                    </IconButton>
-                                    <IconButton
-                                        label="Reload preview"
-                                        onClick={reloadPreview}
-                                    >
-                                        <RotateCw className="size-4" />
-                                    </IconButton>
-                                    <a
-                                        href={url}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        aria-label="Open preview in a new tab"
-                                        className="rounded p-1 hover:bg-muted max-md:hidden"
-                                    >
-                                        <ExternalLink className="size-4" />
-                                    </a>
-                                </>
-                            )}
                             {pane.active === 'console' && (
                                 <IconButton
                                     label="Clear console"
@@ -2258,7 +2179,12 @@ function WorkspacePanel({
                                         {pane.active === 'preview' && url && (
                                             <DropdownMenuItem asChild>
                                                 <a
-                                                    href={url}
+                                                    href={previewUrlAt(
+                                                        url,
+                                                        previewPage,
+                                                        sandbox?.shell_via_gateway ??
+                                                            false,
+                                                    )}
                                                     target="_blank"
                                                     rel="noreferrer"
                                                 >
@@ -2288,110 +2214,255 @@ function WorkspacePanel({
                 {content(
                     'preview',
                     url && restored ? (
-                        <div
-                            className={cn(
-                                'relative flex flex-1 flex-col',
-                                PREVIEW_SIZES[previewSize].width &&
-                                    'overflow-auto bg-muted p-4',
-                            )}
-                        >
-                            <iframe
-                                ref={previewFrame}
-                                key={reloadKey}
-                                // A page that (re)loads has lost the inspector and what was picked (AGT-014).
-                                onLoad={() => setInspecting(false)}
-                                src={previewUrlAt(
-                                    url,
-                                    previewStart,
-                                    sandbox?.shell_via_gateway ?? false,
-                                )}
-                                title="App preview"
-                                data-test="preview-frame"
-                                style={{
-                                    width:
-                                        PREVIEW_SIZES[previewSize].width ??
-                                        undefined,
-                                }}
-                                className={cn(
-                                    'flex-1 bg-white',
-                                    PREVIEW_SIZES[previewSize].width &&
-                                        'mx-auto shrink-0 rounded-md border shadow-sm',
-                                )}
-                            />
-                            {!working && previewErrors.errors.length > 0 && (
-                                <PreviewErrorBar
-                                    errors={previewErrors.errors}
-                                    onFix={fixPreviewErrors}
-                                    onDismiss={previewErrors.clear}
-                                />
-                            )}
-                            {annotateError && (
-                                <div
-                                    className="absolute inset-x-3 top-3 z-10 flex items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm shadow"
-                                    data-test="annotate-error"
+                        <>
+                            <div
+                                className="flex min-w-0 items-center gap-1 border-b border-sidebar-border/70 px-2 py-1 text-sm dark:border-sidebar-border"
+                                data-test="preview-address-bar"
+                            >
+                                <IconButton
+                                    label="Back"
+                                    onClick={() => goInPreview(-1)}
+                                    disabled={!previewHistory.back}
+                                    testId="preview-back"
                                 >
-                                    <span className="flex-1">
-                                        {annotateError === 'page'
-                                            ? "The preview couldn't take a picture of itself."
-                                            : annotateError === 'inspect'
-                                              ? "The preview couldn't take a picture of itself, so nothing was added to the chat."
-                                              : "Couldn't take a picture of the preview."}
-                                    </span>
-                                    {annotateError === 'page' && (
+                                    <ArrowLeft className="size-4" />
+                                </IconButton>
+                                <IconButton
+                                    label="Forward"
+                                    onClick={() => goInPreview(1)}
+                                    disabled={!previewHistory.forward}
+                                    testId="preview-forward"
+                                >
+                                    <ArrowRight className="size-4" />
+                                </IconButton>
+                                <IconButton
+                                    label="Reload preview"
+                                    onClick={reloadPreview}
+                                    testId="preview-reload"
+                                >
+                                    <RotateCw className="size-4" />
+                                </IconButton>
+                                <div className="ml-1 min-w-0 flex-1 max-md:invisible">
+                                    {statusIsUrl && (
+                                        <PreviewAddress
+                                            address={previewAddress(
+                                                url,
+                                                previewPage,
+                                            )}
+                                            link={previewUrlAt(
+                                                url,
+                                                previewPage,
+                                                sandbox?.shell_via_gateway ??
+                                                    false,
+                                            )}
+                                            onGo={(address) => {
+                                                const page = pageFromAddress(
+                                                    address,
+                                                    url,
+                                                );
+
+                                                if (page) {
+                                                    openPreviewPage(page);
+                                                }
+
+                                                return page !== null;
+                                            }}
+                                        />
+                                    )}
+                                </div>
+                                <DropdownMenu modal={false}>
+                                    <DropdownMenuTrigger asChild>
                                         <button
                                             type="button"
-                                            onClick={() => annotate(true)}
-                                            className="font-medium underline-offset-4 hover:underline"
-                                            data-test="annotate-share-tab"
+                                            aria-label="Preview size"
+                                            title={`Preview size: ${PREVIEW_SIZES[previewSize].label}`}
+                                            data-test="preview-size"
+                                            className="rounded p-1 hover:bg-muted max-md:hidden"
                                         >
-                                            Share the tab instead
+                                            {PREVIEW_SIZES[previewSize].icon}
                                         </button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        {(
+                                            Object.keys(
+                                                PREVIEW_SIZES,
+                                            ) as PreviewSize[]
+                                        ).map((size) => (
+                                            <DropdownMenuItem
+                                                key={size}
+                                                onSelect={() =>
+                                                    choosePreviewSize(size)
+                                                }
+                                                data-test={`preview-size-${size}`}
+                                            >
+                                                {PREVIEW_SIZES[size].icon}
+                                                <span className="flex-1">
+                                                    {PREVIEW_SIZES[size].label}
+                                                </span>
+                                                {PREVIEW_SIZES[size].width && (
+                                                    <span className="text-xs text-muted-foreground">
+                                                        {
+                                                            PREVIEW_SIZES[size]
+                                                                .width
+                                                        }
+                                                        px
+                                                    </span>
+                                                )}
+                                                {size === previewSize && (
+                                                    <Check className="size-4" />
+                                                )}
+                                            </DropdownMenuItem>
+                                        ))}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                                <button
+                                    type="button"
+                                    aria-label="Inspect"
+                                    title="Inspect"
+                                    aria-pressed={inspecting}
+                                    onClick={toggleInspecting}
+                                    data-test="preview-inspect"
+                                    className={cn(
+                                        'rounded p-1 hover:bg-muted',
+                                        inspecting &&
+                                            'bg-muted text-foreground',
                                     )}
-                                    <IconButton
-                                        label="Dismiss"
-                                        onClick={() => setAnnotateError(null)}
+                                >
+                                    <SquareMousePointer className="size-4" />
+                                </button>
+                                <IconButton
+                                    label="Annotate"
+                                    onClick={() => annotate()}
+                                    testId="preview-annotate"
+                                >
+                                    {capturing ? (
+                                        <LoaderCircle className="size-4 animate-spin" />
+                                    ) : (
+                                        <Brush className="size-4" />
+                                    )}
+                                </IconButton>
+                                <a
+                                    href={previewUrlAt(
+                                        url,
+                                        previewPage,
+                                        sandbox?.shell_via_gateway ?? false,
+                                    )}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    aria-label="Open preview in a new tab"
+                                    className="rounded p-1 hover:bg-muted max-md:hidden"
+                                >
+                                    <ExternalLink className="size-4" />
+                                </a>
+                            </div>
+                            <div
+                                className={cn(
+                                    'relative flex flex-1 flex-col',
+                                    PREVIEW_SIZES[previewSize].width &&
+                                        'overflow-auto bg-muted p-4',
+                                )}
+                            >
+                                <iframe
+                                    ref={previewFrame}
+                                    key={reloadKey}
+                                    // A page that (re)loads has lost the inspector and what was picked (AGT-014).
+                                    onLoad={() => setInspecting(false)}
+                                    src={previewUrlAt(
+                                        url,
+                                        previewStart,
+                                        sandbox?.shell_via_gateway ?? false,
+                                    )}
+                                    title="App preview"
+                                    data-test="preview-frame"
+                                    style={{
+                                        width:
+                                            PREVIEW_SIZES[previewSize].width ??
+                                            undefined,
+                                    }}
+                                    className={cn(
+                                        'flex-1 bg-white',
+                                        PREVIEW_SIZES[previewSize].width &&
+                                            'mx-auto shrink-0 rounded-md border shadow-sm',
+                                    )}
+                                />
+                                {!working &&
+                                    previewErrors.errors.length > 0 && (
+                                        <PreviewErrorBar
+                                            errors={previewErrors.errors}
+                                            onFix={fixPreviewErrors}
+                                            onDismiss={previewErrors.clear}
+                                        />
+                                    )}
+                                {annotateError && (
+                                    <div
+                                        className="absolute inset-x-3 top-3 z-10 flex items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm shadow"
+                                        data-test="annotate-error"
                                     >
-                                        <X className="size-4" />
-                                    </IconButton>
-                                </div>
-                            )}
-                            {inspecting && (
-                                <PreviewInspectorPanel
-                                    items={inspectItems}
-                                    notes={inspectNotes}
-                                    busy={inspectBusy}
-                                    onNote={(item, note) =>
-                                        setInspectNotes((current) => ({
-                                            ...current,
-                                            [item]: note,
-                                        }))
-                                    }
-                                    onParent={(item) =>
-                                        inspectorAction(
-                                            previewFrame.current,
-                                            'parent',
-                                            item,
-                                        )
-                                    }
-                                    onRemove={(item) =>
-                                        inspectorAction(
-                                            previewFrame.current,
-                                            'remove',
-                                            item,
-                                        )
-                                    }
-                                    onCancel={() => setInspecting(false)}
-                                    onDone={addInspection}
-                                />
-                            )}
-                            {annotation && (
-                                <PreviewAnnotator
-                                    capture={annotation}
-                                    onCancel={() => setAnnotation(null)}
-                                    onDone={addAnnotation}
-                                />
-                            )}
-                        </div>
+                                        <span className="flex-1">
+                                            {annotateError === 'page'
+                                                ? "The preview couldn't take a picture of itself."
+                                                : annotateError === 'inspect'
+                                                  ? "The preview couldn't take a picture of itself, so nothing was added to the chat."
+                                                  : "Couldn't take a picture of the preview."}
+                                        </span>
+                                        {annotateError === 'page' && (
+                                            <button
+                                                type="button"
+                                                onClick={() => annotate(true)}
+                                                className="font-medium underline-offset-4 hover:underline"
+                                                data-test="annotate-share-tab"
+                                            >
+                                                Share the tab instead
+                                            </button>
+                                        )}
+                                        <IconButton
+                                            label="Dismiss"
+                                            onClick={() =>
+                                                setAnnotateError(null)
+                                            }
+                                        >
+                                            <X className="size-4" />
+                                        </IconButton>
+                                    </div>
+                                )}
+                                {inspecting && (
+                                    <PreviewInspectorPanel
+                                        items={inspectItems}
+                                        notes={inspectNotes}
+                                        busy={inspectBusy}
+                                        onNote={(item, note) =>
+                                            setInspectNotes((current) => ({
+                                                ...current,
+                                                [item]: note,
+                                            }))
+                                        }
+                                        onParent={(item) =>
+                                            inspectorAction(
+                                                previewFrame.current,
+                                                'parent',
+                                                item,
+                                            )
+                                        }
+                                        onRemove={(item) =>
+                                            inspectorAction(
+                                                previewFrame.current,
+                                                'remove',
+                                                item,
+                                            )
+                                        }
+                                        onCancel={() => setInspecting(false)}
+                                        onDone={addInspection}
+                                    />
+                                )}
+                                {annotation && (
+                                    <PreviewAnnotator
+                                        capture={annotation}
+                                        onCancel={() => setAnnotation(null)}
+                                        onDone={addAnnotation}
+                                    />
+                                )}
+                            </div>
+                        </>
                     ) : (
                         <PreviewPlaceholder sandbox={sandbox} copy={copy} />
                     ),
@@ -2977,12 +3048,14 @@ function IconButton({
     onClick,
     testId,
     className,
+    disabled,
     children,
 }: {
     label: string;
     onClick: () => void;
     testId?: string;
     className?: string;
+    disabled?: boolean;
     children: React.ReactNode;
 }) {
     return (
@@ -2992,7 +3065,11 @@ function IconButton({
             aria-label={label}
             title={label}
             data-test={testId}
-            className={cn('rounded p-1 hover:bg-muted', className)}
+            disabled={disabled}
+            className={cn(
+                'rounded p-1 hover:bg-muted disabled:pointer-events-none disabled:opacity-40',
+                className,
+            )}
         >
             {children}
         </button>
@@ -3436,12 +3513,23 @@ function TaskEmptyState({
 }
 
 /**
- * The preview's address in the pane bar, with a copy button that shows on hover. Only the button copies, so
- * clicking or selecting the address never replaces what's on the clipboard.
+ * The address of the preview's page, in the bar above it. It follows the page as the app moves around, and typing
+ * one of the app's paths (or its full address) then Enter goes there; Esc puts it back. The copy button that shows
+ * on hover copies a link that opens the same page; clicking or selecting the address never touches the clipboard.
  */
-function CopyableAddress({ url }: { url: string }) {
+function PreviewAddress({
+    address,
+    link,
+    onGo,
+}: {
+    address: string;
+    link: string;
+    /** Go to what was typed; false when it isn't one of the app's pages, so the typing stays to fix. */
+    onGo: (address: string) => boolean;
+}) {
     const [, copy] = useClipboard();
     const [copied, setCopied] = useState(false);
+    const [draft, setDraft] = useState<string | null>(null);
 
     useEffect(() => {
         if (!copied) {
@@ -3454,17 +3542,36 @@ function CopyableAddress({ url }: { url: string }) {
     }, [copied]);
 
     return (
-        <span className="group inline-flex max-w-full items-center gap-1 align-middle">
-            <span className="truncate" data-test="preview-address">
-                {url}
-            </span>
+        <div className="group flex min-w-0 items-center gap-1">
+            <input
+                value={draft ?? address}
+                onChange={(event) => setDraft(event.target.value)}
+                onFocus={(event) => event.target.select()}
+                onBlur={() => setDraft(null)}
+                onKeyDown={(event) => {
+                    if (event.key === 'Enter' && draft !== null) {
+                        if (onGo(draft)) {
+                            setDraft(null);
+                            event.currentTarget.blur();
+                        }
+                    } else if (event.key === 'Escape') {
+                        setDraft(null);
+                        event.currentTarget.blur();
+                    }
+                }}
+                aria-label="Preview address"
+                spellCheck={false}
+                autoComplete="off"
+                className="h-6 min-w-0 flex-1 truncate rounded bg-transparent px-1.5 text-xs text-muted-foreground outline-none hover:bg-muted/60 focus:bg-muted focus:text-foreground"
+                data-test="preview-address"
+            />
             <button
                 type="button"
-                onClick={() => void copy(url).then(setCopied)}
+                onClick={() => void copy(link).then(setCopied)}
                 aria-label={copied ? 'Copied' : 'Copy address'}
                 title={copied ? 'Copied' : 'Copy address'}
                 className={cn(
-                    'shrink-0 rounded p-0.5 hover:bg-muted hover:text-foreground focus-visible:opacity-100',
+                    'shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:opacity-100',
                     copied
                         ? 'opacity-100'
                         : 'opacity-0 transition-opacity group-hover:opacity-100',
@@ -3477,6 +3584,6 @@ function CopyableAddress({ url }: { url: string }) {
                     <Copy className="size-3" />
                 )}
             </button>
-        </span>
+        </div>
     );
 }
