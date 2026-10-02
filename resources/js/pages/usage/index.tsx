@@ -1,6 +1,8 @@
-import { Head, Link, router } from '@inertiajs/react';
+import { Deferred, Head, Link, router } from '@inertiajs/react';
 import { RefreshCw } from 'lucide-react';
 import { useState } from 'react';
+import type { AiCreditsSummary } from '@/components/ai-credits-balance';
+import { formatCredits, formatRefill } from '@/components/ai-credits-balance';
 import { ProviderIcon } from '@/components/agent-model-picker';
 import AreaLinesChart from '@/components/charts/area-lines-chart';
 import {
@@ -44,6 +46,11 @@ type Props = {
     people?: (Sums & { id: number; name: string })[];
     /** Whose usage it is, when it isn't the user's own. */
     title?: string;
+    /** Whether the install offers AI credits (CREDIT-001), and whose they are. */
+    creditsOn?: boolean;
+    creditsFor?: string;
+    /** Deferred; null when they can't be checked right now. */
+    credits?: AiCreditsSummary | null;
     series: {
         t: number;
         cost: Partial<Record<AgentHarness, number>>;
@@ -125,6 +132,91 @@ function Segmented<T extends string>({
     );
 }
 
+/** The organization's AI credits (CREDIT-001): what's left in all, of this month's grant and of the welcome one. */
+function CreditsCard({
+    credits,
+    owner,
+}: {
+    credits: AiCreditsSummary | null;
+    owner?: string;
+}) {
+    if (credits === null) {
+        return (
+            <section
+                className="rounded-xl border p-5 text-sm text-muted-foreground"
+                data-test="ai-credits-card"
+            >
+                AI credits can't be checked right now. Try again in a minute.
+            </section>
+        );
+    }
+
+    const refill = formatRefill(credits.resets_at);
+    const parts = [
+        {
+            label: "This month's credits",
+            ...credits.monthly,
+            note: refill
+                ? `Next ${formatCredits(credits.monthly.granted)} on ${refill}`
+                : null,
+        },
+        {
+            label: 'Welcome credits',
+            ...credits.welcome,
+            note: 'Never expire, used after the monthly ones',
+        },
+    ].filter((part) => part.granted > 0);
+
+    return (
+        <section
+            className="flex flex-wrap items-start gap-x-10 gap-y-5 rounded-xl border p-5"
+            data-test="ai-credits-card"
+        >
+            <div className="min-w-48">
+                <div className="text-sm text-muted-foreground">
+                    {owner ? `${owner}'s AI credits` : 'AI credits'}
+                </div>
+                <div className="mt-1 text-3xl font-medium tabular-nums">
+                    {formatCredits(credits.left)}
+                    <span className="ml-1.5 text-base font-normal text-muted-foreground">
+                        left
+                    </span>
+                </div>
+                <p className="mt-2 max-w-xs text-xs text-muted-foreground">
+                    For building without your own AI, at the AI's own price.
+                    Connecting your own in Settings → AI never uses them.
+                </p>
+            </div>
+            {parts.map((part) => (
+                <div key={part.label} className="min-w-44 flex-1">
+                    <div className="flex items-baseline justify-between gap-3 text-sm">
+                        <span className="text-muted-foreground">
+                            {part.label}
+                        </span>
+                        <span className="tabular-nums">
+                            {formatCredits(part.left)} of{' '}
+                            {formatCredits(part.granted)}
+                        </span>
+                    </div>
+                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+                        <div
+                            className="h-full rounded-full bg-violet-500"
+                            style={{
+                                width: `${Math.min(100, (part.left / part.granted) * 100)}%`,
+                            }}
+                        />
+                    </div>
+                    {part.note && (
+                        <div className="mt-1.5 text-xs text-muted-foreground">
+                            {part.note}
+                        </div>
+                    )}
+                </div>
+            ))}
+        </section>
+    );
+}
+
 function Stat({ label, value }: { label: string; value: string }) {
     return (
         <div>
@@ -145,6 +237,9 @@ export default function Usage({
     projects,
     people,
     title,
+    creditsOn,
+    creditsFor,
+    credits,
     series,
 }: Props) {
     const [metric, setMetric] = useState<Metric>('cost');
@@ -275,6 +370,20 @@ export default function Usage({
                         </button>
                     </div>
                 </header>
+
+                {creditsOn && (
+                    <Deferred
+                        data="credits"
+                        fallback={
+                            <div className="h-28 animate-pulse rounded-xl border bg-muted/40" />
+                        }
+                    >
+                        <CreditsCard
+                            credits={credits ?? null}
+                            owner={creditsFor}
+                        />
+                    </Deferred>
+                )}
 
                 <section className="grid gap-10 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
                     <div>

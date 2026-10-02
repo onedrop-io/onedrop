@@ -50,7 +50,7 @@ class AgentModelController extends Controller
     protected function creditsLabel(Request $request, AiCredits $credits): string
     {
         $organization = ResolveOrganization::current($request);
-        $left = $organization ? $credits->remaining($organization) : null;
+        $left = $organization ? $credits->summary($organization)['left'] ?? null : null;
 
         return $left === null
             ? AgentProvider::Credits->pickerLabel()

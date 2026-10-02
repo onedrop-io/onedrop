@@ -1533,7 +1533,9 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - On an install with AI credits turned on, user should be able to build without connecting their own AI: they skip the AI onboarding and the agent runs on "AI credits" (DeepSeek Flash through OpenRouter).
 - Each organization should start with $5 of AI credits once, plus $1 every month that doesn't carry over; the monthly $1 is used first.
 - Each run on credits should be charged to the project's organization at the provider's price, with no markup, from what OpenRouter says the organization's key spent.
+- User building on AI credits should see what's left beside the model picker under the chat box (on a project and on the new-project page), amber when it's low and red with when more arrives once it's used up; hovering it shows this month's part, the welcome part, when the next $1 arrives, and that their own AI doesn't use credits.
 - User should see how much is left next to "AI credits" in the model picker.
+- User should see the organization's AI credits at the top of the Usage page (their own and the organization's): what's left in all, of this month's $1 and of the welcome $5, and when the next $1 arrives.
 - User should not be able to spend more than the organization has left, even from the sandbox's shell: the organization's key is limited to its balance before every run.
 - When the credits run out, the run should stop with a message saying when they refill and that connecting their own AI in Settings → AI keeps building going.
 - User who connects their own AI should keep "AI credits" as one more choice in the model picker.

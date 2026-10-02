@@ -17,6 +17,7 @@ import {
     DropdownMenuLabel,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import AiCreditsBalance from '@/components/ai-credits-balance';
 import { cn } from '@/lib/utils';
 import type {
     AgentHarness,
@@ -198,6 +199,7 @@ export default function AgentModelPicker({
                     disabled={disabled}
                 />
             )}
+            {selection.provider === 'credits' && <AiCreditsBalance />}
         </div>
     );
 }

@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Actions\UsageReport;
 use App\Http\Middleware\ResolveOrganization;
+use App\Models\Organization;
+use App\Sandbox\Agents\AiCredits;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -21,7 +23,7 @@ class UsageController extends Controller
     {
         $range = $request->validate(['range' => ['nullable', Rule::in(array_keys(UsageReport::RANGES))]])['range'] ?? '30d';
 
-        return Inertia::render('usage/index', $report->for($request->user(), $range));
+        return Inertia::render('usage/index', [...$report->for($request->user(), $range), ...$this->credits(ResolveOrganization::current($request))]);
     }
 
     /**
@@ -35,6 +37,20 @@ class UsageController extends Controller
 
         $range = $request->validate(['range' => ['nullable', Rule::in(array_keys(UsageReport::RANGES))]])['range'] ?? '30d';
 
-        return Inertia::render('usage/index', [...$report->forOrganization($organization, $range), 'title' => $organization->name]);
+        return Inertia::render('usage/index', [...$report->forOrganization($organization, $range), 'title' => $organization->name, ...$this->credits($organization)]);
+    }
+
+    /**
+     * The organization's AI credits (CREDIT-001), loaded after the page so a slow check never holds it up.
+     *
+     * @return array<string, mixed>
+     */
+    protected function credits(?Organization $organization): array
+    {
+        $credits = app(AiCredits::class);
+
+        return $organization && $credits->enabled()
+            ? ['creditsOn' => true, 'creditsFor' => $organization->name, 'credits' => Inertia::defer(fn () => $credits->summary($organization))]
+            : [];
     }
 }

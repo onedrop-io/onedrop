@@ -53,10 +53,11 @@ class Autumn
     }
 
     /**
-     * What's left, in cents, and when the monthly credits refill. Null when Autumn can't be reached or is down
-     * (fail open, so an outage doesn't stop building); a request Autumn refuses still throws.
+     * What's left, in cents, in all and of the monthly and one-off (welcome) grants, and when the monthly credits
+     * refill. Null when Autumn can't be reached or is down (fail open, so an outage doesn't stop building); a request
+     * Autumn refuses still throws.
      *
-     * @return array{remaining: float, resets_at: Carbon|null}|null
+     * @return array{remaining: float, monthly: array{left: float, granted: float}, welcome: array{left: float, granted: float}, resets_at: Carbon|null}|null
      *
      * @throws RequestException
      */
@@ -79,9 +80,16 @@ class Autumn
         }
 
         $resetsAt = $balance['next_reset_at'] ?? null;
+        $grants = collect($balance['breakdown'] ?? [])->filter(fn (mixed $grant) => is_array($grant));
+        $part = fn (bool $monthly): array => [
+            'left' => (float) $grants->filter(fn (array $grant) => (($grant['reset']['interval'] ?? null) === 'one_off') !== $monthly)->sum('remaining'),
+            'granted' => (float) $grants->filter(fn (array $grant) => (($grant['reset']['interval'] ?? null) === 'one_off') !== $monthly)->sum('included_grant'),
+        ];
 
         return [
             'remaining' => (float) ($balance['remaining'] ?? 0),
+            'monthly' => $part(true),
+            'welcome' => $part(false),
             'resets_at' => is_numeric($resetsAt) ? Carbon::createFromTimestampMs((int) $resetsAt) : null,
         ];
     }

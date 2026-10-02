@@ -9,6 +9,7 @@ use App\Http\Controllers\Admin\SandboxProviderController;
 use App\Http\Controllers\Admin\ServerController;
 use App\Http\Controllers\Admin\ServerMonitoringController;
 use App\Http\Controllers\AgentModelController;
+use App\Http\Controllers\AiCreditsController;
 use App\Http\Controllers\ChatGptAuthController;
 use App\Http\Controllers\ClaudeLoginController;
 use App\Http\Controllers\GitHubAppController;
@@ -146,6 +147,7 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
             Route::get('/', [ProjectController::class, 'create'])->name('organizations.home');
             Route::post('projects', [ProjectController::class, 'store'])->name('projects.store');
             Route::get('projects/search', ProjectSearchController::class)->name('projects.search');
+            Route::get('ai-credits', AiCreditsController::class)->name('organizations.ai-credits');
             Route::put('projects/sort', [ProjectOrderController::class, 'sort'])->name('projects.sort');
             Route::put('projects/order', [ProjectOrderController::class, 'update'])->name('projects.order');
         });

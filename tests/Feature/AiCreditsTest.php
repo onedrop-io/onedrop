@@ -16,6 +16,7 @@ use App\Sandbox\Providers\FakeSandboxProvider;
 use App\Sandbox\SandboxProvider;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Inertia\Testing\AssertableInertia as Assert;
 
 /**
  * Fakes Autumn (with $cents left, refilling on $resetsAt) and OpenRouter's key management (the key has spent $spent).
@@ -24,9 +25,14 @@ function fakeCredits(float $cents, float $spent = 0, ?DateTimeInterface $resetsA
 {
     Http::fake([
         'autumn.test/v1/customers' => Http::response(['id' => 'org']),
+        // The monthly 100 are used before the welcome 500.
         'autumn.test/v1/check' => Http::response(['allowed' => $cents > 0, 'balance' => [
             'remaining' => $cents,
             'next_reset_at' => $resetsAt ? $resetsAt->getTimestamp() * 1000 : null,
+            'breakdown' => [
+                ['included_grant' => 100, 'remaining' => max(0, $cents - 500), 'reset' => ['interval' => 'month']],
+                ['included_grant' => 500, 'remaining' => min($cents, 500), 'reset' => ['interval' => 'one_off']],
+            ],
         ]]),
         'autumn.test/v1/track' => Http::response(['value' => 1]),
         'openrouter.ai/api/v1/keys' => Http::response(['key' => 'sk-or-org-key', 'data' => ['hash' => 'hash-1']], 201),
@@ -164,3 +170,44 @@ test('while credits are on, someone can own only one organization', function () 
 
     expect(Organization::query()->where('name', 'Second')->exists())->toBeFalse();
 })->group('CREDIT-001', 'ORG-003');
+
+test('the balance beside the model picker shows what is left of each part, and when more arrives', function () {
+    fakeCredits(520, resetsAt: now()->setDate(2026, 11, 2)->startOfDay());
+
+    $this->actingAs($this->user)
+        ->getJson(route('organizations.ai-credits', $this->organization))
+        ->assertOk()
+        ->assertJsonPath('credits.left', 5.2)
+        ->assertJsonPath('credits.monthly', ['left' => 0.2, 'granted' => 1])
+        ->assertJsonPath('credits.welcome', ['left' => 5, 'granted' => 5])
+        ->assertJsonPath('credits.resets_at', now()->setDate(2026, 11, 2)->startOfDay()->toIso8601String());
+})->group('CREDIT-001');
+
+test('without credits there is no balance to show', function () {
+    config(['services.openrouter.provisioning_key' => null]);
+    AgentConnection::factory()->for($this->user)->create();
+
+    $this->actingAs($this->user)
+        ->getJson(route('organizations.ai-credits', $this->organization))
+        ->assertOk()
+        ->assertJsonPath('credits', null);
+})->group('CREDIT-001');
+
+test('the balance is only for people in the organization', function () {
+    config(['app.multi_tenant' => true]);
+    $stranger = User::factory()->create();
+
+    $this->actingAs($stranger)->getJson(route('organizations.ai-credits', $this->organization))->assertNotFound();
+})->group('CREDIT-001');
+
+test('the usage page shows the organization\'s credits once they load', function () {
+    fakeCredits(482);
+
+    $this->actingAs($this->user)
+        ->get(route('usage.index'))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('creditsOn', true)
+            ->where('creditsFor', $this->organization->name)
+            ->missing('credits')
+            ->loadDeferredProps(fn (Assert $reload) => $reload->where('credits.left', 4.82)->where('credits.welcome.left', 4.82)));
+})->group('CREDIT-001');

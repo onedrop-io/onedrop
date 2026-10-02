@@ -18,7 +18,10 @@ test('the dev user builds without connecting an AI, on AI credits', function () 
     ]);
     Http::fake([
         'autumn.test/v1/customers' => Http::response(['id' => 'org']),
-        'autumn.test/v1/check' => Http::response(['allowed' => true, 'balance' => ['remaining' => 600, 'next_reset_at' => null]]),
+        'autumn.test/v1/check' => Http::response(['allowed' => true, 'balance' => ['remaining' => 600, 'next_reset_at' => null, 'breakdown' => [
+            ['included_grant' => 100, 'remaining' => 100, 'reset' => ['interval' => 'month']],
+            ['included_grant' => 500, 'remaining' => 500, 'reset' => ['interval' => 'one_off']],
+        ]]]),
     ]);
 
     visit('/login')
@@ -35,7 +38,14 @@ test('the dev user builds without connecting an AI, on AI credits', function () 
 
     visit("/projects/{$project->id}")
         ->assertSeeIn('@model-picker', 'DeepSeek V4.1 Flash')
+        ->assertSeeIn('@ai-credits-balance', '$6.00')
         ->click('@model-picker')
         ->assertVisible('[aria-label="AI credits · $6.00 left"]')
+        ->assertNoJavaScriptErrors();
+
+    visit('/usage')
+        ->assertSeeIn('@ai-credits-card', '$6.00')
+        ->assertSeeIn('@ai-credits-card', "This month's credits")
+        ->assertSeeIn('@ai-credits-card', '$5.00 of $5.00')
         ->assertNoJavaScriptErrors();
 })->group('CREDIT-001');

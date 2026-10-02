@@ -77,21 +77,33 @@ class AiCredits
     }
 
     /**
-     * What the organization has left, in dollars, cached for a minute; null when it can't be checked.
+     * What the organization has left, in dollars: in all, of this month's grant and of the welcome one, and when
+     * the next monthly credits arrive (CREDIT-001). Cached for a minute; null when it can't be checked.
+     *
+     * @return array{left: float, monthly: array{left: float, granted: float}, welcome: array{left: float, granted: float}, resets_at: string|null}|null
      */
-    public function remaining(Organization $organization): ?float
+    public function summary(Organization $organization): ?array
     {
-        $cents = Cache::remember("ai-credits-left:{$organization->id}", 60, function () use ($organization): float|false {
+        $summary = Cache::remember("ai-credits-left:{$organization->id}", 60, function () use ($organization): array|false {
             try {
-                return $this->autumn->balance($organization)['remaining'] ?? false;
+                $balance = $this->autumn->balance($organization);
             } catch (Throwable $e) {
                 report($e);
 
                 return false;
             }
+
+            $dollars = fn (array $part): array => ['left' => round($part['left'] / 100, 2), 'granted' => round($part['granted'] / 100, 2)];
+
+            return $balance === null ? false : [
+                'left' => round($balance['remaining'] / 100, 2),
+                'monthly' => $dollars($balance['monthly']),
+                'welcome' => $dollars($balance['welcome']),
+                'resets_at' => $balance['resets_at']?->toIso8601String(),
+            ];
         });
 
-        return $cents === false ? null : round($cents / 100, 2);
+        return $summary === false ? null : $summary;
     }
 
     /**
