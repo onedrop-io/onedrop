@@ -1,5 +1,7 @@
 <?php
 
+use App\Enums\AgentProvider;
+use App\Models\AgentConnection;
 use App\Models\Project;
 use App\Models\Sandbox;
 use App\Models\User;
@@ -41,6 +43,13 @@ test('the dev user builds without connecting an AI, on AI credits', function () 
         ->assertSeeIn('@ai-credits-balance', '$6.00')
         ->click('@model-picker')
         ->assertVisible('[aria-label="AI credits · $6.00 left"]')
+        ->assertNoJavaScriptErrors();
+
+    AgentConnection::factory()->for($user)->provider(AgentProvider::OpenRouter)->create(['is_default' => true]);
+
+    visit(orgPath())
+        ->assertSeeIn('@ai-credits-balance', '$6.00')
+        ->assertDontSeeIn('@model-picker', 'DeepSeek')
         ->assertNoJavaScriptErrors();
 
     visit('/usage')

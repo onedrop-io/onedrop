@@ -199,7 +199,7 @@ export default function AgentModelPicker({
                     disabled={disabled}
                 />
             )}
-            {selection.provider === 'credits' && <AiCreditsBalance />}
+            <AiCreditsBalance inUse={selection.provider === 'credits'} />
         </div>
     );
 }

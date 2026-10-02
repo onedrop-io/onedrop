@@ -50,6 +50,7 @@ function useAiCredits(): AiCreditsSummary | null {
         }
 
         let cancelled = false;
+        let offered = false;
         const load = () =>
             fetch(aiCredits.url(organization.slug), {
                 headers: { Accept: 'application/json' },
@@ -60,6 +61,14 @@ function useAiCredits(): AiCreditsSummary | null {
                     if (!cancelled && body) {
                         setCredits(body.credits);
                     }
+
+                    // No credits on this install: nothing to keep checking.
+                    if (body && body.credits === null && !offered) {
+                        window.clearInterval(timer);
+                        window.removeEventListener('focus', load);
+                    }
+
+                    offered ||= Boolean(body?.credits);
                 })
                 .catch(() => {});
 
@@ -78,10 +87,10 @@ function useAiCredits(): AiCreditsSummary | null {
 }
 
 /**
- * The balance beside the model picker while the agent runs on AI credits: amber when low, red once it's used up,
- * with the details on hover.
+ * The balance beside the model picker wherever the install offers AI credits. While the agent runs on them it's
+ * amber when low and red once used up; on the user's own AI it's dimmed. The details are on hover.
  */
-export default function AiCreditsBalance() {
+export default function AiCreditsBalance({ inUse }: { inUse: boolean }) {
     const credits = useAiCredits();
 
     if (credits === null) {
@@ -95,15 +104,17 @@ export default function AiCreditsBalance() {
         <Tooltip>
             <TooltipTrigger asChild>
                 <Link
-                    href={empty ? aiSettings() : usage()}
+                    href={inUse && empty ? aiSettings() : usage()}
                     data-test="ai-credits-balance"
                     className={cn(
                         'inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs tabular-nums hover:bg-muted',
-                        empty
-                            ? 'text-red-600 dark:text-red-400'
-                            : credits.left < LOW
-                              ? 'text-amber-600 dark:text-amber-400'
-                              : 'text-muted-foreground',
+                        !inUse
+                            ? 'text-muted-foreground/70'
+                            : empty
+                              ? 'text-red-600 dark:text-red-400'
+                              : credits.left < LOW
+                                ? 'text-amber-600 dark:text-amber-400'
+                                : 'text-muted-foreground',
                     )}
                 >
                     <Coins className="size-3.5 shrink-0" />
@@ -144,9 +155,11 @@ export default function AiCreditsBalance() {
                     </p>
                 )}
                 <p className="opacity-80">
-                    {empty
-                        ? 'Connect your own AI in Settings → AI to keep building.'
-                        : 'Building with your own AI never uses credits.'}
+                    {!inUse
+                        ? "This project uses your own AI, which doesn't use credits. Pick AI credits in the model picker to build on them."
+                        : empty
+                          ? 'Connect your own AI in Settings → AI to keep building.'
+                          : 'Building with your own AI never uses credits.'}
                 </p>
             </TooltipContent>
         </Tooltip>
