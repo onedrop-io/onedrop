@@ -21,7 +21,7 @@ export type AiCreditsSummary = {
 };
 
 /** Below this many dollars the balance turns amber. */
-const LOW = 0.5;
+export const LOW = 0.5;
 
 export function formatCredits(dollars: number): string {
     return `$${dollars.toFixed(2)}`;

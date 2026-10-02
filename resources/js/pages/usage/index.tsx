@@ -2,7 +2,11 @@ import { Deferred, Head, Link, router } from '@inertiajs/react';
 import { RefreshCw } from 'lucide-react';
 import { useState } from 'react';
 import type { AiCreditsSummary } from '@/components/ai-credits-balance';
-import { formatCredits, formatRefill } from '@/components/ai-credits-balance';
+import {
+    formatCredits,
+    formatRefill,
+    LOW,
+} from '@/components/ai-credits-balance';
 import { ProviderIcon } from '@/components/agent-model-picker';
 import AreaLinesChart from '@/components/charts/area-lines-chart';
 import {
@@ -180,15 +184,33 @@ function CreditsCard({
             note: 'Never expire, used after the monthly ones',
         },
     ].filter((part) => part.granted > 0);
+    // Colour only warns, as beside the model picker: amber when low, red once used up.
+    const warning =
+        credits.left < 0.01
+            ? 'text-red-600 dark:text-red-400'
+            : credits.left < LOW
+              ? 'text-amber-600 dark:text-amber-400'
+              : null;
+    const bar =
+        credits.left < 0.01
+            ? 'bg-red-500'
+            : credits.left < LOW
+              ? 'bg-amber-500'
+              : 'bg-foreground';
 
     return (
         <section
-            className="flex flex-wrap items-start gap-x-10 gap-y-5 rounded-xl border border-violet-500/30 bg-violet-500/5 p-5"
+            className="flex flex-wrap items-start gap-x-10 gap-y-5 rounded-xl border p-5"
             data-test="ai-credits-card"
         >
             <div className="min-w-48">
                 <div className="text-sm text-muted-foreground">AI credits</div>
-                <div className="mt-1 text-5xl font-semibold tracking-tight tabular-nums">
+                <div
+                    className={cn(
+                        'mt-1 text-5xl font-semibold tracking-tight tabular-nums',
+                        warning,
+                    )}
+                >
                     {formatCredits(credits.left)}
                     <span className="ml-2 text-lg font-normal tracking-normal text-muted-foreground">
                         left
@@ -213,7 +235,7 @@ function CreditsCard({
                     </div>
                     <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
                         <div
-                            className="h-full rounded-full bg-violet-500"
+                            className={cn('h-full rounded-full', bar)}
                             style={{
                                 width: `${Math.min(100, (part.left / part.granted) * 100)}%`,
                             }}

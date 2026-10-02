@@ -61,7 +61,10 @@ export function ProviderIcon({
             'OL',
             'bg-neutral-500/15 text-neutral-700 dark:text-neutral-300',
         ],
-        credits: ['$', 'bg-violet-500/15 text-violet-600 dark:text-violet-400'],
+        credits: [
+            '$',
+            'bg-neutral-500/15 text-neutral-700 dark:text-neutral-300',
+        ],
     }[provider];
 
     return (
