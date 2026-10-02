@@ -46,6 +46,22 @@ test('searching the free apps finds a Dokploy app, shows its details, and using 
     Queue::assertPushedWithChain(CreateSandbox::class, [ApplyRegistryTemplate::class, RunAgentTask::class]);
 })->group('PRJ-012');
 
+test('pressing Cmd or Ctrl K from the prompt jumps to the free apps search', function () {
+    visit('/login')
+        ->fill('email', 'dev@example.com')
+        ->fill('password', 'password')
+        ->press('@login-button')
+        ->assertSeeIn('@free-apps', 'low-code platform')
+        ->assertVisible('@app-search-shortcut')
+        ->fill('@app-search-input', 'workflows')
+        ->click('#composer-prompt')
+        ->keys('#composer-prompt', 'ControlOrMeta+k')
+        ->assertScript("document.activeElement === document.querySelector('[data-test=\"app-search-input\"]')")
+        ->assertScript('(() => { const input = document.activeElement; return input.selectionStart === 0 && input.selectionEnd === input.value.length; })()')
+        ->assertValue('#composer-prompt', '')
+        ->assertNoJavaScriptErrors();
+})->group('PRJ-012');
+
 test('registry templates can\'t be picked when sandboxes can\'t run Docker', function () {
     visit('/login')
         ->fill('email', 'dev@example.com')

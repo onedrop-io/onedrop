@@ -17,6 +17,8 @@ use App\Sandbox\Agents\PlainActivity;
 use App\Sandbox\Agents\ProjectNamer;
 use App\Sandbox\Branding;
 use App\Sandbox\ProjectIcons;
+use App\Sandbox\Templates\AppScreenshots;
+use App\Sandbox\Templates\TemplateCatalog;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -74,7 +76,30 @@ class HandleInertiaRequests extends Middleware
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'sidebarWidth' => ((int) $request->cookie('sidebar_width')) ?: null,
             'realtime' => $this->realtime(),
+            // What they picked on the home page, shown beside signing up and on the AI onboarding until the new-project page takes it (HOME-004).
+            'pendingStart' => fn () => $this->pendingStart($request),
         ];
+    }
+
+    /**
+     * @return array{prompt: string|null, template: array<string, mixed>|null}|null
+     */
+    protected function pendingStart(Request $request): ?array
+    {
+        $start = $request->session()->get('start');
+
+        if (! is_array($start)) {
+            return null;
+        }
+
+        $catalog = app(TemplateCatalog::class);
+        $template = is_string($start['template'] ?? null) ? $catalog->find($start['template']) : null;
+
+        if ($template && $catalog->registryFor($template['value'])) {
+            $template['cover'] = app(AppScreenshots::class)->cover($template);
+        }
+
+        return ['prompt' => $start['prompt'] ?? null, 'template' => $template];
     }
 
     /**

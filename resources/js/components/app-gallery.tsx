@@ -28,7 +28,7 @@ import {
     UserSearch,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import AppScreenshots from '@/components/app-screenshots';
 import { Button } from '@/components/ui/button';
@@ -70,10 +70,19 @@ export const templateIcons: Record<string, LucideIcon> = {
 };
 
 /** Tags too general to filter by. */
-const GENERIC_TAGS = ['self-hosted', 'open-source', 'opensource'];
+export const GENERIC_TAGS = ['self-hosted', 'open-source', 'opensource'];
+
+/** Sized by the space it has: two across on the new-project page, three on the wider home page (like Dokploy's). */
+export const appGridClass =
+    'grid grid-cols-1 gap-3 @xl:grid-cols-2 @4xl:grid-cols-3';
 
 /** Categories offered above the apps: the most used tags. */
 const CATEGORIES = 10;
+
+/** Apple systems say ⌘ for the shortcut; everything else says Ctrl. */
+const isApple = () =>
+    typeof navigator !== 'undefined' &&
+    /Mac|iPhone|iPad|iPod/.test(navigator.userAgent);
 
 export const categoryName = (tag: string) =>
     tag.length <= 3
@@ -82,19 +91,53 @@ export const categoryName = (tag: string) =>
 
 /**
  * Every free open-source app from the registries (PRJ-012), all shown, with a search box and the most used tags as
- * categories. Enter in the search opens the first match.
+ * categories. ⌘K (Ctrl K) anywhere on the page jumps to the search; Enter in it opens the first match.
  */
 export default function AppGallery({
     apps,
     onPick,
     renderApp,
+    limit,
 }: {
     apps: CatalogTemplate[];
     onPick: (app: CatalogTemplate) => void;
     renderApp: (app: CatalogTemplate) => ReactNode;
+    /** Show only this many until they search, pick a category or ask for all (the home page, HOME-004). */
+    limit?: number;
 }) {
     const [query, setQuery] = useState('');
+    const [showingAll, setShowingAll] = useState(false);
     const [category, setCategory] = useState<string | null>(null);
+    const searchInput = useRef<HTMLInputElement>(null);
+    const shortcut = useMemo(() => (isApple() ? '⌘K' : 'Ctrl K'), []);
+
+    useEffect(() => {
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (
+                event.key.toLowerCase() === 'k' &&
+                (event.metaKey || event.ctrlKey) &&
+                !event.altKey &&
+                !event.shiftKey &&
+                searchInput.current
+            ) {
+                event.preventDefault();
+                searchInput.current.scrollIntoView({
+                    block: 'center',
+                    behavior: window.matchMedia(
+                        '(prefers-reduced-motion: reduce)',
+                    ).matches
+                        ? 'auto'
+                        : 'smooth',
+                });
+                searchInput.current.focus({ preventScroll: true });
+                searchInput.current.select();
+            }
+        };
+
+        window.addEventListener('keydown', onKeyDown);
+
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, []);
 
     // Organized by what the apps do, not where they come from.
     const categories = useMemo(() => {
@@ -130,6 +173,11 @@ export default function AppGallery({
         });
     }, [apps, query, category]);
 
+    const shown =
+        limit === undefined || showingAll || query.trim() !== '' || category
+            ? matches
+            : matches.slice(0, limit);
+
     if (apps.length === 0) {
         return (
             <p className="text-sm text-muted-foreground">
@@ -144,6 +192,7 @@ export default function AppGallery({
             <div className="flex h-10 items-center gap-2 rounded-xl border border-input bg-background px-3">
                 <Search className="size-4 shrink-0 text-muted-foreground" />
                 <input
+                    ref={searchInput}
                     type="search"
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
@@ -158,6 +207,13 @@ export default function AppGallery({
                     className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
                     data-test="app-search-input"
                 />
+                <kbd
+                    className="shrink-0 rounded border border-input bg-muted px-1.5 py-0.5 font-sans text-[11px] text-muted-foreground pointer-coarse:hidden"
+                    aria-hidden="true"
+                    data-test="app-search-shortcut"
+                >
+                    {shortcut}
+                </kbd>
             </div>
             {categories.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
@@ -184,11 +240,21 @@ export default function AppGallery({
                     above.
                 </p>
             ) : (
-                <div
-                    className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3"
-                    data-test="free-apps"
-                >
-                    {matches.map((app) => renderApp(app))}
+                <div className="@container">
+                    <div className={appGridClass} data-test="free-apps">
+                        {shown.map((app) => renderApp(app))}
+                    </div>
+                    {shown.length < matches.length && (
+                        <div className="mt-4 flex justify-center">
+                            <Button
+                                variant="outline"
+                                onClick={() => setShowingAll(true)}
+                                data-test="show-all-apps"
+                            >
+                                Show all {matches.length} apps
+                            </Button>
+                        </div>
+                    )}
                 </div>
             )}
         </div>
@@ -211,6 +277,7 @@ export function AppDetails({
     compose,
     starting = false,
     error = null,
+    signUpFirst = false,
     onOpenChange,
     onUse,
 }: {
@@ -221,6 +288,8 @@ export function AppDetails({
     starting?: boolean;
     /** Why the project couldn't be created. */
     error?: string | null;
+    /** On the home page, for a visitor who isn't signed in (HOME-004). */
+    signUpFirst?: boolean;
     onOpenChange: (open: boolean) => void;
     onUse: (app: CatalogTemplate) => void;
 }) {
@@ -292,8 +361,9 @@ export function AppDetails({
                                 What happens when you use it
                             </p>
                             <p className="text-sm text-muted-foreground">
-                                Clicking “Use {app.label}” starts your project
-                                right away.
+                                {signUpFirst
+                                    ? `Clicking “Use ${app.label}” asks you to create a free account, then starts your project.`
+                                    : `Clicking “Use ${app.label}” starts your project right away.`}
                             </p>
                             <ol className="space-y-1.5 text-sm text-muted-foreground">
                                 {SETUP_STEPS.map((step, index) => (

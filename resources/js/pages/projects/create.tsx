@@ -1,30 +1,21 @@
 import { Deferred, Head, router, usePage } from '@inertiajs/react';
-import {
-    LayoutTemplate,
-    Package,
-    PenLine,
-    Shuffle,
-    Sparkles,
-    X,
-} from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
-import { useDeferredValue, useMemo, useState } from 'react';
-import type { ReactNode } from 'react';
+import { PenLine, Shuffle, Sparkles, X } from 'lucide-react';
+import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import ProjectController from '@/actions/App/Http/Controllers/ProjectController';
 import AgentModelPicker from '@/components/agent-model-picker';
-import AppCoverflow from '@/components/app-coverflow';
 import PromptComposer from '@/components/prompt-composer';
 import RepositoryPicker, {
     RepositoryToggle,
 } from '@/components/repository-picker';
-import TurnOnDocker from '@/components/turn-on-docker';
 import type { ImportGitHub } from '@/components/repository-picker';
-import AppGallery, {
-    AppDetails,
-    TemplateLogo,
-    templateIcons,
-} from '@/components/app-gallery';
-import { Skeleton } from '@/components/ui/skeleton';
+import { AppDetails, TemplateLogo } from '@/components/app-gallery';
+import {
+    FreeAppsPanel,
+    TemplatesPanel,
+    WayToStart,
+    panelClass,
+    tones,
+} from '@/components/ways-to-start';
 import { useOrganization } from '@/hooks/use-organization';
 import { indexTemplates, matchTemplates } from '@/lib/template-match';
 import { cn } from '@/lib/utils';
@@ -44,6 +35,7 @@ export default function CreateProject({
     featured,
     compose,
     remix,
+    start,
     github,
 }: {
     defaultAi: string | null;
@@ -57,14 +49,24 @@ export default function CreateProject({
     compose: boolean;
     /** "Remix this" on a share page: the shared project's name and prompt (SHARE-002). */
     remix: { name: string; prompt: string } | null;
+    /** What they typed or picked on the home page before signing up (HOME-004). */
+    start: { prompt: string | null; template: string | null } | null;
     /** Importing a repository instead (PRJ-009). */
     github: ImportGitHub;
 }) {
     const [selection, setSelection] = useState(agent);
     const { auth } = usePage().props;
     const organization = useOrganization();
-    const [prompt, setPrompt] = useState(remix?.prompt ?? '');
-    const [template, setTemplate] = useState<string | null>(null);
+    // A built-in template picked on the home page comes with its prompt; a free app opens its details below.
+    const startedFrom = templates.find(
+        (option) => option.value === start?.template,
+    );
+    const [prompt, setPrompt] = useState(
+        remix?.prompt ?? start?.prompt ?? startedFrom?.prompt ?? '',
+    );
+    const [template, setTemplate] = useState<string | null>(
+        startedFrom?.value ?? null,
+    );
     // "No thanks" to the templates suggested for what they typed, until the prompt is cleared.
     const [dismissed, setDismissed] = useState(false);
     // The free app whose details are open, and what they'd typed when they opened it from a suggestion.
@@ -79,6 +81,7 @@ export default function CreateProject({
     const [importing, setImporting] = useState(github.returned !== null);
     const [repository, setRepository] = useState('');
     const firstName = auth.user.name.split(' ')[0];
+    const [openedStart, setOpenedStart] = useState(false);
 
     // What's already built, to offer when what they type sounds like one of them (PRJ-001).
     const index = useMemo(
@@ -108,6 +111,16 @@ export default function CreateProject({
         setStartError(null);
         setViewing({ app, keep });
     };
+
+    // The free app picked on the home page, once the apps have loaded.
+    useEffect(() => {
+        const picked = apps?.find((app) => app.value === start?.template);
+
+        if (picked && !openedStart) {
+            setOpenedStart(true);
+            setViewing({ app: picked, keep: '' });
+        }
+    }, [apps, start, openedStart]);
 
     /**
      * "Use" in a free app's details creates the project right away (PRJ-012), since the prompt may be scrolled out
@@ -271,112 +284,19 @@ export default function CreateProject({
                     </div>
 
                     <div className={cn('space-y-6', importing && 'hidden')}>
-                        <div
-                            className={cn(
-                                'space-y-4',
-                                panelClass,
-                                tones.template.panel,
-                            )}
-                        >
-                            <WayToStart
-                                tone="template"
-                                icon={LayoutTemplate}
-                                title="Or start from a template"
-                                description="A ready-made starting point. Pick one, change anything, then send it."
-                            />
-                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                                {templates.map((option) => {
-                                    const Icon =
-                                        templateIcons[option.value] ??
-                                        LayoutTemplate;
+                        <TemplatesPanel
+                            templates={templates}
+                            selected={template}
+                            onPick={(option) => pickTemplate(option)}
+                        />
 
-                                    return (
-                                        <TemplateCard
-                                            tone="template"
-                                            key={option.value}
-                                            label={option.label}
-                                            description={option.description}
-                                            icon={
-                                                <Icon
-                                                    className={cn(
-                                                        'mt-0.5 size-4 shrink-0',
-                                                        tones.template.icon,
-                                                    )}
-                                                />
-                                            }
-                                            pressed={template === option.value}
-                                            onClick={() => pickTemplate(option)}
-                                        />
-                                    );
-                                })}
-                            </div>
-                        </div>
-
-                        <div
-                            className={cn(
-                                'space-y-4',
-                                panelClass,
-                                tones.app.panel,
-                            )}
-                        >
-                            <WayToStart
-                                tone="app"
-                                icon={Package}
-                                title="Or install a free app"
-                                description="Free open-source apps, already built. Pick one and we set it up for you, ready to use."
-                            />
-                            {!compose && (
-                                <p className="text-xs text-muted-foreground">
-                                    These run with Docker. <TurnOnDocker />
-                                </p>
-                            )}
-                            <Deferred
-                                data="featured"
-                                fallback={
-                                    <Skeleton className="h-56 rounded-xl sm:h-72" />
-                                }
-                            >
-                                <AppCoverflow
-                                    apps={featured ?? []}
-                                    onOpen={(app) => view(app)}
-                                />
-                            </Deferred>
-                            <Deferred
-                                data="apps"
-                                fallback={
-                                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                                        {Array.from({ length: 9 }, (_, key) => (
-                                            <Skeleton
-                                                key={key}
-                                                className="h-[4.25rem] rounded-xl"
-                                            />
-                                        ))}
-                                    </div>
-                                }
-                            >
-                                <AppGallery
-                                    apps={apps ?? []}
-                                    onPick={(app) => view(app)}
-                                    renderApp={(app) => (
-                                        <TemplateCard
-                                            tone="app"
-                                            key={app.value}
-                                            label={app.label}
-                                            description={app.description}
-                                            icon={
-                                                <TemplateLogo
-                                                    template={app}
-                                                    className="size-6"
-                                                />
-                                            }
-                                            pressed={template === app.value}
-                                            dimmed={!compose}
-                                            onClick={() => view(app)}
-                                        />
-                                    )}
-                                />
-                            </Deferred>
-                        </div>
+                        <FreeAppsPanel
+                            apps={apps}
+                            featured={featured}
+                            compose={compose}
+                            selected={template}
+                            onView={(app) => view(app)}
+                        />
                     </div>
 
                     <AppDetails
@@ -460,110 +380,6 @@ function AlreadyBuilt({
                 ))}
             </div>
         </div>
-    );
-}
-
-/** Each way to start has its own colour, so the three read apart at a glance. */
-const tones = {
-    scratch: {
-        tile: 'bg-violet-500/15 text-violet-600 dark:text-violet-400',
-        icon: 'text-violet-600 dark:text-violet-400',
-        card: 'hover:border-violet-500/50 hover:bg-violet-500/5',
-        pressed: 'border-violet-500 bg-violet-500/10',
-        panel: 'border-violet-500/25 bg-violet-500/[0.04] dark:border-violet-500/30 dark:bg-violet-500/[0.07]',
-    },
-    template: {
-        tile: 'bg-sky-500/15 text-sky-600 dark:text-sky-400',
-        icon: 'text-sky-600 dark:text-sky-400',
-        card: 'hover:border-sky-500/50 hover:bg-sky-500/5',
-        pressed: 'border-sky-500 bg-sky-500/10',
-        panel: 'border-sky-500/25 bg-sky-500/[0.04] dark:border-sky-500/30 dark:bg-sky-500/[0.07]',
-    },
-    app: {
-        tile: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
-        icon: 'text-emerald-600 dark:text-emerald-400',
-        card: 'hover:border-emerald-500/50 hover:bg-emerald-500/5',
-        pressed: 'border-emerald-500 bg-emerald-500/10',
-        panel: 'border-emerald-500/25 bg-emerald-500/[0.04] dark:border-emerald-500/30 dark:bg-emerald-500/[0.07]',
-    },
-};
-
-type Tone = keyof typeof tones;
-
-const panelClass = 'rounded-2xl border p-4 sm:p-5';
-
-/** A heading for one of the ways to start a project, in words a first-time user knows. */
-function WayToStart({
-    tone,
-    icon: Icon,
-    title,
-    description,
-    className,
-}: {
-    tone: Tone;
-    icon: LucideIcon;
-    title: string;
-    description: string;
-    className?: string;
-}) {
-    return (
-        <div className={cn('flex items-start gap-3', className)}>
-            <span
-                className={cn(
-                    'flex size-10 shrink-0 items-center justify-center rounded-xl',
-                    tones[tone].tile,
-                )}
-            >
-                <Icon className="size-5" />
-            </span>
-            <div className="space-y-0.5">
-                <h2 className="text-lg font-semibold">{title}</h2>
-                <p className="text-sm text-muted-foreground">{description}</p>
-            </div>
-        </div>
-    );
-}
-
-function TemplateCard({
-    tone,
-    label,
-    description,
-    icon,
-    pressed,
-    dimmed = false,
-    onClick,
-}: {
-    tone: Tone;
-    label: string;
-    description: string;
-    icon: ReactNode;
-    pressed: boolean;
-    /** Can't be used here (it still opens, to read about it). */
-    dimmed?: boolean;
-    onClick: () => void;
-}) {
-    return (
-        <button
-            type="button"
-            onClick={onClick}
-            aria-pressed={pressed}
-            className={cn(
-                'flex items-start gap-3 rounded-xl border border-input bg-background px-4 py-3 text-left transition-colors',
-                dimmed && 'opacity-60',
-                tones[tone].card,
-                pressed && tones[tone].pressed,
-            )}
-        >
-            {icon}
-            <span className="min-w-0 space-y-0.5">
-                <span className="block text-sm font-medium break-words">
-                    {label}
-                </span>
-                <span className="line-clamp-2 text-xs break-words text-muted-foreground">
-                    {description}
-                </span>
-            </span>
-        </button>
     );
 }
 

@@ -14,6 +14,7 @@ use App\Http\Controllers\ClaudeLoginController;
 use App\Http\Controllers\GitHubAppController;
 use App\Http\Controllers\GroupController;
 use App\Http\Controllers\GroupMemberController;
+use App\Http\Controllers\HomeController;
 use App\Http\Controllers\ImpersonationController;
 use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\OnboardingController;
@@ -53,6 +54,7 @@ use App\Http\Controllers\ShareController;
 use App\Http\Controllers\SkillController;
 use App\Http\Controllers\SocialLoginController;
 use App\Http\Controllers\SshKeyController;
+use App\Http\Controllers\StartController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TaskMessageController;
 use App\Http\Controllers\TemplateScreenshotController;
@@ -64,7 +66,11 @@ use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 
-Route::inertia('/', 'welcome')->name('home');
+Route::get('/', HomeController::class)->name('home');
+// Starting a project from the home page (HOME-004), and the free apps' pictures shown there and on the new-project page.
+Route::post('start', [StartController::class, 'store'])->middleware('throttle:30,1')->name('start');
+Route::delete('start', [StartController::class, 'destroy'])->name('start.destroy');
+Route::get('templates/screenshots', TemplateScreenshotController::class)->middleware('throttle:60,1')->name('templates.screenshots');
 Route::inertia('pricing', 'pricing')->name('pricing');
 
 // The short install URL (INSTALL-001): `curl -fsSL https://onedrop.io/install | sh` follows this to the script on main.
@@ -144,7 +150,6 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
             Route::put('projects/order', [ProjectOrderController::class, 'update'])->name('projects.order');
         });
 
-        Route::get('templates/screenshots', TemplateScreenshotController::class)->middleware('throttle:60,1')->name('templates.screenshots');
         Route::get('projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
         Route::patch('projects/{project}', [ProjectController::class, 'update'])->name('projects.update');
         Route::delete('projects/{project}', [ProjectController::class, 'destroy'])->name('projects.destroy');

@@ -108,6 +108,13 @@ export type CatalogTemplate = AppTemplate & {
 /** A popular free app with the one picture shown for it in the coverflow (PRJ-012). */
 export type FeaturedApp = CatalogTemplate & { cover: string };
 
+/** What they typed or picked on the home page, waiting for them through signing up (HOME-004). */
+export type PendingStart = {
+    prompt: string | null;
+    /** A free app comes with its picture, when it has one. */
+    template: (CatalogTemplate & { cover?: string | null }) | null;
+};
+
 /** A project as listed in the sidebar, with what its menu needs. */
 export type SidebarProject = ProjectSummary & {
     pinned: boolean;

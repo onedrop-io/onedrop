@@ -59,6 +59,8 @@ class ProjectController extends Controller
             'compose' => $templates->canRunCompose(),
             // "Remix this" on a share page (SHARE-002) opens this page with the shared prompt filled in.
             'remix' => $request->session()->pull('remix'),
+            // What they typed or picked on the home page (HOME-004).
+            'start' => $request->session()->pull('start'),
             // Importing a repository (PRJ-009): private GitHub ones need the GitHub App.
             'github' => [
                 'configured' => $configured = $github->configured(),

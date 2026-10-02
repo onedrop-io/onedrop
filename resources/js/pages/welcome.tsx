@@ -31,7 +31,9 @@ import { InstallSection } from '@/components/home/install-section';
 import { SiteFooter } from '@/components/home/site-footer';
 import { SiteHeader } from '@/components/home/site-header';
 import { SparklesText } from '@/components/home/sparkles-text';
+import { StartSection } from '@/components/home/start-section';
 import { dashboard, register } from '@/routes';
+import type { AppTemplate, CatalogTemplate, FeaturedApp } from '@/types';
 
 const BRAND = 'OneDrop';
 
@@ -799,6 +801,52 @@ function HeroRipple({
     );
 }
 
+/** Every tool it works with (HOME-001), in one quiet row: grey until hovered, drifting slowly unless reduced motion is on. */
+function LogoCloud() {
+    const prefersReducedMotion = usePrefersReducedMotion();
+    const tools = INTEGRATIONS.flatMap((group) => group.tools);
+    const row = (copy: boolean) => (
+        <ul
+            aria-hidden={copy || undefined}
+            className={
+                prefersReducedMotion
+                    ? 'flex flex-wrap justify-center gap-x-10 gap-y-5'
+                    : 'flex shrink-0 gap-x-10 pr-10'
+            }
+        >
+            {tools.map((tool) => (
+                <li key={tool.name}>
+                    <a
+                        href={tool.url}
+                        tabIndex={copy ? -1 : undefined}
+                        className="group flex items-center gap-2 font-display text-base font-semibold whitespace-nowrap text-[#7D7068] transition-colors hover:text-[#F5EFEA]"
+                    >
+                        <img
+                            src={tool.logo}
+                            alt=""
+                            className="size-5 opacity-60 grayscale transition group-hover:opacity-100 group-hover:grayscale-0"
+                        />
+                        {tool.name}
+                    </a>
+                </li>
+            ))}
+        </ul>
+    );
+
+    if (prefersReducedMotion) {
+        return <div className="mt-8">{row(false)}</div>;
+    }
+
+    return (
+        <div className="group/marquee mt-8 overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_10%,black_90%,transparent)]">
+            <div className="flex w-max animate-logo-marquee group-focus-within/marquee:[animation-play-state:paused] group-hover/marquee:[animation-play-state:paused]">
+                {row(false)}
+                {row(true)}
+            </div>
+        </div>
+    );
+}
+
 function PrimaryCta({ isLoggedIn }: { isLoggedIn: boolean }) {
     return (
         <Link
@@ -811,7 +859,18 @@ function PrimaryCta({ isLoggedIn }: { isLoggedIn: boolean }) {
     );
 }
 
-export default function Welcome() {
+export default function Welcome({
+    templates,
+    apps,
+    featured,
+    compose,
+}: {
+    /** The new-project page's ways to start (HOME-004). */
+    templates: AppTemplate[];
+    apps?: CatalogTemplate[];
+    featured?: FeaturedApp[];
+    compose: boolean;
+}) {
     const { auth } = usePage().props;
     const isLoggedIn = Boolean(auth.user);
     const dropRef = useRef<HTMLDivElement>(null);
@@ -893,39 +952,19 @@ export default function Welcome() {
                                 <h2 className="text-center text-sm font-medium text-[#B3A69C]">
                                     Built on tools your IT team already trusts
                                 </h2>
-                                <ul className="mt-8 flex flex-wrap gap-x-12 gap-y-10">
-                                    {INTEGRATIONS.map((group) => (
-                                        <li
-                                            key={group.role}
-                                            className="grow border-t border-[#2A2320] pt-5"
-                                        >
-                                            <p className="text-xs text-[#7D7068]">
-                                                {group.role}
-                                            </p>
-                                            <ul className="mt-3 flex flex-wrap gap-x-6 gap-y-3">
-                                                {group.tools.map((tool) => (
-                                                    <li key={tool.name}>
-                                                        <a
-                                                            href={tool.url}
-                                                            className="flex items-center gap-2 font-display text-lg font-bold text-[#F5EFEA] transition-colors hover:text-white"
-                                                        >
-                                                            <img
-                                                                src={tool.logo}
-                                                                alt=""
-                                                                className="size-6"
-                                                            />
-                                                            {tool.name}
-                                                        </a>
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        </li>
-                                    ))}
-                                </ul>
+                                <LogoCloud />
                             </div>
                         </div>
                         <CosmicZoomControl className="absolute top-[430px] left-[78%] z-10 hidden -translate-x-1/2 xl:flex" />
                     </section>
+
+                    <StartSection
+                        isLoggedIn={isLoggedIn}
+                        templates={templates}
+                        apps={apps}
+                        featured={featured}
+                        compose={compose}
+                    />
 
                     <section className="bg-[#151110]">
                         <div className="mx-auto max-w-6xl px-6 py-24">

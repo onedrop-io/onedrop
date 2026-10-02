@@ -87,9 +87,10 @@ test('the new-project page asks for a free app\'s screenshots, and only registry
     $this->actingAs($user)->getJson(route('templates.screenshots', ['template' => 'dokploy/missing']))->assertNotFound();
 })->group('PRJ-012');
 
-test('guests can\'t ask for screenshots', function () {
-    $this->getJson(route('templates.screenshots', ['template' => 'dokploy/n8n']))->assertUnauthorized();
-})->group('PRJ-012');
+test('guests can ask for a free app\'s screenshots, for the home page, but only for apps in the catalog', function () {
+    $this->getJson(route('templates.screenshots', ['template' => 'dokploy/n8n']))->assertOk()->assertJsonCount(4, 'screenshots');
+    $this->getJson(route('templates.screenshots', ['template' => 'dokploy/missing']))->assertNotFound();
+})->group('PRJ-012', 'HOME-004');
 
 test('the coverflow shows the popular apps that have a picture, a store screenshot before the website\'s', function () {
     config([

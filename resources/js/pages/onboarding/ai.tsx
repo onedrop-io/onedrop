@@ -1,4 +1,4 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import { ArrowLeft, Check } from 'lucide-react';
 import { useState } from 'react';
 import {
@@ -7,6 +7,7 @@ import {
     providers,
 } from '@/components/agent-connections';
 import AppLogoIcon from '@/components/app-logo-icon';
+import { PendingStartNext } from '@/components/pending-start';
 import { Button } from '@/components/ui/button';
 import { dashboard } from '@/routes';
 import type { AgentConnection, AgentProvider } from '@/types';
@@ -18,6 +19,8 @@ export default function OnboardingAi({
 }) {
     const [chosen, setChosen] = useState<AgentProvider | null>(null);
     const provider = providers.find((p) => p.id === chosen);
+    // What they picked on the home page, waiting on the new-project page (HOME-004).
+    const { pendingStart } = usePage().props;
 
     return (
         <>
@@ -38,6 +41,8 @@ export default function OnboardingAi({
                             inside your sandboxes.
                         </p>
                     </div>
+
+                    {pendingStart && <PendingStartNext start={pendingStart} />}
 
                     {provider ? (
                         <div className="space-y-4">

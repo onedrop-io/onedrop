@@ -17,6 +17,14 @@
         'Schibsted Grotesk', 'Instrument Sans', ui-sans-serif, system-ui,
         sans-serif;
 
+    --animate-logo-marquee: logo-marquee 60s linear infinite;
+
+    @keyframes logo-marquee {
+        to {
+            transform: translateX(-50%);
+        }
+    }
+
     --animate-drop-fall: drop-fall 1.1s cubic-bezier(0.55, 0, 0.8, 0.4) both;
     --animate-ripple-in: ripple-in 1.8s cubic-bezier(0.16, 1, 0.3, 1) both;
     --animate-ripple-splash: ripple-splash 2.4s cubic-bezier(0.16, 1, 0.3, 1)

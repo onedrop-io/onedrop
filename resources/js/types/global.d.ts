@@ -4,7 +4,11 @@ import type {
     CurrentOrganization,
     OrganizationSummary,
 } from '@/types/organizations';
-import type { OpenProject, SidebarProjects } from '@/types/projects';
+import type {
+    OpenProject,
+    PendingStart,
+    SidebarProjects,
+} from '@/types/projects';
 
 declare module 'react' {
     interface InputHTMLAttributes<T> {
@@ -34,6 +38,8 @@ declare module '@inertiajs/core' {
             openProject: OpenProject | null;
             /** Where the browser connects for live updates (LIVE-001); null when the app doesn't broadcast. */
             realtime: RealtimeConfig | null;
+            /** What they picked on the home page, until the new-project page takes it (HOME-004). */
+            pendingStart: PendingStart | null;
             [key: string]: unknown;
         };
     }
