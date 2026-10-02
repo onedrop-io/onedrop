@@ -116,6 +116,7 @@ import ToolsPanel from '@/components/workspace/tools-panel';
 import FileViewer from '@/components/workspace/file-viewer';
 import ResizeHandle from '@/components/workspace/resize-handle';
 import { isLocalHostname, useIsRemote } from '@/hooks/use-is-remote';
+import { useClipboard } from '@/hooks/use-clipboard';
 import { useResizableWidth } from '@/hooks/use-resizable-width';
 import { useSandboxActivity } from '@/hooks/use-sandbox-activity';
 import {
@@ -2016,7 +2017,13 @@ function WorkspacePanel({
                                 )}
                                 data-test="sandbox-status"
                             >
-                                {statusFor(pane.active)}
+                                {pane.active === 'preview' &&
+                                statusIsUrl &&
+                                url ? (
+                                    <CopyableAddress url={url} />
+                                ) : (
+                                    statusFor(pane.active)
+                                )}
                             </span>
                             {pane.active === 'preview' && url && (
                                 <>
@@ -3387,5 +3394,51 @@ function TaskEmptyState({
                 Or write your own first message below.
             </p>
         </div>
+    );
+}
+
+/**
+ * The preview's address in the pane bar, with a copy button that shows on hover. Only the button copies, so
+ * clicking or selecting the address never replaces what's on the clipboard.
+ */
+function CopyableAddress({ url }: { url: string }) {
+    const [, copy] = useClipboard();
+    const [copied, setCopied] = useState(false);
+
+    useEffect(() => {
+        if (!copied) {
+            return;
+        }
+
+        const timer = setTimeout(() => setCopied(false), 1500);
+
+        return () => clearTimeout(timer);
+    }, [copied]);
+
+    return (
+        <span className="group inline-flex max-w-full items-center gap-1 align-middle">
+            <span className="truncate" data-test="preview-address">
+                {url}
+            </span>
+            <button
+                type="button"
+                onClick={() => void copy(url).then(setCopied)}
+                aria-label={copied ? 'Copied' : 'Copy address'}
+                title={copied ? 'Copied' : 'Copy address'}
+                className={cn(
+                    'shrink-0 rounded p-0.5 hover:bg-muted hover:text-foreground focus-visible:opacity-100',
+                    copied
+                        ? 'opacity-100'
+                        : 'opacity-0 transition-opacity group-hover:opacity-100',
+                )}
+                data-test="preview-address-copy"
+            >
+                {copied ? (
+                    <Check className="size-3 text-emerald-500" />
+                ) : (
+                    <Copy className="size-3" />
+                )}
+            </button>
+        </span>
     );
 }

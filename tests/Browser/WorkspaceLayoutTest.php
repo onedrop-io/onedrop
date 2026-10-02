@@ -236,3 +236,27 @@ test('on a small screen the header\'s commit and share buttons are icons, leavin
 
     $page->screenshot(filename: 'mobile-header');
 })->group('LAYOUT-007');
+
+test('the preview address copies only from its copy button', function () {
+    $user = User::factory()->has(AgentConnection::factory())->create();
+    $project = Project::factory()->for($user)->create();
+    Sandbox::factory()->for($project)->create(['preview_url' => 'http://127.0.0.1:49152']);
+    $this->actingAs($user);
+
+    $page = visit("/projects/{$project->id}")->resize(1600, 900);
+
+    $page->script(<<<'JS'
+        Object.defineProperty(navigator, 'clipboard', {
+            configurable: true,
+            value: { writeText: async (text) => { window.copiedText = text; } },
+        });
+    JS);
+
+    $page->click('@preview-address')
+        ->assertScript('window.copiedText ?? null', null)
+        ->hover('@preview-address')
+        ->click('@preview-address-copy')
+        ->assertAttribute('@preview-address-copy', 'title', 'Copied')
+        ->assertScript('window.copiedText', 'http://127.0.0.1:49152')
+        ->assertNoJavaScriptErrors();
+})->group('PRJ-002');

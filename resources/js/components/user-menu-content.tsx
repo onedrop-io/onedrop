@@ -21,6 +21,7 @@ import {
     DropdownMenuSubContent,
     DropdownMenuSubTrigger,
 } from '@/components/ui/dropdown-menu';
+import { OrganizationSubmenu } from '@/components/organization-menu';
 import { UserInfo } from '@/components/user-info';
 import type { Appearance } from '@/hooks/use-appearance';
 import { useAppearance } from '@/hooks/use-appearance';
@@ -36,6 +37,8 @@ import type { User } from '@/types';
 
 type Props = {
     user: User;
+    /** Opens the create-organization dialog, kept outside the menu by its owner (ORG-003). */
+    onCreateOrganization?: () => void;
 };
 
 const THEMES: { value: Appearance; label: string }[] = [
@@ -44,7 +47,7 @@ const THEMES: { value: Appearance; label: string }[] = [
     { value: 'system', label: 'System' },
 ];
 
-export function UserMenuContent({ user }: Props) {
+export function UserMenuContent({ user, onCreateOrganization }: Props) {
     const cleanup = useMobileNavigation();
     const organization = useOrganization();
     const { appearance, updateAppearance } = useAppearance();
@@ -61,6 +64,10 @@ export function UserMenuContent({ user }: Props) {
                     <UserInfo user={user} showEmail={true} />
                 </div>
             </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+                <OrganizationSubmenu onCreate={onCreateOrganization} />
+            </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
                 <DropdownMenuItem asChild>

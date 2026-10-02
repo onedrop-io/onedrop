@@ -115,7 +115,8 @@ test('the sidebar searches projects and starts new ones', function () {
         ->keys('@project-search-input', 'Enter')
         ->assertPathIs('/projects/'.$invoices->id);
 
-    $page->click('@sidebar-new-project')
+    $page->assertSeeIn('@sidebar-new-project', 'New project')
+        ->click('@sidebar-new-project')
         ->assertPathIs(orgPath())
         ->assertNoJavaScriptErrors();
 })->group('PRJ-005');

@@ -77,7 +77,7 @@ test('an owner renames the organization, makes a member an admin, and opens its 
         ->assertNoJavaScriptErrors();
 })->group('ORG-004', 'ORG-005');
 
-test('on the hosted install the switcher creates an organization and switches between them', function () {
+test('on the hosted install the account menu creates an organization and switches between them', function () {
     config(['app.multi_tenant' => true]);
     $this->seed(DatabaseSeeder::class);
     $dev = User::where('email', 'dev@example.com')->sole();
@@ -87,7 +87,8 @@ test('on the hosted install the switcher creates an organization and switches be
     $this->actingAs($dev);
 
     $page = visit(orgPath())
-        ->assertSeeIn('@organization-switcher', Organization::install()->name)
+        ->assertSeeIn('@sidebar-menu-button', Organization::install()->name)
+        ->click('@sidebar-menu-button')
         ->click('@organization-switcher')
         ->click('@create-organization')
         ->assertVisible('@organization-name')
@@ -96,10 +97,11 @@ test('on the hosted install the switcher creates an organization and switches be
         ->press('@create-organization-button')
         ->assertPathIs('/o/acme-labs')
         ->assertSee('Created Acme Labs.')
-        ->assertSeeIn('@organization-switcher', 'Acme Labs')
+        ->assertSeeIn('@sidebar-menu-button', 'Acme Labs')
         ->assertDontSeeIn($sidebar, 'Install CRM');
 
-    $page->click('@organization-switcher')
+    $page->click('@sidebar-menu-button')
+        ->click('@organization-switcher')
         ->click('@switch-to-'.Organization::install()->slug)
         ->assertPathIs(orgPath())
         ->assertSeeIn($sidebar, 'Install CRM')

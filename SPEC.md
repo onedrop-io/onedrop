@@ -96,13 +96,14 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - An organization's own pages (new project, groups, invites) should have addresses under `/o/<slug>/`; a project's pages keep `/projects/<id>` and are in the project's organization. Two tabs can be in two organizations.
 - The sidebar should list the projects of the organization the page is in; new projects and search should stay in it.
 - Opening an organization's page or a project should make it the user's current organization; signing in (and `/dashboard`) should take them there.
-- User should see the organization they're in at the top of the sidebar, as its only header: its name and its logo. Without a logo it shows its initial on the hosted install, and the install's own logo (or the droplet) on a self-hosted one.
-- User should be able to switch to another of their organizations from it, and land on that organization's new-project page; it should also open the organization's settings.
+- User should see the app's logo and name at the top of the sidebar, and the organization they're in under their own name at the bottom.
+- User should find an Organization submenu in the account menu (their name at the bottom of the sidebar), showing the organization's name and logo. Without a logo it shows its initial on the hosted install, and the install's own logo (or the droplet) on a self-hosted one.
+- User should be able to switch to another of their organizations from that submenu, and land on that organization's new-project page; it should also open the organization's settings.
 
 ## ORG-003: Create an organization
 
 - On the hosted install, someone signing up without an invite should get a new organization they own, named after them ("Ada's organization"); someone signing up through an invite should join the inviter's organization instead.
-- On the hosted install, user should be able to create another organization from the switcher, with a name; they become its owner and land on its new-project page.
+- On the hosted install, user should be able to create another organization from the account menu's Organization submenu, with a name; they become its owner and land on its new-project page.
 - On a self-hosted install, new sign-ups should join the one organization, and creating more should not be offered.
 
 ## ORG-004: Manage an organization's members
@@ -119,7 +120,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 - Organization owners and admins should be able to change its name and its address (`/o/<slug>`: lowercase letters, numbers and dashes, not taken by another organization), and land on the new address.
 - Organization owners and admins should be able to see its AI usage at `/o/<slug>/usage` from the account menu: the Usage page for every project in the organization, with a breakdown by person too.
-- Organization owners and admins should be able to give it a logo (PNG, JPEG, WebP or SVG, up to 1 MB) in Settings → Organization, shown in the switcher, and remove it to go back to its initial. Only its members can load it.
+- Organization owners and admins should be able to give it a logo (PNG, JPEG, WebP or SVG, up to 1 MB) in Settings → Organization, shown in the account menu's Organization submenu, and remove it to go back to its initial. Only its members can load it.
 - Groups should belong to an organization, and only its members can be added to them.
 - Organization owners and admins should be able to manage every group and project in their organization.
 
@@ -219,6 +220,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see the agent's replies appear while it works, without reloading.
 - User should be able to send follow-up messages to the agent.
 - User should see the live app in the preview once it has a preview URL, and a placeholder until then.
+- User should be able to copy the preview's address with the copy button that shows when they hover it (a check shows briefly after). Clicking or selecting the address itself shouldn't copy it.
 - User should see their recent projects in the sidebar.
 - On a phone, the sidebar should close once the user picks a project (or any other page) in it.
 - User should not be able to see or message another user's project (admins can see all).
@@ -261,7 +263,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## PRJ-005: Search projects from the sidebar
 
-- User should see a "Search" row at the top of the sidebar with a new-project button (pencil icon) beside it.
+- User should see a full-width "New project" row tinted orange (pencil icon) at the top of the sidebar, with a "Search" row under it.
 - User should be able to click Search to open a dialog, type part of a project's name, and see their matching projects (archived ones included), most recently updated first.
 - User should be able to pick a result with the arrow keys and Enter, or click it, to open the project.
 - User should only find their own projects.

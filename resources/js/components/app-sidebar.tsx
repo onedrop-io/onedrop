@@ -1,23 +1,29 @@
-import { usePage } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import { useEffect } from 'react';
+import AppLogo from '@/components/app-logo';
 import { NavOpenProject } from '@/components/nav-open-project';
 import { NavProjects, useSidebarUpdates } from '@/components/nav-projects';
 import { NavSearch } from '@/components/nav-search';
 import { NavUser } from '@/components/nav-user';
-import { OrganizationSwitcher } from '@/components/organization-switcher';
 import {
     Sidebar,
     SidebarContent,
     SidebarFooter,
     SidebarHeader,
+    SidebarMenu,
+    SidebarMenuButton,
+    SidebarMenuItem,
     useSidebar,
 } from '@/components/ui/sidebar';
 import { useCurrentUrl } from '@/hooks/use-current-url';
+import { useOrganization } from '@/hooks/use-organization';
 import { isProjectPath } from '@/lib/open-project';
+import { home } from '@/routes/organizations';
 
 export function AppSidebar() {
     const { sidebarProjects, openProject } = usePage().props;
     const { currentUrl } = useCurrentUrl();
+    const organization = useOrganization();
     // An opened project takes over the sidebar while the user is on its pages (TASK-001).
     const opened =
         openProject && isProjectPath(currentUrl, openProject.id)
@@ -36,7 +42,19 @@ export function AppSidebar() {
     return (
         <Sidebar collapsible="icon" variant="inset">
             <SidebarHeader>
-                <OrganizationSwitcher />
+                <SidebarMenu>
+                    <SidebarMenuItem>
+                        <SidebarMenuButton size="lg" asChild>
+                            <Link
+                                href={home(organization.slug)}
+                                prefetch
+                                data-test="sidebar-home"
+                            >
+                                <AppLogo />
+                            </Link>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                </SidebarMenu>
             </SidebarHeader>
 
             <SidebarContent>

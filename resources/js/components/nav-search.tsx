@@ -11,7 +11,6 @@ import {
 import {
     SidebarGroup,
     SidebarMenu,
-    SidebarMenuAction,
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
@@ -23,15 +22,31 @@ import { search, show } from '@/routes/projects';
 type SearchResult = { id: number; name: string; archived: boolean };
 
 /**
- * The sidebar's Search row (opens a dialog that searches all the user's projects) with a new-project button.
+ * The sidebar's Search row (opens a dialog that searches all the user's projects) under a full-width New project row.
  */
 export function NavSearch() {
     const [open, setOpen] = useState(false);
     const organization = useOrganization();
 
     return (
-        <SidebarGroup className="px-2 py-0">
+        <SidebarGroup className="px-2 pt-px pb-0">
             <SidebarMenu>
+                <SidebarMenuItem>
+                    <SidebarMenuButton
+                        asChild
+                        tooltip={{ children: 'New project' }}
+                        className="bg-orange-500/10 font-medium text-orange-700 ring-1 ring-orange-500/20 hover:bg-orange-500/15 hover:text-orange-700 active:bg-orange-500/20 active:text-orange-700 dark:text-orange-300 dark:hover:text-orange-300 dark:active:text-orange-300"
+                    >
+                        <Link
+                            href={home(organization.slug)}
+                            prefetch
+                            data-test="sidebar-new-project"
+                        >
+                            <SquarePen />
+                            <span>New project</span>
+                        </Link>
+                    </SidebarMenuButton>
+                </SidebarMenuItem>
                 <SidebarMenuItem>
                     <SidebarMenuButton
                         onClick={() => setOpen(true)}
@@ -42,20 +57,6 @@ export function NavSearch() {
                         <Search />
                         <span>Search</span>
                     </SidebarMenuButton>
-                    <SidebarMenuAction
-                        asChild
-                        className="text-muted-foreground"
-                        title="New project"
-                    >
-                        <Link
-                            href={home(organization.slug)}
-                            prefetch
-                            aria-label="New project"
-                            data-test="sidebar-new-project"
-                        >
-                            <SquarePen />
-                        </Link>
-                    </SidebarMenuAction>
                 </SidebarMenuItem>
             </SidebarMenu>
             <SearchDialog open={open} onOpenChange={setOpen} />
