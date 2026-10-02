@@ -169,6 +169,12 @@ test('signing out logs Claude Code out in the user\'s running sandboxes and empt
         ->and(glob("{$root}/user-{$this->user->id}/claude/{,.}[!.]*", GLOB_BRACE))->toBe([]);
 })->group('AI-005');
 
+test('tests never sign the developer out of their real Claude login', function () {
+    expect(config('sandbox.providers.docker.storage_path'))
+        ->toStartWith(sys_get_temp_dir())
+        ->not->toStartWith(storage_path());
+})->group('AI-005');
+
 test('a rejected API key is explained without mentioning signing in', function () {
     $user = User::factory()->has(AgentConnection::factory())->create();
     $project = Project::factory()->for($user)->create(['status' => ProjectStatus::Working]);

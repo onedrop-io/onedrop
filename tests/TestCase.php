@@ -25,6 +25,26 @@ abstract class TestCase extends BaseTestCase
             // App stores' screenshot galleries (PRJ-012): none unless a test lists some.
             'github.test/*' => Http::response('', 404),
         ]);
+
+        // Never the real storage/app/sandboxes: signing out of Claude there (SignOutOfClaude) emptied
+        // the dev user's shared Claude login on every test run.
+        config(['sandbox.providers.docker.storage_path' => self::sandboxStoragePath()]);
+    }
+
+    /**
+     * A throwaway Docker storage folder for this test process, deleted when it exits.
+     */
+    protected static function sandboxStoragePath(): string
+    {
+        static $path = null;
+
+        if ($path === null) {
+            $path = sys_get_temp_dir().'/onedrop-test-sandboxes-'.getmypid();
+            @mkdir($path);
+            register_shutdown_function(fn () => exec('rm -rf '.escapeshellarg($path)));
+        }
+
+        return $path;
     }
 
     protected function skipUnlessFortifyHas(string $feature, ?string $message = null): void
