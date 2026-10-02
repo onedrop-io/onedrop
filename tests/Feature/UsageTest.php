@@ -2,6 +2,8 @@
 
 use App\Enums\AgentHarness;
 use App\Enums\AgentProvider;
+use App\Enums\UsagePayer;
+use App\Models\AgentConnection;
 use App\Models\AgentUsage;
 use App\Models\Project;
 use App\Models\Sandbox;
@@ -175,4 +177,40 @@ test('an unknown range is rejected and guests are sent to log in', function () {
     auth()->logout();
 
     $this->get(route('usage.index'))->assertRedirect(route('login'));
+})->group('USAGE-001');
+
+test('each run records what paid for it', function (Closure $connect, string $paidBy) {
+    $connect($this->user);
+
+    sendUsageEvents($this->sandbox, 'claude_code', [[
+        'type' => 'result',
+        'subtype' => 'success',
+        'is_error' => false,
+        'session_id' => 'sess-1',
+        'modelUsage' => ['claude-opus-5-5' => ['inputTokens' => 50, 'outputTokens' => 5, 'costUSD' => 0.4]],
+    ]]);
+
+    expect(AgentUsage::sole()->paid_by->value)->toBe($paidBy);
+})->with([
+    'a Claude plan' => [fn (User $user) => AgentConnection::factory()->for($user)->claudeLogin()->create(), 'plan'],
+    'an API key' => [fn (User $user) => AgentConnection::factory()->for($user)->provider(AgentProvider::Claude)->create(), 'api_key'],
+])->group('USAGE-001');
+
+test('runs on a plan are included, not spent; the rest are cost', function () {
+    AgentUsage::factory()->for($this->user)->create(['project_id' => $this->project->id, 'model' => 'claude-opus-5-5', 'session_id' => 'a', 'cost' => 40, 'paid_by' => UsagePayer::Plan]);
+    AgentUsage::factory()->openCode()->for($this->user)->create(['project_id' => $this->project->id, 'session_id' => 'b', 'cost' => 0.5, 'paid_by' => UsagePayer::Credits]);
+    AgentUsage::factory()->openCode()->for($this->user)->create(['project_id' => $this->project->id, 'session_id' => 'c', 'cost' => 2, 'paid_by' => UsagePayer::ApiKey]);
+
+    $this->actingAs($this->user)->get(route('usage.index'))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('totals.cost', 2.5)
+            ->where('totals.included', 40)
+            ->where('agents.0.harness', 'opencode')
+            ->where('agents.1.included', 40)
+            ->where('models.0.paid_by', 'plan')
+            ->where('models.0.cost', 0)
+            ->where('models.0.included', 40)
+            ->where('projects.0.cost', 2.5)
+            ->where('series.29.cost.claude_code', 0)
+        );
 })->group('USAGE-001');

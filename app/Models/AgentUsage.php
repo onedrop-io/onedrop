@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\AgentHarness;
 use App\Enums\AgentProvider;
+use App\Enums\UsagePayer;
 use Database\Factories\AgentUsageFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -28,10 +29,11 @@ use Illuminate\Support\Carbon;
  * @property int $output_tokens
  * @property int $cache_read_tokens
  * @property int $cache_write_tokens
- * @property float $cost
+ * @property float $cost Estimated at API prices, whatever paid for it
+ * @property UsagePayer|null $paid_by What paid for it; null for runs from before it was recorded whose provider is gone
  * @property Carbon|null $created_at
  */
-#[Fillable(['user_id', 'organization_id', 'project_id', 'task_id', 'harness', 'provider', 'model', 'session_id', 'input_tokens', 'output_tokens', 'cache_read_tokens', 'cache_write_tokens', 'cost'])]
+#[Fillable(['user_id', 'organization_id', 'project_id', 'task_id', 'harness', 'provider', 'model', 'session_id', 'input_tokens', 'output_tokens', 'cache_read_tokens', 'cache_write_tokens', 'cost', 'paid_by'])]
 class AgentUsage extends Model
 {
     /** @use HasFactory<AgentUsageFactory> */
@@ -54,6 +56,7 @@ class AgentUsage extends Model
             'cache_read_tokens' => 'integer',
             'cache_write_tokens' => 'integer',
             'cost' => 'float',
+            'paid_by' => UsagePayer::class,
         ];
     }
 

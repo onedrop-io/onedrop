@@ -5,7 +5,9 @@ namespace App\Sandbox\Agents;
 use App\Enums\AgentFailure;
 use App\Enums\AgentHarness;
 use App\Enums\AgentProvider;
+use App\Enums\CredentialType;
 use App\Enums\MessageRole;
+use App\Enums\UsagePayer;
 use App\Jobs\BackupProject;
 use App\Jobs\ChargeAiCredits;
 use App\Jobs\CheckPreviewErrors;
@@ -91,7 +93,27 @@ abstract class AgentEvents
             'cache_read_tokens' => $tokens['cache_read'],
             'cache_write_tokens' => $tokens['cache_write'],
             'cost' => max(0, $cost),
+            'paid_by' => $this->payer($project, $harness, $provider),
         ]);
+    }
+
+    /**
+     * What pays for a run (USAGE-001): the organization's AI credits, or how the owner connected the provider.
+     */
+    protected function payer(Project $project, AgentHarness $harness, ?AgentProvider $provider): ?UsagePayer
+    {
+        if ($provider === AgentProvider::Credits) {
+            return UsagePayer::Credits;
+        }
+
+        $connection = $provider ? $project->user->agentConnections()->firstWhere('provider', $provider) : null;
+
+        // OpenCode can't use a Claude sign-in, so a Claude run there was on an API key.
+        if ($connection?->credential_type === CredentialType::ClaudeLogin && $harness !== AgentHarness::ClaudeCode) {
+            return UsagePayer::ApiKey;
+        }
+
+        return $connection ? UsagePayer::forCredential($connection->credential_type) : null;
     }
 
     /**

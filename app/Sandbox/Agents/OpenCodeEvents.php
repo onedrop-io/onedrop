@@ -80,7 +80,13 @@ class OpenCodeEvents extends AgentEvents
             ? explode('/', $model, 2)
             : [$project->agent_provider?->catalogId(), $project->agent_model ?? 'unknown'];
 
-        $this->recordUsage($conversation, AgentHarness::OpenCode, collect(AgentProvider::cases())->first(fn (AgentProvider $provider) => $provider->catalogId() === $catalogId), $id, $part['sessionID'] ?? null, [
+        // AI credits and OpenRouter share OpenCode's "openrouter" provider; the project's choice says which ran.
+        $chosen = app(ModelCatalog::class)->selectionFor($project)['provider'] ?? null;
+        $provider = $chosen?->catalogId() === $catalogId
+            ? $chosen
+            : collect(AgentProvider::cases())->first(fn (AgentProvider $provider) => $provider->catalogId() === $catalogId);
+
+        $this->recordUsage($conversation, AgentHarness::OpenCode, $provider, $id, $part['sessionID'] ?? null, [
             // OpenCode counts reasoning separately from output; both are billed as output.
             'input' => (int) ($tokens['input'] ?? 0),
             'output' => (int) ($tokens['output'] ?? 0) + (int) ($tokens['reasoning'] ?? 0),

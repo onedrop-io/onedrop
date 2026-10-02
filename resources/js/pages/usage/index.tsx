@@ -19,8 +19,21 @@ type Range = '24h' | '7d' | '30d' | '90d';
 type Metric = 'cost' | 'tokens';
 type Breakdown = 'model' | 'project' | 'person' | 'day';
 
+/** What paid for a run (USAGE-001); null for old runs whose provider is gone. */
+type PaidBy = 'credits' | 'plan' | 'api_key' | 'own_server' | null;
+
+const PAID_BY_LABELS: Record<Exclude<PaidBy, null>, string> = {
+    credits: 'AI credits',
+    plan: 'Your plan',
+    api_key: 'API key',
+    own_server: 'Your server',
+};
+
 type Sums = {
+    /** Money spent: AI credits and API keys. */
     cost: number;
+    /** What runs on a Claude or ChatGPT plan would have cost at API prices; not spent. */
+    included: number;
     input: number;
     output: number;
     cache_read: number;
@@ -40,6 +53,7 @@ type Props = {
         harness: AgentHarness;
         provider: AgentProvider | null;
         name: string;
+        paid_by: PaidBy;
     })[];
     projects: (Sums & { id: number | null; name: string })[];
     /** An organization's usage (ORG-005): whose runs they were. */
@@ -173,9 +187,7 @@ function CreditsCard({
             data-test="ai-credits-card"
         >
             <div className="min-w-48">
-                <div className="text-sm text-muted-foreground">
-                    {owner ? `${owner}'s AI credits` : 'AI credits'}
-                </div>
+                <div className="text-sm text-muted-foreground">AI credits</div>
                 <div className="mt-1 text-3xl font-medium tabular-nums">
                     {formatCredits(credits.left)}
                     <span className="ml-1.5 text-base font-normal text-muted-foreground">
@@ -183,8 +195,9 @@ function CreditsCard({
                     </span>
                 </div>
                 <p className="mt-2 max-w-xs text-xs text-muted-foreground">
-                    For building without your own AI, at the AI's own price.
-                    Connecting your own in Settings → AI never uses them.
+                    Free credits for building without your own AI
+                    {owner ? `, shared by everyone in ${owner}` : ''}. Your own
+                    AI (Settings → AI) never uses them.
                 </p>
             </div>
             {parts.map((part) => (
@@ -262,16 +275,20 @@ export default function Usage({
         key: string;
         name: string;
         icon?: React.ReactNode;
+        paidBy?: PaidBy;
         cost: number;
+        included?: number;
         tokens: number;
     }[] =
         breakdown === 'model'
             ? models.map((model) => ({
-                  key: `${model.harness}:${model.provider}:${model.name}`,
+                  key: `${model.harness}:${model.provider}:${model.name}:${model.paid_by}`,
                   name: model.name,
                   icon: model.provider ? (
                       <ProviderIcon provider={model.provider} />
                   ) : null,
+                  paidBy: model.paid_by,
+                  included: model.included,
                   cost: model.cost,
                   tokens: model.tokens,
               }))
@@ -396,12 +413,20 @@ export default function Usage({
                                 : formatTokens(totals.tokens)}
                         </div>
                         <div className="mt-1 text-sm text-muted-foreground">
+                            {metric === 'cost' ? 'spent' : 'processed tokens'} ·{' '}
                             {totals.sessions.toLocaleString()}{' '}
-                            {totals.sessions === 1 ? 'session' : 'sessions'} ·{' '}
-                            {metric === 'cost'
-                                ? 'API estimate'
-                                : 'processed tokens'}
+                            {totals.sessions === 1 ? 'session' : 'sessions'}
                         </div>
+                        {metric === 'cost' && totals.included > 0 && (
+                            <p
+                                className="mt-3 max-w-sm text-sm text-muted-foreground"
+                                data-test="usage-included"
+                            >
+                                Plus use included in your Claude or ChatGPT
+                                plan, which costs nothing per run (
+                                {formatCost(totals.included)} at API prices).
+                            </p>
+                        )}
 
                         <ul className="mt-8 space-y-5">
                             {agents.map((agent) => (
@@ -439,6 +464,9 @@ export default function Usage({
                                         {metric === 'cost'
                                             ? `${formatTokens(agent.tokens)} tokens`
                                             : formatCost(agent.cost)}
+                                        {metric === 'cost' &&
+                                            agent.included > 0 &&
+                                            ` · ${formatCost(agent.included)} at API prices included in your plan`}
                                     </div>
                                 </li>
                             ))}
@@ -564,10 +592,29 @@ export default function Usage({
                                         <span className="flex items-center gap-2">
                                             {row.icon}
                                             {row.name}
+                                            {row.paidBy && (
+                                                <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+                                                    {PAID_BY_LABELS[row.paidBy]}
+                                                </span>
+                                            )}
                                         </span>
                                     </td>
                                     <td className="py-3 text-right">
-                                        {formatCost(row.cost)}
+                                        {row.paidBy === 'plan' ? (
+                                            <span title="What it would have cost on an API key">
+                                                Included
+                                                <span className="block text-xs text-muted-foreground">
+                                                    {formatCost(
+                                                        row.included ?? 0,
+                                                    )}{' '}
+                                                    at API prices
+                                                </span>
+                                            </span>
+                                        ) : row.paidBy === 'own_server' ? (
+                                            'Free'
+                                        ) : (
+                                            formatCost(row.cost)
+                                        )}
                                     </td>
                                     <td className="py-3 text-right text-muted-foreground">
                                         {formatShare(row[metric], whole)}

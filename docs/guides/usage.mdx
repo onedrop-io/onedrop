@@ -1,17 +1,18 @@
 ---
 title: 'Usage'
-description: 'See how many tokens your agents used, and what they would cost on an API key.'
+description: 'See how many tokens your agents used, and what you spent on them.'
 ---
 
 Open **Usage** from the account menu (click your name at the bottom of the sidebar) to see what your agents used over the past 24 hours, 7, 30, or 90 days.
 
 ## What you see
 
-- **Total**: the estimated cost of every agent run in the period, and how many agent sessions it came from.
+- **AI credits**: on installs that offer them, what's left of your organization's [AI credits](/guides/set-up-ai#build-on-ai-credits), and when more arrive.
+- **Total**: what you spent on agent runs in the period (on AI credits and API keys), and how many agent sessions it came from. Use included in a Claude or ChatGPT plan is listed under it, apart.
 - **Each agent**: OpenCode's, Claude Code's and Codex's share of the cost, with their token counts.
 - **Chart**: cost per day (per hour for the past 24 hours), one line per agent. Hover to see each day's numbers, or open **Show data table**.
 - **Totals**: processed tokens, cached input, uncached input, output, and how much of the input came from the cache.
-- **Breakdown**: cost, share, and tokens by **Model**, **Project**, or **Day**.
+- **Breakdown**: cost, share, and tokens by **Model**, **Project**, or **Day**. Each model says what paid for it: **AI credits**, **Your plan**, **API key**, or **Your server**.
 
 Switch between **Cost** and **Tokens** at the top to change the headline number, the chart, and the shares.
 
@@ -20,9 +21,11 @@ Switch between **Cost** and **Tokens** at the top to change the headline number,
 After each run, the agent reports the tokens each model used and their cost: Claude Code once per run, OpenCode after each step, Codex after each turn. Codex doesn't report a cost, so OneDrop estimates it from OpenAI's API prices. Tasks count toward their project.
 
 <Note>
-    Costs are API-price estimates. On a Claude or ChatGPT subscription you
-    aren't billed per token; the number shows what the same work would cost on
-    an API key. Your provider's own dashboard has the final bill.
+    Runs on a Claude or ChatGPT plan cost nothing per run, so they show
+    **Included** and don't count toward your total or the chart. Under
+    **Included** is what the same work would have cost on an API key, to
+    compare models. Runs on your own Ollama server show **Free**. For API keys,
+    your provider's own dashboard has the final bill.
 </Note>
 
 You see the runs your own AI connections paid for: the ones in projects you own, even when teammates sent the messages. Usage stays after a project is deleted and shows as **Deleted project**. Owners and admins of an organization also see its usage across everyone's projects; see [Organization usage](/guides/organizations#organization-usage). Usage is recorded from the moment this feature arrived; earlier runs aren't included.

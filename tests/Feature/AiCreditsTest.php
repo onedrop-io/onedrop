@@ -4,6 +4,7 @@ use App\Enums\AgentProvider;
 use App\Enums\MessageRole;
 use App\Enums\OrganizationRole;
 use App\Enums\ProjectStatus;
+use App\Enums\UsagePayer;
 use App\Jobs\ChargeAiCredits;
 use App\Models\AgentConnection;
 use App\Models\Organization;
@@ -211,3 +212,17 @@ test('the usage page shows the organization\'s credits once they load', function
             ->missing('credits')
             ->loadDeferredProps(fn (Assert $reload) => $reload->where('credits.left', 4.82)->where('credits.welcome.left', 4.82)));
 })->group('CREDIT-001');
+
+test('runs on AI credits are recorded as paid by them, not by OpenRouter', function () {
+    fakeCredits(600);
+    $this->project->update(['agent_provider' => AgentProvider::Credits, 'agent_model' => 'deepseek/deepseek-v4.1-flash']);
+    $sandbox = $this->project->sandbox;
+
+    $this->withToken($sandbox->issueEventsToken())->postJson(route('sandbox-events.store', $sandbox), ['agent' => 'opencode', 'events' => [
+        ['type' => 'step_finish', 'sessionID' => 'ses_1', 'model' => 'openrouter/deepseek/deepseek-v4.1-flash', 'part' => ['type' => 'step-finish', 'tokens' => ['input' => 1000, 'output' => 50], 'cost' => 0.0004]],
+    ]])->assertOk();
+
+    $usage = $this->user->agentUsages()->sole();
+    expect($usage->provider)->toBe(AgentProvider::Credits)
+        ->and($usage->paid_by)->toBe(UsagePayer::Credits);
+})->group('CREDIT-001', 'USAGE-001');

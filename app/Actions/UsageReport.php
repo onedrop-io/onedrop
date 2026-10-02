@@ -3,6 +3,7 @@
 namespace App\Actions;
 
 use App\Enums\AgentHarness;
+use App\Enums\UsagePayer;
 use App\Models\AgentUsage;
 use App\Models\Organization;
 use App\Models\Project;
@@ -25,9 +26,13 @@ class UsageReport
     public const RANGES = ['24h' => 24, '7d' => 24 * 7, '30d' => 24 * 30, '90d' => 24 * 90];
 
     /**
-     * Sums every breakdown needs, in SQL both SQLite and Postgres run.
+     * Sums every breakdown needs, in SQL both SQLite and Postgres run. Cost is money spent (AI credits and API keys;
+     * runs from before payers were recorded count too); runs on a Claude or ChatGPT plan cost nothing per run, so
+     * their API-price estimate is summed apart, as `included`.
      */
-    protected const SUMS = 'SUM(cost) as cost, SUM(input_tokens) as input, SUM(output_tokens) as output, '
+    protected const SUMS = "SUM(CASE WHEN paid_by = 'plan' THEN 0 ELSE cost END) as cost, "
+        ."SUM(CASE WHEN paid_by = 'plan' THEN cost ELSE 0 END) as included, "
+        .'SUM(input_tokens) as input, SUM(output_tokens) as output, '
         .'SUM(cache_read_tokens) as cache_read, SUM(cache_write_tokens) as cache_write, COUNT(DISTINCT session_id) as sessions';
 
     /**
@@ -76,9 +81,9 @@ class UsageReport
             ->map(fn (object $row) => ['harness' => $row->harness, 'label' => AgentHarness::from($row->harness)->label(), ...$this->sums($row)])
             ->sortByDesc('cost')->values();
 
-        $models = $usages()->selectRaw('harness, provider, model, '.self::SUMS)->groupBy('harness', 'provider', 'model')->toBase()->get()
-            ->map(fn (object $row) => ['harness' => $row->harness, 'provider' => $row->provider, 'name' => $row->model, ...$this->sums($row)])
-            ->sortByDesc('cost')->values();
+        $models = $usages()->selectRaw('harness, provider, model, paid_by, '.self::SUMS)->groupBy('harness', 'provider', 'model', 'paid_by')->toBase()->get()
+            ->map(fn (object $row) => ['harness' => $row->harness, 'provider' => $row->provider, 'name' => $row->model, 'paid_by' => $row->paid_by, ...$this->sums($row)])
+            ->sortByDesc(fn (array $model) => $model['cost'] + $model['included'])->values();
 
         $projectRows = $usages()->selectRaw('project_id, '.self::SUMS)->groupBy('project_id')->toBase()->get();
         $names = Project::query()->whereKey($projectRows->pluck('project_id')->filter())->pluck('name', 'id');
@@ -102,7 +107,7 @@ class UsageReport
     /**
      * Totals over every run the user's AI connections paid for, and when the last one was.
      *
-     * @return array{cost: float, input: int, output: int, cache_read: int, cache_write: int, tokens: int, sessions: int, runs: int, last_run_at: string|null}
+     * @return array{cost: float, included: float, input: int, output: int, cache_read: int, cache_write: int, tokens: int, sessions: int, runs: int, last_run_at: string|null}
      */
     public function lifetime(User $user): array
     {
@@ -129,7 +134,7 @@ class UsageReport
             $buckets[$time->getTimestamp()] = ['t' => $time->getTimestamp(), 'cost' => [], 'tokens' => []];
         }
 
-        $rows = $usages->toBase()->select(['created_at', 'harness', 'cost', 'input_tokens', 'output_tokens', 'cache_read_tokens', 'cache_write_tokens'])->cursor();
+        $rows = $usages->toBase()->select(['created_at', 'harness', 'cost', 'paid_by', 'input_tokens', 'output_tokens', 'cache_read_tokens', 'cache_write_tokens'])->cursor();
 
         foreach ($rows as $row) {
             $time = Carbon::parse($row->created_at);
@@ -140,7 +145,7 @@ class UsageReport
                 continue;
             }
 
-            $buckets[$key]['cost'][$harness] = ($buckets[$key]['cost'][$harness] ?? 0) + (float) $row->cost;
+            $buckets[$key]['cost'][$harness] = ($buckets[$key]['cost'][$harness] ?? 0) + ($row->paid_by === UsagePayer::Plan->value ? 0 : (float) $row->cost);
             $buckets[$key]['tokens'][$harness] = ($buckets[$key]['tokens'][$harness] ?? 0)
                 + (int) $row->input_tokens + (int) $row->output_tokens + (int) $row->cache_read_tokens + (int) $row->cache_write_tokens;
         }
@@ -151,7 +156,7 @@ class UsageReport
     /**
      * A row of sums as numbers (drivers return strings, and null when nothing matched).
      *
-     * @return array{cost: float, input: int, output: int, cache_read: int, cache_write: int, tokens: int, sessions: int}
+     * @return array{cost: float, included: float, input: int, output: int, cache_read: int, cache_write: int, tokens: int, sessions: int}
      */
     protected function sums(?object $row): array
     {
@@ -162,6 +167,7 @@ class UsageReport
 
         return [
             'cost' => round((float) ($row->cost ?? 0), 6),
+            'included' => round((float) ($row->included ?? 0), 6),
             'input' => $input,
             'output' => $output,
             'cache_read' => $cacheRead,

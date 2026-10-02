@@ -1285,7 +1285,9 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see a chart of cost (or tokens) over the period, one line per agent, and be able to switch the page between Cost and Tokens.
 - User should see totals: processed tokens, cached input, uncached input, output, and the share of input served from the cache.
 - User should see a breakdown by model, by project, or by day, with each row's cost, share and tokens.
-- User should only see usage their own AI connections paid for; costs are API-price estimates (what a subscription run would have cost on an API key).
+- User should only see usage their own AI connections (or their organization's AI credits) paid for.
+- The platform should record what paid for each run: AI credits, the user's Claude or ChatGPT plan, their API key, or their own Ollama server.
+- User should see cost as money spent: runs on AI credits and API keys, at API prices. Runs on a Claude or ChatGPT plan should say "Included" (with what they'd have cost at API prices, in small type) and count nothing toward the total or the chart; runs on their own server should say "Free". Each model in the breakdown should say what paid for it.
 
 ## PUB-002: Publish to the server's own domain
 
