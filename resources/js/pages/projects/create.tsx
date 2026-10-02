@@ -1,4 +1,4 @@
-import { Deferred, Head, router, usePage } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import { PenLine, Shuffle, Sparkles, X } from 'lucide-react';
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import ProjectController from '@/actions/App/Http/Controllers/ProjectController';

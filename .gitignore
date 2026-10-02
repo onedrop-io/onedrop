@@ -45,3 +45,6 @@ yarn-error.log
 /tests/Browser/Screenshots
 /.playwright-mcp
 /autumn/skills/
+
+# Editor swap files (vim), which can hold a copy of .env.
+*.swp

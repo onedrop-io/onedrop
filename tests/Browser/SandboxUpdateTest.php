@@ -7,9 +7,10 @@ use App\Models\Sandbox;
 use App\Models\User;
 use App\Sandbox\Providers\FakeSandboxProvider;
 use App\Sandbox\SandboxProvider;
+use App\Sandbox\SandboxUpdater;
 use Illuminate\Support\Facades\Queue;
 
-test('opening a project with an outdated sandbox shows it updating', function () {
+test('a project whose sandbox is being replaced shows it updating', function () {
     Queue::fake();
     $provider = new FakeSandboxProvider;
     $provider->outdated = ['old-ctr'];
@@ -17,6 +18,8 @@ test('opening a project with an outdated sandbox shows it updating', function ()
     $user = User::factory()->has(AgentConnection::factory())->create();
     $project = Project::factory()->for($user)->create();
     Sandbox::factory()->for($project)->create(['external_id' => 'old-ctr', 'preview_url' => 'http://127.0.0.1:9/']);
+    // Updates wait until the project is unused, so opening it doesn't start one; this one is already running.
+    SandboxUpdater::markUpdating($project);
     $this->actingAs($user);
 
     visit("/projects/{$project->id}")

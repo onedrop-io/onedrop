@@ -32,7 +32,7 @@ test('projects can be sorted from the sidebar and dragged into place', function 
 
     $page->drag('li[data-test="sidebar-project"]:has-text("Todo App")', 'li[data-test="sidebar-project"]:has-text("Blog")')
         ->assertScript($names, 'Todo App,Blog')
-        ->assertSeeIn('[data-sidebar="sidebar"]', 'Projects')
+        ->assertSeeIn('[data-sidebar="group-label"]', 'Projects')
         ->assertNoJavaScriptErrors();
 
     expect($this->user->fresh()->project_sort)->toBe(ProjectSort::Manual);
