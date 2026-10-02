@@ -54,6 +54,7 @@ http://:8080 {
 	route {
 		# Never trust a client-supplied upstream.
 		request_header -X-OneDrop-Upstream
+		request_header -X-OneDrop-Host
 
 		# Only OneDrop's Cloudflare Worker says where a visitor is (Growth); a browser can't place itself.
 		request_header -X-OneDrop-Geo-Country

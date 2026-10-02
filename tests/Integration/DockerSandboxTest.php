@@ -304,11 +304,20 @@ test('the host proxy presents same-site Origin and Referer as localhost', functi
             return $out;
         }, 250);
 
-        expect($body)->toBe('http://localhost:8000|http://localhost:8000/contacts');
+        // Through Cloudflare's Worker the Host is the provider's address; the Worker names the one the browser used.
+        $viaWorker = trim($docker->exec($id, ['curl', '-sf',
+            '-H', 'Host: abc.runtime.dev',
+            '-H', 'X-OneDrop-Host: preview-25.onedrop.io',
+            '-H', 'Origin: https://preview-25.onedrop.io',
+            '-H', 'Referer: https://evil.example.com/',
+            'http://127.0.0.1:8081/'])->output);
+
+        expect($body)->toBe('http://localhost:8000|http://localhost:8000/contacts')
+            ->and($viaWorker)->toBe('http://localhost:8000|https://evil.example.com/');
     } finally {
         $docker->destroy($id);
     }
-})->group('PUB-001');
+})->group('PUB-001', 'GW-002');
 
 test('stop-agent ends the agent run and everything it started', function () {
     $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));

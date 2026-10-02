@@ -18,7 +18,7 @@ const env = {
 /**
  * Run the Worker on a request, with the app's authorize answer given and every outgoing fetch recorded.
  */
-async function run(url, authorize, { cookie } = {}) {
+async function run(url, authorize, { cookie, headers: sentHeaders = {} } = {}) {
     const sent = [];
     const store = new Map();
 
@@ -44,7 +44,10 @@ async function run(url, authorize, { cookie } = {}) {
         });
     };
 
-    const headers = cookie ? { Cookie: `onedrop_gateway=${cookie}` } : {};
+    const headers = {
+        ...sentHeaders,
+        ...(cookie ? { Cookie: `onedrop_gateway=${cookie}` } : {}),
+    };
     const waits = [];
     const response = await worker.fetch(new Request(url, { headers }), env, {
         waitUntil: (p) => waits.push(p),
@@ -174,6 +177,33 @@ test('a public app is served without a cookie, and the answer is shared for a mi
         store.has(
             'https://gateway-auth.internal/time-tracker-4.onedrop.io/public',
         ),
+    );
+});
+
+test('the sandbox is told the address the browser used, never one the browser names', async () => {
+    const { sent } = await run(
+        'https://preview-25.onedrop.io/live/websocket',
+        () =>
+            new Response(null, {
+                status: 200,
+                headers: { 'X-OneDrop-Upstream': 'https://abc.runtime.dev' },
+            }),
+        {
+            headers: {
+                Origin: 'https://preview-25.onedrop.io',
+                'X-OneDrop-Host': 'evil.example.com',
+            },
+        },
+    );
+
+    assert.equal(sent[1].url, 'https://abc.runtime.dev/live/websocket');
+    assert.equal(
+        sent[1].headers.get('X-OneDrop-Host'),
+        'preview-25.onedrop.io',
+    );
+    assert.equal(
+        sent[1].headers.get('Origin'),
+        'https://preview-25.onedrop.io',
     );
 });
 

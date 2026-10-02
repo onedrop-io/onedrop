@@ -702,6 +702,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - The provider's preview token should never reach the browser: the Worker adds it to each request it forwards.
 - Only the Worker should be able to ask the app for a sandbox's address and token (a shared secret).
 - Links in the app's pages that point at the provider's address should point at the preview address instead, and the Shell tab's live connection should work.
+- Apps that check a WebSocket's origin (Phoenix LiveView, as in Plausible) should connect through the preview and published addresses, set up for `localhost` as they are on other providers.
 
 ## HOME-001: Marketing home page
 

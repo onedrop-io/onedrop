@@ -128,9 +128,21 @@ function isForeignHost(host) {
     return host !== '' && host !== appHost && host !== `127.0.0.1:${appPort}`;
 }
 
+/**
+ * The address the visitor used. OneDrop's Cloudflare Worker reaches the sandbox at the provider's address, so it
+ * names the gateway address it served (X-OneDrop-Host); otherwise it's the Host header.
+ */
+function visitorHost(req) {
+    return (
+        String(req.headers['x-onedrop-host'] ?? '') || (req.headers.host ?? '')
+    );
+}
+
 function rewrite(req, port = appPort) {
     const headers = { ...req.headers };
-    const originalHost = req.headers.host ?? '';
+    const originalHost = visitorHost(req);
+
+    delete headers['x-onedrop-host'];
 
     headers['x-forwarded-host'] = originalHost;
     headers['x-forwarded-proto'] = visitorProto(req);

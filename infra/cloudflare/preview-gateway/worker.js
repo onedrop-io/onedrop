@@ -133,6 +133,10 @@ async function forward(request, url, { upstream, header, token }) {
 
     setLocation(headers, request.cf);
 
+    // The provider's proxy sees its own address as Host; this is the one the browser used, so the sandbox can
+    // tell the page's own Origin from another site's (Phoenix LiveView and Vite refuse sockets otherwise).
+    headers.set('X-OneDrop-Host', url.host);
+
     const init = { method: request.method, headers, redirect: 'manual' };
 
     if (!['GET', 'HEAD'].includes(request.method)) {
