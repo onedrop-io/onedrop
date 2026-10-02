@@ -134,10 +134,10 @@ class ProjectSnapshots
     public function prune(Project $project): int
     {
         $snapshots = $project->snapshots()->latest('id')->get();
+        // Newest first, so the first of each day is that day's newest.
         $kept = $snapshots->take(10)
             ->merge($snapshots->filter(fn (ProjectSnapshot $snapshot) => $snapshot->created_at->gt(now()->subDays(7)))
-                ->groupBy(fn (ProjectSnapshot $snapshot) => $snapshot->created_at->toDateString())
-                ->map->first())
+                ->unique(fn (ProjectSnapshot $snapshot) => $snapshot->created_at->toDateString()))
             ->unique('id');
         $dropped = $snapshots->whereNotIn('id', $kept->pluck('id'));
 
@@ -191,7 +191,7 @@ class ProjectSnapshots
         try {
             $packed = $this->run($sandbox, [self::SCRIPT, 'pack', ...$changed, $remote], [], "Couldn't pack the project's snapshot");
 
-            foreach (preg_split('/\R/', trim($packed)) as $line) {
+            foreach (preg_split('/\R/', trim($packed)) ?: [] as $line) {
                 [$layer, $compression, $size] = explode(' ', $line) + [null, null, null];
 
                 if (in_array($layer, $changed, true)) {
@@ -231,7 +231,7 @@ class ProjectSnapshots
 
                 $this->run($sandbox, [self::SCRIPT, 'put', "{$remote}/{$layer}.tar.{$meta['compression']}"], [
                     'ONEDROP_SNAPSHOT_URL' => $url,
-                    'ONEDROP_SNAPSHOT_HEADERS' => collect($headers)->map(fn ($value, string $name) => $name.': '.(is_array($value) ? implode(', ', $value) : $value))->implode("\n"),
+                    'ONEDROP_SNAPSHOT_HEADERS' => $this->headerLines($headers),
                 ], "Couldn't upload the project's {$layer}");
             }
 
@@ -267,7 +267,7 @@ class ProjectSnapshots
         $output = $this->run($sandbox, [self::SCRIPT, 'fingerprint'], [], "Couldn't read the project's files");
         $fingerprints = [];
 
-        foreach (preg_split('/\R/', trim($output)) as $line) {
+        foreach (preg_split('/\R/', trim($output)) ?: [] as $line) {
             [$layer, $fingerprint] = explode(' ', $line) + [null, null];
             $fingerprints[$layer] = (string) $fingerprint;
         }
@@ -324,9 +324,28 @@ class ProjectSnapshots
         }
 
         $target = fopen($file, 'wb');
+
+        if ($target === false) {
+            fclose($stream);
+
+            throw new SandboxException("Couldn't write the snapshot's {$path} to {$file}.");
+        }
+
         stream_copy_to_stream($stream, $target);
         fclose($target);
         fclose($stream);
+    }
+
+    /**
+     * An upload link's headers as "Name: value" lines, for the sandbox's curl.
+     *
+     * @param  array<string, string|list<string>>  $headers
+     */
+    protected function headerLines(array $headers): string
+    {
+        return collect($headers)
+            ->map(fn (string|array $value, string $name) => $name.': '.(is_array($value) ? implode(', ', $value) : $value))
+            ->implode("\n");
     }
 
     protected function isRunning(?Sandbox $sandbox): bool

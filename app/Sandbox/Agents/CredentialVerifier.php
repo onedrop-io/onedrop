@@ -6,6 +6,7 @@ use App\Enums\AgentProvider;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
+use InvalidArgumentException;
 
 /**
  * Checks a pasted API key against the provider before we store it.
@@ -31,6 +32,8 @@ class CredentialVerifier
             ])->get('https://generativelanguage.googleapis.com/v1beta/models'),
             // Ollama Cloud lists models without a key; who-am-I needs a good one.
             AgentProvider::Ollama => fn () => Http::withToken($credential)->post('https://ollama.com/api/me'),
+            // The platform's own AI (CREDIT-001) has no key of the user's to check; connecting it is refused earlier.
+            AgentProvider::Credits => throw new InvalidArgumentException('AI credits have no API key to verify.'),
         };
 
         try {

@@ -116,7 +116,7 @@ class FakeSandboxProvider implements SandboxProvider
             return false;
         }
 
-        $files = collect(File::allFiles($directory))->map(fn ($file) => $file->getRelativePathname())->sort()->values()->all();
+        $files = array_values(collect(File::allFiles($directory))->map(fn ($file) => $file->getRelativePathname())->sort()->all());
         $this->installed[] = ['id' => $id, 'path' => $path, 'files' => $files];
 
         return true;

@@ -4,6 +4,7 @@ namespace App\Sandbox;
 
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
+use RuntimeException;
 
 /**
  * The platform's tools in a sandbox (scripts, guides, the proxy): every file the image copies from docker/sandbox into
@@ -73,16 +74,16 @@ class SandboxTools
 
         $files = [];
 
-        foreach (preg_split('/\R/', File::get("{$this->source}/Dockerfile")) as $line) {
+        foreach (preg_split('/\R/', File::get("{$this->source}/Dockerfile")) ?: [] as $line) {
             // COPY [--chown=…] source… destination; never --from (another image's files).
             if (! preg_match('/^COPY\s+((?:--[a-z]+=\S+\s+)*)(.+)$/', trim($line), $match) || str_contains($match[1], '--from')) {
                 continue;
             }
 
-            $words = preg_split('/\s+/', trim($match[2]));
+            $words = preg_split('/\s+/', trim($match[2])) ?: [];
             $destination = array_pop($words);
 
-            if (! str_starts_with($destination, self::PATH.'/')) {
+            if ($destination === null || ! str_starts_with($destination, self::PATH.'/')) {
                 continue;
             }
 
@@ -116,14 +117,30 @@ class SandboxTools
         $hashes = [];
 
         foreach ($this->files() as $relative => $file) {
-            $hashes[self::PATH."/{$relative}"] = hash_file('sha256', $file);
+            $hashes[self::PATH."/{$relative}"] = $this->hash($file);
         }
 
         foreach (self::BASE_FILES as $name) {
-            $hashes[self::BASE_PATH."/{$name}"] = hash_file('sha256', "{$this->source}/{$name}");
+            $hashes[self::BASE_PATH."/{$name}"] = $this->hash("{$this->source}/{$name}");
         }
 
         return $hashes;
+    }
+
+    /**
+     * A source file's hash; a file the Dockerfile copies but the source lacks would build a broken image.
+     *
+     * @throws RuntimeException
+     */
+    protected function hash(string $file): string
+    {
+        $hash = hash_file('sha256', $file);
+
+        if ($hash === false) {
+            throw new RuntimeException("Couldn't read the sandbox tool file {$file}.");
+        }
+
+        return $hash;
     }
 
     /**
@@ -131,7 +148,7 @@ class SandboxTools
      */
     public function version(): string
     {
-        return hash('sha256', json_encode($this->expected()));
+        return hash('sha256', json_encode($this->expected(), JSON_THROW_ON_ERROR));
     }
 
     /**
@@ -157,17 +174,16 @@ class SandboxTools
 
         $actual = [];
 
-        foreach (preg_split('/\R/', trim($result->output)) as $line) {
+        foreach (preg_split('/\R/', trim($result->output)) ?: [] as $line) {
             if (preg_match('/^([0-9a-f]{64})\s+\*?(\S.*)$/', $line, $match)) {
                 $actual[$match[2]] = $match[1];
             }
         }
 
         $base = collect(self::BASE_FILES)->every(fn (string $name) => ($actual[self::BASE_PATH."/{$name}"] ?? null) === $expected[self::BASE_PATH."/{$name}"]);
-        $changed = collect($this->files())->keys()
+        $changed = array_values(collect($this->files())->keys()
             ->reject(fn (string $relative) => ($actual[self::PATH."/{$relative}"] ?? null) === $expected[self::PATH."/{$relative}"])
-            ->values()
-            ->all();
+            ->all());
 
         if ($base && $changed === []) {
             $this->remember($id);
