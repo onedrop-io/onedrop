@@ -53,6 +53,9 @@ return [
             'image' => env('RUNTIME_IMAGE', 'onedrop-sandbox:latest'),
             // "trial" (the free hours) until the account has credit and you choose "paid".
             'funding' => env('RUNTIME_FUNDING', 'trial'),
+            // Docker inside each sandbox, for projects that run their own Docker Compose (SBX-008): "off" or "on".
+            // Runtime sandboxes are VMs with their own disk, so it needs no privileged mode or extra volume.
+            'nested_docker' => env('RUNTIME_NESTED_DOCKER', 'off'),
             'vcpu' => (int) env('RUNTIME_VCPU', 2),
             'memory_mib' => (int) env('RUNTIME_MEMORY_MIB', 4096),
             'disk_mib' => (int) env('RUNTIME_DISK_MIB', 8192),

@@ -51,7 +51,7 @@ test('create starts a trial sandbox from the current image and hands it its sett
         && $request->hasHeader('Authorization', 'Bearer rt-test-key')
         && $request->hasHeader('Idempotency-Key')
         && $request['image'] === 'img-7'
-        && $request['labels'] === [RuntimeSandboxProvider::IMAGE_LABEL => 'img-7']
+        && $request['labels'] === [RuntimeSandboxProvider::IMAGE_LABEL => 'img-7', RuntimeSandboxProvider::DOCKER_LABEL => 'off']
         && $request['funding'] === 'trial'
         && ! isset($request['persistent'])
         && ! str_contains($request->body(), 'sk-it'));
@@ -60,10 +60,40 @@ test('create starts a trial sandbox from the current image and hands it its sett
         && str_contains($request->url(), 'mode=600')
         && str_contains(urldecode($request->url()), 'path='.RuntimeSandboxProvider::ENV_FILE)
         && str_contains($request->body(), "ANTHROPIC_API_KEY='sk-it'\\''s-secret'")
-        && str_contains($request->body(), "SHELL_PORT='7681'"));
+        && str_contains($request->body(), "SHELL_PORT='7681'")
+        && ! str_contains($request->body(), 'ONEDROP_DOCKER'));
 
     Http::assertSent(fn (Request $request) => str_ends_with($request->url(), ':exec') && $request['argv'] === ['/opt/onedrop/restart']);
 })->group('SBX-003');
+
+test('with Docker inside sandboxes on, a sandbox is labelled for it and its settings tell start.sh to start Docker', function () {
+    Http::fake([
+        RT_API.'/images/resolve*' => Http::response(['id' => 'img-7']),
+        RT_API.'/sandboxes' => Http::response(['id' => RT_ID, 'state' => 'running']),
+        RT_API.'/sandboxes/'.RT_ID.'/files/content*' => Http::response(['path' => RuntimeSandboxProvider::ENV_FILE]),
+        RT_API.'/sandboxes/'.RT_ID.':exec' => Http::response(['exitCode' => 0, 'stdout' => '', 'stderr' => '', 'timedOut' => false]),
+    ]);
+
+    (new RuntimeSandboxProvider([...$this->runtimeConfig, 'nested_docker' => 'on']))->create(new SandboxSpec('onedrop-project-1-x'));
+
+    Http::assertSent(fn (Request $request) => $request->url() === RT_API.'/sandboxes'
+        && $request['labels'] === [RuntimeSandboxProvider::IMAGE_LABEL => 'img-7', RuntimeSandboxProvider::DOCKER_LABEL => 'on']);
+    Http::assertSent(fn (Request $request) => $request->method() === 'PUT' && str_contains($request->body(), "ONEDROP_DOCKER='1'"));
+})->group('SBX-008');
+
+test('turning Docker inside sandboxes on or off makes existing Runtime sandboxes outdated', function (string $mode, ?string $label, bool $outdated) {
+    Http::fake([
+        RT_API.'/sandboxes/'.RT_ID => Http::response(['id' => RT_ID, 'labels' => array_filter([RuntimeSandboxProvider::IMAGE_LABEL => 'img-8', RuntimeSandboxProvider::DOCKER_LABEL => $label])]),
+        RT_API.'/images/resolve*' => Http::response(['id' => 'img-8']),
+    ]);
+
+    expect((new RuntimeSandboxProvider([...$this->runtimeConfig, 'nested_docker' => $mode]))->isOutdated(RT_ID))->toBe($outdated);
+})->with([
+    'on, sandbox made before it' => ['on', null, true],
+    'on, sandbox made with it' => ['on', 'on', false],
+    'off, sandbox made with it' => ['off', 'on', true],
+    'off, sandbox made before it' => ['off', null, false],
+])->group('SBX-008');
 
 test('create says to build the image when it is not on Runtime yet', function () {
     Http::fake([RT_API.'/images/resolve*' => Http::response(runtimeError('not_found', 404), 404)]);

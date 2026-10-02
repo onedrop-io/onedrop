@@ -1,12 +1,23 @@
 #!/usr/bin/env bash
 # Docker inside the sandbox, for projects that run their own Docker Compose (SBX-008). start.sh runs this as root
-# (through the one sudo rule the sandbox user has) when the provider turned it on (ONEDROP_DOCKER=1).
-# Docker's data must be on its own volume: on the container's own filesystem (overlay on overlay) images won't unpack.
+# (through the sudo rule the sandbox user has) when the provider turned it on (ONEDROP_DOCKER=1).
+# Docker's data can't be on an overlay filesystem (a container's own): images won't unpack there. Docker sandboxes
+# get a volume for it; VM sandboxes (Runtime Cloud) have a real disk.
 set -euo pipefail
 
-if ! mountpoint -q /var/lib/docker; then
-    echo "Docker needs its own volume at /var/lib/docker; this sandbox wasn't given one." >&2
+DATA="${ONEDROP_DOCKER_DIR:-/var/lib/docker}"
+mkdir -p "$DATA"
+
+if [ "$(stat -f -c %T "$DATA")" = "overlayfs" ]; then
+    echo "Docker needs a real disk or its own volume at $DATA; here it's on the sandbox's overlay filesystem." >&2
     exit 1
+fi
+
+# Elasticsearch won't start below 262144 memory maps. A VM can raise it; a container can't, and that's fine.
+MAPS="${ONEDROP_MAX_MAP_COUNT_FILE:-/proc/sys/vm/max_map_count}"
+
+if [ -w "$MAPS" ] && [ "$(cat "$MAPS")" -lt 262144 ]; then
+    echo 262144 >"$MAPS" 2>/dev/null || true
 fi
 
 # A restarted container keeps /var/run, so the last run's pid files are still there. Their pids can belong to
@@ -18,5 +29,6 @@ if ! pgrep -x dockerd >/dev/null; then
     rm -f "${RUN}/docker.pid" "${RUN}/docker/containerd/containerd.pid"
 fi
 
-# The sandbox user runs docker through the socket (it's in the docker group).
-exec dockerd --group docker
+# The socket belongs to the sandbox user's own group: Runtime Cloud starts commands with that group only, without
+# the docker group the user is also in.
+exec dockerd --group sandbox --data-root "$DATA"

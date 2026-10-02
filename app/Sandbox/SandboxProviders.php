@@ -54,6 +54,7 @@ class SandboxProviders
                 'api_key' => ['label' => 'API key', 'type' => 'secret'],
                 'image' => ['label' => 'Image', 'type' => 'text'],
                 'funding' => ['label' => 'Funding', 'type' => 'select', 'options' => ['trial', 'paid'], 'help' => 'Trial uses the free hours; paid uses the account\'s credit.'],
+                'nested_docker' => ['label' => 'Docker inside sandboxes', 'type' => 'select', 'options' => ['off', 'on'], 'help' => 'For projects with their own Docker Compose. Give sandboxes enough memory and disk for their stack.'],
                 'vcpu' => ['label' => 'vCPUs', 'type' => 'number'],
                 'memory_mib' => ['label' => 'Memory (MB)', 'type' => 'number'],
                 'disk_mib' => ['label' => 'Disk (MB)', 'type' => 'number'],

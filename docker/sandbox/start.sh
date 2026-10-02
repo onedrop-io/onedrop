@@ -63,10 +63,13 @@ if [ -x /usr/sbin/sshd ]; then
 fi
 
 # Docker inside the sandbox, for projects that run their own Docker Compose (SBX-008), when the provider turned it on.
-if [ "${ONEDROP_DOCKER:-}" = "1" ] && [ -x /opt/onedrop/dockerd ]; then
+# The setting may only arrive in ~/.onedrop-env after start (Runtime Cloud).
+if [ -x /opt/onedrop/dockerd ]; then
     (
         while true; do
-            sudo -n /opt/onedrop/dockerd >>/tmp/onedrop-dockerd.log 2>&1
+            [ -f ~/.onedrop-env ] && set -a && . ~/.onedrop-env && set +a
+
+            [ "${ONEDROP_DOCKER:-}" = "1" ] && sudo -n /opt/onedrop/dockerd >>/tmp/onedrop-dockerd.log 2>&1
             sleep 5
         done
     ) &

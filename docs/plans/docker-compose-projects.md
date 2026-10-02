@@ -122,6 +122,28 @@ has no vendor tree; `.env` lacks `sqs_queue_webhooks`), not nesting. What this c
   command needs a mount it doesn't have.
 - Kernel 7.0.14 ran Mongo 8.0.16 fine; still record each provider's kernel.
 
+**Results, 2026-10-02, Runtime Cloud and Blaxel: Docker runs inside both.** Throwaway sandboxes, Docker
+installed and started by hand, then `docker run` and a two-service compose stack (nginx + redis):
+
+| | Runtime Cloud | Blaxel |
+| --- | --- | --- |
+| Kernel | 6.1.186 (under Mongo's 6.19 guard) | 6.1.166 |
+| Root filesystem | ext4 on `/dev/vda`, 7.9 GB | overlay, 1.9 GB (stock image) |
+| Root for dockerd | `sudo` works as the sandbox user | stock image runs as root; our image runs everything as the sandbox user, so it needs the dockerd sudo rule |
+| Docker storage driver | overlayfs, straight on the root disk (no extra volume) | **vfs**: overlay on overlay isn't allowed, so every layer is a full copy (slow, disk-hungry) |
+| `docker run`, compose, published port | works, nginx 200 | works, but **port 8080 is taken by Blaxel's sandbox API**: a stack publishing 8080 (platform2's `app`) can't bind it |
+| After pause/resume | stack still up and answering | not tested (the stock image has no `/workspace`) |
+| cgroups | v2 | v2 |
+| `vm.max_map_count` | 65530 (ES wants 262144; a VM can raise it with `sysctl`) | 65530 |
+| Default size | 2 vCPU, 4 GB, 8 GB disk: too small for platform2 | 4 GB, small root disk |
+
+What this changes:
+- **Runtime is the easy one**, and it's production: no privileged mode or extra volume, just start dockerd (via the
+  existing sudo) when Docker inside sandboxes is on, raise `vm.max_map_count`, and offer bigger sizes (disk first).
+- **Blaxel needs a real disk for `/var/lib/docker`** (a Blaxel volume/drive, if one can be ext4) or it's stuck on vfs,
+  and **the sandbox API's 8080 must move** or be reserved like the sandbox's other ports. Until then, compose
+  projects on Blaxel are "not supported" and the admin order skips Blaxel for them.
+
 ### Phase 1: Docker in the sandbox
 
 - Image: Docker engine + compose plugin; `/opt/onedrop/dockerd`; sandbox user in the `docker` group.

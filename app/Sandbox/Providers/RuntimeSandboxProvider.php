@@ -26,6 +26,9 @@ class RuntimeSandboxProvider implements SandboxProvider
     /** Label holding the id of the image version a sandbox was made from (for isOutdated()). */
     public const IMAGE_LABEL = 'onedrop.image';
 
+    /** Label saying whether the sandbox was made with Docker inside it (SBX-008). */
+    public const DOCKER_LABEL = 'onedrop.docker';
+
     /** What the sandbox image was called before the rename (and a probe built while trying Runtime out). */
     public const FORMER_IMAGE_NAMES = ['zap-sandbox', 'zap-probe'];
 
@@ -48,7 +51,7 @@ class RuntimeSandboxProvider implements SandboxProvider
     public const PREVIEW_TTL_SECONDS = 604800;
 
     /**
-     * @param  array{api_key: ?string, url: string, image: string, funding: string, vcpu: int, memory_mib: int, disk_mib: int, timeout_seconds: int, persistent: bool, preview_visibility?: string}  $config
+     * @param  array{api_key: ?string, url: string, image: string, funding: string, vcpu: int, memory_mib: int, disk_mib: int, timeout_seconds: int, persistent: bool, preview_visibility?: string, nested_docker?: string}  $config
      */
     public function __construct(protected array $config) {}
 
@@ -58,7 +61,7 @@ class RuntimeSandboxProvider implements SandboxProvider
 
         $sandbox = $this->createWhenThereIsRoom(array_filter([
             'name' => $spec->name,
-            'labels' => [self::IMAGE_LABEL => $image],
+            'labels' => [self::IMAGE_LABEL => $image, self::DOCKER_LABEL => $this->runsDocker() ? 'on' : 'off'],
             'image' => $image,
             'funding' => $this->config['funding'],
             'vcpu' => $this->config['vcpu'],
@@ -76,6 +79,8 @@ class RuntimeSandboxProvider implements SandboxProvider
                 ...($spec->proxyPort ? ['PROXY_PORT' => (string) $spec->proxyPort] : []),
                 ...($spec->shellPort ? ['SHELL_PORT' => (string) $spec->shellPort] : []),
                 ...($spec->sshPort ? ['SSH_PORT' => (string) $spec->sshPort] : []),
+                // start.sh starts the sandbox's own Docker when it reads this (SBX-008).
+                ...($this->runsDocker() ? ['ONEDROP_DOCKER' => '1'] : []),
                 ...$spec->env,
             ]);
 
@@ -210,7 +215,17 @@ class RuntimeSandboxProvider implements SandboxProvider
             return false;
         }
 
-        return ($sandbox->json('labels')[self::IMAGE_LABEL] ?? null) !== $current->json('id');
+        // Docker inside sandboxes turned on or off (SBX-008): recreate it with (or without) its own Docker.
+        return ($sandbox->json('labels')[self::IMAGE_LABEL] ?? null) !== $current->json('id')
+            || ($sandbox->json('labels')[self::DOCKER_LABEL] ?? 'off') !== ($this->runsDocker() ? 'on' : 'off');
+    }
+
+    /**
+     * Whether sandboxes get Docker inside them, for projects that run their own Docker Compose (SBX-008).
+     */
+    protected function runsDocker(): bool
+    {
+        return ($this->config['nested_docker'] ?? 'off') === 'on';
     }
 
     public function copyOut(string $id, string $path, string $directory): void
