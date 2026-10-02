@@ -10,6 +10,8 @@ use App\Sandbox\SandboxProviders;
  * in config/sandbox.php `template_registries`. A registry's templates are valued "<registry>/<id>".
  *
  * @phpstan-import-type Template from TemplateRegistry
+ *
+ * @phpstan-type FeaturedTemplate array{value: string, label: string, description: string, prompt: string, registry: ?string, logo: ?string, tags: list<string>, compose: bool, version: ?string, links: array{website: ?string, github: ?string, docs: ?string}, cover: string}
  */
 class TemplateCatalog
 {
@@ -103,7 +105,7 @@ class TemplateCatalog
     /**
      * The popular free apps that have a picture, each with it as `cover`, for the coverflow (PRJ-012).
      *
-     * @return list<Template&array{cover: string}>
+     * @return list<FeaturedTemplate>
      */
     public function featured(): array
     {
