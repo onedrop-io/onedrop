@@ -85,14 +85,17 @@ function databaseWorkspace(): string
  * @param  array<string, mixed>  $request
  * @return array<string, mixed>
  */
-function runDatabaseTool(string $workspace, array $request): array
+function runDatabaseTool(string $workspace, array $request, array $env = []): array
 {
-    return json_decode(runDatabaseScript($workspace, json_encode($request)), true);
+    return json_decode(runDatabaseScript($workspace, json_encode($request), $env), true);
 }
 
-function runDatabaseScript(string $workspace, string $request): string
+/**
+ * @param  array<string, string>  $env
+ */
+function runDatabaseScript(string $workspace, string $request, array $env = []): string
 {
-    return Process::env(['APP_WORKSPACE' => $workspace, 'APP_DB_REQUEST' => $request])
+    return Process::env(['APP_WORKSPACE' => $workspace, 'APP_DB_REQUEST' => $request, ...$env])
         ->run([PHP_BINARY, base_path('docker/sandbox/db.php')])
         ->throw()
         ->output();

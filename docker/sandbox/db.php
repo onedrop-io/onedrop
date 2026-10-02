@@ -3,8 +3,8 @@
 /**
  * Database tool behind the workspace's Tools → Database panel.
  *
- * Finds the app's databases (from .env files and SQLite files in the workspace),
- * then browses, edits or queries one of them. Connection details and passwords
+ * Finds the app's databases (from .env files, SQLite files in the workspace and database containers in the
+ * sandbox's own Docker), then browses, edits or queries one of them. Connection details and passwords
  * never leave the sandbox: the platform only ever sees connection ids.
  *
  * Reads one JSON request from $APP_DB_REQUEST and prints one JSON response:
@@ -171,11 +171,163 @@ function serverConnection(string $driver, string $host, ?int $port, string $data
         'dsn' => $dsn,
         'user' => $user,
         'password' => $password,
+        'server' => compact('host', 'port', 'database', 'sslmode'),
     ];
 }
 
 /**
- * Connections declared by a dotenv file: a *_URL variable or Laravel's DB_* settings.
+ * The docker command for the sandbox's own Docker (SBX-008), or null when it isn't running.
+ */
+function dockerBinary(): ?string
+{
+    return getenv('ONEDROP_DOCKER_BIN') ?: (file_exists('/var/run/docker.sock') ? 'docker' : null);
+}
+
+/**
+ * Database servers running as containers in the sandbox's Docker, e.g. a compose stack's `db` service:
+ * the image says which kind, the container's env holds its credentials, and it's reached on a port published
+ * to the sandbox, else at the container's own address.
+ *
+ * @return list<array{connection: array<string, mixed>, names: list<string>, address: callable(int): array{0: string, 1: int}}>
+ */
+function databaseContainers(): array
+{
+    $docker = dockerBinary();
+
+    if ($docker === null) {
+        return [];
+    }
+
+    exec(escapeshellarg($docker).' ps --quiet --no-trunc 2>/dev/null', $ids, $code);
+    $ids = array_filter(array_map('trim', $ids));
+
+    if ($code !== 0 || $ids === []) {
+        return [];
+    }
+
+    exec(escapeshellarg($docker).' inspect '.implode(' ', array_map('escapeshellarg', $ids)).' 2>/dev/null', $out, $code);
+    $inspected = $code === 0 ? json_decode(implode("\n", $out), true) : null;
+    $found = [];
+
+    foreach (is_array($inspected) ? $inspected : [] as $container) {
+        if (! is_array($container)) {
+            continue;
+        }
+
+        $env = [];
+        foreach ($container['Config']['Env'] ?? [] as $pair) {
+            [$key, $value] = array_pad(explode('=', (string) $pair, 2), 2, '');
+            $env[$key] = $value;
+        }
+
+        if (! ($kind = databaseImage((string) ($container['Config']['Image'] ?? '')) ?? databaseImageEnv($env))) {
+            continue;
+        }
+
+        // Credentials kept in Docker secrets (POSTGRES_PASSWORD_FILE=/run/secrets/db_password) are read from the container.
+        foreach ($env as $key => $path) {
+            $base = substr($key, 0, -5);
+            if (str_ends_with($key, '_FILE') && preg_match('/^(POSTGRES|POSTGRESQL|MYSQL|MARIADB)_/', $base) && ! isset($env[$base])) {
+                exec(escapeshellarg($docker).' exec '.escapeshellarg((string) $container['Id']).' cat '.escapeshellarg($path).' 2>/dev/null', $contents, $read);
+                if ($read === 0) {
+                    $env[$base] = rtrim(implode("\n", $contents), "\n");
+                }
+                $contents = [];
+            }
+        }
+
+        $name = ltrim((string) ($container['Name'] ?? ''), '/');
+        $labels = $container['Config']['Labels'] ?? [];
+        $service = $labels['com.docker.compose.service'] ?? null;
+        $names = array_filter([$name, $service, ...array_merge(...array_map(
+            fn ($network) => [...($network['Aliases'] ?? []), ...($network['DNSNames'] ?? [])],
+            array_values($container['NetworkSettings']['Networks'] ?? []),
+        ))]);
+        $ip = current(array_filter(array_column(array_values($container['NetworkSettings']['Networks'] ?? []), 'IPAddress'))) ?: null;
+        $published = $container['NetworkSettings']['Ports'] ?? [];
+
+        // A port inside the container, reached where it's published if it is; or a port it publishes to the sandbox.
+        $address = function (int $port) use ($published, $ip): array {
+            foreach ($published["{$port}/tcp"] ?? [] as $binding) {
+                if (! empty($binding['HostPort'])) {
+                    return ['127.0.0.1', (int) $binding['HostPort']];
+                }
+            }
+
+            foreach ($published as $bindings) {
+                if (in_array((string) $port, array_column($bindings ?? [], 'HostPort'), true)) {
+                    return ['127.0.0.1', $port];
+                }
+            }
+
+            return [$ip ?? '127.0.0.1', $port];
+        };
+
+        if ($kind === 'pgsql') {
+            $user = $env['POSTGRES_USER'] ?? $env['POSTGRESQL_USERNAME'] ?? 'postgres';
+            $password = $env['POSTGRES_PASSWORD'] ?? $env['POSTGRESQL_PASSWORD'] ?? $env['PGPASSWORD'] ?? null;
+            $database = $env['POSTGRES_DB'] ?? $env['POSTGRESQL_DATABASE'] ?? $user;
+            $port = (int) ($env['PGPORT'] ?? $env['POSTGRESQL_PORT_NUMBER'] ?? 5432);
+        } else {
+            $rootPassword = $env['MYSQL_ROOT_PASSWORD'] ?? $env['MARIADB_ROOT_PASSWORD'] ?? null;
+            $emptyRoot = ($env['MYSQL_ALLOW_EMPTY_PASSWORD'] ?? $env['MARIADB_ALLOW_EMPTY_ROOT_PASSWORD'] ?? '') !== '';
+            [$user, $password] = $rootPassword !== null || $emptyRoot || ! isset($env['MYSQL_USER'])
+                ? ['root', $rootPassword ?? '']
+                : [$env['MYSQL_USER'], $env['MYSQL_PASSWORD'] ?? ''];
+            $database = $env['MYSQL_DATABASE'] ?? $env['MARIADB_DATABASE'] ?? '';
+            $port = (int) ($env['MYSQL_TCP_PORT'] ?? 3306);
+        }
+
+        [$host, $hostPort] = $address($port);
+        $label = $service ?? $name;
+
+        $found[] = [
+            'connection' => [
+                ...serverConnection($kind, $host, $hostPort, $database, $user, $password),
+                'id' => "docker:{$name}",
+                'summary' => "{$user}@{$label}:{$port}/{$database}",
+                'source' => "Docker container {$name}",
+            ],
+            'names' => array_values(array_unique($names)),
+            'address' => $address,
+        ];
+    }
+
+    return $found;
+}
+
+/**
+ * 'pgsql' or 'mysql' for an image built on an official database image (FROM postgres:16 in the project's own
+ * Dockerfile), which keeps the version variables the official image sets, else null.
+ *
+ * @param  array<string, string>  $env
+ */
+function databaseImageEnv(array $env): ?string
+{
+    return match (true) {
+        isset($env['PG_MAJOR']) || isset($env['PG_VERSION']) => 'pgsql',
+        isset($env['MARIADB_VERSION']) || isset($env['MYSQL_MAJOR']) || isset($env['MYSQL_VERSION']) => 'mysql',
+        default => null,
+    };
+}
+
+/**
+ * 'pgsql' or 'mysql' for a database server's image (postgres:16, supabase/postgres:15.8, mariadb:11, …), else null.
+ */
+function databaseImage(string $image): ?string
+{
+    $repository = strtolower(basename((string) preg_replace('/(@.*|:[^\/]*)$/', '', $image)));
+
+    return match (true) {
+        in_array($repository, ['postgres', 'postgresql', 'postgis', 'pgvector', 'timescaledb', 'timescaledb-ha'], true) => 'pgsql',
+        in_array($repository, ['mysql', 'mysql-server', 'mariadb', 'percona-server'], true) => 'mysql',
+        default => null,
+    };
+}
+
+/**
+ * Connections declared by a dotenv file: a database URL in any variable (DATABASE_URL, SUPABASE_DB_URL, …), or
+ * else separate settings: Laravel's DB_*, Postgres' PG*, POSTGRES_HOST/MYSQL_HOST and their siblings.
  *
  * @return list<array<string, mixed>>
  */
@@ -185,28 +337,60 @@ function envConnections(string $file): array
     $dir = dirname($file);
     $source = relative($file);
     $found = [];
+    $urls = [];
 
-    foreach (['DATABASE_URL', 'DB_URL', 'POSTGRES_URL', 'MYSQL_URL'] as $key) {
-        if (! empty($env[$key]) && ($connection = fromUrl($env[$key], $dir))) {
+    // The usual names first, then any other variable that holds a server URL (sqlite:/file: only from the usual ones).
+    $named = ['DATABASE_URL', 'DB_URL', 'POSTGRES_URL', 'MYSQL_URL'];
+    $keys = [...array_intersect($named, array_keys($env)), ...array_filter(
+        array_diff(array_keys($env), $named),
+        fn (string $key) => preg_match('#^(postgres(ql)?|mysql|mariadb)://#i', $env[$key]),
+    )];
+
+    foreach ($keys as $key) {
+        if ($env[$key] !== '' && ! isset($urls[$env[$key]]) && ($connection = fromUrl($env[$key], $dir))) {
+            $urls[$env[$key]] = true;
             $found[] = $connection + ['id' => "env:{$source}:{$key}", 'source' => "{$source} ({$key})"];
         }
     }
 
-    $driver = $env['DB_CONNECTION'] ?? null;
+    if ($found !== []) {
+        return $found;
+    }
 
-    if ($found === [] && $driver === 'sqlite') {
+    $driver = strtolower($env['DB_CONNECTION'] ?? $env['DB_DRIVER'] ?? $env['DB_TYPE'] ?? $env['DB_DIALECT'] ?? $env['DB_CLIENT'] ?? '');
+
+    if ($driver === 'sqlite') {
         $database = $env['DB_DATABASE'] ?? '';
         $path = $database === '' || $database === ':memory:' ? 'database/database.sqlite' : $database;
-        $found[] = sqliteConnection(resolvePath($path, $dir)) + ['source' => "{$source} (DB_CONNECTION)"];
-    } elseif ($found === [] && in_array($driver, ['pgsql', 'mysql', 'mariadb'], true)) {
-        $found[] = serverConnection(
-            $driver === 'pgsql' ? 'pgsql' : 'mysql',
-            $env['DB_HOST'] ?? '127.0.0.1',
-            isset($env['DB_PORT']) ? (int) $env['DB_PORT'] : null,
-            $env['DB_DATABASE'] ?? '',
-            $env['DB_USERNAME'] ?? null,
-            $env['DB_PASSWORD'] ?? null,
-        ) + ['id' => "env:{$source}:DB_CONNECTION", 'source' => "{$source} (DB_CONNECTION)"];
+
+        return [sqliteConnection(resolvePath($path, $dir)) + ['source' => "{$source} (DB_CONNECTION)"]];
+    }
+
+    $driver = match (true) {
+        in_array($driver, ['pgsql', 'postgres', 'postgresql', 'pg'], true) => 'pgsql',
+        in_array($driver, ['mysql', 'mysql2', 'mariadb'], true) => 'mysql',
+        $driver === '' && isset($env['DB_HOST']) => ['5432' => 'pgsql', '3306' => 'mysql'][$env['DB_PORT'] ?? ''] ?? null,
+        default => null,
+    };
+
+    // [driver, the variable that names the set, host, port, database, user, password]
+    $sets = [
+        [$driver, isset($env['DB_CONNECTION']) ? 'DB_CONNECTION' : 'DB_HOST', $env['DB_HOST'] ?? '127.0.0.1', $env['DB_PORT'] ?? null,
+            $env['DB_DATABASE'] ?? $env['DB_NAME'] ?? '', $env['DB_USERNAME'] ?? $env['DB_USER'] ?? null, $env['DB_PASSWORD'] ?? $env['DB_PASS'] ?? null],
+        ['pgsql', 'PGHOST', $env['PGHOST'] ?? null, $env['PGPORT'] ?? null,
+            $env['PGDATABASE'] ?? $env['PGUSER'] ?? 'postgres', $env['PGUSER'] ?? 'postgres', $env['PGPASSWORD'] ?? null],
+        ['pgsql', 'POSTGRES_HOST', $env['POSTGRES_HOST'] ?? null, $env['POSTGRES_PORT'] ?? null,
+            $env['POSTGRES_DB'] ?? $env['POSTGRES_DATABASE'] ?? $env['POSTGRES_USER'] ?? 'postgres', $env['POSTGRES_USER'] ?? 'postgres', $env['POSTGRES_PASSWORD'] ?? null],
+        ['mysql', 'MYSQL_HOST', $env['MYSQL_HOST'] ?? null, $env['MYSQL_PORT'] ?? null,
+            $env['MYSQL_DATABASE'] ?? '', $env['MYSQL_USER'] ?? 'root', isset($env['MYSQL_USER']) ? $env['MYSQL_PASSWORD'] ?? null : $env['MYSQL_ROOT_PASSWORD'] ?? $env['MYSQL_PASSWORD'] ?? null],
+    ];
+
+    foreach ($sets as [$kind, $key, $host, $port, $database, $user, $password]) {
+        // A host that's a socket path (Supabase's POSTGRES_HOST=/var/run/postgresql) is only reachable inside its container.
+        if ($kind !== null && $host !== null && $host !== '' && $host[0] !== '/') {
+            $found[] = serverConnection($kind, $host, is_numeric($port) ? (int) $port : null, $database, $user, $password)
+                + ['id' => "env:{$source}:{$key}", 'source' => "{$source} ({$key})"];
+        }
     }
 
     return $found;
@@ -263,10 +447,32 @@ function connections(): array
     }
 
     $byId = [];
+    $containers = databaseContainers();
+    $reached = [];
 
     foreach ($envFiles as $file) {
         foreach (envConnections($file) as $connection) {
+            // A host like DB_HOST=db names a container, which only its compose network resolves: reach it directly.
+            foreach (isset($connection['server']) ? $containers : [] as $index => $container) {
+                if (in_array($connection['server']['host'], $container['names'], true)) {
+                    $server = $connection['server'];
+                    [$host, $port] = ($container['address'])($server['port']);
+                    $connection = [...$connection, ...array_intersect_key(
+                        serverConnection($connection['driver'], $host, $port, $server['database'], $connection['user'], $connection['password'], $server['sslmode']),
+                        array_flip(['dsn', 'server']),
+                    )];
+                    $reached[$index] = true;
+                    break;
+                }
+            }
+
             $byId[$connection['id']] ??= $connection;
+        }
+    }
+
+    foreach ($containers as $index => $container) {
+        if (! isset($reached[$index])) {
+            $byId[$container['connection']['id']] ??= $container['connection'];
         }
     }
 

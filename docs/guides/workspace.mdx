@@ -170,10 +170,11 @@ How it works: the app sends each event to its own address (`POST /__onedrop/even
 It finds your app's databases on its own:
 
 - SQLite files anywhere in the project (`.sqlite`, `.sqlite3`, `.db`), except in folders like `node_modules` and `vendor`
-- `DATABASE_URL`, `DB_URL`, `POSTGRES_URL` or `MYSQL_URL` in a `.env` or `.env.local` file
-- Laravel's `DB_CONNECTION` settings (`DB_HOST`, `DB_DATABASE`, and so on)
+- A PostgreSQL or MySQL URL in a `.env` or `.env.local` file, whatever the variable is called (`DATABASE_URL`, `SUPABASE_DB_URL`, `DIRECT_URL`, …)
+- Separate settings in those files: Laravel's `DB_CONNECTION`, `DB_HOST`, `DB_DATABASE` and so on; `DB_HOST`, `DB_USER`, `DB_PASS` and `DB_NAME` (the kind of database comes from `DB_DIALECT` or `DB_TYPE`, or from the port); `PGHOST`, `PGUSER` and the rest; `POSTGRES_HOST` or `MYSQL_HOST` with their siblings
+- PostgreSQL and MySQL/MariaDB containers your project runs with [Docker Compose](/guides/build-a-project), such as Supabase's `db` service. It knows them by their image (`postgres`, `supabase/postgres`, `postgis`, `mysql`, `mariadb`, …), including your own images built `FROM` one of those, and signs in with the user and password set in the container's environment (`POSTGRES_PASSWORD`, `MYSQL_ROOT_PASSWORD`, and so on) or in a Docker secret (`POSTGRES_PASSWORD_FILE`)
 
-`.env` files are read from the project folder and its direct subfolders. If the app uses more than one database, pick one from the menu at the top left.
+`.env` files are read from the project folder and its direct subfolders. A host in them that names a compose service (like `DB_HOST=db`) is reached at that container, on either its own port or one it publishes. If the app uses more than one database, pick one from the menu at the top left.
 
 | Task         | How                                                                                                                                                                                                                                                             |
 | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

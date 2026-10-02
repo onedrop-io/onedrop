@@ -126,3 +126,129 @@ test('the sql runner returns rows, affected counts and database errors', functio
 
     expect(($this->tool)(['op' => 'query', 'sql' => 'select * from missing'])['error'])->toContain('no such table: missing');
 })->group('DB-001');
+
+/**
+ * A fake `docker` whose `ps` and `inspect` show the given containers, as the sandbox's own Docker would.
+ *
+ * @param  list<array<string, mixed>>  $containers
+ */
+function fakeDocker(string $workspace, array $containers): string
+{
+    $dir = $workspace.'/.fake-docker';
+    mkdir($dir);
+    file_put_contents($dir.'/inspect.json', json_encode($containers));
+    // `docker exec <id> cat <path>` reads <path> under the fake's folder, standing in for the container's files.
+    file_put_contents($dir.'/docker', "#!/bin/sh\necho \"\$*\" >> '{$dir}/calls'\ncase \"\$1\" in\nps) ".implode(' ', array_map(fn ($c) => "echo {$c['Id']};", $containers))." ;;\nexec) cat '{$dir}'\"\$4\" ;;\n*) cat '{$dir}/inspect.json' ;;\nesac\n");
+    chmod($dir.'/docker', 0755);
+
+    return $dir.'/docker';
+}
+
+/**
+ * docker inspect output for one container of a compose stack.
+ *
+ * @param  list<string>  $env
+ * @param  array<string, mixed>  $ports
+ * @return array<string, mixed>
+ */
+function composeContainer(string $service, string $image, array $env, array $ports = []): array
+{
+    return [
+        'Id' => bin2hex(random_bytes(8)),
+        'Name' => "/supabase-{$service}",
+        'Config' => ['Image' => $image, 'Env' => $env, 'Labels' => ['com.docker.compose.service' => $service]],
+        'NetworkSettings' => [
+            'Ports' => $ports,
+            // Loopback, so connecting fails fast in tests; a real container has its compose network's address.
+            'Networks' => ['supabase_default' => ['IPAddress' => '127.0.0.1', 'Aliases' => ["supabase-{$service}", $service]]],
+        ],
+    ];
+}
+
+test('it finds database containers in the sandbox docker, like supabase\'s db service', function () {
+    $docker = fakeDocker($this->workspace, [
+        composeContainer('db', 'supabase/postgres:15.8.1.060', ['POSTGRES_PASSWORD=s3cret', 'POSTGRES_DB=postgres', 'PGPORT=9']),
+        composeContainer('studio', 'supabase/studio:2025.06.30', ['POSTGRES_PASSWORD=s3cret']),
+        composeContainer('mysql', 'mariadb:11', ['MARIADB_ROOT_PASSWORD=r00t', 'MARIADB_DATABASE=shop'], ['3306/tcp' => [['HostIp' => '0.0.0.0', 'HostPort' => '33060']]]),
+    ]);
+
+    $response = runDatabaseTool($this->workspace, ['op' => 'connections'], ['ONEDROP_DOCKER_BIN' => $docker]);
+
+    expect(array_column($response['data'], 'id'))->toBe(['sqlite:database/database.sqlite', 'docker:supabase-db', 'docker:supabase-mysql'])
+        ->and($response['data'][1])->toMatchArray(['driver' => 'pgsql', 'summary' => 'postgres@db:9/postgres', 'source' => 'Docker container supabase-db'])
+        ->and($response['data'][2])->toMatchArray(['driver' => 'mysql', 'summary' => 'root@mysql:3306/shop'])
+        ->and(json_encode($response))->not->toContain('s3cret')->not->toContain('r00t');
+
+    // Reached at the container's address, or on the port it publishes to the sandbox.
+    $error = fn (string $id) => runDatabaseTool($this->workspace, ['op' => 'tables', 'connection' => $id], ['ONEDROP_DOCKER_BIN' => $docker])['error'];
+    expect($error('docker:supabase-db'))->toContain('"127.0.0.1", port 9 failed')
+        ->and($error('docker:supabase-mysql'))->toContain("Couldn't connect");
+})->group('DB-001');
+
+test('an env file host that names a container is reached at that container', function () {
+    file_put_contents($this->workspace.'/.env', "DB_CONNECTION=pgsql\nDB_HOST=db\nDB_PORT=9\nDB_DATABASE=app\nDB_USERNAME=app\nDB_PASSWORD=pw\n");
+    $docker = fakeDocker($this->workspace, [composeContainer('db', 'postgres:16-alpine', ['POSTGRES_PASSWORD=pw'])]);
+
+    $response = runDatabaseTool($this->workspace, ['op' => 'connections'], ['ONEDROP_DOCKER_BIN' => $docker]);
+
+    // One connection for the container, not a second one of its own.
+    expect(array_column($response['data'], 'id'))->toBe(['env:.env:DB_CONNECTION', 'sqlite:database/database.sqlite'])
+        ->and($response['data'][0]['summary'])->toBe('app@db:9/app')
+        ->and(runDatabaseTool($this->workspace, ['op' => 'tables', 'connection' => 'env:.env:DB_CONNECTION'], ['ONEDROP_DOCKER_BIN' => $docker])['error'])->toContain('"127.0.0.1", port 9 failed');
+})->group('DB-001');
+
+test('it finds containers built on a database image, and reads credentials kept in docker secrets', function () {
+    $docker = fakeDocker($this->workspace, [
+        composeContainer('database', 'myapp-database', ['PG_MAJOR=16', 'POSTGRES_USER=app', 'POSTGRES_PASSWORD_FILE=/run/secrets/db_password', 'PGPORT=9']),
+    ]);
+    mkdir($this->workspace.'/.fake-docker/run/secrets', recursive: true);
+    file_put_contents($this->workspace.'/.fake-docker/run/secrets/db_password', "from-a-secret\n");
+
+    $response = runDatabaseTool($this->workspace, ['op' => 'connections'], ['ONEDROP_DOCKER_BIN' => $docker]);
+
+    expect($response['data'][1])->toMatchArray(['id' => 'docker:supabase-database', 'driver' => 'pgsql', 'summary' => 'app@database:9/app'])
+        ->and(json_encode($response))->not->toContain('from-a-secret')
+        ->and(file_get_contents($this->workspace.'/.fake-docker/calls'))->toMatch('#^exec \w+ cat /run/secrets/db_password$#m');
+})->group('DB-001');
+
+test('it finds database urls under any name, and postgres, mysql and node-style settings', function () {
+    mkdir($this->workspace.'/app');
+    $env = fn () => $this->workspace.'/app/.env';
+
+    file_put_contents($env(), "SUPABASE_DB_URL=postgresql://postgres:pw@db.abc.supabase.co:5432/postgres\nDIRECT_URL=postgresql://postgres:pw@db.abc.supabase.co:5432/postgres\nREDIS_URL=redis://cache:6379\n");
+    // Besides the workspace's own SQLite database.
+    $found = fn () => array_map(fn ($c) => [$c['id'], $c['driver'], $c['summary']], array_slice(runDatabaseTool($this->workspace, ['op' => 'connections'])['data'], 1));
+
+    // The same URL under two names is one connection.
+    expect($found())->toBe([['env:app/.env:SUPABASE_DB_URL', 'pgsql', 'postgres@db.abc.supabase.co:5432/postgres']]);
+
+    file_put_contents($env(), "PGHOST=pg.internal\nPGUSER=reader\nPGDATABASE=reports\nMYSQL_HOST=mysql\nMYSQL_USER=shop\nMYSQL_PASSWORD=pw\nMYSQL_DATABASE=shop\n");
+    expect($found())->toBe([
+        ['env:app/.env:PGHOST', 'pgsql', 'reader@pg.internal:5432/reports'],
+        ['env:app/.env:MYSQL_HOST', 'mysql', 'shop@mysql:3306/shop'],
+    ]);
+
+    // Supabase's own .env: POSTGRES_HOST names the db service; a socket path is skipped.
+    file_put_contents($env(), "POSTGRES_HOST=db\nPOSTGRES_DB=postgres\nPOSTGRES_PORT=5432\nPOSTGRES_PASSWORD=pw\n");
+    expect($found())->toBe([['env:app/.env:POSTGRES_HOST', 'pgsql', 'postgres@db:5432/postgres']]);
+    file_put_contents($env(), "POSTGRES_HOST=/var/run/postgresql\n");
+    expect($found())->toBe([]);
+
+    // Node apps: DB_HOST/DB_USER/DB_PASS/DB_NAME, the driver from DB_DIALECT or the port.
+    file_put_contents($env(), "DB_DIALECT=postgres\nDB_HOST=db\nDB_USER=node\nDB_PASS=pw\nDB_NAME=api\n");
+    expect($found())->toBe([['env:app/.env:DB_HOST', 'pgsql', 'node@db:5432/api']]);
+    file_put_contents($env(), "DB_HOST=db\nDB_PORT=3306\nDB_USER=node\nDB_NAME=api\n");
+    expect($found())->toBe([['env:app/.env:DB_HOST', 'mysql', 'node@db:3306/api']]);
+})->group('DB-001');
+
+test('an env file that names a container with the port it publishes reaches that port', function () {
+    file_put_contents($this->workspace.'/.env', "DB_CONNECTION=pgsql\nDB_HOST=db\nDB_PORT=9\nDB_DATABASE=app\n");
+    // Published on 9, so it's reached at 127.0.0.1:9 rather than its own address (one that would never answer).
+    $container = composeContainer('db', 'postgres:16', [], ['5432/tcp' => [['HostIp' => '0.0.0.0', 'HostPort' => '9']]]);
+    $container['NetworkSettings']['Networks']['supabase_default']['IPAddress'] = '10.255.255.1';
+    $docker = fakeDocker($this->workspace, [$container]);
+
+    $error = runDatabaseTool($this->workspace, ['op' => 'tables', 'connection' => 'env:.env:DB_CONNECTION'], ['ONEDROP_DOCKER_BIN' => $docker])['error'];
+
+    expect($error)->toContain('"127.0.0.1", port 9 failed');
+})->group('DB-001');

@@ -944,7 +944,8 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## DB-001: Database browser
 
-- User should see a Database section under Tools that finds the app's databases on its own: SQLite files in the project, and `DATABASE_URL`/`DB_URL` or Laravel's `DB_CONNECTION` settings in `.env` files.
+- User should see a Database section under Tools that finds the app's databases on its own: SQLite files in the project, and in `.env` files a database URL under any name (`DATABASE_URL`, `SUPABASE_DB_URL`, …) or separate settings (Laravel's `DB_CONNECTION`, Node-style `DB_HOST`/`DB_USER`/`DB_NAME`, `PGHOST`, `POSTGRES_HOST`, `MYSQL_HOST`).
+- User should also see the PostgreSQL and MySQL/MariaDB containers running in the sandbox's own Docker (e.g. Supabase's `db` service, or one built `FROM postgres`), signed in with the credentials in the container's environment or its Docker secrets, and `.env` hosts that name a compose service (`DB_HOST=db`) should reach that container on its own port or the one it publishes.
 - User should be able to browse SQLite, PostgreSQL and MySQL/MariaDB databases, and switch between them when the app has more than one.
 - User should see the database's tables and views, be able to search them, and open one to see its rows with column names and types, the primary key marked.
 - User should be able to sort by a column, filter rows (equals, not equal, contains, greater/less than, is NULL, is not NULL), and page through them.
