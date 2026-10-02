@@ -2694,7 +2694,12 @@ function shellUrlWith(
 
 /** Tabs the "+" menu adds. */
 type ToolTab =
-    'console' | 'services' | 'shell' | 'requirements' | 'tests' | 'browser';
+    | 'console'
+    | 'services'
+    | 'shell'
+    | 'requirements'
+    | 'tests'
+    | 'browser';
 
 /** Tabs the URL can ask for. */
 const ACTIVE_TABS: PaneTab[] = [
