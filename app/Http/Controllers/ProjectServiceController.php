@@ -28,13 +28,15 @@ class ProjectServiceController extends Controller
     }
 
     /**
-     * A container's latest log lines.
+     * A container's latest log lines: 200, or up to 2,000 with `lines`.
      */
-    public function logs(Project $project, SandboxServices $services, string $name): JsonResponse
+    public function logs(Request $request, Project $project, SandboxServices $services, string $name): JsonResponse
     {
         Gate::authorize('view', $project);
 
-        return $this->fromSandbox($project, fn (Sandbox $sandbox) => ['logs' => $services->logs($sandbox, $name)]);
+        $lines = (int) ($request->validate(['lines' => ['sometimes', 'integer', 'min:1', 'max:'.SandboxServices::MAX_LOG_LINES]])['lines'] ?? SandboxServices::LOG_LINES);
+
+        return $this->fromSandbox($project, fn (Sandbox $sandbox) => ['logs' => $services->logs($sandbox, $name, $lines)]);
     }
 
     /**

@@ -446,7 +446,13 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be able to open a Services tab from the workspace's "+" menu and see what's running in the project's sandbox, updated every few seconds while it's shown.
 - User should see what the preview runs (the command in `.onedrop/dev`, or the placeholder page), whether it's running, and be able to restart it.
 - User should see every container the sandbox's own Docker runs (SBX-008), grouped by compose project, with each one's service, state (running, restarting with its exit code, stopped), how long, and its published ports.
-- User should be able to read a container's recent logs, and restart, stop or start it.
+- User should be able to read a container's recent logs by clicking its row (or its arrow, from the keyboard), and restart, stop or start it without the row opening.
+- User should see logs in color: the colors a program prints itself (ANSI), otherwise timestamps, levels (errors in red, warnings in amber), keys, quoted strings and URLs.
+- User should be able to search a container's logs, seeing only the matching lines with each match marked and how many lines matched.
+- User should be able to search like Papertrail: several words must all appear, `"a phrase"` matches exactly, `-word` excludes, `OR` gives alternatives, and parentheses group.
+- User should be able to click a matching line to clear the search and see it highlighted among the lines around it.
+- User should be able to turn on Live to load new log lines every few seconds, staying at the newest line unless they scroll up.
+- User should be able to expand a container's logs into a large view with its latest 2,000 lines (instead of 200), keeping the search.
 - Restarting a compose service should pick up changes to `.env` and the compose files (recreating it only when its config changed).
 - A container the user stops should stay stopped until they start it or restart the preview.
 - User should see the other ports open in the sandbox and what uses them (the host proxy, the Shell tab, SSH, the app).

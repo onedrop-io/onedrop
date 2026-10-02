@@ -17,6 +17,9 @@ class SandboxServices
     /** Lines of a container's log shown at once. */
     public const LOG_LINES = 200;
 
+    /** The most log lines that can be asked for at once (the expanded log view). */
+    public const MAX_LOG_LINES = 2000;
+
     /**
      * The preview server's command (.onedrop/dev without comments) and whether it's running, and every container
      * Docker has, if the sandbox has a Docker that answers. Prints JSON: {dev, running, docker, containers}.
@@ -101,11 +104,11 @@ class SandboxServices
      *
      * @throws SandboxException
      */
-    public function logs(Sandbox $sandbox, string $name): string
+    public function logs(Sandbox $sandbox, string $name, int $lines = self::LOG_LINES): string
     {
         $this->ensureContainer($sandbox, $name);
 
-        $result = $this->provider->exec($sandbox->external_id, ['bash', '-c', 'docker logs --tail "$1" "$2" 2>&1', 'logs', (string) self::LOG_LINES, $name]);
+        $result = $this->provider->exec($sandbox->external_id, ['bash', '-c', 'docker logs --tail "$1" "$2" 2>&1', 'logs', (string) $lines, $name]);
 
         if (! $result->successful()) {
             throw new SandboxException(__("Couldn't read the logs of :name.", ['name' => $name]));

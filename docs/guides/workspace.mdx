@@ -33,8 +33,22 @@ Add Console, Services, Shell, Requirements or Tests from the **+** button. Each 
 The **Services** tab shows what's running in the project's sandbox, and checks again every few seconds while it's open:
 
 - **Preview server**: the command the preview runs (from `.onedrop/dev`, or the placeholder page), whether it's running, and **Restart**.
-- **Docker**: each container the sandbox's own Docker runs, grouped by compose project, with its state, how long it's been up (or why it's restarting, with its exit code), and the ports it publishes. Open a container's latest logs, or restart, stop or start it. Projects that [run their own Docker Compose](/guides/docker-compose) show their whole stack here.
+- **Docker**: each container the sandbox's own Docker runs, grouped by compose project, with its state, how long it's been up (or why it's restarting, with its exit code), and the ports it publishes. Click a container to open its latest logs (in color: errors red, warnings amber, timestamps dimmed, and any colors the program prints itself), search them, or **Expand** them into a large view with the latest 2,000 lines. You can also restart, stop or start a container. Projects that [run their own Docker Compose](/guides/docker-compose) show their whole stack here.
 - **Ports**: everything listening in the sandbox and what it is (the preview, the host proxy, the Shell tab, SSH, or a Docker service). Only the preview port is reachable from outside.
+
+#### Searching logs
+
+The search box above a container's logs keeps only the lines that match, and marks the matches:
+
+| Search | Finds lines |
+| --- | --- |
+| `timeout redis` | with both words, in any order |
+| `"connection refused"` | with that exact phrase |
+| `error -healthcheck` | with `error` but not `healthcheck` (`NOT healthcheck` works too) |
+| `error OR panic` | with either word |
+| `(error OR warn) -healthcheck` | grouped with parentheses |
+
+Matching ignores case. Click a matching line to clear the search and see it highlighted among the lines around it. Turn on **Live** to load new lines every few seconds; the view stays on the newest line unless you scroll up.
 
 ### Panes
 

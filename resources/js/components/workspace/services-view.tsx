@@ -1,9 +1,36 @@
-import { Play, RotateCw, ScrollText, Square } from 'lucide-react';
-import { Fragment, useCallback, useEffect, useState } from 'react';
+import {
+    ChevronRight,
+    Maximize2,
+    Play,
+    Radio,
+    RotateCw,
+    Search,
+    Square,
+} from 'lucide-react';
+import {
+    Fragment,
+    useCallback,
+    useDeferredValue,
+    useEffect,
+    useLayoutEffect,
+    useMemo,
+    useRef,
+    useState,
+} from 'react';
 import ProjectServiceController from '@/actions/App/Http/Controllers/ProjectServiceController';
+import { highlightLog } from '@/components/log-highlight';
 import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import TurnOnDocker from '@/components/turn-on-docker';
 import { jsonRequest } from '@/lib/json-request';
+import { parseLogSearch } from '@/lib/log-search';
 import { cn } from '@/lib/utils';
 
 type Container = {
@@ -59,6 +86,8 @@ export default function ServicesView({
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState<string | null>(null);
     const [logsFor, setLogsFor] = useState<string | null>(null);
+    const toggleLogs = (name: string) =>
+        setLogsFor((current) => (current === name ? null : name));
 
     const load = useCallback(async () => {
         try {
@@ -224,9 +253,46 @@ export default function ServicesView({
                             {containers.map((container) => (
                                 <Fragment key={container.name}>
                                     <div
-                                        className="flex flex-wrap items-center gap-x-3 gap-y-1 p-2.5"
+                                        className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 p-2.5 hover:bg-muted/40"
+                                        onClick={(event) => {
+                                            // Buttons in the row do their own thing, and dragging to select text isn't a click.
+                                            if (
+                                                (
+                                                    event.target as HTMLElement
+                                                ).closest('button') ||
+                                                window
+                                                    .getSelection()
+                                                    ?.toString()
+                                            ) {
+                                                return;
+                                            }
+
+                                            toggleLogs(container.name);
+                                        }}
                                         data-test={`service-${container.service ?? container.name}`}
                                     >
+                                        <button
+                                            type="button"
+                                            aria-expanded={
+                                                logsFor === container.name
+                                            }
+                                            aria-label={`Logs of ${container.name}`}
+                                            title="Show logs"
+                                            onClick={() =>
+                                                toggleLogs(container.name)
+                                            }
+                                            className="-mx-1 rounded p-0.5 text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                                            data-test="service-logs"
+                                        >
+                                            <ChevronRight
+                                                className={cn(
+                                                    'size-3.5 transition-transform',
+                                                    logsFor ===
+                                                        container.name &&
+                                                        'rotate-90',
+                                                )}
+                                            />
+                                        </button>
                                         <State state={container.state} />
                                         <div className="min-w-0 flex-1">
                                             <p
@@ -258,23 +324,6 @@ export default function ServicesView({
                                                 .join(' ')}
                                         </span>
                                         <div className="flex gap-1">
-                                            <IconButton
-                                                label={`Logs of ${container.name}`}
-                                                active={
-                                                    logsFor === container.name
-                                                }
-                                                onClick={() =>
-                                                    setLogsFor((current) =>
-                                                        current ===
-                                                        container.name
-                                                            ? null
-                                                            : container.name,
-                                                    )
-                                                }
-                                                testId="service-logs"
-                                            >
-                                                <ScrollText className="size-3.5" />
-                                            </IconButton>
                                             <IconButton
                                                 label={`Restart ${container.name}`}
                                                 disabled={
@@ -395,7 +444,7 @@ function containerAction(
     );
 }
 
-/** A container's latest log lines, loaded when opened and on Refresh. */
+/** A container's latest log lines, searchable, with a bigger view that loads more of them. */
 function ContainerLogs({
     projectId,
     name,
@@ -403,31 +452,200 @@ function ContainerLogs({
     projectId: number;
     name: string;
 }) {
+    const [query, setQuery] = useState('');
+    const [expanded, setExpanded] = useState(false);
+
+    return (
+        <div className="bg-muted/40 p-2.5" data-test="service-log">
+            <LogViewer
+                projectId={projectId}
+                name={name}
+                query={query}
+                onQueryChange={setQuery}
+                onExpand={() => setExpanded(true)}
+                className="max-h-80"
+            />
+            <Dialog open={expanded} onOpenChange={setExpanded}>
+                <DialogContent
+                    className="flex h-[90vh] flex-col sm:max-w-[95vw]"
+                    data-test="service-log-expanded"
+                >
+                    <DialogHeader>
+                        <DialogTitle>Logs of {name}</DialogTitle>
+                        <DialogDescription>
+                            The latest {EXPANDED_LOG_LINES.toLocaleString()}{' '}
+                            lines.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <LogViewer
+                        projectId={projectId}
+                        name={name}
+                        lines={EXPANDED_LOG_LINES}
+                        query={query}
+                        onQueryChange={setQuery}
+                        className="min-h-0 flex-1"
+                        autoFocus
+                    />
+                </DialogContent>
+            </Dialog>
+        </div>
+    );
+}
+
+/** Lines the expanded log view loads (SandboxServices::MAX_LOG_LINES). */
+const EXPANDED_LOG_LINES = 2000;
+
+/**
+ * Log lines loaded when shown, on Refresh, and every few seconds while Live is on, narrowed to the lines
+ * passing the search (lib/log-search.ts). Clicking a matching line clears the search and shows it among its
+ * neighbours. It stays scrolled to the newest line unless the user scrolls up.
+ */
+function LogViewer({
+    projectId,
+    name,
+    lines,
+    query,
+    onQueryChange,
+    onExpand,
+    className,
+    autoFocus = false,
+}: {
+    projectId: number;
+    name: string;
+    lines?: number;
+    query: string;
+    onQueryChange: (query: string) => void;
+    onExpand?: () => void;
+    className: string;
+    autoFocus?: boolean;
+}) {
     const [logs, setLogs] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [live, setLive] = useState(false);
+    const [contextLine, setContextLine] = useState<number | null>(null);
+    const scroller = useRef<HTMLPreElement>(null);
+    const atBottom = useRef(true);
+    const deferredQuery = useDeferredValue(query);
+    const search = useMemo(
+        () => parseLogSearch(deferredQuery),
+        [deferredQuery],
+    );
+    const shown = useMemo(
+        () => (logs ? highlightLog(logs, search) : []),
+        [logs, search],
+    );
 
     const load = useCallback(async () => {
         try {
             const body = await jsonRequest<{ logs: string }>(
-                ProjectServiceController.logs.url({ project: projectId, name }),
+                ProjectServiceController.logs.url(
+                    { project: projectId, name },
+                    lines ? { query: { lines } } : undefined,
+                ),
             );
             setLogs(body.logs);
             setError(null);
         } catch (e) {
             setError((e as Error).message);
         }
-    }, [projectId, name]);
+    }, [projectId, name, lines]);
 
     useEffect(() => {
         void load();
     }, [load]);
 
+    useEffect(() => {
+        if (!live) {
+            return;
+        }
+
+        const timer = window.setInterval(() => void load(), POLL_MS);
+
+        return () => window.clearInterval(timer);
+    }, [live, load]);
+
+    useLayoutEffect(() => {
+        const element = scroller.current;
+
+        if (!element) {
+            return;
+        }
+
+        if (contextLine !== null) {
+            element
+                .querySelector(`[data-line="${contextLine}"]`)
+                ?.scrollIntoView({ block: 'center' });
+        } else if (atBottom.current) {
+            element.scrollTop = element.scrollHeight;
+        }
+    }, [shown, contextLine]);
+
+    const showInContext = (index: number) => {
+        setLive(false);
+        setContextLine(index);
+        onQueryChange('');
+    };
+
+    const changeQuery = (next: string) => {
+        setContextLine(null);
+        atBottom.current = true;
+        onQueryChange(next);
+    };
+
     return (
-        <div className="space-y-2 bg-muted/40 p-2.5" data-test="service-log">
-            <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">
-                    Latest lines
-                </span>
+        <div className="flex min-h-0 flex-1 flex-col gap-2">
+            <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                    <Search className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                        type="search"
+                        value={query}
+                        onChange={(event) => changeQuery(event.target.value)}
+                        placeholder='Search: words, "a phrase", -exclude, a OR b'
+                        aria-label="Search logs"
+                        className="h-7 pl-7 text-xs"
+                        autoFocus={autoFocus}
+                        data-test="service-log-search"
+                    />
+                </div>
+                {search && logs !== null && (
+                    <span
+                        className="shrink-0 text-xs text-muted-foreground"
+                        data-test="service-log-matches"
+                    >
+                        {shown.length === 1
+                            ? '1 line'
+                            : `${shown.length} lines`}
+                    </span>
+                )}
+                <Button
+                    size="sm"
+                    variant={live ? 'secondary' : 'ghost'}
+                    onClick={() => {
+                        setLive(!live);
+                        setContextLine(null);
+                        atBottom.current = true;
+                    }}
+                    aria-pressed={live}
+                    title="Load new lines every few seconds"
+                    data-test="service-log-live"
+                >
+                    <Radio
+                        className={cn('size-3.5', live && 'text-emerald-500')}
+                    />
+                    Live
+                </Button>
+                {onExpand && (
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={onExpand}
+                        data-test="service-log-expand"
+                    >
+                        <Maximize2 className="size-3.5" />
+                        Expand
+                    </Button>
+                )}
                 <Button size="sm" variant="ghost" onClick={() => void load()}>
                     <RotateCw className="size-3.5" />
                     Refresh
@@ -436,8 +654,53 @@ function ContainerLogs({
             {error ? (
                 <p className="text-destructive">{error}</p>
             ) : (
-                <pre className="max-h-80 overflow-auto rounded bg-neutral-950 p-2 font-mono text-xs whitespace-pre-wrap text-neutral-200">
-                    {logs === null ? 'Loading…' : logs || 'No output yet.'}
+                <pre
+                    ref={scroller}
+                    onScroll={(event) => {
+                        const element = event.currentTarget;
+                        atBottom.current =
+                            element.scrollHeight -
+                                element.scrollTop -
+                                element.clientHeight <
+                            24;
+                    }}
+                    className={cn(
+                        'overflow-auto rounded bg-neutral-950 p-2 font-mono text-xs whitespace-pre-wrap text-neutral-200',
+                        className,
+                    )}
+                    data-test="service-log-lines"
+                >
+                    {logs === null
+                        ? 'Loading…'
+                        : !logs
+                          ? 'No output yet.'
+                          : shown.length
+                            ? shown.map((line) => (
+                                  <div
+                                      key={line.index}
+                                      data-line={line.index}
+                                      onClick={
+                                          search
+                                              ? () => showInContext(line.index)
+                                              : undefined
+                                      }
+                                      title={
+                                          search
+                                              ? 'Show among the lines around it'
+                                              : undefined
+                                      }
+                                      className={cn(
+                                          'min-h-lh',
+                                          search &&
+                                              'cursor-pointer hover:bg-white/5',
+                                          contextLine === line.index &&
+                                              'bg-amber-400/15',
+                                      )}
+                                  >
+                                      {line.nodes}
+                                  </div>
+                              ))
+                            : 'No lines match.'}
                 </pre>
             )}
         </div>

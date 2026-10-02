@@ -101,6 +101,19 @@ test('reads a container\'s latest logs', function () {
         ->toBe(['bash', '-c', 'docker logs --tail "$1" "$2" 2>&1', 'logs', '200', 'workspace-worker-1']);
 })->group('SVC-001');
 
+test('reads more log lines for the expanded view, up to a limit', function () {
+    $this->actingAs($this->user)
+        ->getJson(route('projects.services.logs', [$this->project, 'workspace-worker-1', 'lines' => 2000]))
+        ->assertOk();
+
+    expect(collect($this->provider->executed)->pluck('command')->last())
+        ->toBe(['bash', '-c', 'docker logs --tail "$1" "$2" 2>&1', 'logs', '2000', 'workspace-worker-1']);
+
+    $this->actingAs($this->user)
+        ->getJson(route('projects.services.logs', [$this->project, 'workspace-worker-1', 'lines' => 2001]))
+        ->assertJsonValidationErrors('lines');
+})->group('SVC-001');
+
 test('stops and starts a container in the background', function (string $action) {
     $this->actingAs($this->user)
         ->putJson(route('projects.services.update', [$this->project, 'workspace-app-1']), ['action' => $action])
