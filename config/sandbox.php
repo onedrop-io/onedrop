@@ -263,6 +263,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Project Snapshots
+    |--------------------------------------------------------------------------
+    |
+    | Each project's whole state (its files, dependencies, the sandbox user's
+    | home folder with any database there, and App Storage), kept on this disk
+    | after every turn, before updates and daily (SBX-009). Unset, it's the
+    | backup disk. On an S3-compatible disk sandboxes upload and download
+    | straight to it through signed links; a local disk only works for Docker
+    | sandboxes, which the platform copies in and out of on the same machine.
+    |
+    */
+
+    'snapshot_disk' => env('SANDBOX_SNAPSHOT_DISK'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Git Remotes
     |--------------------------------------------------------------------------
     |

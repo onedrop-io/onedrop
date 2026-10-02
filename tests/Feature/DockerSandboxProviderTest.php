@@ -194,6 +194,15 @@ test('files are copied out of and into a container through tar, owned by the san
     Process::assertRan(fn (PendingProcess $process) => $process->command === ['docker', 'exec', '-u', 'root', 'def456', 'chown', '-R', 'sandbox:sandbox', '/workspace']);
 })->group('SBX-002');
 
+test('tool files are copied in as root, owned by root like the image\'s', function () {
+    Process::fake(['*' => Process::result()]);
+
+    expect($this->docker->installFiles('def456', '/tmp/tools', '/opt/onedrop'))->toBeTrue();
+
+    Process::assertRan(fn (PendingProcess $process) => $process->command === ['bash', '-c', DockerSandboxProvider::INSTALL, 'install', '/tmp/tools', 'def456', '/opt/onedrop']);
+    expect(DockerSandboxProvider::INSTALL)->toContain('-u root')->toContain('--no-same-owner');
+})->group('SBX-002');
+
 test('each project\'s App Storage is a host folder mounted into its sandbox', function () {
     $root = storageRoot();
     $docker = new DockerSandboxProvider([...$this->dockerConfig, 'storage_path' => $root]);

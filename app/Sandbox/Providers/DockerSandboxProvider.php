@@ -38,6 +38,9 @@ class DockerSandboxProvider implements SandboxProvider
     /** Copies a host folder ($1) into a running container ($2) at a path ($3). COPYFILE_DISABLE keeps macOS's ._ files out. */
     public const COPY_IN = 'set -o pipefail; tar -c -C "$1" . | docker exec -i -u root "$2" tar -x -C "$3"';
 
+    /** Copies a host folder ($1) into a running container ($2) at a path ($3) as root, owned by root. */
+    public const INSTALL = 'set -o pipefail; tar -c -C "$1" . | docker exec -i -u root "$2" tar -x --no-same-owner -C "$3"';
+
     /** Seconds a stopping container gets to exit by itself before it's killed. */
     public const STOP_SECONDS = 5;
 
@@ -288,6 +291,17 @@ class DockerSandboxProvider implements SandboxProvider
         // mkdir -p runs as root, so hand back the path and any parents it created under the sandbox user's folders.
         $owned = array_values(array_filter(['/workspace', '/data/storage', '/home/sandbox'], fn (string $root) => str_starts_with($path, $root)));
         $this->docker(['exec', '-u', 'root', $id, 'chown', '-R', 'sandbox:sandbox', ...($owned ?: [$path])]);
+    }
+
+    public function installFiles(string $id, string $directory, string $path): bool
+    {
+        $result = Process::env(['COPYFILE_DISABLE' => '1'])->timeout(120)->run(['bash', '-c', self::INSTALL, 'install', $directory, $id, $path]);
+
+        if ($result->failed()) {
+            throw new SandboxException($this->explain($result));
+        }
+
+        return true;
     }
 
     public function destroy(string $id): void

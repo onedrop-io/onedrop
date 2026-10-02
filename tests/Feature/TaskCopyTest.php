@@ -75,7 +75,8 @@ test('the copy is Main\'s kept paths at one instant, on its own branch, with its
     (new ForkTaskSandbox($task))->handle(app(TaskCopies::class), app(AgentQueue::class));
 
     $copy = $task->sandbox()->first();
-    $snapshot = commandsIn($this->provider, 'main-1')[0];
+    // The first after checking Main's tool files (SBX-002).
+    $snapshot = collect(commandsIn($this->provider, 'main-1'))->reject(fn (array $command) => ($command[3] ?? null) === 'hash')->first();
 
     expect($snapshot)->toMatchArray([0 => '/opt/onedrop/fork', 1 => 'snapshot'])
         ->and(array_slice($snapshot, 3))->toBe(['/workspace', '/data/storage', '/home/sandbox'])

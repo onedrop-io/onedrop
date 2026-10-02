@@ -322,6 +322,16 @@ class Project extends Model implements Conversation
     }
 
     /**
+     * The project's snapshots, oldest first (SBX-009).
+     *
+     * @return HasMany<ProjectSnapshot, $this>
+     */
+    public function snapshots(): HasMany
+    {
+        return $this->hasMany(ProjectSnapshot::class);
+    }
+
+    /**
      * The user who last published the project.
      *
      * @return BelongsTo<User, $this>

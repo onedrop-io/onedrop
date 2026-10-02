@@ -27,8 +27,8 @@ class RunAgentTask implements ShouldQueue
     public function __construct(public Project $project, public Message $message) {}
 
     /**
-     * Mark the message's conversation (the main chat or its task) busy, bring the sandbox up to date (so the agent
-     * has the current guides and tools) unless another of the project's agents is running in it, and hand the message to the agent.
+     * Mark the message's conversation (the main chat or its task) busy, copy in the sandbox's changed tool files (so the
+     * agent has the current guides and tools) unless another of the project's agents is running in it, and hand the message to the agent.
      */
     public function handle(AgentRunner $agent, SandboxUpdater $updater): void
     {
@@ -36,8 +36,9 @@ class RunAgentTask implements ShouldQueue
         $conversation->update(['status' => ProjectStatus::Working]);
 
         try {
-            // A task's own copy is new; only the main sandbox is brought up to date here.
-            if ($conversation->agentSandbox()?->task_id === null && ! $this->project->mainSandboxBusy(except: $conversation) && $updater->updateIfOutdated($this->project)) {
+            // A task's own copy is new; only the main sandbox is brought up to date here, and only with its tool files
+            // (seconds): a new sandbox waits until nobody's using it (SBX-002).
+            if ($conversation->agentSandbox()?->task_id === null && ! $this->project->mainSandboxBusy(except: $conversation) && $updater->updateIfOutdated($this->project, rebuild: false)) {
                 $this->project->unsetRelation('sandbox');
             }
         } catch (SandboxException $e) {

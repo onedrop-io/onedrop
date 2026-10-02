@@ -23,7 +23,6 @@ resources/js/wayfinder
 tests/Browser/Screenshots
 docs
 infra
-docker/sandbox
 .claude
 .agents
 .cursor

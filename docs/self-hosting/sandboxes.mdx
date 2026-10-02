@@ -115,9 +115,9 @@ Runtime Cloud runs each sandbox in its own Firecracker microVM. OneDrop talks to
     ```bash
     php artisan sandbox:build-image
     ```
-    With `SANDBOX_PROVIDER=runtime`, this builds `docker/sandbox` on Runtime as `onedrop-sandbox:latest`. It needs Node.js 22.12 or later. Run it again after changing `docker/sandbox/`; existing sandboxes then update themselves.
+    With `SANDBOX_PROVIDER=runtime`, this builds `docker/sandbox` on Runtime as `onedrop-sandbox:latest`. It needs Node.js 22.12 or later. Run it again after changing a base file in `docker/sandbox/`; existing sandboxes then [update themselves](#sandboxes-update-themselves).
 
-    To do this automatically, add a `RUNTIME_API_KEY` secret to the GitHub repository (and a `RUNTIME_IMAGE` variable if you don't use `onedrop-sandbox:latest`). The **runtime image** workflow then rebuilds the image whenever a push to `main` changes `docker/sandbox/`, and never otherwise, because each build makes every sandbox update itself.
+    To do this automatically, add a `RUNTIME_API_KEY` secret to the GitHub repository (and a `RUNTIME_IMAGE` variable if you don't use `onedrop-sandbox:latest`). The **runtime image** workflow then rebuilds the image whenever a push to `main` changes `docker/sandbox/`, and never otherwise, because each build counts against the trial's daily limit.
   </Step>
   <Step title="Choose paid credit when ready">
     Sandboxes use the free trial until you set `RUNTIME_FUNDING=paid`. Add credit at [billing](https://withruntime.com/account/billing) before production traffic runs.
@@ -166,14 +166,18 @@ The sandbox's proxy (`docker/sandbox/host-proxy.mjs`) records the app's errors i
 
 ## Sandboxes update themselves
 
-The guides the agent follows, the tools behind panels like Database and Growth, and the proxy all ship in the sandbox image. After you change anything in `docker/sandbox/`, rebuild the image (`php artisan sandbox:build-image`; the server deploy script does this when those files change). Existing sandboxes then move to the new image on their own:
+The guides the agent follows, the tools behind panels like Database and Growth, and the proxy all ship in the sandbox image, in `/opt/onedrop`. Existing sandboxes pick up changes to them on their own, while nobody is using them:
 
-- **When someone opens the project.** The update runs in the background and the preview shows **Updating sandbox…** until the app is back. It waits if the agent is working.
-- **Before the agent's next run**, so the agent always has the current guides and tools.
+- **Tool files** (everything the Dockerfile copies into `/opt/onedrop`, such as guides, scripts and the proxy) are copied into the running sandbox, only the ones that changed. Processes that load them once, like the proxy, restart in about a second. Nothing else in the sandbox changes, and you don't need to rebuild the image for these.
+- **Base files** (`Dockerfile`, `start.sh`, `dockerd`, `shell-keys.js`) need a rebuilt image (`php artisan sandbox:build-image`; the server deploy script does this when `docker/sandbox/` changes). Each sandbox then moves to a new one from that image, keeping its files.
+
+Updates run once a project has gone unused for 10 minutes, then the sandbox is suspended again. They never run while someone has the project open or its agent is working, and a sandbox nobody uses isn't woken for one; it's updated after its next use. Before each agent run, changed tool files are copied in first (a second or two) so the agent has the current guides. The preview shows **Updating sandbox…** only while a new sandbox is being made.
+
+On Blaxel, tool files can't be copied in (its sandbox API can't write `/opt/onedrop`), so a rebuilt image moves each sandbox to a new one instead.
 
 An update keeps the app's files (`/workspace`), App Storage buckets, and the sandbox user's home folder (`/home/sandbox`), which holds the agent's conversation history and anything the agent installed there, such as a local database. Shell settings in the home folder stay as they were rather than taking the image's. The app's processes are paused while the files are copied, so a database is copied in a consistent state. The app restarts, and published projects are published again. Only one update runs per project at a time.
 
-To update every outdated sandbox now, or just one project:
+To update every sandbox now, or just one project:
 
 ```bash
 php artisan sandbox:update
@@ -190,7 +194,7 @@ To replace a sandbox even when it's up to date (for example, one that's broken):
 php artisan sandbox:recreate 12 --keep-files
 ```
 
-`--keep-files` copies the app (`/workspace`), App Storage and the sandbox user's home folder (with the agent's conversation history) into the new sandbox. Without it, the project's code is restored from its [backup](#code-backups), and App Storage and the agent's conversation history start empty. Published projects are published again automatically.
+`--keep-files` gives the new sandbox the app (`/workspace`), its dependencies, App Storage and the sandbox user's home folder (with the agent's conversation history), from a fresh [snapshot](#project-snapshots) where it can, or from the latest one if the old sandbox is gone. Without it, the project's code is restored from its [backup](#code-backups), and App Storage and the agent's conversation history start empty. Published projects are published again automatically.
 
 ## Code backups
 
@@ -203,6 +207,39 @@ When a sandbox is replaced without its files, the backup is cloned into the new 
 <Tip>
     In production, keep backups on object storage so they outlive the server: an `s3` disk in `config/filesystems.php`, set as `FILESYSTEM_DISK` or `SANDBOX_BACKUP_DISK`. On Laravel Cloud, attach a bucket to the environment as its default disk.
 </Tip>
+
+## Project snapshots
+
+Besides the git backup, OneDrop keeps each project's whole state outside its sandbox, so a lost sandbox, a failed update or a provider that goes away never costs files. A snapshot has four layers:
+
+| Layer       | What's in it                                                                                        |
+| ----------- | --------------------------------------------------------------------------------------------------- |
+| `workspace` | `/workspace` with uncommitted changes and `.git`, without dependency folders                        |
+| `deps`      | Every `node_modules` folder and the top-level `vendor`, stored again only when a lockfile changes   |
+| `home`      | `/home/sandbox` without caches: the agent's history, and a database or tools the agent set up there |
+| `storage`   | App Storage                                                                                         |
+
+Snapshots are taken after every agent turn, before an update moves a project to a new sandbox, and daily at 04:00 for projects used that day (`php artisan sandbox:snapshot`). Each layer is fingerprinted in the sandbox first, and only layers that changed are packed and stored again. The app's processes are frozen while the stateful layers are packed (usually well under a second), so a database is captured in a consistent state. Layers are compressed with zstd, or gzip on images without it.
+
+Updates restore the new sandbox from a snapshot instead of copying files through the platform. A sandbox that's gone gets its latest snapshot back with `php artisan sandbox:recreate <project> --keep-files`.
+
+Snapshots go to the disk named by `SANDBOX_SNAPSHOT_DISK`, or the backup disk when that isn't set:
+
+- **Laravel Cloud, AWS, or any S3-compatible bucket:** the sandbox uploads and downloads its layers straight to the bucket through signed links that last 30 minutes. Nothing goes through the platform's servers, and the sandbox never holds storage credentials. On Laravel Cloud, attach a private bucket for snapshots and set `SANDBOX_SNAPSHOT_DISK` to its disk name.
+- **A local disk (laptop or single server):** works for Docker sandboxes, which run on the same machine. The platform packs and copies layers with `docker cp`, without going through HTTP. Remote sandboxes (Runtime, Blaxel) need a bucket; with a local disk they take no snapshots and updates copy files through the platform as before.
+
+<Warning>
+    A local disk keeps snapshots on the same disk as the sandboxes. They cover a broken sandbox or a failed update, not losing the server. Point `SANDBOX_SNAPSHOT_DISK` at an off-site bucket (Backblaze B2, Cloudflare R2, Hetzner Object Storage) for real backups.
+</Warning>
+
+OneDrop keeps the latest 10 snapshots of each project and the newest of each of the last 7 days, and deletes stored layers no kept snapshot uses. To list a project's snapshots, or give it a new sandbox from one of them:
+
+```bash
+php artisan sandbox:restore 12 --list
+php artisan sandbox:restore 12 41
+```
+
+Deleting a project deletes its snapshots.
 
 ## Clean up
 

@@ -84,6 +84,14 @@ interface SandboxProvider
     public function copyIn(string $id, string $directory, string $path): void;
 
     /**
+     * Copy a local directory's contents into a running sandbox as root, owned by root the way the image has them (the
+     * platform's tools in /opt/onedrop, SBX-002). Returns false when the provider can't write there.
+     *
+     * @throws SandboxException
+     */
+    public function installFiles(string $id, string $directory, string $path): bool;
+
+    /**
      * Permanently delete a sandbox. Deleting one that doesn't exist is not an error.
      *
      * @throws SandboxException

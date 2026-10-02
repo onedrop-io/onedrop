@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\Project;
 use App\Sandbox\ProjectBackups;
+use App\Sandbox\ProjectSnapshots;
 use App\Sandbox\SandboxException;
 use Illuminate\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -12,7 +13,7 @@ use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 
 /**
- * Copy a project's git history out of its sandbox (SBX-006). A project deleted while this waits has nothing left to back up.
+ * Copy a project's git history out of its sandbox (SBX-006) and snapshot it (SBX-009). A project deleted while this waits has nothing left to back up.
  */
 #[DeleteWhenMissingModels]
 class BackupProject implements ShouldBeUniqueUntilProcessing, ShouldQueue
@@ -44,14 +45,23 @@ class BackupProject implements ShouldBeUniqueUntilProcessing, ShouldQueue
     }
 
     /**
-     * Copy the project's git history out of its sandbox after an agent turn.
+     * Copy the project's git history out of its sandbox after an agent turn, and take a snapshot of its whole state
+     * (SBX-009).
      */
-    public function handle(ProjectBackups $backups): void
+    public function handle(ProjectBackups $backups, ProjectSnapshots $snapshots): void
     {
+        $project = $this->project->fresh() ?? $this->project;
+
         try {
-            $backups->backUp($this->project->fresh() ?? $this->project);
+            $backups->backUp($project);
         } catch (SandboxException $e) {
             // The next turn tries again.
+            report($e);
+        }
+
+        try {
+            $snapshots->take($project, 'turn');
+        } catch (SandboxException $e) {
             report($e);
         }
     }

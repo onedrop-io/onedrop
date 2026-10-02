@@ -210,14 +210,14 @@ class TaskCopies
     }
 
     /**
-     * Main's sandbox, running and on the current image (so it has the fork tool).
+     * Main's sandbox, running and with the current tool files (so it has the fork tool).
      *
      * @throws SandboxException
      */
     protected function mainSandbox(Project $project): Sandbox
     {
         if (! $project->mainSandboxBusy()) {
-            $this->updater->updateIfOutdated($project);
+            $this->updater->updateIfOutdated($project, rebuild: false);
         }
 
         $main = $project->sandbox()->first();

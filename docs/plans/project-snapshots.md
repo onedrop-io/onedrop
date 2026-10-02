@@ -1,6 +1,6 @@
 # Plan: Project snapshots in object storage
 
-Status: planned, not built. Spec SBX-009; decisions in `REQ.md` → Sandboxes.
+Status: phases 1–3 built (snapshots, restore, the `deps` layer, retention; admin page and multipart uploads not yet). Spec SBX-009; decisions in `REQ.md` → Sandboxes, which win where this plan differs (layer names under `project-snapshots/<id>/layers/`, local disks for Docker sandboxes).
 
 Sandboxes should be disposable. A project's state lives in S3-compatible storage, and any sandbox on any provider
 can be made from it. Switching providers then means changing `SANDBOX_PROVIDER`, and a provider losing a sandbox

@@ -10,17 +10,19 @@ use App\Models\AgentConnection;
 use App\Models\Message;
 use App\Models\Project;
 use App\Models\Sandbox;
+use App\Models\Task;
 use App\Models\User;
 use App\Sandbox\Agents\AgentRunner;
 use App\Sandbox\Agents\Conversation;
+use App\Sandbox\ExecResult;
 use App\Sandbox\Providers\FakeSandboxProvider;
 use App\Sandbox\Publishing\FakePublisher;
 use App\Sandbox\Publishing\Publisher;
 use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxProvider;
 use App\Sandbox\SandboxSpec;
+use App\Sandbox\SandboxTools;
 use App\Sandbox\SandboxUpdater;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Queue;
 
 beforeEach(function () {
@@ -195,55 +197,145 @@ test('an up-to-date or stopped sandbox is left alone', function () {
         ->and($this->provider->copied)->toBe([]);
 })->group('SBX-002');
 
-test('opening a project with an outdated sandbox queues an update and shows it updating', function () {
+/**
+ * Answers the fake's hash command as a sandbox would: every tool and base file as the source has them, except $missing
+ * (paths in the sandbox), and the base files from an older image when $oldBase.
+ *
+ * @param  list<string>  $missing
+ */
+function sandboxToolHashes(array $missing = [], bool $oldBase = false): Closure
+{
+    return function (array $command) use ($missing, $oldBase): ExecResult {
+        if (($command[3] ?? null) !== 'hash') {
+            return new ExecResult(0, '');
+        }
+
+        return new ExecResult(0, collect(app(SandboxTools::class)->expected())
+            ->reject(fn (string $hash, string $path) => in_array($path, $missing, true))
+            ->map(fn (string $hash, string $path) => ($oldBase && str_starts_with($path, SandboxTools::BASE_PATH) ? str_repeat('0', 64) : $hash)."  {$path}")
+            ->implode("\n"));
+    };
+}
+
+test('opening a project queues an update for when nobody uses it, and doesn\'t show it updating', function () {
     Queue::fake();
     $this->provider->outdated = ['old-ctr'];
 
     $this->actingAs($this->user)
         ->get(route('projects.show', $this->project))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page->where('sandbox.updating', true));
-
-    Queue::assertPushed(UpdateSandbox::class, fn (UpdateSandbox $job) => $job->project->is($this->project));
-
-    // Checked at most once a minute: polling the page doesn't queue more.
-    $this->actingAs($this->user)->get(route('projects.show', $this->project))->assertOk();
-    Queue::assertPushed(UpdateSandbox::class, 1);
-})->group('SBX-002');
-
-test('opening a project never queues an update while the agent works or when the sandbox is current', function () {
-    Queue::fake();
-
-    $this->actingAs($this->user)
-        ->get(route('projects.show', $this->project))
         ->assertInertia(fn ($page) => $page->where('sandbox.updating', false));
 
-    Cache::flush();
-    $this->provider->outdated = ['old-ctr'];
-    $this->project->update(['status' => ProjectStatus::Working]);
+    Queue::assertPushed(UpdateSandbox::class, fn (UpdateSandbox $job) => $job->project->is($this->project)
+        && $job->delay->greaterThan(now()->addSeconds(UpdateSandbox::IDLE_SECONDS - 5)));
+
+    // One waits per project: using it again doesn't queue another.
+    $this->travel(20)->seconds();
     $this->actingAs($this->user)->get(route('projects.show', $this->project))->assertOk();
+    Queue::assertPushed(UpdateSandbox::class, 1);
+
+    expect($this->sandbox->fresh()->external_id)->toBe('old-ctr');
+})->group('SBX-002');
+
+test('a task\'s copy being used queues no update', function () {
+    Queue::fake();
+    $task = Task::factory()->for($this->project)->create();
+    $copy = Sandbox::factory()->for($this->project)->create(['task_id' => $task->id, 'external_id' => 'copy-ctr']);
+
+    $copy->markActive();
 
     Queue::assertNotPushed(UpdateSandbox::class);
 })->group('SBX-002');
 
-test('the update job skips a project the agent is working on and clears the updating state', function () {
+test('the update waits while the project is in use or its agent works', function () {
     $this->provider->outdated = ['old-ctr'];
-    $this->project->update(['status' => ProjectStatus::Working]);
-    SandboxUpdater::markUpdating($this->project);
+    $this->sandbox->forceFill(['last_active_at' => now()->subMinutes(2)])->save();
 
-    (new UpdateSandbox($this->project))->handle(app(SandboxUpdater::class));
+    $job = (new UpdateSandbox($this->project))->withFakeQueueInteractions();
+    $job->handle(app(SandboxUpdater::class), $this->provider);
+    $job->assertReleased(delay: UpdateSandbox::IDLE_SECONDS - 120);
+
+    $this->sandbox->forceFill(['last_active_at' => now()->subMinutes(30)])->save();
+    $this->project->update(['status' => ProjectStatus::Working]);
+    $job = (new UpdateSandbox($this->project))->withFakeQueueInteractions();
+    $job->handle(app(SandboxUpdater::class), $this->provider);
+    $job->assertReleased();
 
     expect($this->sandbox->fresh()->external_id)->toBe('old-ctr')
-        ->and(SandboxUpdater::isUpdating($this->project))->toBeFalse();
-
-    $this->project->update(['status' => ProjectStatus::Idle]);
-    (new UpdateSandbox($this->project))->handle(app(SandboxUpdater::class));
-
-    expect($this->sandbox->fresh()->external_id)->not->toBe('old-ctr');
+        ->and($this->provider->copied)->toBe([]);
 })->group('SBX-002');
 
-test('the agent runs in an up-to-date sandbox', function () {
+test('a sandbox nobody has used for a while is updated, then suspended again', function () {
     $this->provider->outdated = ['old-ctr'];
+    $this->sandbox->forceFill(['last_active_at' => now()->subMinutes(11), 'stopped_at' => now()->subMinutes(5)])->save();
+
+    $job = (new UpdateSandbox($this->project))->withFakeQueueInteractions();
+    $job->handle(app(SandboxUpdater::class), $this->provider);
+    $job->assertNotReleased();
+
+    $sandbox = $this->sandbox->fresh();
+
+    expect($sandbox->external_id)->not->toBe('old-ctr')
+        ->and($this->provider->suspended)->toBe([$sandbox->external_id])
+        ->and($sandbox->suspended_at)->not->toBeNull()
+        ->and($sandbox->stopped_at)->toBeNull()
+        ->and(SandboxUpdater::isUpdating($this->project))->toBeFalse();
+})->group('SBX-002');
+
+test('changed tool files are copied into the running sandbox, and the processes using them restarted', function () {
+    $this->provider->outdated = ['old-ctr'];
+    $this->provider->execUsing = sandboxToolHashes(missing: [SandboxTools::PATH.'/host-proxy.mjs', SandboxTools::PATH.'/guides/auth.md']);
+
+    expect(app(SandboxUpdater::class)->updateIfOutdated($this->project))->toBeTrue();
+
+    expect($this->sandbox->fresh()->external_id)->toBe('old-ctr') // no new sandbox
+        ->and($this->provider->copied)->toBe([])
+        ->and($this->provider->installed)->toBe([['id' => 'old-ctr', 'path' => '/opt/onedrop', 'files' => ['guides/auth.md', 'host-proxy.mjs']]])
+        ->and(collect($this->provider->executed)->pluck('command')->all())->toContain(['pkill', '-f', 'node /opt/onedrop/host-proxy.mjs'])
+        ->and(SandboxUpdater::isUpdating($this->project))->toBeFalse();
+})->group('SBX-002');
+
+test('a sandbox whose tools match is left alone, even when the image was rebuilt', function () {
+    $this->provider->outdated = ['old-ctr'];
+    $this->provider->execUsing = sandboxToolHashes();
+
+    expect(app(SandboxUpdater::class)->updateIfOutdated($this->project))->toBeFalse()
+        ->and($this->provider->installed)->toBe([])
+        ->and($this->sandbox->fresh()->external_id)->toBe('old-ctr');
+
+    // Remembered: the next check doesn't ask the sandbox again.
+    $asked = count($this->provider->executed);
+    app(SandboxUpdater::class)->updateIfOutdated($this->project);
+    expect($this->provider->executed)->toHaveCount($asked);
+})->group('SBX-002');
+
+test('a sandbox on an older base gets no tool files, and a new sandbox once a newer image is built', function () {
+    $this->provider->execUsing = sandboxToolHashes(missing: [SandboxTools::PATH.'/host-proxy.mjs'], oldBase: true);
+
+    expect(app(SandboxUpdater::class)->updateIfOutdated($this->project))->toBeFalse()
+        ->and($this->provider->installed)->toBe([]);
+
+    $this->provider->outdated = ['old-ctr'];
+
+    expect(app(SandboxUpdater::class)->updateIfOutdated($this->project))->toBeTrue()
+        ->and($this->sandbox->fresh()->external_id)->not->toBe('old-ctr');
+})->group('SBX-002');
+
+test('a provider that can\'t write tool files gets a new sandbox when its image was rebuilt', function () {
+    $this->provider->installs = false;
+    $this->provider->execUsing = sandboxToolHashes(missing: [SandboxTools::PATH.'/host-proxy.mjs']);
+
+    expect(app(SandboxUpdater::class)->updateIfOutdated($this->project))->toBeFalse();
+
+    $this->provider->outdated = ['old-ctr'];
+
+    expect(app(SandboxUpdater::class)->updateIfOutdated($this->project))->toBeTrue()
+        ->and($this->sandbox->fresh()->external_id)->not->toBe('old-ctr');
+})->group('SBX-002');
+
+test('the agent\'s run gets the current tool files first, but never waits for a new sandbox', function () {
+    $this->provider->outdated = ['old-ctr'];
+    $this->provider->execUsing = sandboxToolHashes(missing: [SandboxTools::PATH.'/instructions.md']);
     $message = Message::factory()->for($this->project)->create();
     $runner = new class implements AgentRunner
     {
@@ -259,8 +351,18 @@ test('the agent runs in an up-to-date sandbox', function () {
 
     (new RunAgentTask($this->project, $message))->handle($runner, app(SandboxUpdater::class));
 
-    expect($runner->sandboxId)->not->toBe('old-ctr')
-        ->and($runner->sandboxId)->toBe($this->sandbox->fresh()->external_id);
+    expect($runner->sandboxId)->toBe('old-ctr')
+        ->and($this->provider->installed)->toHaveCount(1)
+        ->and($this->provider->installed[0]['files'])->toBe(['instructions.md']);
+
+    // On an older base the run goes ahead in the sandbox as it is.
+    $this->provider->installed = [];
+    $this->provider->execUsing = sandboxToolHashes(missing: [SandboxTools::PATH.'/instructions.md'], oldBase: true);
+    (new RunAgentTask($this->project, $message))->handle($runner, app(SandboxUpdater::class));
+
+    expect($runner->sandboxId)->toBe('old-ctr')
+        ->and($this->provider->installed)->toBe([])
+        ->and($this->provider->copied)->toBe([]);
 })->group('SBX-002');
 
 test('sandbox:update updates outdated sandboxes and skips ones the agent is working on', function () {

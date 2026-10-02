@@ -1,8 +1,9 @@
 name: runtime image
 
 # Rebuilds the project sandbox image on Runtime Cloud (what `php artisan sandbox:build-image` does with
-# SANDBOX_PROVIDER=runtime) when docker/sandbox changes on main. Only then: each build is a new image,
-# and every sandbox moves to it (files kept) the next time its project is opened.
+# SANDBOX_PROVIDER=runtime) when docker/sandbox changes on main. Only then: each build is a new image. Sandboxes
+# get changed tool files copied in without it; a changed base (Dockerfile, start.sh, dockerd, shell-keys.js) moves
+# each to a new sandbox from it (files kept) once its project sits unused.
 # Needs the RUNTIME_API_KEY secret; RUNTIME_IMAGE (a repository variable) defaults to onedrop-sandbox:latest.
 
 on:

@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Concerns\BroadcastsProjectChanges;
 use App\Enums\SandboxStatus;
 use App\Jobs\CreateSandbox;
+use App\Jobs\UpdateSandbox;
 use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxProvider;
 use Database\Factories\SandboxFactory;
@@ -104,6 +105,18 @@ class Sandbox extends Model
         }
 
         $this->forceFill(['last_active_at' => now()])->saveQuietly();
+        $this->updateWhenIdle();
+    }
+
+    /**
+     * Have the project's main sandbox brought up to date once nobody uses it (SBX-002). One job waits per project;
+     * a sandbox nobody uses never gets one, so it's never woken for an update.
+     */
+    public function updateWhenIdle(): void
+    {
+        if ($this->task_id === null) {
+            UpdateSandbox::dispatch($this->project)->delay(now()->addSeconds(UpdateSandbox::IDLE_SECONDS));
+        }
     }
 
     /**
@@ -134,6 +147,7 @@ class Sandbox extends Model
         // Something else (a command the platform ran in it) may have woken a suspended one first.
         $wasAsleep = $started || $this->suspended_at !== null;
         $this->forceFill([...$addresses, 'suspended_at' => null, 'stopped_at' => null, 'last_active_at' => now()])->save();
+        $this->updateWhenIdle();
 
         return $wasAsleep;
     }

@@ -12,7 +12,7 @@ use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 
 #[Signature('sandbox:update {project? : Project id (default: every project)}')]
-#[Description('Move outdated sandboxes to the current image, keeping their files. Skips projects the agent is working on.')]
+#[Description('Bring sandboxes up to date now: copy in changed tool files, or move them to the current image keeping their files. Skips projects the agent is working on.')]
 class UpdateSandboxes extends Command
 {
     /**

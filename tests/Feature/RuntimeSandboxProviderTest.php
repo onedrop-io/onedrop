@@ -370,6 +370,23 @@ test('copying in uploads an archive, unpacks it as root, and hands it to the san
         && end($request->data()['argv']) === '/home/sandbox');
 })->group('SBX-003');
 
+test('tool files are uploaded and unpacked as root, staying root\'s', function () {
+    Process::fake(['*' => Process::result()]);
+    Http::fake([
+        RT_API.'/sandboxes/'.RT_ID.'/uploads' => Http::response(['uploadId' => 'up-1', 'chunkBytes' => 8_388_608]),
+        RT_API.'/sandboxes/'.RT_ID.'/uploads/up-1:commit' => Http::response(['size' => 0, 'sha256' => 'x']),
+        RT_API.'/sandboxes/'.RT_ID.':exec' => Http::response(['exitCode' => 0, 'stdout' => '', 'stderr' => '', 'timedOut' => false]),
+    ]);
+
+    expect($this->runtime->installFiles(RT_ID, sys_get_temp_dir(), '/opt/onedrop'))->toBeTrue();
+
+    Http::assertSent(fn (Request $request) => str_ends_with($request->url(), ':exec')
+        && $request['argv'][0] === 'sudo'
+        && str_contains($request['argv'][3], '--no-same-owner')
+        && ! str_contains($request['argv'][3], 'chown')
+        && $request['argv'][5] === '/opt/onedrop');
+})->group('SBX-002');
+
 test('large archives are uploaded in the chunks runtime asks for, checked by their digest', function () {
     // tar writes 25 bytes; Runtime asks for 10-byte chunks.
     Process::fake(function ($process) {

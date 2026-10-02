@@ -288,6 +288,14 @@ class BlaxelSandboxProvider implements SandboxProvider
         }
     }
 
+    /**
+     * The sandbox API runs everything as the sandbox user, which can't write the image's own files.
+     */
+    public function installFiles(string $id, string $directory, string $path): bool
+    {
+        return false;
+    }
+
     public function destroy(string $id): void
     {
         $response = $this->request('delete', "sandboxes/{$id}");

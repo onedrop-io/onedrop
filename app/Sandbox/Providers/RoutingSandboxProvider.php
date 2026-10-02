@@ -94,6 +94,11 @@ class RoutingSandboxProvider implements SandboxProvider
         $this->for($id)->copyIn($id, $directory, $path);
     }
 
+    public function installFiles(string $id, string $directory, string $path): bool
+    {
+        return $this->for($id)->installFiles($id, $directory, $path);
+    }
+
     public function destroy(string $id): void
     {
         $this->for($id)->destroy($id);

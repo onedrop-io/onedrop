@@ -8,7 +8,6 @@ use App\Enums\CredentialType;
 use App\Enums\PublishStatus;
 use App\Enums\SandboxStatus;
 use App\Jobs\CreateSandbox;
-use App\Jobs\UpdateSandbox;
 use App\Models\Attachment;
 use App\Models\Message;
 use App\Models\Project;
@@ -47,7 +46,6 @@ trait RendersWorkspace
             $read::withoutTimestamps(fn () => $read->update(['read_at' => now()]));
         }
 
-        $this->updateOutdatedSandbox($project, app(SandboxUpdater::class));
         $this->renewSandboxAddresses($project, app(SandboxProvider::class));
 
         // A task with its own copy of the app shows that copy's preview, shell and files (TASK-003).
@@ -178,26 +176,6 @@ trait RendersWorkspace
             'image' => $attachment->isVisibleImage(),
             'url' => route('projects.attachments.show', [$project, $attachment]),
         ];
-    }
-
-    /**
-     * Queue an update when the sandbox was made from an older image, so opening a project brings it the
-     * current guides and tools. Checked at most once a minute per project; never while an agent works.
-     */
-    protected function updateOutdatedSandbox(Project $project, SandboxUpdater $updater): void
-    {
-        if ($project->mainSandboxBusy() || ! Cache::add("sandbox-outdated-check:{$project->id}", true, 60)) {
-            return;
-        }
-
-        try {
-            if ($updater->isOutdated($project)) {
-                SandboxUpdater::markUpdating($project);
-                UpdateSandbox::dispatch($project);
-            }
-        } catch (SandboxException) {
-            // The workspace shows the sandbox as it is.
-        }
     }
 
     /**

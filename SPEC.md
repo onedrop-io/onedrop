@@ -250,9 +250,10 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## PRJ-012: Browse templates from other registries
 
-- User should see every open-source app from the configured registries (Dokploy's to start) under the built-in templates as "Or install a free app", popular ones first, each with its name, description and logo, loaded after the page shows and not grouped or labelled by the registry it came from.
+- User should see every open-source app from the configured registries (Dokploy's to start) under the built-in templates as "Or install a free app", popular ones first, each on a card like Dokploy's with its logo, name, version (unless only "latest"), up to three lines of its description and up to three of its tags, two across on the new-project page and three on the wider home page, loaded after the page shows and not grouped or labelled by the registry it came from.
 - User should see the popular free apps that have a picture in a coverflow above the list: one large in the middle with its logo, name and description over its picture (an app store screenshot if there is one, else its website's preview image), the next ones angled behind it. It moves on every few seconds, but not while hovered or focused, or when the system asks for reduced motion. Clicking a side app (or a dot below) brings it to the middle; clicking the middle one opens its details. It loads after the page shows, separately from the list; an app whose picture won't load is left out.
 - User should be able to search the apps by name, description or tag (Enter opens the first match), and narrow them to a category (the most used tags).
+- User should be able to press ⌘K (Ctrl K off a Mac) anywhere on the new-project page to jump to the free apps' search, scrolled into view with what they'd typed there selected; the search box shows the shortcut for their system (not on touch screens).
 - Clicking a free app (in the list or suggested for what they typed) should open its details: logo, name, "Free and open source", its version (unless the registry says only "latest"), categories, full description, what happens when they use it, and links to its website, source code and documentation (https only). "Use <name>" starts the project from it right away (with what they typed after its description, if it was suggested), showing "Starting…" and, if it can't, why; the project is named after it.
 - A registry template (a Docker Compose stack) should start the project with its `docker-compose.yml` and its registry settings in the workspace, and the agent should fill in its variables, set the stack up as the preview and get it running.
 - User should see pictures of a free app at the top of its details, in a carousel they can step through (arrows, dots, or the arrow keys): first the preview image from the app's website (the one shown when its link is shared), then screenshots from the app stores that list it (Umbrel's and CasaOS's to start), each credited to where it came from. The pictures load when the details open; the carousel appears (fading in) only once one has loaded, and only steps through those that have, so an app with none never shows one. An admin should be able to turn off website previews or any app store in config.
@@ -350,15 +351,18 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## SBX-002: Sandboxes stay up to date
 
-- When the sandbox image is rebuilt (new guides, tools or proxy), existing sandboxes should move to it without anyone running a command.
-- Opening a project whose sandbox is older than the image should update it in the background, unless the agent is working.
-- Before the agent starts a run, an outdated sandbox should be updated first, so the agent always has the current guides and tools.
+- When the sandbox's tools change (guides, scripts, the proxy) or its image is rebuilt, existing sandboxes should get the change without anyone running a command, and without anyone waiting for it.
+- A sandbox should be updated once its project has gone unused for 10 minutes (no open workspace, no agent working, no visits to its preview or shell through the platform), never when the project is opened or while someone uses it. A sandbox nobody uses is never woken just to update it; it's updated after its next use.
+- A sandbox updated while idle should be suspended again afterwards (memory kept, woken by the next visit).
+- Changed tool files (everything the image puts in `/opt/onedrop` except `start.sh`, `dockerd` and `shell-keys.js`) should be copied into the running sandbox, only the ones that changed, and the processes that use them restarted; no new sandbox, and nothing else in it changes. This works on Docker and Runtime, and doesn't need the image to be rebuilt first. On Blaxel, whose sandbox API can't write there, a rebuilt image gives a new sandbox instead.
+- Before the agent starts a run, and before a task's copy is made, changed tool files should be copied in first (a second or two), so the agent always has the current guides and tools. A run never waits for a new sandbox.
+- A new sandbox should be made, keeping its files, only when the image's base changed (`Dockerfile`, `start.sh`, `dockerd`, `shell-keys.js`) and a newer image has been built, when the sandbox runs on another provider than the configured one (SBX-005), or on Blaxel when its image was rebuilt.
 - Updating keeps the app's files, App Storage, the agent's history, and everything in the sandbox user's home folder (such as a database or tools the agent installed there); the app restarts, and a published project is published again.
 - Updated sandboxes should get the image's current shell setup (banner, prompt, aliases, prompt theme) even though the home folder is kept; lines the user added to `~/.bashrc` below the loader line, and a `~/.config/starship.toml` the user made, stay.
-- User should see the sandbox updating in the preview (never the browser's "unable to connect" page from the old sandbox's address), then the app again.
+- User should see "Updating sandbox…" in the preview only while a new sandbox is actually being made (never the browser's "unable to connect" page from the old sandbox's address, and never while an update only waits in the queue), then the app again.
 - An update that fails or is cut off partway (a deploy, a queue timeout) should leave the project on its old sandbox with every file; the old sandbox is only removed once the new one has them all.
 - Two updates of the same sandbox should never run at once.
-- An admin should be able to update outdated sandboxes with `php artisan sandbox:update` (all, or one project).
+- An admin should be able to update outdated sandboxes now with `php artisan sandbox:update` (all, or one project).
 - A sandbox updated by `php artisan sandbox:update` should be suspended once it's done (memory kept, woken by the next visit), so a batch of updates doesn't keep every new sandbox running at once.
 
 ## SBX-003: Sandboxes on Runtime Cloud
@@ -420,26 +424,30 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 ## SBX-008: Run a project's own Docker Compose
 
 - With Docker inside sandboxes turned on (Settings → Sandboxes → Docker), each sandbox should have its own Docker, so a project's own `docker-compose.yml` runs in it unmodified, and the agent and the Shell tab can use `docker` and `docker compose`.
+- With Docker inside sandboxes turned on for Runtime Cloud (Settings → Sandboxes → Runtime Cloud), Runtime sandboxes should start their own Docker on their own disk, with no privileged mode or extra volume (Runtime sandboxes are VMs); Elasticsearch's `vm.max_map_count` should be raised where the sandbox allows it.
 - Sandboxes should only get `--privileged` for this on a local install; a server needs a container runtime that makes Docker in a container safe (such as Sysbox), and a privileged setting there should fail with a message saying so.
 - Each sandbox's Docker should keep its images, containers and volumes on its own volume, deleted with the sandbox.
 - A sandbox's Docker should start again when the sandbox restarts, so an app that runs on it (e.g. its database) comes back.
 - Turning Docker inside sandboxes on or off (on either provider), or switching between privileged and runtime on Docker, should update existing sandboxes (files kept), as other sandbox changes do. Runtime with no container runtime set should fail with a message saying what to set.
-- With Docker inside sandboxes turned on for Runtime Cloud (Settings → Sandboxes → Runtime Cloud), Runtime sandboxes should start their own Docker on their own disk, with no privileged mode or extra volume (Runtime sandboxes are VMs); Elasticsearch's `vm.max_map_count` should be raised where the sandbox allows it.
 - `/opt/onedrop/compose init` should set a project up to start with its compose stack: it picks the compose files (the base file, its override, and an `arm64` overlay on arm64 machines), the web port the preview shows (or the one given), writes `.onedrop/dev`, and restarts the preview.
 - User should see the chosen service in the preview; restarting the preview restarts the stack, recreating services whose config (compose files, `.env`) changed.
 - The Files panel should still list the project's files when a service keeps data the sandbox user can't read (such as Mongo's data folder); those folders are skipped.
 - `init` should say why a stack can't start (no compose file, a missing env file, a port the sandbox already uses).
 
-## SBX-009: Project snapshots in object storage (planned)
+## SBX-009: Project snapshots
 
-- Each project's whole state should be kept in S3-compatible object storage (`SANDBOX_SNAPSHOT_DISK`), outside every sandbox provider: its workspace with uncommitted changes, the sandbox user's home folder (a database the agent set up, tools, the agent's history), App Storage, and its installed dependencies.
-- A snapshot should be taken after every agent turn, before an update or a provider move, and once a day for any sandbox that ran that day; a layer that hasn't changed isn't uploaded again.
-- A database in the sandbox should be snapshotted in a consistent state (the app's processes frozen while it's copied), and carry on where it was afterwards.
-- Sandboxes should upload and download their snapshots straight to and from storage through short-lived signed links, never through the platform's servers, and never hold storage credentials.
-- A new sandbox for a project, on any provider, should start from its latest snapshot, so updates, provider moves and a sandbox the provider deleted (an expiry, an outage) all keep the project's files; the old sandbox no longer needs to exist.
-- Installed dependencies (`node_modules`, `vendor`) should come back from the snapshot, not be installed again, when the lockfiles haven't changed.
-- An admin should see each project's last snapshot time and size, and be able to restore a project from an earlier one.
-- Old snapshots should be deleted on a schedule (the last 10, plus one a day for 7 days); deleting a project deletes its snapshots.
+- Each project's whole state should be kept outside every sandbox provider, on the snapshot disk (`SANDBOX_SNAPSHOT_DISK`, the backup disk by default): its workspace with uncommitted changes and git history, its installed dependencies (every `node_modules` and the top-level `vendor`), the sandbox user's home folder without caches (a database the agent set up, tools, the agent's history), and App Storage.
+- A snapshot should be taken after every agent turn, before an update moves the project to a new sandbox, and daily for projects whose sandbox was used that day; a sandbox nobody used isn't woken for one.
+- A layer that hasn't changed since the previous snapshot shouldn't be packed or stored again; dependencies are stored again only when a lockfile or the set of dependency folders changes.
+- The app's processes should be frozen while the workspace, home folder and App Storage are packed, so a database is captured in a consistent state, and carry on where they were afterwards (also if packing is cut off).
+- On an S3-compatible disk (Laravel Cloud, AWS, any bucket), sandboxes should upload and download their layers straight to and from it through signed links that last 30 minutes, never through the platform's servers, and never holding storage credentials; links never appear in a command line.
+- On a local disk (a laptop or single server), Docker sandboxes should be snapshotted by the platform on the same machine, without HTTP. Remote sandboxes with a local disk take no snapshots, and their updates copy files through the platform as before.
+- An update should restore the new sandbox from a fresh snapshot of the old one (the old one stopped once it's taken), keeping the agent's history; if the restore fails, the project stays on its old sandbox with every file.
+- A project whose sandbox is gone should get its latest snapshot back with `php artisan sandbox:recreate {project} --keep-files`, not only its code.
+- An admin should be able to list a project's snapshots and give it a new sandbox from any of them with `php artisan sandbox:restore {project} [snapshot]` (`--list` to list).
+- The latest 10 snapshots of each project, and the newest of each of the last 7 days, should be kept; older ones, and stored layers no kept snapshot uses, deleted daily.
+- Sandboxes made from older images should be snapshotted too: the snapshot tool only needs what every image has and is copied into them when missing (SBX-002).
+- Deleting a project should delete its snapshots.
 
 ## SVC-001: Services tab
 
@@ -477,6 +485,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be able to open a file and read its contents in a tab next to the preview.
 - User should see new files appear while the agent works, and be able to refresh the list.
 - User should be able to hide and show the files panel; it starts open only on wide screens.
+- On a phone, the files panel should cover the workspace when shown, close when a file is opened, and start closed whatever was chosen on a wider screen.
 - User's choice to hide or show the files panel should be remembered in their browser across reloads.
 - Large folders (node_modules, vendor, .git) should be listed but not expanded.
 - Binary and very large files should show a notice instead of garbled or partial content.
@@ -485,7 +494,6 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 ## FILE-002: Edit project files
 
 - User should be able to edit an open file in an editor with syntax highlighting for its language.
-- On a phone, the files panel should cover the workspace when shown, close when a file is opened, and start closed whatever was chosen on a wider screen.
 - User should be able to save with a Save button or Cmd/Ctrl+S, which writes the file into the sandbox.
 - User should see when a file has unsaved changes, and be asked before discarding them.
 - Unsaved edits should not be overwritten when the agent changes the same file; saved files should pick up the agent's changes.
@@ -545,6 +553,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## TAB-001: Workspace tabs
 
+- User should see Shell, Services and Console tabs open next to Tools and Preview when opening a project, with Preview showing.
 - User should be able to add tabs next to Preview from a "+" menu, and close them.
 - User should be able to drag Console, Shell, Requirements, Tests and file tabs into a different order; Tools and Preview stay first.
 - User should be able to open a Console tab showing the app's dev-server output as it happens.
@@ -553,7 +562,6 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - A Shell tab should keep its session while the user switches tabs.
 - User should be able to type in the Shell tab straight away: the terminal gets the cursor when the tab opens or is switched back to.
 - User should see a OneDrop banner with the project's name and a few shell tips when a Shell tab (or SSH session) starts, once per terminal.
-- User should see Shell, Services and Console tabs open next to Tools and Preview when opening a project, with Preview showing.
 - User should have modern command-line tools in the Shell tab: `bat` (view files with highlighting), `rg` (search), `fd` (find files), `z` (jump to directories), `jq` (JSON), `btop` (processes), `lazygit` (git), `micro` (editor, also used for commit messages), `vim` and `ncdu` (what's using disk space).
 - User should see file listings (`ls`, `ll`, `la`, `tree`) with folders first, colours, a git column and relative times; `ls` with GNU-only flags (e.g. `-ltr`) should still work.
 - User should see a clear notice when the console or shell isn't available (e.g. sandbox not running, or an older sandbox without a shell).
@@ -601,6 +609,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be able to switch between them without losing the chat's draft or reloading the preview.
 - User should see that the agent is working on the Chat tab while the Workspace tab is showing.
 - Sending something to the chat from the workspace (a marked-up or inspected preview) should switch to the Chat tab.
+- "Sign in to Claude" should switch to the Workspace tab (where the Shell runs the sign-in), and a successful sign-in should switch back to the Chat tab.
 - On a phone, the workspace's tab bar should leave out the preview's address, the preview size menu and the split menu, so its buttons fit on one line.
 
 ## LAYOUT-007: Tabs and header buttons on a phone
@@ -609,7 +618,6 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - The showing tab's own buttons (e.g. the preview's Inspect, Annotate and Reload) should stay in the bar however many tabs are open; "Open in a new tab" and the files toggle should be in a "⋯" menu.
 - On a phone, the header's Commit and Share buttons should show only their icons, Publish keeps its label, and the project's name should stay on one line, cut short if it's long.
 - Panels opened from the header (Share, Publish) should fit the phone's screen.
-- "Sign in to Claude" should switch to the Workspace tab (where the Shell runs the sign-in), and a successful sign-in should switch back to the Chat tab.
 
 ## PUB-001: Publish a project
 
@@ -737,6 +745,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Visitor should see the droplet in the header logo pop into a small burst of particles when hovering over it (never on its own), then bounce back, once the hero's drop has landed.
 - None of the drop, particle, black hole, or twinkle motion should play when reduced motion is on.
 - Visitor should see the tools it works with: Claude, OpenAI, OpenRouter, OpenCode, Docker, Blaxel, Runtime, E2B, Daytona, Vercel, Tailscale, macOS and Linux laptops, and servers on AWS, Google Cloud, Hetzner, DigitalOcean, Vultr, or any Ubuntu machine.
+- Visitor should see those tools in one quiet row of grey logos that light up when hovered, drifting slowly sideways and pausing while hovered or focused (still and wrapped when reduced motion is on).
 - Visitor should be able to click any of those tools to go to its website.
 - Visitor should see how it works in four steps and the main features in plain language.
 - Visitor should see answers to common questions (coding knowledge, which AI, whether it's ready for production, where apps run, who can see them, cost).
@@ -773,6 +782,15 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be able to move between sections without the modal closing, and link straight to any section.
 - User should be able to close the modal with the close button or Escape and land back on the page they opened it from (the dashboard if they arrived by a direct link).
 - Groups, Invite people, and Users should no longer be in the sidebar.
+
+## HOME-004: Start a project from the home page
+
+- Visitor should see the new-project page's three ways to start on the home page, under the hero: "Start from scratch" with a prompt, "Or start from a template" with the built-in templates (picking one fills the prompt), and "Or install a free app" with the same coverflow, searchable list (⌘K / Ctrl K included) and details as the new-project page (PRJ-012). Only the first 12 apps show until they search, pick a category or click "Show all N apps".
+- Logged-out visitor who sends a prompt, or clicks "Use" in a free app's details, should be asked to create an account (or log in, where sign-up is closed), then find it waiting on the new-project page: the prompt filled in (with its template, if they picked one), or the free app's details open.
+- Logged-in user should go straight to their new-project page with it waiting.
+- A free app's details on the home page should say that using it asks them to create a free account first, for a visitor who isn't signed in.
+- While something they picked on the home page is waiting, the sign-up and log-in pages should show it beside the form: the free app's card (picture, logo, name, version, description) or the template or prompt they wrote, with the three steps ahead (create an account or log in, connect your AI, then we set it up). "Not now" should drop it and go back to the plain page.
+- While it's waiting, the AI onboarding page should say what it's for ("Next: we set up Chatwoot for you").
 
 ## HOME-002: Link previews when sharing
 

@@ -3,7 +3,7 @@
 FROM php:8.4-cli-bookworm
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends git curl unzip ca-certificates sqlite3 libsqlite3-dev libpq-dev libzip-dev procps openssh-server bash-completion vim ncdu rsync inotify-tools tmux \
+    && apt-get install -y --no-install-recommends git curl unzip ca-certificates sqlite3 libsqlite3-dev libpq-dev libzip-dev procps openssh-server bash-completion vim ncdu rsync inotify-tools tmux zstd \
     && docker-php-ext-install pdo_sqlite pdo_pgsql pdo_mysql zip pcntl \
     && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
@@ -62,8 +62,8 @@ RUN useradd --create-home --shell /bin/bash sandbox \
     && mkdir -p /workspace /data/storage && chown sandbox:sandbox /workspace /data/storage
 
 COPY placeholder /opt/onedrop/placeholder
-# shell-entry runs each Shell tab in its own tmux session (tmux.conf, shell-reap), so a reloaded page gets it back (LAYOUT-005). fork copies the app for a task and merges its work back (TASK-003). file-watcher.mjs tells the Files panel when files come and go (FILE-004). inspector.js is the preview's Inspect mode, served by host-proxy.mjs (AGT-014). share-card makes share cards (SHARE-001). db.php backs the Tools → Database panel (SQLite, Postgres and MySQL through PDO); auth.php backs Users & Auth; secrets.php backs Secrets; storage.php backs App Storage; git.php backs Git.
-COPY start.sh restart stop-agent shell-entry shell-reap tmux.conf checkpoint fork share-card forwarder.mjs file-watcher.mjs host-proxy.mjs inspector.js db.php auth.php secrets.php storage.php git.php skills.php instructions.md opencode.json /opt/onedrop/
+# shell-entry runs each Shell tab in its own tmux session (tmux.conf, shell-reap), so a reloaded page gets it back (LAYOUT-005). fork copies the app for a task and merges its work back (TASK-003). file-watcher.mjs tells the Files panel when files come and go (FILE-004). inspector.js is the preview's Inspect mode, served by host-proxy.mjs (AGT-014). share-card makes share cards (SHARE-001). db.php backs the Tools → Database panel (SQLite, Postgres and MySQL through PDO); auth.php backs Users & Auth; secrets.php backs Secrets; storage.php backs App Storage; git.php backs Git. snapshot packs and restores project snapshots (SBX-009).
+COPY start.sh restart stop-agent shell-entry shell-reap tmux.conf checkpoint fork share-card forwarder.mjs file-watcher.mjs host-proxy.mjs inspector.js db.php auth.php secrets.php storage.php git.php skills.php snapshot instructions.md opencode.json /opt/onedrop/
 # Task guides the agent follows (e.g. guides/auth.md for adding sign-in).
 COPY guides /opt/onedrop/guides
 # Shell setup lives in /opt/onedrop (not the home folder, which updates carry over) so image changes reach every sandbox; ~/.bashrc only loads it.
@@ -102,3 +102,7 @@ RUN HOME=/home/sandbox npx --yes playwright@1.63.0 install ffmpeg && rm -rf /hom
 EXPOSE 8000 7681 2222
 
 CMD ["/opt/onedrop/start.sh"]
+
+# The base files, so the platform can tell a sandbox's base apart from the current one (SBX-002): other tool files are
+# copied into running sandboxes when they change, but a change to these needs a new sandbox from a new image.
+COPY Dockerfile start.sh dockerd shell-keys.js /opt/onedrop-base/

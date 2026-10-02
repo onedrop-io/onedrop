@@ -19,7 +19,7 @@ description: 'Common problems and how to fix them.'
 
   </Accordion>
   <Accordion title="The preview shows a loading skeleton and buttons don't work">
-    The app's JavaScript isn't loading. Sandboxes created before the preview went through the host proxy need the current image. Rebuild it with `php artisan sandbox:build-image`, then update them (they also update on their own when opened):
+    The app's JavaScript isn't loading. Sandboxes created before the preview went through the host proxy need the current image. Rebuild it with `php artisan sandbox:build-image`, then update them (they also update on their own once unused):
 
     ```bash
     php artisan sandbox:update

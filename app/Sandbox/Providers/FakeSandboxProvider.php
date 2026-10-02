@@ -5,6 +5,7 @@ namespace App\Sandbox\Providers;
 use App\Sandbox\ExecResult;
 use App\Sandbox\SandboxProvider;
 use App\Sandbox\SandboxSpec;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 
 /**
@@ -101,6 +102,24 @@ class FakeSandboxProvider implements SandboxProvider
     public function copyIn(string $id, string $directory, string $path): void
     {
         $this->copied[] = ['in', $id, $path, $directory];
+    }
+
+    /** What installFiles() answers: whether the provider can write the platform's tools. */
+    public bool $installs = true;
+
+    /** @var list<array{id: string, path: string, files: list<string>}> */
+    public array $installed = [];
+
+    public function installFiles(string $id, string $directory, string $path): bool
+    {
+        if (! $this->installs) {
+            return false;
+        }
+
+        $files = collect(File::allFiles($directory))->map(fn ($file) => $file->getRelativePathname())->sort()->values()->all();
+        $this->installed[] = ['id' => $id, 'path' => $path, 'files' => $files];
+
+        return true;
     }
 
     public function destroy(string $id): void

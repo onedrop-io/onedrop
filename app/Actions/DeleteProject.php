@@ -7,6 +7,7 @@ use App\Models\Attachment;
 use App\Models\Project;
 use App\Sandbox\ProjectBackups;
 use App\Sandbox\ProjectIcons;
+use App\Sandbox\ProjectSnapshots;
 use App\Sandbox\Publishing\Publishers;
 use App\Sandbox\Publishing\PublishException;
 use App\Sandbox\ShareCards;
@@ -14,10 +15,10 @@ use Illuminate\Support\Facades\Storage;
 
 class DeleteProject
 {
-    public function __construct(protected Publishers $publishers, protected ProjectBackups $backups, protected ProjectIcons $icons, protected ShareCards $shareCards) {}
+    public function __construct(protected Publishers $publishers, protected ProjectBackups $backups, protected ProjectSnapshots $snapshots, protected ProjectIcons $icons, protected ShareCards $shareCards) {}
 
     /**
-     * Delete the project: take its app offline, then remove its chat, attachments, code backup, icon, share page, and sandbox.
+     * Delete the project: take its app offline, then remove its chat, attachments, code backup, snapshots, icon, share page, and sandbox.
      */
     public function handle(Project $project): void
     {
@@ -35,6 +36,7 @@ class DeleteProject
         $project->delete();
         Storage::disk(Attachment::disk())->deleteDirectory("attachments/{$project->id}");
         $this->backups->delete($project);
+        $this->snapshots->delete($project);
         $this->icons->delete($project);
         $this->shareCards->delete($project->id);
 

@@ -319,6 +319,33 @@ class RuntimeSandboxProvider implements SandboxProvider
         $this->send('post', "sandboxes/{$id}/uploads/{$upload['uploadId']}:commit", [], timeout: 120);
     }
 
+    public function installFiles(string $id, string $directory, string $path): bool
+    {
+        $local = tempnam(sys_get_temp_dir(), 'onedrop-copy-');
+        // Uploads may only go under /workspace; the unpack below removes it again.
+        $archive = '/workspace/.onedrop-copy-'.Str::random(8).'.tgz';
+
+        try {
+            $result = Process::env(['COPYFILE_DISABLE' => '1'])->run(['tar', '-czf', $local, '-C', $directory, '.']);
+
+            if ($result->failed()) {
+                throw new SandboxException("Couldn't pack {$directory}: ".strtok(trim($result->errorOutput()), "\n"));
+            }
+
+            $this->upload($id, $local, $archive);
+        } finally {
+            @unlink($local);
+        }
+
+        $unpacked = $this->exec($id, ['sudo', 'bash', '-c', 'tar -xzf "$2" --no-same-owner -C "$1"; status=$?; rm -f "$2"; exit $status', 'install', $path, $archive]);
+
+        if (! $unpacked->successful()) {
+            throw new SandboxException("Couldn't copy files into {$path} in the sandbox: ".(strtok(trim($unpacked->errorOutput), "\n") ?: 'tar failed'));
+        }
+
+        return true;
+    }
+
     public function destroy(string $id): void
     {
         $response = $this->request('post', "sandboxes/{$id}:stop", [], wait: 60);

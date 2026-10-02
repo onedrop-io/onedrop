@@ -24,6 +24,10 @@ if (! config('app.laravel_cloud')) {
 // previous version behind (SBX-003).
 Schedule::command('sandbox:prune-images')->hourly()->withoutOverlapping();
 
+// A snapshot of every project used that day, then old snapshots deleted (SBX-009). After-turn and before-update
+// snapshots happen as they come; this catches changes made without the agent (the Shell tab, the app itself).
+Schedule::command('sandbox:snapshot')->dailyAt('04:00')->withoutOverlapping();
+
 // Database backups (ADMIN-005), on the schedule an admin chose in Settings → Backups.
 Schedule::job(new BackUpDatabase)
     ->cron(app(DatabaseBackups::class)->settings()['schedule'])

@@ -1,0 +1,163 @@
+#!/usr/bin/env bash
+# Project snapshots (SBX-009): the project's state in layers the platform keeps outside every sandbox provider.
+#
+#   snapshot fingerprint             one "layer hash" line per layer; a layer whose hash didn't change isn't packed again
+#   snapshot pack LAYER... DIR       freeze the app, pack each layer to DIR/LAYER.tar.zst (or .tar.gz), thaw; deps after
+#   snapshot put FILE                upload FILE to $ONEDROP_SNAPSHOT_URL (headers in $ONEDROP_SNAPSHOT_HEADERS), then delete it
+#   snapshot restore LAYER SOURCE    unpack a layer from SOURCE: a file, or a URL ($ONEDROP_SNAPSHOT_URL when SOURCE is "url")
+#
+# Layers: workspace (/workspace without dependency folders), deps (node_modules and vendor, keyed by the lockfiles),
+# home (/home/sandbox without caches) and storage (App Storage). Depends only on bash, coreutils, find, tar and curl,
+# so it also runs on sandboxes made from older images; zstd is used where the image has it, gzip otherwise.
+set -euo pipefail
+
+STORAGE="${APP_STORAGE_DIR:-/data/storage}"
+# node_modules at any depth, and Composer's vendor at the top (a source folder named vendor deeper down is the app's).
+DEPS='-name node_modules -o -path ./vendor'
+HOME_CACHES=(.cache .npm .bun/install/cache .composer/cache .local/share/pnpm/store .yarn/berry/cache)
+LOCKFILES=(package-lock.json pnpm-lock.yaml yarn.lock bun.lockb bun.lock composer.lock)
+
+target() {
+    case "$1" in
+        workspace | deps) echo /workspace ;;
+        home) echo "$(getent passwd "$(id -un)" | cut -d: -f6)" ;;
+        storage) echo "$STORAGE" ;;
+        *) echo "Unknown layer: $1" >&2; exit 2 ;;
+    esac
+}
+
+# The dependency folders under /workspace, relative to it, outermost only.
+deps_folders() {
+    cd /workspace && find . -mindepth 1 \( -name .git -prune \) -o -type d \( $DEPS \) -prune -print 2>/dev/null | sed 's|^\./||' | sort
+}
+
+home_excludes() {
+    local cache
+    for cache in "${HOME_CACHES[@]}"; do printf -- '--exclude=./%s\n' "$cache"; done
+}
+
+# Changes whenever a file is added, removed, resized or written to.
+fingerprint() {
+    local layer="$1" dir
+    dir="$(target "$layer")"
+
+    if [ ! -d "$dir" ]; then
+        echo "$layer empty"
+        return
+    fi
+
+    case "$layer" in
+        workspace) (cd "$dir" && find . \( -type d \( $DEPS \) -prune \) -o -printf '%P\t%s\t%T@\n' 2>/dev/null) ;;
+        deps)
+            deps_folders
+            (cd "$dir" && for lock in "${LOCKFILES[@]}"; do find . -name "$lock" -not -path '*/node_modules/*' -not -path '*/vendor/*' -exec sha256sum {} + 2>/dev/null; done)
+            ;;
+        home) (cd "$dir" && find . $(for cache in "${HOME_CACHES[@]}"; do printf -- '-path ./%s -prune -o ' "$cache"; done) -printf '%P\t%s\t%T@\n' 2>/dev/null) ;;
+        storage) (cd "$dir" && find . -printf '%P\t%s\t%T@\n' 2>/dev/null) ;;
+    esac | LC_ALL=C sort | sha256sum | cut -c1-32 | sed "s/^/$layer /"
+}
+
+compressor() {
+    if command -v zstd >/dev/null; then echo zst; else echo gz; fi
+}
+
+pack_layer() {
+    local layer="$1" out="$2" dir
+    dir="$(target "$layer")"
+    local compress=(gzip -1)
+    [ "$(compressor)" = zst ] && compress=(zstd -q -T0 -3)
+
+    if [ ! -d "$dir" ]; then
+        tar -c -T /dev/null | "${compress[@]}" >"$out"
+        return
+    fi
+
+    case "$layer" in
+        workspace) tar_layer -C "$dir" --exclude=node_modules --exclude=./vendor . ;;
+        deps)
+            mapfile -t folders < <(deps_folders)
+            if [ "${#folders[@]}" -eq 0 ]; then tar -c -T /dev/null; else tar_layer -C "$dir" -- "${folders[@]}"; fi
+            ;;
+        home) mapfile -t excludes < <(home_excludes); tar_layer -C "$dir" "${excludes[@]}" . ;;
+        storage) tar_layer -C "$dir" . ;;
+    esac | "${compress[@]}" >"$out"
+}
+
+# tar exits 1 when a file changed while it was read (a log being written); the archive is still good.
+tar_layer() {
+    tar -c --warning=no-file-changed --warning=no-file-removed "$@" || [ $? -eq 1 ]
+}
+
+FROZEN=()
+WATCHDOG=
+
+# Stop the sandbox user's processes (the app, its database) so their files are at rest; a watchdog thaws them if this
+# never gets to (killed mid-copy).
+freeze() {
+    local pid
+    for pid in $(pgrep -u "$(id -u)"); do
+        [ "$pid" = $$ ] || [ "$pid" = "$PPID" ] || [ "$pid" = "$BASHPID" ] || { kill -STOP "$pid" 2>/dev/null && FROZEN+=("$pid"); } || true
+    done
+    (sleep 120; kill -CONT "${FROZEN[@]}" 2>/dev/null) </dev/null >/dev/null 2>&1 &
+    WATCHDOG=$!
+}
+
+thaw() {
+    [ "${#FROZEN[@]}" -gt 0 ] && kill -CONT "${FROZEN[@]}" 2>/dev/null || true
+    [ -n "$WATCHDOG" ] && kill "$WATCHDOG" 2>/dev/null || true
+    FROZEN=()
+}
+
+curl_headers() {
+    local line
+    while IFS= read -r line; do [ -n "$line" ] && printf -- '-H\n%s\n' "$line"; done <<<"${ONEDROP_SNAPSHOT_HEADERS:-}"
+}
+
+case "${1:-}" in
+    fingerprint)
+        for layer in workspace deps home storage; do fingerprint "$layer"; done
+        ;;
+    pack)
+        shift
+        dir="${*: -1}"
+        layers=("${@:1:$#-1}")
+        mkdir -p "$dir"
+        ext="$(compressor)"
+        trap thaw EXIT
+        stateful=()
+        for layer in "${layers[@]}"; do [ "$layer" = deps ] || stateful+=("$layer"); done
+        if [ "${#stateful[@]}" -gt 0 ]; then
+            freeze
+            for layer in "${stateful[@]}"; do pack_layer "$layer" "$dir/$layer.tar.$ext"; done
+            thaw
+        fi
+        # Dependencies only change when something installs, so the app keeps running while they're packed.
+        for layer in "${layers[@]}"; do [ "$layer" != deps ] || pack_layer deps "$dir/deps.tar.$ext"; done
+        for layer in "${layers[@]}"; do echo "$layer $ext $(stat -c %s "$dir/$layer.tar.$ext")"; done
+        ;;
+    put)
+        mapfile -t headers < <(curl_headers)
+        curl -fsS --retry 3 -X PUT "${headers[@]}" -T "$2" "$ONEDROP_SNAPSHOT_URL" >/dev/null
+        rm -f "$2"
+        ;;
+    restore)
+        layer="$2"
+        source="$3"
+        dir="$(target "$layer")"
+        mkdir -p "$dir"
+        if [ "$source" = url ]; then
+            fetch=(curl -fsS --retry 3 "$ONEDROP_SNAPSHOT_URL")
+            kind="${ONEDROP_SNAPSHOT_COMPRESSION:-zst}"
+        else
+            fetch=(cat "$source")
+            kind="${source##*.}"
+        fi
+        if [ "$kind" = zst ]; then decompress=(zstd -q -d); else decompress=(gzip -d); fi
+        "${fetch[@]}" | "${decompress[@]}" | tar -x -C "$dir" --no-same-owner
+        [ "$source" = url ] || rm -f "$source"
+        ;;
+    *)
+        echo "Usage: snapshot fingerprint | pack LAYER... DIR | put FILE | restore LAYER SOURCE" >&2
+        exit 2
+        ;;
+esac
