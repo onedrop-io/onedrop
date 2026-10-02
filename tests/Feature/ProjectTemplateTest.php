@@ -24,6 +24,15 @@ test('the new-project page offers every template', function () {
             ]));
 })->group('PRJ-004');
 
+test('every template has its own name, a card line and a full prompt', function () {
+    $templates = collect(AppTemplate::cases());
+
+    expect($templates->map->label()->unique())->toHaveCount($templates->count());
+
+    $templates->each(fn (AppTemplate $template) => expect($template->description())->not->toBeEmpty()
+        ->and($template->prompt())->toEndWith('Add some sample data so I can try it.'));
+})->group('PRJ-004');
+
 test('a project started from a template is named after it and keeps the edited prompt', function () {
     Queue::fake();
 

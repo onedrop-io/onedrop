@@ -243,7 +243,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## PRJ-004: Start from a template
 
-- User should see templates for common business apps (CRM, project tracker, content calendar, inventory, hiring, events, help desk, time off, expenses) under the new-project prompt.
+- User should see templates for common business apps (CRM, project tracker, content calendar, inventory, hiring, events, help desk, time off, expenses, product roadmap, bug tracker, goals and OKRs, customer feedback, team directory, employee onboarding, equipment checkout, shift schedule, client portal, grant tracker, volunteer scheduling, rental properties) under the new-project prompt, each with its own icon.
 - User should be able to pick a template to fill in the prompt with a full description, then change it before sending.
 - A project started from a template should be named after the template.
 - Clearing the prompt should drop the template, so the project is named from what they type instead.
