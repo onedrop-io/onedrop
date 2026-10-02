@@ -76,7 +76,9 @@ class WorkspaceFiles
             '-o', '-printf', '%y %P\n',
         ]);
 
-        if (! $result->successful()) {
+        // find still lists everything else when it can't read a folder (e.g. a database's data folder owned by
+        // its container's user, SBX-008), but exits with an error; only nothing listed at all is a failure.
+        if (! $result->successful() && trim($result->output) === '') {
             throw new SandboxException("Couldn't list the project's files.");
         }
 

@@ -6,6 +6,10 @@ import AppLayout from '@/layouts/app-layout';
 import AuthLayout from '@/layouts/auth-layout';
 import OnboardingLayout from '@/layouts/onboarding-layout';
 import SettingsLayout from '@/layouts/settings/layout';
+import {
+    preserveStateOnSamePageOnly,
+    trackCurrentComponent,
+} from '@/lib/layout-props';
 import { isSettingsPage } from '@/lib/settings';
 import { markUnseenReloads } from '@/lib/unseen-reloads';
 
@@ -36,6 +40,9 @@ void createInertiaApp({
         }
     },
     strictMode: true,
+    defaults: {
+        visitOptions: preserveStateOnSamePageOnly,
+    },
     withApp(app) {
         return (
             <TooltipProvider delayDuration={0}>
@@ -53,3 +60,4 @@ void createInertiaApp({
 initializeTheme();
 
 markUnseenReloads();
+trackCurrentComponent();

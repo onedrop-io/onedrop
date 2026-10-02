@@ -11,6 +11,7 @@ import {
     Brush,
     Check,
     ChevronDown,
+    Boxes,
     ClipboardList,
     Copy,
     ExternalLink,
@@ -88,6 +89,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { TaskStatusIcon } from '@/components/task-status-icon';
 import ConsoleView, { Notice } from '@/components/workspace/console-view';
+import ServicesView from '@/components/workspace/services-view';
 import RequirementsView from '@/components/workspace/requirements-view';
 import BrowserView, { closeBrowser } from '@/components/workspace/browser-view';
 import type { BrowserSession } from '@/components/workspace/browser-view';
@@ -1670,6 +1672,7 @@ function WorkspacePanel({
             tools: '',
             file: openPath,
             console: 'App output',
+            services: 'Processes, containers and ports',
             requirements: '.onedrop/REQ.md',
             tests: 'tests/e2e',
             browser: '',
@@ -2403,6 +2406,16 @@ function WorkspacePanel({
                     ),
                 )}
                 {content(
+                    'services',
+                    shown('services') && (
+                        <ServicesView
+                            projectId={project.id}
+                            active
+                            running={running}
+                        />
+                    ),
+                )}
+                {content(
                     'requirements',
                     shown('requirements') && (
                         <RequirementsView
@@ -2648,13 +2661,15 @@ function shellUrlWith(
 }
 
 /** Tabs the "+" menu adds. */
-type ToolTab = 'console' | 'shell' | 'requirements' | 'tests' | 'browser';
+type ToolTab =
+    'console' | 'services' | 'shell' | 'requirements' | 'tests' | 'browser';
 
 /** Tabs the URL can ask for. */
 const ACTIVE_TABS: PaneTab[] = [
     'tools',
     'preview',
     'console',
+    'services',
     'shell',
     'requirements',
     'tests',
@@ -2718,6 +2733,7 @@ const HIDE_HIDDEN_KEY = 'onedrop.files-hide-hidden';
 
 const TOOL_TABS: Record<ToolTab, { label: string; icon: React.ReactNode }> = {
     console: { label: 'Console', icon: <Terminal className="size-4" /> },
+    services: { label: 'Services', icon: <Boxes className="size-4" /> },
     shell: { label: 'Shell', icon: <SquareTerminal className="size-4" /> },
     requirements: {
         label: 'Requirements',

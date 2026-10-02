@@ -32,6 +32,12 @@ class DockerSandboxProvider implements SandboxProvider
     /** Where the sandbox's own Docker keeps its data (SBX-008): a volume of its own, deleted with the container. */
     public const DOCKER_MOUNT = '/var/lib/docker';
 
+    /** Copies a container path ($1, which may be stopped) into a host folder ($2). */
+    public const COPY_OUT = 'set -o pipefail; docker cp "$1" - | tar -x -C "$2"';
+
+    /** Copies a host folder ($1) into a running container ($2) at a path ($3). COPYFILE_DISABLE keeps macOS's ._ files out. */
+    public const COPY_IN = 'set -o pipefail; tar -c -C "$1" . | docker exec -i -u root "$2" tar -x -C "$3"';
+
     /** Seconds a stopping container gets to exit by itself before it's killed. */
     public const STOP_SECONDS = 5;
 
@@ -248,6 +254,7 @@ class DockerSandboxProvider implements SandboxProvider
         // Docker inside sandboxes turned on or off (SBX-008): recreate it with (or without) its own Docker.
         return trim($current->output()) !== trim($used->output())
             || $this->mounts($id, self::DOCKER_MOUNT) !== $this->runsDocker()
+            || ($this->runsDocker() && $this->isPrivileged($id) !== (($this->config['nested_docker'] ?? null) === 'privileged'))
             || (filled($this->config['storage_path'] ?? null) && (! $this->mounts($id, self::STORAGE_MOUNT) || ! $this->mounts($id, self::CLAUDE_MOUNT)));
     }
 
@@ -258,7 +265,9 @@ class DockerSandboxProvider implements SandboxProvider
             return;
         }
 
-        $result = Process::forever()->run(['docker', 'cp', "{$id}:{$path}/.", $directory]);
+        // Docker refuses to unpack a relative symlink that climbs out of the folder it's copying into (`corepack enable`
+        // leaves ~/.local/bin/pnpm -> ../../../../usr/lib/...), so take the archive and unpack it with tar instead.
+        $result = Process::forever()->run(['bash', '-c', self::COPY_OUT, 'copy-out', "{$id}:{$path}/.", $directory]);
 
         // A path the sandbox never created (e.g. no App Storage yet) has nothing to copy.
         if ($result->failed() && ! str_contains($result->errorOutput(), 'Could not find the file')) {
@@ -269,7 +278,8 @@ class DockerSandboxProvider implements SandboxProvider
     public function copyIn(string $id, string $directory, string $path): void
     {
         $this->docker(['exec', '-u', 'root', $id, 'mkdir', '-p', $path]);
-        $result = Process::forever()->run(['docker', 'cp', "{$directory}/.", "{$id}:{$path}"]);
+        // Unpacked by the container's own tar, for the same symlinks Docker refuses in copyOut.
+        $result = Process::env(['COPYFILE_DISABLE' => '1'])->forever()->run(['bash', '-c', self::COPY_IN, 'copy-in', $directory, $id, $path]);
 
         if ($result->failed()) {
             throw new SandboxException($this->explain($result));
@@ -312,6 +322,10 @@ class DockerSandboxProvider implements SandboxProvider
         $args = ['--mount', 'type=volume,target='.self::DOCKER_MOUNT, '--env', 'ONEDROP_DOCKER=1'];
 
         if (($this->config['nested_docker'] ?? null) !== 'privileged') {
+            if (blank($this->config['runtime'] ?? null)) {
+                throw new SandboxException('Docker inside sandboxes is set to "runtime", but no container runtime is set. In Settings → Sandboxes → Docker, set one that makes Docker in a container safe (such as sysbox-runc), or choose "privileged" on a local install.');
+            }
+
             return $args;
         }
 
@@ -434,6 +448,16 @@ class DockerSandboxProvider implements SandboxProvider
         $name = ltrim(trim($result->output()), '/');
 
         return $result->successful() && $name !== '' ? $name : null;
+    }
+
+    /**
+     * Whether the container runs with --privileged.
+     */
+    protected function isPrivileged(string $id): bool
+    {
+        $result = Process::timeout(15)->run(['docker', 'inspect', '--format', '{{.HostConfig.Privileged}}', $id]);
+
+        return $result->successful() && trim($result->output()) === 'true';
     }
 
     /**

@@ -20,12 +20,21 @@ Drag the divider between the chat and the workspace to make either one wider, or
 | **Tools**   | Project tools such as Publishing, Database, and Secrets   | No        |
 | **Preview** | Your running app, with size, reload and open-in-new-tab buttons | No        |
 | **Console** | The app's dev server output as it happens                 | Yes       |
+| **Services** | What runs in the sandbox: the preview server, Docker containers and open ports ([Services](#services)) | Yes |
 | **Shell**   | An interactive terminal in the project's workspace        | Yes       |
 | **Requirements** | What you've asked the app to do, and why ([Requirements](/guides/requirements)) | Yes |
 | **Tests**   | The agent's browser tests, with a recording of each ([Tests](/guides/tests)) | Yes |
 | File tabs   | An editor for a file you opened                           | Yes       |
 
-Add Console, Shell, Requirements or Tests from the **+** button. Each time you choose **Shell** you get another one (**Shell 2**, **Shell 3**…), each with its own session. Drag the tabs you can close to put them in a different order; Tools and Preview always stay first. A shell keeps its session while you switch tabs or [reload the page](#reloading-the-page), and the cursor lands in it whenever you open the tab, so you can start typing right away. It opens with a OneDrop banner showing the project's name and a few shortcuts.
+Add Console, Services, Shell, Requirements or Tests from the **+** button. Each time you choose **Shell** you get another one (**Shell 2**, **Shell 3**…), each with its own session. Drag the tabs you can close to put them in a different order; Tools and Preview always stay first. A shell keeps its session while you switch tabs or [reload the page](#reloading-the-page), and the cursor lands in it whenever you open the tab, so you can start typing right away. It opens with a OneDrop banner showing the project's name and a few shortcuts.
+
+### Services
+
+The **Services** tab shows what's running in the project's sandbox, and checks again every few seconds while it's open:
+
+- **Preview server**: the command the preview runs (from `.onedrop/dev`, or the placeholder page), whether it's running, and **Restart**.
+- **Docker**: each container the sandbox's own Docker runs, grouped by compose project, with its state, how long it's been up (or why it's restarting, with its exit code), and the ports it publishes. Open a container's latest logs, or restart, stop or start it. Projects that [run their own Docker Compose](/guides/docker-compose) show their whole stack here.
+- **Ports**: everything listening in the sandbox and what it is (the preview, the host proxy, the Shell tab, SSH, or a Docker service). Only the preview port is reachable from outside.
 
 ### Panes
 
@@ -233,6 +242,7 @@ Renaming never overwrites anything either: if the new name is taken, you'll see 
 Open files are editable, with syntax highlighting for most languages.
 
 - Save with the **Save** button or <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>S</kbd>. The file is written straight into the sandbox, so a running dev server picks it up.
+- Your app only reads some files when it starts: `.env` files, `.onedrop/dev` and Docker Compose files. After you save one, the editor asks whether to restart the preview so the change takes effect. Choose **Restart**, or **Not now** to restart later from the Services tab.
 - A dot on the file's tab means it has unsaved changes. You're asked before closing it or opening another file.
 - If the agent changes a file you haven't edited, the editor shows the new version. Your unsaved edits are never overwritten.
 

@@ -22,6 +22,7 @@ use App\Sandbox\SandboxProvider;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use Inertia\Inertia;
 
 beforeEach(function () {
     $this->user = User::factory()->has(AgentConnection::factory())->create();
@@ -178,6 +179,23 @@ test('deleting a project from another page stays there', function () {
         ->from(route('projects.show', $current))
         ->delete(route('projects.destroy', $other))
         ->assertRedirect(route('projects.show', $current));
+})->group('PRJ-003');
+
+test('a page still open on a deleted project leaves for the dashboard on its next background reload', function () {
+    Queue::fake();
+    $url = route('projects.show', $this->project);
+
+    $this->actingAs($this->user)->delete(route('projects.destroy', $this->project));
+
+    $this->withHeaders([
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) Inertia::getVersion(),
+        'X-Inertia-Partial-Component' => 'projects/show',
+        'X-Inertia-Partial-Data' => 'project,messages',
+    ])->get($url)->assertRedirect(route('dashboard'));
+
+    // Opening it isn't a background reload: that's still a 404.
+    $this->flushHeaders()->get($url)->assertNotFound();
 })->group('PRJ-003');
 
 test('users cannot change or delete someone else\'s project', function () {

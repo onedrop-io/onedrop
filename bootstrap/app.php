@@ -13,6 +13,8 @@ use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Middleware\SubstituteBindings;
+use Inertia\Support\Header;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -63,4 +65,12 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
+
+        // A background reload (polling, live updates) of a page that's gone, like a project just deleted in this
+        // or another tab, leaves for the dashboard instead of showing a 404 (PRJ-003).
+        $exceptions->render(function (NotFoundHttpException $e, Request $request) {
+            if ($request->isMethod('GET') && $request->inertia() && $request->hasHeader(Header::PARTIAL_COMPONENT)) {
+                return to_route('dashboard');
+            }
+        });
     })->create();

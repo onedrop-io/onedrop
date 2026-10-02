@@ -39,6 +39,25 @@ test('lists workspace files, folders and collapsed folders', function () {
         ->and($command)->toContain('/workspace', '-prune', 'node_modules', 'vendor', '.git');
 })->group('FILE-001');
 
+test('folders the sandbox user can\'t read are skipped instead of failing the whole list', function () {
+    $this->provider->execUsing = fn () => new ExecResult(1, "d tmp\nd tmp/mongo\nf compose.yaml\n", "find: '/workspace/tmp/mongo/journal': Permission denied\n");
+
+    $this->actingAs($this->user)
+        ->getJson(route('projects.files.index', $this->project))
+        ->assertOk()
+        ->assertJsonPath('files.0.path', 'compose.yaml')
+        ->assertJsonCount(3, 'files');
+})->group('FILE-001', 'SBX-008');
+
+test('a listing that finds nothing and fails is an error', function () {
+    $this->provider->execUsing = fn () => new ExecResult(1, '', 'find: /workspace: No such file or directory');
+
+    $this->actingAs($this->user)
+        ->getJson(route('projects.files.index', $this->project))
+        ->assertStatus(502)
+        ->assertJsonPath('message', "Couldn't list the project's files.");
+})->group('FILE-001');
+
 test('reads a file inside the workspace', function () {
     $this->provider->execUsing = fn () => new ExecResult(0, "export default 1;\n");
 

@@ -147,3 +147,31 @@ test('the sidebar shows what each project is doing, also when collapsed', functi
         ->assertVisible('@sidebar-project-working')
         ->assertNoJavaScriptErrors();
 })->group('PRJ-006');
+
+test('a page still open on a project deleted elsewhere moves to the dashboard, not a 404', function () {
+    $blog = Project::factory()->for($this->user)->create(['name' => 'Blog', 'read_at' => now(), 'status' => ProjectStatus::Working]);
+
+    $page = visit('/projects/'.$blog->id)->assertSee('Blog');
+
+    // As if from another tab: the page's background polling finds it gone.
+    $blog->delete();
+
+    $page->assertPathIs(orgPath())
+        ->assertDontSee('404')
+        ->assertDontSeeIn('nav[aria-label="breadcrumb"]', 'Blog')
+        ->assertNoJavaScriptErrors();
+})->group('PRJ-003');
+
+test('deleting the open project goes to the new-project page without its name left in the header', function () {
+    $blog = Project::factory()->for($this->user)->create(['name' => 'Blog', 'read_at' => now()]);
+
+    visit('/projects/'.$blog->id)
+        ->assertSeeIn('nav[aria-label="breadcrumb"]', 'Blog')
+        ->click('[aria-label="Actions for Blog"]')
+        ->click('@project-menu-delete')
+        ->click('@project-delete-confirm')
+        ->assertSee('Deleted “Blog”.')
+        ->assertPathIs(orgPath())
+        ->assertDontSeeIn('nav[aria-label="breadcrumb"]', 'Blog')
+        ->assertNoJavaScriptErrors();
+})->group('PRJ-003');

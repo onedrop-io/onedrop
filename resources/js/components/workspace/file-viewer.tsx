@@ -4,13 +4,33 @@ import type { Extension } from '@codemirror/state';
 import { keymap } from '@codemirror/view';
 import CodeMirror from '@uiw/react-codemirror';
 import { LanguageDescription } from '@codemirror/language';
-import { Save } from 'lucide-react';
+import { RotateCw, Save } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import ProjectServiceController from '@/actions/App/Http/Controllers/ProjectServiceController';
+import { Button } from '@/components/ui/button';
 import FileIcon from '@/components/workspace/file-icon';
 import { useAppearance } from '@/hooks/use-appearance';
 import { saveWorkspaceFile } from '@/hooks/use-workspace-files';
+import { jsonRequest } from '@/lib/json-request';
 import { cn } from '@/lib/utils';
 import type { WorkspaceFile } from '@/types';
+
+/**
+ * Whether the app only reads this file when it starts (FILE-007): `.env` files (not examples),
+ * `.onedrop/dev` and Docker Compose files, so a saved change needs a preview restart.
+ */
+export function readAtStartup(path: string): boolean {
+    const name = path.split('/').pop() ?? path;
+
+    if (/^\.env(\..+)?$/.test(name)) {
+        return !/\.(example|sample|dist|template)$/.test(name);
+    }
+
+    return (
+        path === '.onedrop/dev' ||
+        /^(docker-)?compose(\..+)?\.ya?ml$/.test(name)
+    );
+}
 
 /**
  * An open file: shows notices for binary/large files, otherwise an editor
@@ -73,6 +93,10 @@ function FileEditor({
     const [draft, setDraft] = useState(content);
     const [saving, setSaving] = useState(false);
     const [saveError, setSaveError] = useState<string | null>(null);
+    const [restart, setRestart] = useState<
+        'ask' | 'restarting' | 'done' | null
+    >(null);
+    const [restartError, setRestartError] = useState<string | null>(null);
     const [language, setLanguage] = useState<Extension | null>(null);
     const [lastContent, setLastContent] = useState(content);
     const dirty = draft !== saved;
@@ -123,12 +147,34 @@ function FileEditor({
         try {
             await saveWorkspaceFile(projectId, path, text);
             setSaved(text);
+
+            if (readAtStartup(path)) {
+                setRestart('ask');
+                setRestartError(null);
+            }
         } catch (e) {
             setSaveError((e as Error).message);
         } finally {
             setSaving(false);
         }
     };
+
+    const restartPreview = async () => {
+        setRestart('restarting');
+        setRestartError(null);
+
+        try {
+            await jsonRequest(
+                ProjectServiceController.restartPreview.url(projectId),
+                {},
+            );
+            setRestart('done');
+        } catch (e) {
+            setRestart('ask');
+            setRestartError((e as Error).message);
+        }
+    };
+
     // The keymap is built once per language, so it calls the latest save through a ref.
     const saveRef = useRef(save);
     useEffect(() => {
@@ -186,6 +232,47 @@ function FileEditor({
                     Save
                 </button>
             </div>
+            {restart && (
+                <div
+                    className="flex items-center gap-2 border-b border-sidebar-border/70 bg-muted/50 px-3 py-1.5 text-xs dark:border-sidebar-border"
+                    data-test="file-restart-prompt"
+                >
+                    <span className="min-w-0 flex-1">
+                        {restartError ? (
+                            <span className="text-red-600" role="alert">
+                                {restartError}
+                            </span>
+                        ) : restart === 'done' ? (
+                            'The preview is restarting with your change.'
+                        ) : (
+                            'Your app reads this file when it starts. Restart the preview to use the change?'
+                        )}
+                    </span>
+                    {restart !== 'done' && (
+                        <Button
+                            size="sm"
+                            className="h-6 px-2 text-xs"
+                            disabled={restart === 'restarting'}
+                            onClick={() => void restartPreview()}
+                            data-test="file-restart"
+                        >
+                            <RotateCw className="size-3" />
+                            {restart === 'restarting'
+                                ? 'Restarting…'
+                                : 'Restart'}
+                        </Button>
+                    )}
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 px-2 text-xs"
+                        onClick={() => setRestart(null)}
+                        data-test="file-restart-dismiss"
+                    >
+                        {restart === 'done' ? 'Close' : 'Not now'}
+                    </Button>
+                </div>
+            )}
             <CodeMirror
                 value={draft}
                 onChange={setDraft}

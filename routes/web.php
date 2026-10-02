@@ -41,6 +41,7 @@ use App\Http\Controllers\ProjectPublicationController;
 use App\Http\Controllers\ProjectRequirementsController;
 use App\Http\Controllers\ProjectSearchController;
 use App\Http\Controllers\ProjectSecretController;
+use App\Http\Controllers\ProjectServiceController;
 use App\Http\Controllers\ProjectShareController;
 use App\Http\Controllers\ProjectSkillController;
 use App\Http\Controllers\ProjectStorageController;
@@ -54,8 +55,8 @@ use App\Http\Controllers\SocialLoginController;
 use App\Http\Controllers\SshKeyController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TaskMessageController;
-use App\Http\Controllers\UsageController;
 use App\Http\Controllers\TemplateScreenshotController;
+use App\Http\Controllers\UsageController;
 use App\Http\Controllers\UserController;
 use App\Http\Middleware\HandleInertiaRequests;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
@@ -143,8 +144,8 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
             Route::put('projects/order', [ProjectOrderController::class, 'update'])->name('projects.order');
         });
 
-        Route::get('projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
         Route::get('templates/screenshots', TemplateScreenshotController::class)->middleware('throttle:60,1')->name('templates.screenshots');
+        Route::get('projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
         Route::patch('projects/{project}', [ProjectController::class, 'update'])->name('projects.update');
         Route::delete('projects/{project}', [ProjectController::class, 'destroy'])->name('projects.destroy');
         Route::post('projects/{project}/name', [ProjectController::class, 'regenerateName'])->name('projects.name.regenerate');
@@ -161,6 +162,10 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
         Route::delete('projects/{project}/files', [ProjectFileController::class, 'destroy'])->name('projects.files.destroy');
         Route::get('projects/{project}/files/download', [ProjectFileController::class, 'download'])->name('projects.files.download');
         Route::get('projects/{project}/logs', [ProjectLogController::class, 'index'])->name('projects.logs.index');
+        Route::get('projects/{project}/services', [ProjectServiceController::class, 'index'])->name('projects.services.index');
+        Route::post('projects/{project}/services/preview/restart', [ProjectServiceController::class, 'restartPreview'])->name('projects.services.preview.restart');
+        Route::get('projects/{project}/services/{name}/logs', [ProjectServiceController::class, 'logs'])->name('projects.services.logs');
+        Route::put('projects/{project}/services/{name}', [ProjectServiceController::class, 'update'])->name('projects.services.update');
         Route::get('projects/{project}/requirements', [ProjectRequirementsController::class, 'show'])->name('projects.requirements.show');
         Route::patch('projects/{project}/requirements', [ProjectRequirementsController::class, 'update'])->name('projects.requirements.update');
         Route::get('projects/{project}/tests', [ProjectTestController::class, 'index'])->name('projects.tests.index');

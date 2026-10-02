@@ -24,11 +24,17 @@ In the project's **Shell** tab, or by asking the agent, run:
 - Picks the port the preview shows: a web port of a service built from the repo, such as `app` on `8080`. Pick another with `--preview <port>`.
 - Writes `.onedrop/dev`, which runs the stack, and restarts the preview.
 
-Restarting the preview restarts the stack. To use other compose files, edit the `COMPOSE_FILE` line in `.onedrop/dev`.
+Restarting the preview restarts the stack, recreating any service whose compose file or `.env` values changed. To use other compose files, edit the `COMPOSE_FILE` line in `.onedrop/dev`.
 
 If the stack can't start, `init` says why: no compose file, a missing env file (projects often keep `.env` out of git; create it in the Files panel), or a port the sandbox already uses (`8081`, `7681` or `2222`).
 
 ## Work with the stack
+
+The workspace's [Services tab](/guides/workspace#services) shows each service's state and ports, its latest logs, and buttons to restart, stop or start it. **Restart** picks up changes to `.env` and the compose files: a service whose config changed is recreated, any other is just restarted. A stopped service stays stopped until you start it or restart the preview.
+
+<Note>
+Some images only read settings like an admin password the first time they start, and keep them in a volume. Changing those in `.env` has no effect until you change them in the app or remove the volume.
+</Note>
 
 `docker` and `docker compose` work in the Shell tab and for the agent:
 

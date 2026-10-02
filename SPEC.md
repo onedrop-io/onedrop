@@ -233,7 +233,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be able to share a project: see and copy the published app's link, or be told to publish it first.
 - User should be able to copy the project's link (C).
 - User should be able to archive a project (A), which moves it to a collapsed "Archived" section, and unarchive it from there.
-- User should be able to delete a project (D) after confirming; this takes the app offline and removes its chat, attachments, and sandbox. Deleting the open project takes them to the new-project page.
+- User should be able to delete a project (D) after confirming; this takes the app offline and removes its chat, attachments, and sandbox. Deleting the open project takes them to the new-project page. Any other tab still open on a deleted project moves to the new-project page too, never a "not found" page.
 - A deleted project's sandbox is removed from the provider it was created on, even if the configured provider has changed since.
 - Renaming, regenerating the title, pinning, marking, and archiving should not change a project's place in "Recent".
 - Admins opening someone's project should not mark it read for its owner.
@@ -421,9 +421,10 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Sandboxes should only get `--privileged` for this on a local install; a server needs a container runtime that makes Docker in a container safe (such as Sysbox), and a privileged setting there should fail with a message saying so.
 - Each sandbox's Docker should keep its images, containers and volumes on its own volume, deleted with the sandbox.
 - A sandbox's Docker should start again when the sandbox restarts, so an app that runs on it (e.g. its database) comes back.
-- Turning Docker inside sandboxes on or off should update existing sandboxes (files kept), as other sandbox changes do.
+- Turning Docker inside sandboxes on or off, or switching between privileged and runtime, should update existing sandboxes (files kept), as other sandbox changes do. Runtime with no container runtime set should fail with a message saying what to set.
 - `/opt/onedrop/compose init` should set a project up to start with its compose stack: it picks the compose files (the base file, its override, and an `arm64` overlay on arm64 machines), the web port the preview shows (or the one given), writes `.onedrop/dev`, and restarts the preview.
-- User should see the chosen service in the preview; restarting the preview restarts the stack.
+- User should see the chosen service in the preview; restarting the preview restarts the stack, recreating services whose config (compose files, `.env`) changed.
+- The Files panel should still list the project's files when a service keeps data the sandbox user can't read (such as Mongo's data folder); those folders are skipped.
 - `init` should say why a stack can't start (no compose file, a missing env file, a port the sandbox already uses).
 
 ## SBX-009: Project snapshots in object storage (planned)
@@ -436,6 +437,18 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Installed dependencies (`node_modules`, `vendor`) should come back from the snapshot, not be installed again, when the lockfiles haven't changed.
 - An admin should see each project's last snapshot time and size, and be able to restore a project from an earlier one.
 - Old snapshots should be deleted on a schedule (the last 10, plus one a day for 7 days); deleting a project deletes its snapshots.
+
+## SVC-001: Services tab
+
+- User should be able to open a Services tab from the workspace's "+" menu and see what's running in the project's sandbox, updated every few seconds while it's shown.
+- User should see what the preview runs (the command in `.onedrop/dev`, or the placeholder page), whether it's running, and be able to restart it.
+- User should see every container the sandbox's own Docker runs (SBX-008), grouped by compose project, with each one's service, state (running, restarting with its exit code, stopped), how long, and its published ports.
+- User should be able to read a container's recent logs, and restart, stop or start it.
+- Restarting a compose service should pick up changes to `.env` and the compose files (recreating it only when its config changed).
+- A container the user stops should stay stopped until they start it or restart the preview.
+- User should see the other ports open in the sandbox and what uses them (the host proxy, the Shell tab, SSH, the app).
+- User should see why nothing is shown when the sandbox isn't running, and a note when the sandbox has no Docker.
+- Only people who can change the project should be able to restart, stop or start things; anyone who can see it can see the tab.
 
 ## AGT-001: Real coding agent
 
@@ -512,6 +525,13 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be able to move through the results with the arrow keys and open one with Enter or a click; Escape closes the box.
 - It should work with the files panel closed, list hidden files, and never list files inside `node_modules`, `vendor`, `.git` or `.cache`.
 - User should see a message instead of results while the sandbox isn't running.
+
+## FILE-007: Restart after saving a startup file
+
+- After saving a file the app only reads when it starts (a `.env` file, `.onedrop/dev`, or a Docker Compose file), user should be asked whether to restart the preview.
+- User should be able to restart the preview from that prompt, or dismiss it with "Not now".
+- User should see when the preview is restarting, or why it couldn't restart.
+- Saving example env files (`.env.example`, `.env.sample`, …) or any other file should not ask.
 
 ## TAB-001: Workspace tabs
 

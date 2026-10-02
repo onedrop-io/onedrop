@@ -101,11 +101,44 @@ test('an open file can be edited with highlighting and saved', function () {
         ->assertSeeIn('@file-save-state', 'Unsaved changes')
         ->keys('[data-test="file-viewer"] .cm-content', 'ControlOrMeta+s')
         ->assertMissing('@file-dirty')
+        ->assertMissing('@file-restart-prompt')
         ->assertNoJavaScriptErrors();
 
     $write = collect($provider->executed)->firstWhere('command.0', 'sh');
     expect($write['env']['APP_CONTENT'])->toContain('// edited');
-})->group('FILE-002');
+})->group('FILE-002', 'FILE-007');
+
+test('saving a compose file asks to restart the preview', function () {
+    $provider = new FakeSandboxProvider;
+    $provider->execUsing = fn (array $command) => $command[0] === 'find'
+        ? new ExecResult(0, "f docker-compose.yml\n")
+        : new ExecResult(0, "services: {}\n");
+    app()->instance(SandboxProvider::class, $provider);
+
+    $user = User::factory()->has(AgentConnection::factory())->create();
+    $project = Project::factory()->for($user)->create();
+    Sandbox::factory()->for($project)->create(['preview_url' => null]);
+    $this->actingAs($user);
+
+    visit("/projects/{$project->id}")
+        ->resize(1600, 900)
+        ->navigate("/projects/{$project->id}")
+        ->click('[data-test="file-docker-compose.yml"]')
+        ->assertSeeIn('@file-viewer', 'services: {}')
+        ->click('[data-test="file-viewer"] .cm-content')
+        ->keys('[data-test="file-viewer"] .cm-content', 'ControlOrMeta+End')
+        ->typeSlowly('[data-test="file-viewer"] .cm-content', '# edited', 10)
+        ->assertMissing('@file-restart-prompt')
+        ->keys('[data-test="file-viewer"] .cm-content', 'ControlOrMeta+s')
+        ->assertSeeIn('@file-restart-prompt', 'Restart the preview to use the change?')
+        ->click('@file-restart')
+        ->assertSeeIn('@file-restart-prompt', 'The preview is restarting')
+        ->click('@file-restart-dismiss')
+        ->assertMissing('@file-restart-prompt')
+        ->assertNoJavaScriptErrors();
+
+    expect(collect($provider->executed)->pluck('command.0'))->toContain('/opt/onedrop/restart');
+})->group('FILE-007');
 
 test('the files menu hides dotfiles, creates a file and closes the panel', function () {
     $provider = new FakeSandboxProvider;

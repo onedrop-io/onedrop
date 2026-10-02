@@ -116,6 +116,30 @@ test('the shell greets each new terminal with a banner, but not nested shells, a
     }
 })->group('TAB-001');
 
+test('an update carries over a stopped sandbox\'s home folder, with symlinks that climb out of it', function () {
+    $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
+    $old = $docker->create(new SandboxSpec('onedrop-test-'.bin2hex(random_bytes(3))));
+    $new = $docker->create(new SandboxSpec('onedrop-test-'.bin2hex(random_bytes(3))));
+    $backup = storage_path('framework/testing/copy-'.bin2hex(random_bytes(3)));
+    mkdir($backup, recursive: true);
+
+    try {
+        // What `corepack enable --install-directory ~/.local/bin` leaves behind.
+        $docker->exec($old, ['bash', '-c', 'mkdir -p ~/.local/bin && ln -s ../../../../usr/lib/node_modules/corepack/dist/pnpm.js ~/.local/bin/pnpm && echo kept > ~/note']);
+        $docker->pause($old);
+
+        $docker->copyOut($old, '/home/sandbox', $backup);
+        $docker->copyIn($new, $backup, '/home/sandbox');
+
+        $check = $docker->exec($new, ['bash', '-c', 'readlink ~/.local/bin/pnpm; cat ~/note; stat -c %U ~/note']);
+        expect($check->output)->toBe("../../../../usr/lib/node_modules/corepack/dist/pnpm.js\nkept\nsandbox\n");
+    } finally {
+        $docker->destroy($old);
+        $docker->destroy($new);
+        Process::run(['rm', '-rf', $backup]);
+    }
+})->group('SBX-002');
+
 test('old shell files carried over by an update give way to the image\'s, and the user\'s own are kept', function () {
     $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
     $id = $docker->create(new SandboxSpec('onedrop-test-'.bin2hex(random_bytes(3)), ['APP_PROJECT_NAME' => 'Bashrc Check']));

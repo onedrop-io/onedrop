@@ -9,6 +9,7 @@ export type PaneTab =
     | 'preview'
     | 'file'
     | 'console'
+    | 'services'
     | 'requirements'
     | 'tests'
     | 'browser'
@@ -68,6 +69,7 @@ const TABS: PaneTab[] = [
     'preview',
     'file',
     'console',
+    'services',
     'requirements',
     'tests',
     'browser',

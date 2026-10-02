@@ -2,8 +2,8 @@
 # Runs a project's own Docker Compose stack in its sandbox (SBX-008), with the Docker that start.sh starts here.
 #   compose init [--preview PORT]  pick the compose files and the port the preview shows, write .onedrop/dev
 #                                  (which runs `compose up`), and restart the preview
-#   compose up [--preview PORT]    run the stack in the foreground (what .onedrop/dev runs), forwarding $PORT to
-#                                  the preview port
+#   compose up [--preview PORT]    start the stack and follow its logs (what .onedrop/dev runs), forwarding $PORT
+#                                  to the preview port; stops the stack when the preview restarts
 set -uo pipefail
 
 WORKSPACE="${ONEDROP_WORKSPACE:-/workspace}"
@@ -139,7 +139,21 @@ up() {
         node /opt/onedrop/forward.mjs "$PORT" "$preview" &
     fi
 
-    exec docker compose --ansi never up --remove-orphans
+    # Detached, then following the logs: an attached `up` exits once its containers stop, and the preview loop
+    # would start it (and every container) again, so a container stopped from the Services tab never stayed stopped.
+    # `up` recreates containers whose config changed, so a restart picks up edits to .env and the compose files.
+    local since
+    since="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    docker compose --ansi never up --detach --remove-orphans || exit 1
+
+    trap 'docker compose --ansi never stop; exit 0' TERM INT
+    while true; do
+        docker compose --ansi never logs --follow --since "$since" &
+        wait $!
+        since="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        sleep 2 &
+        wait $!
+    done
 }
 
 case "${1:-}" in

@@ -179,7 +179,7 @@ test('a missing image or container is not outdated', function () {
     expect($this->docker->isOutdated('abc123'))->toBeFalse();
 })->group('SBX-002');
 
-test('files are copied out of and into a container, owned by the sandbox user', function () {
+test('files are copied out of and into a container through tar, owned by the sandbox user', function () {
     Process::fake(fn (PendingProcess $process) => in_array('abc123:/data/storage/.', $process->command, true)
         ? Process::result('', 'Error: Could not find the file /data/storage in container abc123', 1)
         : Process::result());
@@ -188,9 +188,9 @@ test('files are copied out of and into a container, owned by the sandbox user', 
     $this->docker->copyOut('abc123', '/data/storage', '/tmp/backup/1'); // never created: nothing to copy
     $this->docker->copyIn('def456', '/tmp/backup/0', '/workspace');
 
-    Process::assertRan(fn (PendingProcess $process) => $process->command === ['docker', 'cp', 'abc123:/workspace/.', '/tmp/backup/0']);
+    Process::assertRan(fn (PendingProcess $process) => $process->command === ['bash', '-c', DockerSandboxProvider::COPY_OUT, 'copy-out', 'abc123:/workspace/.', '/tmp/backup/0']);
     Process::assertRan(fn (PendingProcess $process) => $process->command === ['docker', 'exec', '-u', 'root', 'def456', 'mkdir', '-p', '/workspace']);
-    Process::assertRan(fn (PendingProcess $process) => $process->command === ['docker', 'cp', '/tmp/backup/0/.', 'def456:/workspace']);
+    Process::assertRan(fn (PendingProcess $process) => $process->command === ['bash', '-c', DockerSandboxProvider::COPY_IN, 'copy-in', '/tmp/backup/0', 'def456', '/workspace']);
     Process::assertRan(fn (PendingProcess $process) => $process->command === ['docker', 'exec', '-u', 'root', 'def456', 'chown', '-R', 'sandbox:sandbox', '/workspace']);
 })->group('SBX-002');
 
@@ -221,7 +221,7 @@ test('updating copies buckets out of an old container, but not out of one with t
 
     $this->docker->copyOut('abc123', '/data/storage', '/tmp/backup');
 
-    Process::assertRanTimes(fn (PendingProcess $process) => $process->command[1] === 'cp', $copied ? 1 : 0);
+    Process::assertRanTimes(fn (PendingProcess $process) => ($process->command[3] ?? null) === 'copy-out', $copied ? 1 : 0);
 })->with([
     'no mount (made before host folders)' => ["\n", true],
     'mounted' => ["/data/storage\n", false],
@@ -390,7 +390,7 @@ test('starting a stopped container starts it, and a suspended one is woken, sinc
 test('with Docker inside sandboxes, each sandbox gets its own volume for Docker\'s data, and runs privileged only when chosen', function (string $mode, bool $privileged) {
     Process::fake(['*' => Process::result('abc123')]);
 
-    (new DockerSandboxProvider([...$this->dockerConfig, 'nested_docker' => $mode]))->create(new SandboxSpec('onedrop-project-1-x'));
+    (new DockerSandboxProvider([...$this->dockerConfig, 'nested_docker' => $mode, 'runtime' => $privileged ? null : 'sysbox-runc']))->create(new SandboxSpec('onedrop-project-1-x'));
 
     Process::assertRan(fn (PendingProcess $process) => $process->command[1] === 'run'
         && in_array('type=volume,target=/var/lib/docker', $process->command, true)
@@ -426,10 +426,11 @@ test('privileged Docker inside sandboxes is refused outside a local install', fu
     Process::assertNothingRan();
 })->group('SBX-008');
 
-test('turning Docker inside sandboxes on or off makes existing sandboxes outdated', function (string $mode, string $mounts, bool $outdated) {
+test('turning Docker inside sandboxes on or off, or changing how it is isolated, makes existing sandboxes outdated', function (string $mode, string $mounts, bool $outdated, string $privileged = 'true') {
     Process::fake([
         '*image*inspect*' => Process::result('sha256:current'),
         '*Mounts*' => Process::result($mounts),
+        '*Privileged*' => Process::result($privileged),
         '*' => Process::result('sha256:current'),
     ]);
 
@@ -439,4 +440,16 @@ test('turning Docker inside sandboxes on or off makes existing sandboxes outdate
     'on, sandbox with it' => ['privileged', "/var/lib/docker\n", false],
     'off, sandbox with it' => ['off', "/var/lib/docker\n", true],
     'off, sandbox without it' => ['off', '', false],
+    'privileged, sandbox made with a runtime instead' => ['privileged', "/var/lib/docker\n", true, 'false'],
+    'runtime, sandbox made privileged' => ['runtime', "/var/lib/docker\n", true, 'true'],
+    'runtime, sandbox made with it' => ['runtime', "/var/lib/docker\n", false, 'false'],
 ])->group('SBX-008');
+
+test('Docker inside sandboxes on a runtime needs that runtime set', function () {
+    Process::fake();
+
+    expect(fn () => (new DockerSandboxProvider([...$this->dockerConfig, 'nested_docker' => 'runtime']))->create(new SandboxSpec('onedrop-project-1-x')))
+        ->toThrow(SandboxException::class, 'no container runtime is set');
+
+    Process::assertNothingRan();
+})->group('SBX-008');

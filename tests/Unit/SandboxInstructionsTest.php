@@ -59,3 +59,10 @@ test('the agent runs a project\'s own Docker Compose as it is', function () use 
         ->toContain('docker compose exec <service> <command>')
         ->and("{$sandbox}/compose")->toBeFile();
 })->group('SBX-008');
+
+test('the agent runs an imported project the way its developers do, and asks for what\'s missing instead of inventing another way', function () use ($sandbox) {
+    expect(file_get_contents("{$sandbox}/instructions.md"))
+        ->toContain('find how its developers run it before writing anything')
+        ->toContain("stop and tell the user exactly what's missing")
+        ->toContain("Don't switch to a different way of running it");
+})->group('SBX-008');
