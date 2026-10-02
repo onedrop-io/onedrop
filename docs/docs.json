@@ -60,6 +60,7 @@
                             "guides/requirements",
                             "guides/tests",
                             "guides/workspace",
+                            "guides/tables",
                             "guides/users-and-auth",
                             "guides/secrets",
                             "guides/feature-flags",

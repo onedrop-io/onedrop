@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# Copies one of the platform's kits into the app in /workspace and sets it up. The kit's files become the
+# app's own code: files the app already has are kept, so running it again never overwrites changes.
+#   kit tables    Airtable-style tables (see /opt/onedrop/guides/tables.md)
+set -euo pipefail
+
+KITS=${KIT_DIR:-/opt/onedrop/kits}
+APP=${KIT_APP_DIR:-/workspace}
+name=${1:-}
+
+if [ -z "$name" ] || [ ! -d "$KITS/$name/files" ]; then
+    echo "Usage: /opt/onedrop/kit <kit>"
+    echo "Kits: $(ls "$KITS" | tr '\n' ' ')"
+    exit 1
+fi
+
+cd "$APP"
+
+if [ "$name" = tables ] && { [ ! -f artisan ] || [ ! -f package.json ]; }; then
+    echo "The table kit is for Laravel apps with React (follow /opt/onedrop/guides/laravel.md first)."
+    exit 1
+fi
+
+copied=0
+kept=()
+
+while IFS= read -r -d '' file; do
+    relative=${file#"$KITS/$name/files/"}
+
+    if [ -e "$relative" ]; then
+        if ! cmp -s "$file" "$relative"; then
+            kept+=("$relative")
+        fi
+
+        continue
+    fi
+
+    mkdir -p "$(dirname "$relative")"
+    cp "$file" "$relative"
+    copied=$((copied + 1))
+done < <(find "$KITS/$name/files" -type f -print0 | sort -z)
+
+echo "Copied $copied files from the $name kit."
+
+if [ ${#kept[@]} -gt 0 ]; then
+    echo "Kept the app's own version of:"
+    printf '  %s\n' "${kept[@]}"
+fi
+
+if [ "$name" = tables ]; then
+    # Register the service provider (routes, broadcast channel, attachments disk).
+    if [ -f bootstrap/providers.php ] && ! grep -q 'TablesServiceProvider' bootstrap/providers.php; then
+        php -r '
+            $path = "bootstrap/providers.php";
+            $code = file_get_contents($path);
+            $code = preg_replace("/\];\s*$/", "    App\\Providers\\TablesServiceProvider::class,\n];\n", $code, 1);
+            file_put_contents($path, $code);
+        '
+        echo "Registered App\\Providers\\TablesServiceProvider in bootstrap/providers.php."
+    fi
+
+    packages=(@tanstack/react-virtual@^3.13.0 @radix-ui/react-popover@^1.1.0)
+
+    if ! grep -q '"@laravel/echo-react"' package.json; then
+        packages+=(@laravel/echo-react laravel-echo pusher-js)
+    fi
+
+    npm install --no-audit --no-fund "${packages[@]}" > /tmp/onedrop-kit-npm.log 2>&1 \
+        || { echo "npm install failed; see /tmp/onedrop-kit-npm.log"; exit 1; }
+    php artisan migrate --force --no-interaction
+
+    mkdir -p .onedrop
+    echo "tables $(cat "$KITS/$name/VERSION" 2>/dev/null || echo unknown)" > .onedrop/kit-tables
+
+    echo
+    echo "Next: describe each table in app/Tables/<Name>Table.php, register it in config/tables.php,"
+    echo "and render it with <DataTable data={table} />. Follow /opt/onedrop/guides/tables.md."
+fi

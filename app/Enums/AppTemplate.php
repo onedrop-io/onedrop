@@ -91,9 +91,22 @@ enum AppTemplate: string
     }
 
     /**
+     * What every template asks of its lists, so the agent builds them on the table kit (TABLE-001).
+     */
+    public const SPREADSHEET = 'Lists of records work like a spreadsheet: edit cells in place, paste from Excel, add our own fields and formulas, and save filtered views.';
+
+    /**
      * The description sent to the agent: the records, views and people the app is for.
      */
     public function prompt(): string
+    {
+        return str_replace(' Add some sample data so I can try it.', ' '.self::SPREADSHEET.' Add some sample data so I can try it.', $this->brief());
+    }
+
+    /**
+     * The template's own description, before what every template asks of its lists.
+     */
+    protected function brief(): string
     {
         return match ($this) {
             self::Crm => 'A sales CRM for our team. Track companies, the contacts at each company, and deals (name, value, stage, close date, owner). '

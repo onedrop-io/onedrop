@@ -1468,6 +1468,63 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - The guess should come from the test's title, error, steps and source and the user's recent requests and the agent's recent actions, be worked out once per run of each test in the background (the tab never waits on it), and appear shortly after the run ends.
 - User should see no guess when Jev isn't at least 50% sure, can't be reached or doesn't answer, or when there's no OpenRouter key (the owner's connection, else the platform's).
 
+## TABLE-001: Spreadsheet-style tables in apps
+
+- The agent should give an app's lists of records that people edit (deals, tasks, items, candidates…) the table kit: it runs `/opt/onedrop/kit tables`, which copies the kit into the app (code the app owns and can change) and sets it up, and follows /opt/onedrop/guides/tables.md to describe each table's fields.
+- App user should see the records in a grid like a spreadsheet: a frozen first column, row numbers, column headers with each field's type icon, and a count of records.
+- App user should be able to click a cell and type to edit it, double-click or press Enter to open its editor, and move with the arrow keys, Tab and Enter; Escape cancels an edit.
+- App user should be able to select a range of cells by dragging or Shift-clicking, copy it (as text a spreadsheet takes), paste a block from Excel, Google Sheets or the same grid (adding rows when it runs past the end), clear it with Delete, and fill a value down by dragging the selection's handle or pressing ⌘D (Ctrl D).
+- App user should be able to undo and redo their edits with ⌘Z and ⌘⇧Z (Ctrl Z and Ctrl Y).
+- App user should be able to resize, reorder and hide columns, and choose the row height.
+- App user should be able to add a record from the bottom of the grid, and select records to delete them.
+- App user should see the grid stay fast with thousands of records.
+- App user should see other people's changes appear without a reload.
+
+## TABLE-002: Field types
+
+- App user should see each field shown for its type: text, long text, number, currency, percent, checkbox, date (with or without time), single select and multiple select (colored pills), person (avatar and name), link to records in another table, attachments (thumbnails), rating (stars), URL, email and phone (clickable), formula, lookup, rollup, count, and created and last-modified time.
+- App user should be able to edit each type with a fitting editor: a picker with search for selects, people and links; a date picker; stars; an upload for attachments; and typing a new option into a select adds it, when they may change fields.
+- A value that doesn't fit its field (a word in a number field, an option that doesn't exist) should be refused with the reason, keeping the old value.
+
+## TABLE-003: Add and change fields
+
+- App user should be able to add a field from the "+" at the end of the header: name, type, its settings (options and colors, decimal places, currency symbol, date format, whether a link allows several records, rating maximum) and an optional description.
+- App user should be able to rename, change the type of, duplicate and delete the fields they added; changing the type keeps what can be converted (text to numbers, values to select options…).
+- Fields the app was built with should show they're part of the app: people can hide, sort, filter and group by them, but not rename, retype or delete them.
+- Who may change fields should be up to the app (everyone signed in, unless the agent limits it, e.g. to admins).
+
+## TABLE-004: Formulas
+
+- App user should be able to add a formula field that works out a value from the record's other fields, e.g. `{Value} * {Probability}` or `IF({Due} < TODAY(), "Late", "On time")`.
+- App user should get field names and functions suggested while typing a formula, see an error that says what's wrong before saving, and see a preview of its result on the first records.
+- Formulas should support arithmetic, comparison and `&` for joining text, and Airtable's common functions: logic (IF, SWITCH, AND, OR, NOT, BLANK, ERROR), numbers (ROUND, ROUNDUP, ROUNDDOWN, CEILING, FLOOR, INT, ABS, MOD, POWER, SQRT, SUM, AVERAGE, MIN, MAX, VALUE), text (CONCATENATE, LEN, LOWER, UPPER, TRIM, LEFT, RIGHT, MID, FIND, SEARCH, SUBSTITUTE, REPT, ARRAYJOIN) and dates (TODAY, NOW, YEAR, MONTH, DAY, HOUR, MINUTE, WEEKDAY, DATEADD, DATETIME_DIFF, DATETIME_FORMAT, IS_BEFORE, IS_AFTER).
+- A formula should keep working when a field it uses is renamed, and show `#ERROR` with the reason on hover when it can't be worked out for a record (e.g. dividing by zero).
+- Formulas should be able to use other formulas, lookups and rollups, but not themselves (directly or through others).
+
+## TABLE-005: Linked records, lookups and rollups
+
+- App user should be able to link a record to records in another table, opening a linked record from its cell.
+- App user should be able to add a lookup (a field of the linked records), a rollup (a sum, average, minimum, maximum, count, joined text or earliest or latest date over the linked records) or a count of linked records.
+- App user should see a linked table show the records that link to each of its records, when the link's "Show in the other table" setting is on.
+
+## TABLE-006: Views
+
+- App user should be able to switch between saved views of the same table: grid, board (cards in columns by a single select or person, dragged between columns), calendar (by a date field, records dragged between days) and gallery (cards with a cover from an attachment field).
+- App user should be able to filter (conditions fitting each type, all or any of them), sort by several fields, group by up to three fields (collapsible, with counts), hide and reorder fields, and search, and have that kept in the view for everyone using it.
+- App user should be able to add, rename, duplicate and delete views, and keep personal views only they see.
+- App user should be able to show a summary under each grid column (sum, average, minimum, maximum, filled, empty, unique, earliest or latest).
+- The app should start with the views the agent set up for it.
+
+## TABLE-007: Expand a record
+
+- App user should be able to open any record in a panel showing all its fields to edit, with buttons to step to the previous and next record in the view.
+- App user should be able to comment on a record and see its history: who changed which field, from what to what, and when.
+
+## TABLE-008: Import and export
+
+- App user should be able to import a CSV file into a table: match its columns to fields (or create new fields, or skip them) and add its rows.
+- App user should be able to export the current view (its filter, sort and visible fields) as a CSV file.
+
 ## CREDIT-001: AI credits to start
 
 - On an install with AI credits turned on, user should be able to build without connecting their own AI: they skip the AI onboarding and the agent runs on "AI credits" (DeepSeek Flash through OpenRouter).

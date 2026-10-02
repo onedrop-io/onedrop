@@ -66,6 +66,7 @@ The platform records the app's errors in /workspace/.onedrop/errors.log, whateve
 - Adding custom analytics events (tracking sign-ups, key actions): follow /opt/onedrop/guides/analytics.md.
 - Feature flags (putting a feature behind a flag, removing a flag): follow /opt/onedrop/guides/flags.md.
 - Storing files (uploads, photos, avatars, documents): use App Storage and follow /opt/onedrop/guides/storage.md.
+- Lists of records people browse and edit (deals, contacts, tasks, inventory, candidates, tickets…) in a Laravel app: use the table kit, an Airtable-style grid with views, fields people add themselves and formulas. Install it with `/opt/onedrop/kit tables` and follow /opt/onedrop/guides/tables.md. Start from the kit for those lists, and still build the app's own pages around them (home page, dashboards, public forms, screens shaped around the work) as a custom app, not more tables.
 
 ## Attachments
 

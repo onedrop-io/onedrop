@@ -66,6 +66,9 @@ COPY placeholder /opt/onedrop/placeholder
 COPY start.sh restart stop-agent shell-entry shell-reap tmux.conf checkpoint fork share-card forwarder.mjs file-watcher.mjs host-proxy.mjs inspector.js db.php auth.php secrets.php storage.php git.php skills.php snapshot instructions.md opencode.json /opt/onedrop/
 # Task guides the agent follows (e.g. guides/auth.md for adding sign-in).
 COPY guides /opt/onedrop/guides
+# Kits the agent copies into an app with `kit <name>`, as the app's own code (kits/tables: Airtable-style tables, TABLE-001).
+COPY kit /opt/onedrop/
+COPY kits /opt/onedrop/kits
 # Shell setup lives in /opt/onedrop (not the home folder, which updates carry over) so image changes reach every sandbox; ~/.bashrc only loads it.
 COPY bashrc home-bashrc starship.toml /opt/onedrop/
 COPY --chown=sandbox:sandbox home-bashrc /home/sandbox/.bashrc

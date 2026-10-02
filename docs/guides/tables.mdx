@@ -1,0 +1,113 @@
+---
+title: 'Spreadsheet-style tables'
+description: 'Give your app Airtable-style tables: edit cells in place, add your own fields and formulas, link records, and save views.'
+---
+
+Apps that keep lists of records, like deals, tasks, candidates or inventory, get tables that work like Airtable. The agent builds them with OneDrop's **table kit**, so your app's users get a spreadsheet-style grid and can change the table themselves, while the rest of the app (its pages, roles and logic) stays custom.
+
+Every [template](/guides/build-a-project#start-from-a-template) asks for these tables. For your own prompt, ask for something like "lists that work like a spreadsheet, where we can add our own fields". The agent uses the kit whenever an app has records people browse and edit.
+
+## What people can do in a table
+
+<AccordionGroup>
+    <Accordion title="Edit like a spreadsheet">
+        Click a cell and type, or double-click or press Enter to open its
+        editor. Move with the arrow keys, Tab and Enter. Drag or Shift-click to
+        select a range, then copy it, paste a block from Excel or Google Sheets
+        (rows past the end are added), clear it with Delete, or fill a value
+        down with the selection's handle or ⌘D (Ctrl D). ⌘Z and ⌘⇧Z (Ctrl Z
+        and Ctrl Y) undo and redo. Columns can be resized, dragged into a new
+        order and hidden, and the row height changed. Other people's changes
+        appear without a reload.
+    </Accordion>
+    <Accordion title="Field types">
+        Text, long text, number, currency, percent, checkbox, date (with or
+        without time), single and multiple select with colored options, person,
+        link to another table, attachments, rating, URL, email, phone, formula,
+        lookup, rollup, count, and created and last-modified time.
+    </Accordion>
+    <Accordion title="Add their own fields">
+        The **+** at the end of the header adds a field: a name, a type and its
+        settings. People can rename, retype, duplicate and delete the fields
+        they added, and changing a type keeps the values that can be converted.
+        Fields the app was built with show they're part of the app: people can
+        hide, sort, filter and group by them, but not rename or delete them.
+    </Accordion>
+    <Accordion title="Formulas">
+        A formula field works out a value from the record's other fields, using
+        Airtable's formula language: `{Value} * {Probability}`,
+        `IF({Due} < TODAY(), "Late", "On time")`, `DATETIME_DIFF({End}, {Start}, 'days')`.
+        Field names and functions are suggested while typing, errors show
+        before saving, and a preview shows the result for the first records.
+        Formulas keep working when a field they use is renamed.
+    </Accordion>
+    <Accordion title="Linked records, lookups and rollups">
+        Link records to records in another table, then add a lookup (a field
+        of the linked records), a rollup (sum, average, minimum, maximum,
+        count, joined text, earliest or latest) or a count of linked records.
+    </Accordion>
+    <Accordion title="Views">
+        Each table has saved views: grid, board (cards in columns, dragged
+        between them), calendar and gallery. Each keeps its own filters, sorts,
+        groups (up to three levels), hidden fields, field order and column
+        summaries. Views are shared by default; personal views are only seen by
+        the person who made them.
+    </Accordion>
+    <Accordion title="Records, comments and history">
+        Expand any record to edit all of its fields, step to the previous and
+        next record, comment on it, and see its history: who changed which
+        field, from what to what.
+    </Accordion>
+    <Accordion title="Import and export">
+        Import a CSV file by matching its columns to fields (or creating new
+        ones), and export the current view as CSV.
+    </Accordion>
+</AccordionGroup>
+
+## Limits
+
+- A table shows up to 5,000 records. Filtering, sorting and grouping happen in the browser, so views change instantly. The agent can give larger tables their own paged pages.
+- Attachments are kept in the `table-attachments` bucket in [App Storage](/guides/app-storage), up to 20 MB each.
+- There are no form, timeline or Gantt views, and no automations or API in the kit. Ask the agent for those: it builds them into your app as code.
+
+## For developers
+
+`/opt/onedrop/kit tables` copies the kit into a Laravel app as the app's own code (`app/Tables`, `resources/js/components/table`, a migration, `config/tables.php`, `routes/tables.php` and tests), registers `App\Providers\TablesServiceProvider` and installs two npm packages (`@tanstack/react-virtual` and `@radix-ui/react-popover`). Running it again keeps any file the app has changed.
+
+Each table is a class describing the fields the app is built with, which are real database columns:
+
+```php app/Tables/DealsTable.php
+class DealsTable extends Table
+{
+    protected string $model = Deal::class;
+
+    public function name(): string
+    {
+        return 'Deals';
+    }
+
+    public function fields(): array
+    {
+        return [
+            Field::text('name', 'Name')->primary(),
+            Field::link('company_id', 'Company', 'companies'),
+            Field::currency('value', 'Value')->precision(0),
+            Field::select('stage', 'Stage', ['Lead' => 'gray', 'Won' => 'green', 'Lost' => 'red']),
+            Field::user('owner_id', 'Owner'),
+            Field::formula('weighted', 'Weighted value', '{value} * IF({stage} = "Won", 1, 0.5)')->format('currency'),
+        ];
+    }
+
+    public function views(): array
+    {
+        return [
+            View::grid('All deals'),
+            View::board('Pipeline')->stackBy('stage'),
+        ];
+    }
+}
+```
+
+Fields people add are stored in the model's `custom_fields` JSON column and described in the `table_fields` table, so the app's own code keeps working on its columns. A page renders the table with `<DataTable data={table} />`, passing `Tables::get('deals')->props($request->user())`. Override `can()` to limit who may edit, add fields or change views, and `query()` to limit which records someone sees.
+
+The agent's guide in the sandbox, `/opt/onedrop/guides/tables.md`, has the full field and view reference.

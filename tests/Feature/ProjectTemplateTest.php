@@ -33,6 +33,12 @@ test('every template has its own name, a card line and a full prompt', function 
         ->and($template->prompt())->toEndWith('Add some sample data so I can try it.'));
 })->group('PRJ-004');
 
+test('every template asks for spreadsheet-like lists, so the agent builds them on the table kit', function () {
+    collect(AppTemplate::cases())->each(fn (AppTemplate $template) => expect(substr_count($template->prompt(), AppTemplate::SPREADSHEET))->toBe(1));
+
+    expect(AppTemplate::SPREADSHEET)->toContain('edit cells in place')->toContain('add our own fields and formulas');
+})->group('PRJ-004', 'TABLE-001');
+
 test('a project started from a template is named after it and keeps the edited prompt', function () {
     Queue::fake();
 
