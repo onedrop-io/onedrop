@@ -110,6 +110,22 @@ class SandboxProviders
     }
 
     /**
+     * Whether a provider's sandboxes (the active one's by default) get Docker inside them, for projects that run their
+     * own Docker Compose (SBX-008). Each provider has its own setting; Blaxel can't yet.
+     */
+    public function runsDocker(?string $name = null): bool
+    {
+        $name ??= $this->active();
+        $setting = config("sandbox.providers.{$name}.nested_docker");
+
+        return match ($name) {
+            'docker' => in_array($setting, ['privileged', 'runtime'], true),
+            'runtime' => $setting === 'on',
+            default => false,
+        };
+    }
+
+    /**
      * The required settings a provider doesn't have yet.
      *
      * @return list<string>

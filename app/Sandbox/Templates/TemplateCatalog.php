@@ -3,6 +3,7 @@
 namespace App\Sandbox\Templates;
 
 use App\Enums\AppTemplate;
+use App\Sandbox\SandboxProviders;
 
 /**
  * Every template the new-project page offers (PRJ-004, PRJ-012) as one list: the built-in ones, then each registry's
@@ -149,7 +150,6 @@ class TemplateCatalog
      */
     public function canRunCompose(): bool
     {
-        return config('sandbox.provider') === 'docker'
-            && in_array(config('sandbox.providers.docker.nested_docker'), ['privileged', 'runtime'], true);
+        return app(SandboxProviders::class)->runsDocker();
     }
 }

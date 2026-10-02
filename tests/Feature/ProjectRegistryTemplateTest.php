@@ -176,3 +176,16 @@ test('when the template\'s files can\'t be fetched, the chat says why and the ag
         ->role->toBe(MessageRole::Assistant)
         ->content->toBe('Couldn\'t start from the template: Dokploy didn\'t send the template\'s files. Try again in a moment.');
 })->group('PRJ-012');
+
+test('compose templates follow Docker inside sandboxes on the provider new projects run on', function (string $provider, array $settings, bool $canRun) {
+    config(['sandbox.provider' => $provider, ...$settings]);
+
+    expect(app(TemplateCatalog::class)->canRunCompose())->toBe($canRun);
+})->with([
+    'Runtime Cloud, on' => ['runtime', ['sandbox.providers.runtime.nested_docker' => 'on'], true],
+    'Runtime Cloud, off' => ['runtime', ['sandbox.providers.runtime.nested_docker' => 'off'], false],
+    'Runtime Cloud, while Docker\'s is on' => ['runtime', ['sandbox.providers.runtime.nested_docker' => 'off', 'sandbox.providers.docker.nested_docker' => 'privileged'], false],
+    'Docker, on a runtime' => ['docker', ['sandbox.providers.docker.nested_docker' => 'runtime'], true],
+    'Docker, off' => ['docker', ['sandbox.providers.docker.nested_docker' => 'off'], false],
+    'Blaxel' => ['blaxel', [], false],
+])->group('PRJ-012', 'SBX-008');
