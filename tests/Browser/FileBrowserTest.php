@@ -76,6 +76,40 @@ test('the files panel remembers being hidden or shown across reloads', function 
         ->assertNoJavaScriptErrors();
 })->group('FILE-001');
 
+test('on a phone the files panel covers the workspace from the ⋯ menu, and opening a file closes it', function () {
+    $provider = new FakeSandboxProvider;
+    $provider->execUsing = fn (array $command) => $command[0] === 'find'
+        ? new ExecResult(0, "f package.json\n")
+        : new ExecResult(0, "{\"name\": \"app\"}\n");
+    app()->instance(SandboxProvider::class, $provider);
+    $user = User::factory()->has(AgentConnection::factory())->create();
+    $project = Project::factory()->for($user)->create();
+    Sandbox::factory()->for($project)->create(['preview_url' => null]);
+    $this->actingAs($user);
+
+    visit("/projects/{$project->id}")
+        ->resize(1600, 900)
+        ->navigate("/projects/{$project->id}")
+        ->assertVisible('@files-panel')
+        ->resize(390, 844)
+        ->navigate("/projects/{$project->id}")
+        ->click('@mobile-tab-workspace')
+        ->assertMissing('@files-panel')
+        ->click('@pane-more')
+        ->click('@pane-more-files')
+        ->assertVisible('@files-panel')
+        ->click('[data-test="file-package.json"]')
+        ->assertMissing('@files-panel')
+        ->assertSeeIn('@file-viewer', '"name": "app"')
+        // The editor is still settling: a click on "⋯" right away doesn't open it.
+        ->wait(1)
+        ->click('@pane-more')
+        ->click('@pane-more-files')
+        ->click('@files-panel-close')
+        ->assertMissing('@files-panel')
+        ->assertNoJavaScriptErrors();
+})->group('FILE-001', 'LAYOUT-007');
+
 test('an open file can be edited with highlighting and saved', function () {
     $provider = new FakeSandboxProvider;
     $provider->execUsing = fn (array $command) => $command[0] === 'find'

@@ -234,14 +234,18 @@ export default function ShowProject({
     /** Claude Code runs on the owner's own Claude sign-in in the sandbox (AI-005). */
     claudeSubscription: boolean;
 }) {
+    // On a phone or small tablet the chat and the workspace are tabs, one at a time (LAYOUT-006).
+    const [mobileView, setMobileView] = useState<'chat' | 'workspace'>('chat');
+
     // Bumped by "Sign in to Claude": the workspace opens the Shell tab on Claude Code's sign-in.
     const [claudeSignIns, setClaudeSignIns] = useState(0);
-    // Bumped when that sign-in succeeds: the workspace goes back to the Preview tab.
+    // Bumped when that sign-in succeeds: the workspace goes back to the Preview tab,
+    // and a phone back to the chat, where the waiting message picks up (LAYOUT-006).
     const [claudeSignInsDone, setClaudeSignInsDone] = useState(0);
-    const claudeSignedIn = useCallback(
-        () => setClaudeSignInsDone((count) => count + 1),
-        [],
-    );
+    const claudeSignedIn = useCallback(() => {
+        setClaudeSignInsDone((count) => count + 1);
+        setMobileView('chat');
+    }, []);
     const working = task
         ? task.status === 'working'
         : !newTask && project.status === 'working';
@@ -270,9 +274,6 @@ export default function ShowProject({
         localStorage.setItem(CHAT_OPEN_KEY, String(!chatOpen));
         setChatOpen(!chatOpen);
     };
-
-    // On a phone or small tablet the chat and the workspace are tabs, one at a time (LAYOUT-006).
-    const [mobileView, setMobileView] = useState<'chat' | 'workspace'>('chat');
 
     // Something was sent to the chat from the workspace: make sure it's on screen.
     const showChat = () => {
@@ -384,7 +385,10 @@ export default function ShowProject({
                     mobileHidden={mobileView !== 'chat'}
                     claudeSignIn={
                         claudeSubscription && agent?.harness === 'claude_code'
-                            ? () => setClaudeSignIns((count) => count + 1)
+                            ? () => {
+                                  setClaudeSignIns((count) => count + 1);
+                                  setMobileView('workspace');
+                              }
                             : null
                     }
                     onClaudeSignedIn={claudeSignedIn}
@@ -1003,12 +1007,17 @@ function WorkspacePanel({
     );
 
     // Use the last choice saved in this browser; otherwise open by default
-    // only where there's room for chat, preview and files. Decided after
-    // mount so server-rendered and client HTML match.
+    // only where there's room for chat, preview and files. On a phone the
+    // panel covers the workspace, so it always starts closed there. Decided
+    // after mount so server-rendered and client HTML match.
     useEffect(() => {
         setHideHidden(localStorage.getItem(HIDE_HIDDEN_KEY) === 'true');
 
         const saved = localStorage.getItem(FILES_OPEN_KEY);
+
+        if (isPhone()) {
+            return;
+        }
 
         if (saved !== null) {
             setFilesOpen(saved === 'true');
@@ -1018,7 +1027,10 @@ function WorkspacePanel({
     }, []);
 
     const toggleFiles = () => {
-        localStorage.setItem(FILES_OPEN_KEY, String(!filesOpen));
+        if (!isPhone()) {
+            localStorage.setItem(FILES_OPEN_KEY, String(!filesOpen));
+        }
+
         setFilesOpen(!filesOpen);
     };
 
@@ -1276,6 +1288,11 @@ function WorkspacePanel({
 
         setOpenPath(path);
         showTab('file');
+
+        // On a phone the panel covers the workspace: get it out of the way of the file.
+        if (isPhone()) {
+            setFilesOpen(false);
+        }
     };
 
     // Cmd/Ctrl+P opens "Go to file" from anywhere in the workspace, even the editor (FILE-006).
@@ -1879,7 +1896,7 @@ function WorkspacePanel({
     return (
         <div
             className={cn(
-                'flex min-h-0 min-w-0 flex-1',
+                'relative flex min-h-0 min-w-0 flex-1',
                 mobileHidden && 'max-lg:hidden',
             )}
         >
@@ -2521,7 +2538,7 @@ function WorkspacePanel({
             {filesOpen && (
                 <aside
                     aria-label="Files"
-                    className="hidden shrink-0 flex-col md:flex"
+                    className="flex shrink-0 flex-col bg-background max-md:absolute max-md:inset-0 max-md:z-20 max-md:w-full!"
                     style={{ width: filesWidth }}
                     data-test="files-panel"
                 >
@@ -2590,6 +2607,14 @@ function WorkspacePanel({
                             onCreatedFile={openFile}
                             onGoToFile={() => setQuickOpen(true)}
                         />
+                        <IconButton
+                            label="Close files"
+                            onClick={toggleFiles}
+                            testId="files-panel-close"
+                            className="md:hidden"
+                        >
+                            <X className="size-4" />
+                        </IconButton>
                     </div>
                     <div className="flex-1 overflow-y-auto px-1">
                         {!running ? (
@@ -2698,6 +2723,11 @@ const LIVE_PROPS = [
 ];
 
 const FILES_OPEN_KEY = 'onedrop.files-open';
+
+/** Below `md`, where the files panel covers the workspace instead of sitting beside it. */
+function isPhone(): boolean {
+    return !window.matchMedia('(min-width: 768px)').matches;
+}
 
 /** localStorage key for whether the chat was last left showing (LAYOUT-001). */
 const CHAT_OPEN_KEY = 'onedrop.chat-open';

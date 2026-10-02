@@ -479,6 +479,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 ## FILE-002: Edit project files
 
 - User should be able to edit an open file in an editor with syntax highlighting for its language.
+- On a phone, the files panel should cover the workspace when shown, close when a file is opened, and start closed whatever was chosen on a wider screen.
 - User should be able to save with a Save button or Cmd/Ctrl+S, which writes the file into the sandbox.
 - User should see when a file has unsaved changes, and be asked before discarding them.
 - Unsaved edits should not be overwritten when the agent changes the same file; saved files should pick up the agent's changes.
@@ -601,6 +602,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - The showing tab's own buttons (e.g. the preview's Inspect, Annotate and Reload) should stay in the bar however many tabs are open; "Open in a new tab" and the files toggle should be in a "⋯" menu.
 - On a phone, the header's Commit and Share buttons should show only their icons, Publish keeps its label, and the project's name should stay on one line, cut short if it's long.
 - Panels opened from the header (Share, Publish) should fit the phone's screen.
+- "Sign in to Claude" should switch to the Workspace tab (where the Shell runs the sign-in), and a successful sign-in should switch back to the Chat tab.
 
 ## PUB-001: Publish a project
 

@@ -104,6 +104,31 @@ test('users sign in to Claude from the chat in Claude Code\'s own sign-in in the
     expect($project->fresh()->sign_in_retry_message_id)->toBeNull();
 })->group('AI-005');
 
+test('on a phone, "Sign in to Claude" switches to the workspace, and signing in switches back to the chat', function () {
+    $provider = new FakeSandboxProvider;
+    $provider->execUsing = fn (array $command) => new ExecResult(1, json_encode(['loggedIn' => false, 'authMethod' => 'none']));
+    app()->instance(SandboxProvider::class, $provider);
+    $user = User::factory()->create();
+    AgentConnection::factory()->for($user)->claudeLogin()->create();
+    $project = Project::factory()->for($user)->create(['agent_harness' => AgentHarness::ClaudeCode]);
+    Sandbox::factory()->for($project)->create(['status' => SandboxStatus::Running, 'preview_url' => null, 'shell_url' => 'http://127.0.0.1:7681']);
+    $this->actingAs($user);
+
+    $page = visit("/projects/{$project->id}")
+        ->resize(390, 844)
+        ->click('@claude-sign-in')
+        ->assertAttribute('@mobile-tab-workspace', 'aria-selected', 'true')
+        ->assertVisible('@shell-frame')
+        ->assertNoJavaScriptErrors();
+
+    $provider->execUsing = fn (array $command) => new ExecResult(0, json_encode(['loggedIn' => true, 'authMethod' => 'claude.ai', 'email' => 'dev@example.com']));
+
+    $page->wait(6)->assertAttribute('@mobile-tab-chat', 'aria-selected', 'true')
+        ->assertSeeIn('@claude-login-status', 'Claude Code is signed in as dev@example.com')
+        ->assertMissing('@shell-frame')
+        ->assertNoJavaScriptErrors();
+})->group('AI-005', 'LAYOUT-006');
+
 test('the chat offers "Sign in to Claude" while a message waits for it, even when the sign-in can\'t be checked', function () {
     app()->instance(SandboxProvider::class, new FakeSandboxProvider);
     $user = User::factory()->create();
