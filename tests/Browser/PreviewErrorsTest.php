@@ -33,7 +33,8 @@ test('an error in the preview can be sent to the agent to fix', function () {
         ->assertNoJavaScriptErrors();
 
     expect($this->project->messages()->first()->content)
-        ->toContain('Error on /dashboard: x is not defined')
+        ->toContain(":\n\nError on /dashboard: x is not defined\n\n")
+        ->not->toContain('```')
         ->toContain('/workspace/.onedrop/errors.log');
 })->group('ERR-001');
 

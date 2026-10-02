@@ -73,10 +73,10 @@ class PreviewErrors
     {
         $lines = collect($errors)
             ->take(-self::MAX_LISTED)
-            ->map(fn (array $error) => str_replace('```', "'''", self::describe($error)))
+            ->map(fn (array $error) => self::describe($error))
             ->implode("\n");
 
-        return "The app shows errors after your last change:\n\n```\n{$lines}\n```\n\n"
+        return "The app shows errors after your last change:\n\n{$lines}\n\n"
             .'Details (page text, stack traces, the end of the server log) are in '.self::PATH.'. '
             .'Find the cause, fix it, and check the preview loads without errors.';
     }

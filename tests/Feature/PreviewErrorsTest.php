@@ -124,6 +124,14 @@ test('the app not answering after a turn counts as an error', function () {
         ->toContain("The app didn't answer on GET /");
 })->group('ERR-001');
 
+test('the request lists errors as plain text, since user messages are not rendered as markdown', function () {
+    ($this->recorded)('502', [['t' => $this->since + 30, 'k' => 'down', 'm' => 'GET', 'p' => '/', 'pub' => false]]);
+
+    expect(PreviewErrors::request(app(PreviewErrors::class)->check($this->sandbox, $this->since)))
+        ->toContain(":\n\nThe app didn't answer on GET /\n\n")
+        ->not->toContain('```');
+})->group('ERR-001');
+
 test('nothing is sent when the preview is fine, the agent is busy again, or another turn has ended since', function (Closure $setUp) {
     ($this->recorded)('200', [['t' => $this->since + 10, 'k' => 'browser', 'type' => 'error', 'msg' => 'boom', 'pub' => false]]);
     $setUp->call($this);

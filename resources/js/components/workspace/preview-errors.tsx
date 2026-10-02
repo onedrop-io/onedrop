@@ -86,15 +86,13 @@ export function usePreviewErrors(frame: RefObject<HTMLIFrameElement | null>) {
 export function fixRequest(errors: PreviewError[]): string {
     const lines = errors
         .slice(0, 5)
-        .map((error) =>
-            `${LABELS[error.type]}${error.page ? ` on ${error.page}` : ''}: ${error.message}`.replaceAll(
-                '```',
-                "'''",
-            ),
+        .map(
+            (error) =>
+                `${LABELS[error.type]}${error.page ? ` on ${error.page}` : ''}: ${error.message}`,
         )
         .join('\n');
 
-    return `The preview shows ${errors.length === 1 ? 'this error' : 'these errors'}:\n\n\`\`\`\n${lines}\n\`\`\`\n\nFind the cause (details are in /workspace/.onedrop/errors.log) and fix it.`;
+    return `The preview shows ${errors.length === 1 ? 'this error' : 'these errors'}:\n\n${lines}\n\nFind the cause (details are in /workspace/.onedrop/errors.log) and fix it.`;
 }
 
 export function PreviewErrorBar({
