@@ -18,6 +18,7 @@ use App\Jobs\CreateSandbox;
 use App\Jobs\ImportRepository;
 use App\Jobs\RegenerateProjectName;
 use App\Jobs\RunAgentTask;
+use App\Jobs\UpdateProjectIcon;
 use App\Models\Attachment;
 use App\Models\Project;
 use App\Models\Task;
@@ -25,6 +26,7 @@ use App\Sandbox\Agents\ModelCatalog;
 use App\Sandbox\Agents\ProjectNamer;
 use App\Sandbox\GitException;
 use App\Sandbox\GitHubApp;
+use App\Sandbox\ProjectIcons;
 use App\Sandbox\RepositoryImport;
 use App\Sandbox\Templates\TemplateCatalog;
 use Illuminate\Http\RedirectResponse;
@@ -145,7 +147,12 @@ class ProjectController extends Controller
             $repository ? new ImportRepository($project, $message, $repository['branch']) : null,
             $registry ? new ApplyRegistryTemplate($project, $message, $template['value']) : null,
             new RunAgentTask($project, $message),
+            // Beside the first run, not after it: the icon is drawn from the prompt (or the cloned repository's
+            // own is picked up) while the agent builds, and checked again when the run ends (PRJ-007).
+            new UpdateProjectIcon($project),
         ])))->dispatch();
+
+        ProjectIcons::markDrawing($project);
 
         return to_route('projects.show', $project);
     }

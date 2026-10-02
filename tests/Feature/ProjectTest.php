@@ -6,6 +6,7 @@ use App\Enums\ProjectStatus;
 use App\Enums\SandboxStatus;
 use App\Jobs\CreateSandbox;
 use App\Jobs\RunAgentTask;
+use App\Jobs\UpdateProjectIcon;
 use App\Models\AgentConnection;
 use App\Models\Project;
 use App\Models\Sandbox;
@@ -39,7 +40,7 @@ test('submitting a description creates a named project and starts the agent', fu
         ->and($project->messages()->sole()->role)->toBe(MessageRole::User)
         ->and($project->status)->toBe(ProjectStatus::Working);
 
-    Queue::assertPushedWithChain(CreateSandbox::class, [RunAgentTask::class]);
+    Queue::assertPushedWithChain(CreateSandbox::class, [RunAgentTask::class, UpdateProjectIcon::class]);
     expect($project->sandbox->status)->toBe(SandboxStatus::Creating);
 })->group('PRJ-001');
 

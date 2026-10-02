@@ -5,6 +5,7 @@ use App\Enums\MessageRole;
 use App\Jobs\ApplyRegistryTemplate;
 use App\Jobs\CreateSandbox;
 use App\Jobs\RunAgentTask;
+use App\Jobs\UpdateProjectIcon;
 use App\Models\AgentConnection;
 use App\Models\Project;
 use App\Models\Sandbox;
@@ -121,7 +122,7 @@ test('starting from a registry template names the project, writes its files, the
         ->and($message->meta['agent_context'])->toContain('/workspace/.onedrop/template.toml')
         ->toContain('/opt/onedrop/compose init --preview');
 
-    Queue::assertPushedWithChain(CreateSandbox::class, [ApplyRegistryTemplate::class, RunAgentTask::class]);
+    Queue::assertPushedWithChain(CreateSandbox::class, [ApplyRegistryTemplate::class, RunAgentTask::class, UpdateProjectIcon::class]);
 })->group('PRJ-012');
 
 test('a built-in template still starts without a registry step', function () {
@@ -130,7 +131,7 @@ test('a built-in template still starts without a registry step', function () {
     ($this->store)(['prompt' => AppTemplate::Crm->prompt(), 'template' => 'crm']);
 
     expect($this->user->projects()->sole()->messages()->sole()->meta)->toBeNull();
-    Queue::assertPushedWithChain(CreateSandbox::class, [RunAgentTask::class]);
+    Queue::assertPushedWithChain(CreateSandbox::class, [RunAgentTask::class, UpdateProjectIcon::class]);
 })->group('PRJ-012');
 
 test('registry templates are refused when new sandboxes can\'t run Docker, and unknown ones always', function () {

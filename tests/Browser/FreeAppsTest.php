@@ -3,6 +3,7 @@
 use App\Jobs\ApplyRegistryTemplate;
 use App\Jobs\CreateSandbox;
 use App\Jobs\RunAgentTask;
+use App\Jobs\UpdateProjectIcon;
 use App\Models\AgentConnection;
 use App\Models\Project;
 use App\Models\User;
@@ -43,7 +44,7 @@ test('searching the free apps finds a Dokploy app, shows its details, and using 
 
     expect($project->name)->toBe('n8n')
         ->and($project->prompt)->toBe('Set up n8n: n8n is an open source low-code platform for automating workflows and integrations.');
-    Queue::assertPushedWithChain(CreateSandbox::class, [ApplyRegistryTemplate::class, RunAgentTask::class]);
+    Queue::assertPushedWithChain(CreateSandbox::class, [ApplyRegistryTemplate::class, RunAgentTask::class, UpdateProjectIcon::class]);
 })->group('PRJ-012');
 
 test('pressing Cmd or Ctrl K from the prompt jumps to the free apps search', function () {

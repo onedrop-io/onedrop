@@ -9,9 +9,11 @@ use App\Enums\TaskStage;
 use App\Jobs\BackupProject;
 use App\Jobs\ForkTaskSandbox;
 use App\Jobs\RunAgentTask;
+use App\Jobs\UpdateProjectIcon;
 use App\Models\Attachment;
 use App\Models\Message;
 use App\Models\Task;
+use App\Sandbox\ProjectIcons;
 use Closure;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Bus;
@@ -149,8 +151,15 @@ class AgentQueue
         }
 
         $this->runner->stop($conversation);
+        $project = $conversation->ownerProject();
         // The forwarder commits the stopped turn's changes as it exits.
-        BackupProject::dispatch($conversation->ownerProject())->delay(now()->addSeconds(15));
+        BackupProject::dispatch($project)->delay(now()->addSeconds(15));
+
+        // A stopped run sends no exit event, so pick up the app's icon (or draw one) here too (PRJ-007).
+        if ($project->icon_path === null) {
+            ProjectIcons::markDrawing($project);
+        }
+        UpdateProjectIcon::dispatch($project)->delay(now()->addSeconds(15));
 
         $conversation->messages()->create(['role' => MessageRole::Activity, 'content' => 'Stopped']);
         $conversation->update(['status' => ProjectStatus::Idle]);

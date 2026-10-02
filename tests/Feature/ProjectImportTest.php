@@ -6,6 +6,7 @@ use App\Enums\ProjectStatus;
 use App\Jobs\CreateSandbox;
 use App\Jobs\ImportRepository;
 use App\Jobs\RunAgentTask;
+use App\Jobs\UpdateProjectIcon;
 use App\Models\AgentConnection;
 use App\Models\GitHubAuthorization;
 use App\Models\GitHubInstallation;
@@ -22,7 +23,7 @@ beforeEach(function () {
 
     // The branch the queued import brings in, after checking the chain is sandbox → import → agent.
     $this->importedBranch = function (): string {
-        Queue::assertPushedWithChain(CreateSandbox::class, [ImportRepository::class, RunAgentTask::class]);
+        Queue::assertPushedWithChain(CreateSandbox::class, [ImportRepository::class, RunAgentTask::class, UpdateProjectIcon::class]);
 
         return unserialize(Queue::pushed(CreateSandbox::class)->sole()->chained[0])->branch;
     };

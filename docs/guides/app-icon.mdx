@@ -7,7 +7,7 @@ Every project gets an icon. It's your app's favicon, the one browsers show in ta
 
 ## Where the icon comes from
 
-After each agent run, OneDrop checks the app for a favicon (such as `public/favicon.svg`, `public/favicon.png` or `public/favicon.ico`) and shows the newest one in the sidebar. If it isn't in one of those places, OneDrop looks through the rest of the app (skipping `node_modules`, `vendor` and build output), so a project started from a repository keeps the icon it already has, even at `src/favicon.ico` or `apps/web/public/favicon.svg`.
+A new project gets its icon as soon as the agent starts building, drawn from your description, so you don't wait for the first build to finish to see it. After each agent run, even one you stop, OneDrop checks the app for a favicon (such as `public/favicon.svg`, `public/favicon.png` or `public/favicon.ico`) and shows the newest one in the sidebar. If it isn't in one of those places, OneDrop looks through the rest of the app (skipping `node_modules`, `vendor` and build output), so a project started from a repository keeps the icon it already has, even at `src/favicon.ico` or `apps/web/public/favicon.svg`.
 
 If the app has no favicon of its own, the project's AI draws one: a simple symbol for what the app does, on a colored rounded square. It's saved in your app as `public/favicon.svg`, so the published app uses it too. An empty favicon or the Laravel logo from the starter kit doesn't count as the app's own.
 

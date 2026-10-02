@@ -3,6 +3,8 @@
 use App\Actions\DeleteProject;
 use App\Enums\ProjectStatus;
 use App\Enums\SandboxStatus;
+use App\Jobs\CreateSandbox;
+use App\Jobs\RunAgentTask;
 use App\Jobs\UpdateProjectIcon;
 use App\Models\AgentConnection;
 use App\Models\Project;
@@ -89,6 +91,27 @@ test('finishing an agent run picks up the app\'s icon in the background', functi
         ->assertOk();
 
     Queue::assertPushed(UpdateProjectIcon::class, fn (UpdateProjectIcon $job) => $job->project->is($this->project) && ! $job->redraw);
+    expect(ProjectIcons::drawing([$this->project->id]))->toBe([$this->project->id]);
+})->group('PRJ-007');
+
+test('a new project gets its icon right after its first run starts, not when the run ends', function () {
+    Queue::fake();
+
+    $this->actingAs($this->user)->post(route('projects.store', $this->user->currentOrganization()), ['prompt' => 'a recipe box']);
+    $project = $this->user->projects()->latest('id')->first();
+
+    Queue::assertPushedWithChain(CreateSandbox::class, [RunAgentTask::class, UpdateProjectIcon::class]);
+    expect(ProjectIcons::drawing([$project->id]))->toBe([$project->id]);
+})->group('PRJ-007');
+
+test('stopping an agent run still picks up the app\'s icon once the forwarder has committed the turn', function () {
+    Queue::fake();
+    iconSandbox();
+    $this->project->update(['status' => ProjectStatus::Working]);
+
+    $this->actingAs($this->user)->post(route('projects.agent.stop', $this->project));
+
+    Queue::assertPushed(UpdateProjectIcon::class, fn (UpdateProjectIcon $job) => $job->project->is($this->project) && ! $job->redraw && $job->delay !== null);
     expect(ProjectIcons::drawing([$this->project->id]))->toBe([$this->project->id]);
 })->group('PRJ-007');
 

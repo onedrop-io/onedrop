@@ -294,7 +294,8 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 ## PRJ-007: Project icons
 
 - User should see their app's favicon on the project's tile in the sidebar (instead of its initial), with the status badge still on top.
-- After each agent run, the icon should follow the app: if the agent added or changed the favicon (for example after the user pasted an image and asked for it to be the favicon), the sidebar shows the new one.
+- A new project should get its icon as soon as its first run starts, not when the run ends: the AI draws one from the user's description while the agent builds (or a cloned repository's own favicon is picked up).
+- After each agent run, including one the user stops, the icon should follow the app: if the agent added or changed the favicon (for example after the user pasted an image and asked for it to be the favicon), the sidebar shows the new one.
 - The favicon should be found wherever the app keeps it, including in apps started from a repository: the usual places first (`public/`, `app/`, `static/`, the root), then any `favicon.*`, `icon.svg`/`icon.png` or `apple-touch-icon*.png` elsewhere in the app (for example `src/favicon.ico` or `apps/web/public/favicon.svg`), outside dependency and build folders.
 - When the app has no favicon of its own (none, an empty one, or the Laravel starter kit's logo), the project's AI should draw a simple icon for it, which is shown in the sidebar and installed in the app as `public/favicon.svg`.
 - The app's logo should follow its icon: in a Laravel starter kit app, the logo on its sign-in and sign-up pages and in its header shows the app's icon instead of the Laravel logo (unless the agent has drawn its own logo there).
