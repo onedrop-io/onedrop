@@ -6,6 +6,7 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
+use RuntimeException;
 
 /**
  * OpenRouter's key management API, with the platform's management key: one key per organization for runs on
@@ -25,8 +26,14 @@ class OpenRouterKeys
     public function create(string $name, float $limit): array
     {
         $response = $this->request()->post(self::URL, ['name' => $name, 'limit' => $limit])->throw();
+        $key = $response->json('key') ?? $response->json('data.key');
+        $hash = $response->json('data.hash') ?? $response->json('hash');
 
-        return ['key' => (string) $response->json('key'), 'hash' => (string) $response->json('data.hash')];
+        if (! is_string($key) || $key === '' || ! is_string($hash) || $hash === '') {
+            throw new RuntimeException('OpenRouter made a key but its response had no key or hash.');
+        }
+
+        return ['key' => $key, 'hash' => $hash];
     }
 
     /**

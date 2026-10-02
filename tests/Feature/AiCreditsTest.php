@@ -79,7 +79,7 @@ test('someone without their own AI builds on the organization\'s credits, with a
     Http::assertSent(fn (Request $request) => $request->url() === 'https://openrouter.ai/api/v1/keys'
         && $request->method() === 'POST' && $request['limit'] == 6.0 && $request->hasHeader('Authorization', 'Bearer sk-or-mgmt'));
     Http::assertSent(fn (Request $request) => $request->url() === 'https://autumn.test/v1/customers'
-        && $request['customer_id'] === "org_{$this->organization->id}");
+        && $request['id'] === "org_{$this->organization->id}");
 })->group('CREDIT-001');
 
 test('before a run, new spending is charged and the key is limited to what it spent plus what is left', function () {

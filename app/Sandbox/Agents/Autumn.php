@@ -44,7 +44,7 @@ class Autumn
     {
         Cache::rememberForever("autumn-customer:{$organization->id}", function () use ($organization): bool {
             $this->request()->post('customers', [
-                'customer_id' => self::customerId($organization),
+                'id' => self::customerId($organization),
                 'name' => $organization->name,
             ])->throw();
 
