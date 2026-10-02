@@ -3,6 +3,7 @@
 namespace App\Sandbox\Agents;
 
 use App\Enums\AgentHarness;
+use App\Enums\AgentProvider;
 use App\Enums\CredentialType;
 use App\Models\Attachment;
 use App\Models\Message;
@@ -16,7 +17,7 @@ use App\Sandbox\WorkspaceFiles;
  */
 class OpenCodeRunner extends SandboxAgentRunner
 {
-    public function __construct(SandboxProvider $provider, ModelCatalog $catalog, WorkspaceFiles $files, protected ChatGptAuth $chatGpt)
+    public function __construct(SandboxProvider $provider, ModelCatalog $catalog, WorkspaceFiles $files, protected ChatGptAuth $chatGpt, protected AiCredits $credits)
     {
         parent::__construct($provider, $catalog, $files);
     }
@@ -31,8 +32,11 @@ class OpenCodeRunner extends SandboxAgentRunner
             ? $project->user->agentConnections()->firstWhere('provider', $selection['provider'])
             : $project->user->agentConnections()->firstWhere('is_default', true);
 
+        $onCredits = $selection !== null && $selection['provider'] === AgentProvider::Credits;
+
         $problem = match (true) {
             ($sandboxProblem = $this->sandboxProblem($sandbox)) !== null => $sandboxProblem,
+            $onCredits => null,
             $connection === null => 'Connect an AI in Settings → AI so I can start working.',
             $connection->credential_type === CredentialType::ClaudeLogin => "OpenCode can't use a Claude subscription (Anthropic doesn't allow it). Choose Claude Code under the chat box, or connect an Anthropic API key in Settings → AI.",
             default => null,
@@ -44,7 +48,15 @@ class OpenCodeRunner extends SandboxAgentRunner
             return;
         }
 
-        if ($connection->credential_type === CredentialType::ChatGpt) {
+        if ($onCredits) {
+            try {
+                $environment = $this->credits->sandboxEnvironment($project->organization);
+            } catch (OutOfAiCredits $e) {
+                $this->fail($conversation, $e->getMessage());
+
+                return;
+            }
+        } elseif ($connection->credential_type === CredentialType::ChatGpt) {
             try {
                 $connection = $this->chatGpt->ensureFresh($connection);
             } catch (ChatGptSignInFailed $e) {
@@ -72,7 +84,7 @@ class OpenCodeRunner extends SandboxAgentRunner
         }
 
         $this->launch($conversation, $sandbox, [
-            ...$connection->sandboxEnvironment(),
+            ...($onCredits ? $environment : $connection->sandboxEnvironment()),
             'APP_AGENT' => AgentHarness::OpenCode->value,
             'APP_PROMPT' => $this->prompt($message, $attached),
             'APP_FILES' => json_encode($images, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES),

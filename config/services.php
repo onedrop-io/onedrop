@@ -104,6 +104,15 @@ return [
     'openrouter' => [
         'key' => env('OPENROUTER_API_KEY'),
         'jev_model' => env('JEV_MODEL', 'typesafe/jev-1.13'),
+        // A management key, which makes each organization's own key for runs on AI credits (CREDIT-001).
+        'provisioning_key' => env('OPENROUTER_PROVISIONING_KEY'),
+    ],
+
+    // Autumn keeps each organization's AI credits (CREDIT-001); its catalog is `autumn/autumn.config.ts`.
+    // Production uses the live key, everything else a sandbox key.
+    'autumn' => [
+        'key' => env('AUTUMN_SECRET_KEY'),
+        'url' => env('AUTUMN_URL', 'https://api.useautumn.com/v1'),
     ],
 
     'github_app' => [

@@ -9,6 +9,8 @@ enum AgentProvider: string
     case OpenRouter = 'openrouter';
     case Gemini = 'gemini';
     case Ollama = 'ollama';
+    /** The platform's AI, paid from the organization's AI credits (CREDIT-001); never a user's connection. */
+    case Credits = 'credits';
 
     /**
      * Human-readable name.
@@ -21,6 +23,7 @@ enum AgentProvider: string
             self::OpenRouter => 'OpenRouter',
             self::Gemini => 'Gemini',
             self::Ollama => 'Ollama',
+            self::Credits => 'AI credits',
         };
     }
 
@@ -35,6 +38,7 @@ enum AgentProvider: string
             self::OpenRouter => 'openrouter',
             self::Gemini => 'google',
             self::Ollama => 'ollama-cloud',
+            self::Credits => 'openrouter',
         };
     }
 
@@ -49,6 +53,7 @@ enum AgentProvider: string
             self::OpenRouter => 'OpenRouter',
             self::Gemini => 'Google',
             self::Ollama => 'Ollama',
+            self::Credits => 'AI credits',
         };
     }
 

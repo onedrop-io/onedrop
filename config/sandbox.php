@@ -141,6 +141,8 @@ return [
         'openrouter' => env('SANDBOX_MODEL_OPENROUTER', 'openrouter/anthropic/claude-sonnet-5'),
         'gemini' => env('SANDBOX_MODEL_GEMINI', 'google/gemini-3.8-flash'),
         'ollama' => env('SANDBOX_MODEL_OLLAMA', 'ollama-cloud/glm-5.3'),
+        // AI credits (CREDIT-001) run through OpenRouter, on the one cheap model below.
+        'credits' => env('SANDBOX_MODEL_CREDITS', 'openrouter/deepseek/deepseek-v4.1-flash'),
     ],
 
     // Shown first in the model picker (catalog ids; ones missing from the catalog are skipped).
@@ -153,6 +155,8 @@ return [
         ],
         'gemini' => ['gemini-3.8-flash', 'gemini-3.1-pro-preview', 'gemini-3.7-flash'],
         'ollama' => ['glm-5.3', 'kimi-k2.7-code', 'deepseek-v4-pro', 'qwen3.5:397b'],
+        // The only models AI credits can run.
+        'credits' => ['deepseek/deepseek-v4.1-flash'],
     ],
 
     // What Auto (AGT-011) runs for each size of request, per provider: [catalog id, reasoning level], smallest first
@@ -164,6 +168,7 @@ return [
         'openrouter' => [['google/gemini-3.8-flash', 'low'], ['anthropic/claude-sonnet-5', 'medium'], ['anthropic/claude-opus-5.5', 'high'], ['anthropic/claude-opus-5.5', 'xhigh']],
         'gemini' => [['gemini-3.8-flash', 'low'], ['gemini-3.8-flash', 'medium'], ['gemini-3.1-pro-preview', 'high'], ['gemini-3.1-pro-preview', 'high']],
         'ollama' => [['glm-5.3', 'low'], ['glm-5.3', 'high'], ['glm-5.3', 'high'], ['glm-5.3', 'max']],
+        'credits' => [['deepseek/deepseek-v4.1-flash', 'low'], ['deepseek/deepseek-v4.1-flash', 'medium'], ['deepseek/deepseek-v4.1-flash', 'high'], ['deepseek/deepseek-v4.1-flash', 'high']],
     ],
 
     // Whether a user's own Ollama server may be on a private or loopback address (AI-006). The platform

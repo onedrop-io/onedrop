@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\OrganizationRole;
 use Database\Factories\OrganizationFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -23,15 +24,32 @@ use Illuminate\Support\Str;
  * @property string $slug
  * @property string|null $logo_path Its logo on the local disk (ORG-005), or null for its initial
  * @property string|null $logo_hash Changes with the logo, so browsers can cache it
+ * @property string|null $ai_credits_key Its OpenRouter key for runs on AI credits (CREDIT-001), limited to its balance
+ * @property string|null $ai_credits_key_hash That key's id at OpenRouter
+ * @property float $ai_credits_charged What that key had spent (USD) when its usage was last charged to the credits
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read OrganizationMember $pivot Set on organizations loaded through a user's organizations
  */
 #[Fillable(['name', 'slug', 'logo_path', 'logo_hash'])]
+#[Hidden(['ai_credits_key', 'ai_credits_key_hash'])]
 class Organization extends Model
 {
     /** @use HasFactory<OrganizationFactory> */
     use HasFactory;
+
+    /**
+     * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'ai_credits_key' => 'encrypted',
+            'ai_credits_charged' => 'float',
+        ];
+    }
 
     /**
      * Whether this install serves many organizations, rather than being one company's own.

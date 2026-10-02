@@ -166,6 +166,16 @@ class Project extends Model implements Conversation
     }
 
     /**
+     * The organization the project belongs to (ORG-001).
+     *
+     * @return BelongsTo<Organization, $this>
+     */
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
+    }
+
+    /**
      * A new project goes in its owner's current organization, unless the code creating it says otherwise.
      */
     protected function defaultOrganization(): ?Organization

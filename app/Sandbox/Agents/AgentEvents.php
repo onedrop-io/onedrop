@@ -7,6 +7,7 @@ use App\Enums\AgentHarness;
 use App\Enums\AgentProvider;
 use App\Enums\MessageRole;
 use App\Jobs\BackupProject;
+use App\Jobs\ChargeAiCredits;
 use App\Jobs\CheckPreviewErrors;
 use App\Jobs\CheckRequirementsKept;
 use App\Jobs\CheckTurnOutcome;
@@ -122,6 +123,7 @@ abstract class AgentEvents
         app(AgentQueue::class)->finished($conversation, succeeded: $code === 0);
 
         BackupProject::dispatch($project);
+        ChargeAiCredits::afterRun($project->organization);
 
         if ($project->icon_path === null) {
             ProjectIcons::markDrawing($project);

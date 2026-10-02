@@ -32,7 +32,7 @@ class OpenCodeEvents extends AgentEvents
             'text' => $this->say($conversation, MessageRole::Assistant, trim((string) ($part['text'] ?? ''))),
             'tool_use' => $this->say($conversation, MessageRole::Activity, $this->describeTool($part)),
             'step_finish' => $this->stepFinished($conversation, $part, $event['model'] ?? null),
-            'error' => $this->sayFailure($conversation, $this->explainError($this->errorMessage($event['error'] ?? null))),
+            'error' => $this->sayFailure($conversation, $this->explainError($conversation, $this->errorMessage($event['error'] ?? null))),
             'onedrop.exit' => $this->finish($conversation, (int) ($event['code'] ?? 0), (string) ($event['stderr'] ?? '')),
             default => null,
         };
@@ -92,10 +92,10 @@ class OpenCodeEvents extends AgentEvents
     /**
      * Plain-language version of a provider error from OpenCode.
      */
-    protected function explainError(string $message): string
+    protected function explainError(Conversation $conversation, string $message): string
     {
         return match (true) {
-            Str::contains($message, ['exceed your available credits', 'insufficient credits', 'Insufficient balance', 'credit balance is too low'], ignoreCase: true) => 'Your AI provider says your balance is too low for this request. Try again in a minute, or add credits (for OpenRouter: openrouter.ai/settings/credits).',
+            Str::contains($message, ['exceed your available credits', 'insufficient credits', 'Insufficient balance', 'credit balance is too low', 'key limit exceeded'], ignoreCase: true) => $this->outOfCredits($conversation),
             default => $this->unmatched($message, 'Something went wrong: '.$message),
         };
     }
@@ -106,8 +106,20 @@ class OpenCodeEvents extends AgentEvents
     public function failureMessage(Conversation $conversation, AgentFailure $failure): ?string
     {
         return $failure === AgentFailure::OutOfCredits
-            ? 'Your AI provider says your balance is too low for this request. Try again in a minute, or add credits (for OpenRouter: openrouter.ai/settings/credits).'
+            ? $this->outOfCredits($conversation)
             : parent::failureMessage($conversation, $failure);
+    }
+
+    /**
+     * What to say when the balance ran out: the organization's AI credits (CREDIT-001), or the user's own provider's.
+     */
+    protected function outOfCredits(Conversation $conversation): string
+    {
+        $selection = app(ModelCatalog::class)->selectionFor($conversation->ownerProject());
+
+        return ($selection['provider'] ?? null) === AgentProvider::Credits
+            ? AiCredits::ranOutMessage(null)
+            : 'Your AI provider says your balance is too low for this request. Try again in a minute, or add credits (for OpenRouter: openrouter.ai/settings/credits).';
     }
 
     /**

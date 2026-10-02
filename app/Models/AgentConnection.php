@@ -83,7 +83,7 @@ class AgentConnection extends Model
         $variable = match ($this->provider) {
             AgentProvider::Claude => 'ANTHROPIC_API_KEY',
             AgentProvider::Codex => 'OPENAI_API_KEY',
-            AgentProvider::OpenRouter => 'OPENROUTER_API_KEY',
+            AgentProvider::OpenRouter, AgentProvider::Credits => 'OPENROUTER_API_KEY',
             AgentProvider::Gemini => 'GOOGLE_GENERATIVE_AI_API_KEY',
             AgentProvider::Ollama => 'OLLAMA_API_KEY',
         };

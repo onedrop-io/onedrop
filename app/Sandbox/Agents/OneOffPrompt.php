@@ -2,6 +2,7 @@
 
 namespace App\Sandbox\Agents;
 
+use App\Enums\AgentProvider;
 use App\Enums\CredentialType;
 use App\Enums\SandboxStatus;
 use App\Models\Project;
@@ -15,7 +16,7 @@ use App\Sandbox\SandboxProvider;
  */
 class OneOffPrompt
 {
-    public function __construct(protected SandboxProvider $provider, protected ModelCatalog $catalog, protected ChatGptAuth $chatGpt) {}
+    public function __construct(protected SandboxProvider $provider, protected ModelCatalog $catalog, protected ChatGptAuth $chatGpt, protected AiCredits $credits) {}
 
     /**
      * The model's text answer.
@@ -33,19 +34,27 @@ class OneOffPrompt
             throw new SandboxException("The project's sandbox isn't running.");
         }
 
-        if ($selection === null || $connection === null) {
+        $onCredits = $selection !== null && $selection['provider'] === AgentProvider::Credits;
+
+        if ($selection === null || ($connection === null && ! $onCredits)) {
             throw new SandboxException('No connected AI can be asked.');
         }
 
-        if ($connection->credential_type === CredentialType::ClaudeLogin) {
+        if ($onCredits) {
+            try {
+                $environment = $this->credits->sandboxEnvironment($project->organization);
+            } catch (OutOfAiCredits $e) {
+                throw new SandboxException($e->getMessage());
+            }
+        } elseif ($connection->credential_type === CredentialType::ClaudeLogin) {
             return $this->askClaudeCode($sandbox->external_id, $selection['model'], $prompt);
-        }
+        } else {
+            if ($connection->credential_type === CredentialType::ChatGpt) {
+                $connection = $this->chatGpt->ensureFresh($connection);
+            }
 
-        if ($connection->credential_type === CredentialType::ChatGpt) {
-            $connection = $this->chatGpt->ensureFresh($connection);
+            $environment = $connection->sandboxEnvironment();
         }
-
-        $environment = $connection->sandboxEnvironment();
 
         $result = $this->provider->exec($sandbox->external_id, [
             'bash', '-c', 'cd /tmp && exec opencode run --format json -m "$APP_MODEL" -- "$APP_PROMPT"',

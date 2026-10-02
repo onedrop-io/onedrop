@@ -34,7 +34,7 @@ class AgentConnectionController extends Controller
     public function store(Request $request, ConnectAgent $connect): RedirectResponse
     {
         $validated = $request->validate([
-            'provider' => ['required', Rule::enum(AgentProvider::class)],
+            'provider' => ['required', Rule::enum(AgentProvider::class)->except(AgentProvider::Credits)],
             'credential' => ['required', 'string', 'min:8', 'max:1000'],
         ]);
 

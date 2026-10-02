@@ -38,6 +38,11 @@ class ModelCatalog
 
         $models = $this->allModels($provider);
 
+        // AI credits (CREDIT-001) only run the cheap models picked for them.
+        if ($provider === AgentProvider::Credits) {
+            return array_values(array_filter($models, fn (array $model) => $model['featured']));
+        }
+
         if (! $this->signedInWithChatGpt($provider, $user)) {
             return $models;
         }
@@ -116,7 +121,8 @@ class ModelCatalog
     /**
      * Providers the user can run with an agent: OpenCode can't use a Claude subscription, Claude Code
      * only runs Claude (with an API key or the user's Claude subscription), and Codex only runs OpenAI
-     * (with an API key or the user's ChatGPT sign-in).
+     * (with an API key or the user's ChatGPT sign-in). Where the install offers AI credits (CREDIT-001), OpenCode
+     * can also run on those, after the user's own connections.
      *
      * @return list<AgentProvider>
      */
@@ -128,13 +134,15 @@ class ModelCatalog
             return $user->agentConnections()->where('provider', $provider)->exists() ? [$provider] : [];
         }
 
-        return array_values($user->agentConnections()
+        $providers = array_values($user->agentConnections()
             ->where('credential_type', '!=', CredentialType::ClaudeLogin)
             ->orderByDesc('is_default')
             ->orderBy('id')
             ->get()
             ->map(fn (AgentConnection $connection) => $connection->provider)
             ->all());
+
+        return app(AiCredits::class)->enabled() ? [...$providers, AgentProvider::Credits] : $providers;
     }
 
     /**

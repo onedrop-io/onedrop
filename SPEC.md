@@ -104,6 +104,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 - On the hosted install, someone signing up without an invite should get a new organization they own, named after them ("Ada's organization"); someone signing up through an invite should join the inviter's organization instead.
 - On the hosted install, user should be able to create another organization from the account menu's Organization submenu, with a name; they become its owner and land on its new-project page.
+- While AI credits are on (CREDIT-001), user who already owns an organization should be told they can own only one for now, and no organization should be created.
 - On a self-hosted install, new sign-ups should join the one organization, and creating more should not be offered.
 
 ## ORG-004: Manage an organization's members
@@ -1465,3 +1466,13 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see, next to each failing test in the Tests tab (in the list and above its error), Jev's guess at why it failed: "Likely: the app broke", "Likely: the test is out of date" (the app changed on purpose and the test expects the old behavior) or "Likely: flaky or timing".
 - The guess should come from the test's title, error, steps and source and the user's recent requests and the agent's recent actions, be worked out once per run of each test in the background (the tab never waits on it), and appear shortly after the run ends.
 - User should see no guess when Jev isn't at least 50% sure, can't be reached or doesn't answer, or when there's no OpenRouter key (the owner's connection, else the platform's).
+
+## CREDIT-001: AI credits to start
+
+- On an install with AI credits turned on, user should be able to build without connecting their own AI: they skip the AI onboarding and the agent runs on "AI credits" (DeepSeek Flash through OpenRouter).
+- Each organization should start with $5 of AI credits once, plus $1 every month that doesn't carry over; the monthly $1 is used first.
+- Each run on credits should be charged to the project's organization at the provider's price, with no markup, from what OpenRouter says the organization's key spent.
+- User should see how much is left next to "AI credits" in the model picker.
+- User should not be able to spend more than the organization has left, even from the sandbox's shell: the organization's key is limited to its balance before every run.
+- When the credits run out, the run should stop with a message saying when they refill and that connecting their own AI in Settings → AI keeps building going.
+- User who connects their own AI should keep "AI credits" as one more choice in the model picker.

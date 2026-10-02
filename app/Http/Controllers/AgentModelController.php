@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Enums\AgentHarness;
 use App\Enums\AgentProvider;
+use App\Http\Middleware\ResolveOrganization;
+use App\Sandbox\Agents\AiCredits;
 use App\Sandbox\Agents\ModelCatalog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,9 +15,9 @@ class AgentModelController extends Controller
 {
     /**
      * Models the user can pick, grouped by their connected providers, the agents they can run (with
-     * the providers each can use), plus their favorites and recently chosen ones.
+     * the providers each can use), plus their favorites and recently chosen ones. AI credits say what's left (CREDIT-001).
      */
-    public function index(Request $request, ModelCatalog $catalog): JsonResponse
+    public function index(Request $request, ModelCatalog $catalog, AiCredits $credits): JsonResponse
     {
         $user = $request->user();
         $harnesses = $catalog->harnesses($user);
@@ -33,13 +35,26 @@ class AgentModelController extends Controller
             ], $harnesses),
             'providers' => array_map(fn (AgentProvider $provider) => [
                 'id' => $provider->value,
-                'label' => $provider->pickerLabel(),
+                'label' => $provider === AgentProvider::Credits ? $this->creditsLabel($request, $credits) : $provider->pickerLabel(),
                 'default_model' => $catalog->defaultModel($provider, $user),
                 'models' => $catalog->models($provider, $user),
             ], $providers),
             'favorites' => $request->user()->favorite_models ?? [],
             'recent' => $request->user()->recent_models ?? [],
         ]);
+    }
+
+    /**
+     * "AI credits · $4.82 left" for the organization the user is in, or just the name when that can't be checked.
+     */
+    protected function creditsLabel(Request $request, AiCredits $credits): string
+    {
+        $organization = ResolveOrganization::current($request);
+        $left = $organization ? $credits->remaining($organization) : null;
+
+        return $left === null
+            ? AgentProvider::Credits->pickerLabel()
+            : __('AI credits · $:amount left', ['amount' => number_format($left, 2)]);
     }
 
     /**

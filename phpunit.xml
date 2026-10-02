@@ -39,6 +39,8 @@
         <env name="SANDBOX_PUBLISHER" value="fake"/>
         <env name="SANDBOX_GATEWAY_SECRET" value=""/>
         <env name="OPENROUTER_API_KEY" value=""/>
+        <env name="OPENROUTER_PROVISIONING_KEY" value=""/>
+        <env name="AUTUMN_SECRET_KEY" value=""/>
         <env name="SANDBOX_MODEL_CATALOG_URL" value="https://models.test/api.json"/>
         <env name="SANDBOX_CHATGPT_MODELS_URL" value="https://chatgpt.test/models"/>
         <env name="SANDBOX_TEMPLATES_DOKPLOY_URL" value="https://dokploy.test"/>

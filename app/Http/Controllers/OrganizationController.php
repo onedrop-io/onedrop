@@ -6,10 +6,12 @@ use App\Enums\OrganizationRole;
 use App\Http\Middleware\ResolveOrganization;
 use App\Models\Organization;
 use App\Models\User;
+use App\Sandbox\Agents\AiCredits;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -34,6 +36,11 @@ class OrganizationController extends Controller
         abort_unless(Organization::multiTenant(), 404);
 
         $name = $request->validate(['name' => ['required', 'string', 'max:255']])['name'];
+
+        // Every organization gets free AI credits (CREDIT-001), so for now each person can own only one.
+        if (app(AiCredits::class)->enabled() && $request->user()->organizations()->wherePivot('role', OrganizationRole::Owner->value)->exists()) {
+            throw ValidationException::withMessages(['name' => __('You can own one organization for now.')]);
+        }
 
         $organization = Organization::createNamed($name);
         $organization->addMember($request->user(), OrganizationRole::Owner);

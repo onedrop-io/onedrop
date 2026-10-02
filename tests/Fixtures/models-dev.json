@@ -149,6 +149,13 @@
     "openrouter": {
         "id": "openrouter",
         "models": {
+            "deepseek/deepseek-v4.1-flash": {
+                "id": "deepseek/deepseek-v4.1-flash",
+                "name": "DeepSeek: DeepSeek V4.1 Flash",
+                "tool_call": true,
+                "release_date": "2026-08-16",
+                "cost": { "input": 0.3, "output": 1.2, "cache_read": 0.006 }
+            },
             "anthropic/claude-sonnet-5": {
                 "id": "anthropic/claude-sonnet-5",
                 "name": "Anthropic: Claude Sonnet 5",
