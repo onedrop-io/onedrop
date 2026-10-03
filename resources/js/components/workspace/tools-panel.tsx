@@ -19,6 +19,7 @@ import type { LucideIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import AuthPanel from '@/components/workspace/auth-panel';
 import DatabasePanel from '@/components/workspace/database-panel';
+import HostingManager from '@/components/workspace/hosting-details';
 import DeveloperPanel from '@/components/workspace/developer-panel';
 import FlagsPanel from '@/components/workspace/flags-panel';
 import GitPanel from '@/components/workspace/git-panel';
@@ -241,7 +242,10 @@ export default function ToolsPanel({
 
                 <div className="mt-6">
                     {section.id === 'publishing' ? (
-                        <PublishingOverview publication={publication} />
+                        <PublishingOverview
+                            projectId={projectId}
+                            publication={publication}
+                        />
                     ) : section.id === 'monitoring' ? (
                         <MonitoringPanel
                             projectId={projectId}
@@ -300,6 +304,10 @@ export default function ToolsPanel({
                         <DatabasePanel
                             projectId={projectId}
                             running={running}
+                            hosted={
+                                publication.target === 'hosting' &&
+                                publication.status !== null
+                            }
                         />
                     ) : (
                         <ComingSoon />
@@ -310,7 +318,13 @@ export default function ToolsPanel({
     );
 }
 
-function PublishingOverview({ publication }: { publication: Publication }) {
+function PublishingOverview({
+    projectId,
+    publication,
+}: {
+    projectId: number;
+    publication: Publication;
+}) {
     const live = publication.status === 'live';
 
     const status = live
@@ -371,6 +385,12 @@ function PublishingOverview({ publication }: { publication: Publication }) {
                 Use the Publish button at the top right to publish, change who
                 can open it, or unpublish.
             </p>
+            {publication.hosting && (
+                <HostingManager
+                    projectId={projectId}
+                    hosting={publication.hosting}
+                />
+            )}
         </div>
     );
 }

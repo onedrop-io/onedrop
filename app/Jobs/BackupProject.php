@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Project;
+use App\Sandbox\Hosting\HostingChanges;
 use App\Sandbox\ProjectBackups;
 use App\Sandbox\ProjectSnapshots;
 use App\Sandbox\SandboxException;
@@ -45,10 +46,10 @@ class BackupProject implements ShouldBeUniqueUntilProcessing, ShouldQueue
     }
 
     /**
-     * Copy the project's git history out of its sandbox after an agent turn, and take a snapshot of its whole state
-     * (SBX-009).
+     * Copy the project's git history out of its sandbox after an agent turn, note what its hosted app is missing
+     * (HOST-004), and take a snapshot of its whole state (SBX-009).
      */
-    public function handle(ProjectBackups $backups, ProjectSnapshots $snapshots): void
+    public function handle(ProjectBackups $backups, ProjectSnapshots $snapshots, HostingChanges $changes): void
     {
         $project = $this->project->fresh() ?? $this->project;
 
@@ -56,6 +57,13 @@ class BackupProject implements ShouldBeUniqueUntilProcessing, ShouldQueue
             $backups->backUp($project);
         } catch (SandboxException $e) {
             // The next turn tries again.
+            report($e);
+        }
+
+        try {
+            // What the hosted app is missing now (HOST-004).
+            $changes->refresh($project);
+        } catch (SandboxException $e) {
             report($e);
         }
 

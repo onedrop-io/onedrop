@@ -285,6 +285,10 @@ export default function ShowProject({
         setChatOpen(!chatOpen);
     };
 
+    // A Tools section was asked for from outside the workspace (Manage hosting, the git menu): on a phone or a narrow
+    // window, where the chat and the workspace are tabs, show the workspace too.
+    useEffect(() => onOpenWorkspaceTool(() => setMobileView('workspace')), []);
+
     // Something was sent to the chat from the workspace: make sure it's on screen.
     const showChat = () => {
         if (!chatOpen) {

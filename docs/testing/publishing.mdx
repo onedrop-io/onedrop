@@ -1,0 +1,66 @@
+---
+title: 'Publishing'
+description: 'Manual tests for publishing to your domain, Tailscale and Hosting, and for sharing.'
+noindex: true
+---
+
+Each target needs its own setup: a server install with `SANDBOX_GATEWAY_DOMAIN` for your domain, `TAILSCALE_AUTHKEY` (or a Tailscale account to approve in) for Tailscale, and **Settings → Hosting** for Hosting. Locally, `SANDBOX_PUBLISHER=fake` skips all of this; turn it off to test for real.
+
+## Your domain
+
+- [ ] **Publish → Your domain → Private** shows the URL after **Publishing…**.
+- [ ] While it's publishing, close the panel: the header **Publish** button spins and says **Publishing…**, then goes back to **Republish**.
+- [ ] While it's publishing, close the panel: the header **Publish** button spins and says **Publishing…**, then goes back to **Republish**.
+- [ ] Signed in as a member of the organization, the URL opens the app.
+- [ ] Signed out, it sends you to sign in, then back to the page you asked for.
+- [ ] Signed in as someone outside the organization, it refuses.
+- [ ] **Public** opens for anyone, in a private window.
+- [ ] Changes the agent makes show on the URL right away (it's the live sandbox).
+- [ ] A suspended sandbox wakes when the URL is opened.
+
+## Tailscale
+
+- [ ] **Private** publishes to a `*.ts.net` URL that opens on the tailnet and not off it.
+- [ ] **Public** (Funnel) opens from anywhere.
+- [ ] Without an auth key, **Approve in Tailscale** appears, and approving the device carries on by itself.
+
+## Republish and unpublish
+
+- [ ] **Republish** switches between Private and Public, and between your domain and Tailscale; the old address stops working.
+- [ ] **Unpublish** takes it offline.
+- [ ] **Tools → Publishing** shows the same status, URL and who published.
+
+## Hosting
+
+Build two apps: a front end only, and a server app with a database ("a Laravel app with a guestbook").
+
+- [ ] Publishing the front end deploys it to Cloudflare; the server app to Fly.io, with its database where `.onedrop/host.json` says.
+- [ ] The panel follows each deploy step, and **Deploy #n** shows the log.
+- [ ] The first deploy copies the sandbox's data; later changes in the hosted app aren't overwritten by **Republish**.
+- [ ] HOST-010: changing **Machine size** to Large restarts the app in seconds without a build; `fly machine status` shows 2 performance CPUs and 4 GB, and the app still answers after it sleeps and wakes.
+- [ ] HOST-009: on a hosted Laravel app with a few rows, **Move to Postgres**: the agent adds `.onedrop/migrate` and `"postgres"` to `host.json`; **Update** makes the Neon database, the log says the data moved, the app shows the same rows, and Tools → Database (Hosted) lists the Postgres first.
+- [ ] HOST-008: a SQLite app's deploy makes **SQLite backups** (in the panel's list), and its machine's logs (`fly logs -a <app>`) show `litestream: … replicating to`. After adding a row in the hosted app, files appear under the database's path in its `-backups` bucket in R2 within a few seconds.
+- [ ] After a turn, **Publish** shows a dot and the panel lists the changes; **Update** deploys them to the same address.
+- [ ] A broken update puts the previous version back and says why.
+- [ ] A Vite app with no `.onedrop/host.json` (delete it) goes to Cloudflare, and the deploy log says it was taken for a front end.
+- [ ] On a Mac (arm64 sandbox), a server app with native packages (anything on Vite 8, or `sharp`) starts on Fly.io; the builder log says it installed the packages again for x86_64.
+- [ ] An app whose `.onedrop/start` exits at once (`exit 1`) fails within about a minute, with its output in the deploy log.
+- [ ] **Roll back** to an earlier deploy works in seconds.
+- [ ] **Update automatically** updates the hosted app about a minute after a clean turn.
+- [ ] **Unpublish** stops the app and keeps its data; **Delete hosted data** removes it at each provider.
+- [ ] With an organization's own provider account connected in **Settings → Organization**, new apps go there.
+
+## Review before going public
+
+Only on the hosted service.
+
+- [ ] An ordinary app goes public straight away.
+- [ ] An app that looks like phishing waits for a review, and stays offline until approved.
+
+## Share
+
+- [ ] **Share** makes a public page with the chosen prompt and a screenshot of the chosen path.
+- [ ] The link unfurls with the card in Slack or iMessage.
+- [ ] **Remix this** starts a new project from the prompt.
+- [ ] When the project is also published as Public, the page links to it with **Open the app**.
+- [ ] **Stop sharing** takes the page down.

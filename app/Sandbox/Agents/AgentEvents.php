@@ -8,6 +8,7 @@ use App\Enums\AgentProvider;
 use App\Enums\CredentialType;
 use App\Enums\MessageRole;
 use App\Enums\UsagePayer;
+use App\Jobs\AutoDeploy;
 use App\Jobs\BackupProject;
 use App\Jobs\ChargeAiCredits;
 use App\Jobs\CheckPreviewErrors;
@@ -135,6 +136,7 @@ abstract class AgentEvents
             CheckPreviewErrors::afterTurn($project);
             CheckRequirementsKept::afterTurn($project);
             AbuseCheck::afterTurn($project);
+            AutoDeploy::afterTurn($project);
         }
 
         // Before it goes idle, so the sidebar holds its notification until the outcome is known (PRJ-011).

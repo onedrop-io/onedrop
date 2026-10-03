@@ -28,9 +28,15 @@ interface Publisher
      * or null if it isn't ready yet (the caller retries).
      *
      * @throws PublishNeedsLogin when someone must approve it in the browser first (the caller keeps retrying)
+     * @throws PublishNeedsFeature when the tailnet has a feature it needs turned off (the caller keeps retrying)
      * @throws PublishException
      */
     public function confirm(Project $project, PublishVisibility $visibility): ?string;
+
+    /**
+     * How many times to call confirm() (ConfirmPublication::RETRY_SECONDS apart) before giving up on it coming up.
+     */
+    public function confirmAttempts(): int;
 
     /**
      * Take the project offline. Unpublishing something not published is not an error.

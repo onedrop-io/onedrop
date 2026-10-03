@@ -6,9 +6,17 @@ import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
     DropdownMenuContent,
+    DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Spinner } from '@/components/ui/spinner';
+import {
+    DEPLOY_STEPS,
+    DeployLog,
+    HostingChanges,
+} from '@/components/workspace/hosting-details';
 import { useClipboard } from '@/hooks/use-clipboard';
+import { openWorkspaceTool } from '@/lib/workspace-view';
 import { cn } from '@/lib/utils';
 import type { Publication, PublishTarget } from '@/types';
 
@@ -78,6 +86,13 @@ export default function PublishMenu({
     const chosen =
         publication.targets.find((option) => option.target === target) ??
         publication.targets[0];
+    // Where it can't be private (hosting), it's public.
+    const chosenVisibility: Visibility =
+        chosen?.private === null ? 'public' : visibility;
+    const hosting = publication.hosting;
+    const deploying =
+        publication.target === 'hosting' &&
+        hosting?.deployment?.status === 'running';
     const publishedTo = publication.targets.find(
         (option) => option.target === publication.target,
     );
@@ -86,12 +101,20 @@ export default function PublishMenu({
     const publishing = publication.status === 'publishing';
     const inReview = publication.status === 'review';
     const everPublished = publication.published_at !== null;
+    // The sandbox has changes the hosted app doesn't yet (HOST-004).
+    const pendingChanges = hosting?.changes?.count ?? 0;
+    const action =
+        pendingChanges > 0 && target === 'hosting'
+            ? 'Update'
+            : everPublished
+              ? 'Republish'
+              : 'Publish';
     const error = errors.publish ?? publication.error;
 
     const publish = () =>
         router.post(
             ProjectPublicationController.store.url(projectId),
-            { visibility, target },
+            { visibility: chosenVisibility, target },
             { preserveScroll: true },
         );
 
@@ -103,21 +126,34 @@ export default function PublishMenu({
     return (
         <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
-                <Button size="sm" data-test="publish-button">
-                    <Rocket className="size-4" />
-                    {everPublished ? 'Republish' : 'Publish'}
+                <Button
+                    size="sm"
+                    className="relative"
+                    data-test="publish-button"
+                >
+                    {publishing ? <Spinner /> : <Rocket className="size-4" />}
+                    {publishing
+                        ? 'Publishing…'
+                        : everPublished
+                          ? 'Republish'
+                          : 'Publish'}
+                    {pendingChanges > 0 && (
+                        <span
+                            className="absolute -top-1 -right-1 size-2.5 rounded-full border-2 border-background bg-amber-500"
+                            aria-label="Changes not published"
+                            data-test="publish-pending"
+                        />
+                    )}
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
                 align="end"
-                className="w-96 max-w-[calc(100vw-1rem)] space-y-4 p-4"
+                className="max-h-[calc(100svh-5rem)] w-96 max-w-[calc(100vw-1rem)] space-y-4 overflow-y-auto p-4"
                 data-test="publish-panel"
                 // The preview iframe can grab focus while loading; only close on a real click outside or Escape.
                 onFocusOutside={(event) => event.preventDefault()}
             >
-                <h2 className="font-medium">
-                    {everPublished ? 'Republish' : 'Publish'}
-                </h2>
+                <h2 className="font-medium">{action}</h2>
 
                 {publication.unavailable ? (
                     <p
@@ -150,7 +186,9 @@ export default function PublishMenu({
                                 {published
                                     ? `${publication.published_by ?? 'Someone'} published ${timeAgo(publication.published_at!)}`
                                     : publishing
-                                      ? 'Publishing…'
+                                      ? deploying
+                                          ? `${DEPLOY_STEPS[hosting?.deployment?.step ?? ''] ?? 'Deploying'}…`
+                                          : 'Publishing…'
                                       : publication.status === 'failed'
                                         ? 'Failed'
                                         : inReview
@@ -245,7 +283,14 @@ export default function PublishMenu({
                                 <legend className="mb-2 text-sm text-muted-foreground">
                                     Publish to
                                 </legend>
-                                <div className="grid grid-cols-2 gap-2">
+                                <div
+                                    className={cn(
+                                        'grid gap-2',
+                                        publication.targets.length > 2
+                                            ? 'grid-cols-3'
+                                            : 'grid-cols-2',
+                                    )}
+                                >
                                     {publication.targets.map((option) => (
                                         <label
                                             key={option.target}
@@ -289,8 +334,9 @@ export default function PublishMenu({
                             <legend className="mb-2 text-sm text-muted-foreground">
                                 Who can open it
                             </legend>
-                            {(Object.keys(VISIBILITY) as Visibility[]).map(
-                                (key) => {
+                            {(Object.keys(VISIBILITY) as Visibility[])
+                                .filter((key) => chosen?.[key] !== null)
+                                .map((key) => {
                                     const option = VISIBILITY[key];
 
                                     return (
@@ -298,7 +344,7 @@ export default function PublishMenu({
                                             key={key}
                                             className={cn(
                                                 'flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm',
-                                                visibility === key
+                                                chosenVisibility === key
                                                     ? 'border-primary'
                                                     : 'border-input hover:bg-muted/50',
                                             )}
@@ -307,7 +353,9 @@ export default function PublishMenu({
                                                 type="radio"
                                                 name="visibility"
                                                 value={key}
-                                                checked={visibility === key}
+                                                checked={
+                                                    chosenVisibility === key
+                                                }
                                                 onChange={() =>
                                                     setVisibility(key)
                                                 }
@@ -325,8 +373,7 @@ export default function PublishMenu({
                                             </span>
                                         </label>
                                     );
-                                },
-                            )}
+                                })}
                         </fieldset>
 
                         {publishing && publication.login_url && (
@@ -364,6 +411,27 @@ export default function PublishMenu({
                             </div>
                         )}
 
+                        {hosting && (
+                            <div className="space-y-2">
+                                <HostingChanges changes={hosting.changes} />
+                                {hosting.deployment && (
+                                    <DeployLog
+                                        deployment={hosting.deployment}
+                                    />
+                                )}
+                                <DropdownMenuItem
+                                    onSelect={() =>
+                                        openWorkspaceTool('publishing')
+                                    }
+                                    className="cursor-pointer px-0 text-sm text-muted-foreground"
+                                    data-test="manage-hosting"
+                                >
+                                    Manage hosting: deploys, machine size, data
+                                    →
+                                </DropdownMenuItem>
+                            </div>
+                        )}
+
                         {error && (
                             <p
                                 className="text-sm text-red-600"
@@ -390,11 +458,8 @@ export default function PublishMenu({
                                 disabled={publishing || !!chosen?.unavailable}
                                 data-test="publish-submit"
                             >
-                                {publishing
-                                    ? 'Publishing…'
-                                    : everPublished
-                                      ? 'Republish'
-                                      : 'Publish'}
+                                {publishing && <Spinner />}
+                                {publishing ? 'Publishing…' : action}
                             </Button>
                         </div>
                     </>

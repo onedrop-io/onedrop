@@ -12,4 +12,7 @@ enum PublishTarget: string
 
     /** Its own node on the team's tailnet. */
     case Tailscale = 'tailscale';
+
+    /** Deployed off the sandbox: a Fly machine, or Cloudflare for a front end, with its data in managed services (HOST-001). */
+    case Hosting = 'hosting';
 }

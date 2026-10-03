@@ -1,0 +1,64 @@
+---
+title: 'Sandboxes'
+description: 'Manual tests for sandbox lifecycle: create, suspend and wake, update, recreate, snapshots and providers.'
+noindex: true
+---
+
+Run these against the provider you changed. Locally that's Docker; for Runtime Cloud or Blaxel, point a local install at the provider with its keys (see [Sandboxes](/self-hosting/sandboxes)). `RUN_DOCKER_TESTS=1 vendor/bin/pest tests/Integration` covers much of this for Docker; run it first.
+
+## Create
+
+- [ ] A new project gets a sandbox, and the preview shows the placeholder within seconds (Docker) or a minute (remote providers).
+- [ ] The Shell, Console and Services tabs connect.
+
+## Suspend and wake
+
+1. Leave a project's workspace closed for over a minute.
+
+- [ ] Docker: `docker ps` shows the container paused; after five more minutes, stopped.
+- [ ] Opening the project wakes it; the preview is back in under a second when paused, a few seconds when stopped.
+- [ ] A sandbox whose agent is working is never suspended.
+- [ ] A published URL wakes a suspended sandbox when someone opens it.
+
+## Updates
+
+### Tool files
+
+1. Change a tool file in `docker/sandbox` (a guide, say), without rebuilding the image.
+2. Leave a project unused for 10 minutes, or send it a message.
+
+- [ ] The changed file is in the sandbox's `/opt/onedrop`, and nothing else changed.
+- [ ] Sending a message copies it in first, so the agent has it for that turn.
+
+### Base files
+
+1. Change a base file (`start.sh`), rebuild with `php artisan sandbox:build-image`, then run `php artisan sandbox:update <project>`.
+
+- [ ] The project moves to a new sandbox; the preview shows **Updating sandbox…** meanwhile.
+- [ ] Kept: the app's files, uncommitted changes, `node_modules`, App Storage, the agent's conversation (the next message continues it), and anything installed in `/home/sandbox`.
+- [ ] A project whose agent is working is skipped, and updates before its next run.
+
+## Recreate and restore
+
+- [ ] `php artisan sandbox:recreate <project> --keep-files` gives a new sandbox with everything above kept.
+- [ ] Without `--keep-files`, the code comes back from its backup, every branch included.
+- [ ] `php artisan sandbox:restore <project> --list` lists snapshots, and restoring an older one brings back that state.
+- [ ] Deleting the sandbox's container by hand, then opening the project, recovers it.
+
+## Snapshots
+
+- [ ] A turn takes a snapshot; a second turn that changes no dependencies stores only the `workspace` layer again.
+- [ ] Changing a lockfile stores the `deps` layer again.
+- [ ] On a bucket (`SANDBOX_SNAPSHOT_DISK`), layers go straight to the bucket.
+
+## Docker inside sandboxes
+
+With **Docker inside sandboxes** on for the provider:
+
+- [ ] A project with its own `docker-compose.yml` starts its stack, and **Services** shows it.
+- [ ] Turning the setting off and on updates existing sandboxes the next time their projects are opened.
+
+## Switch providers
+
+- [ ] Changing the provider in **Settings → Sandboxes** moves each project to the new provider when it's next opened, with its files.
+- [ ] A project whose old sandbox is gone starts from its backup with `php artisan sandbox:recreate`.

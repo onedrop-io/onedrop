@@ -33,9 +33,11 @@ class ProjectPublicationController extends Controller
             'target' => ['nullable', Rule::enum(PublishTarget::class)],
         ]);
         $visibility = PublishVisibility::from($validated['visibility']);
-        $target = isset($validated['target']) ? PublishTarget::from($validated['target']) : $publishers->default();
+        $target = isset($validated['target']) ? PublishTarget::from($validated['target']) : $publishers->default($project);
 
-        $problem = $publishers->for($target)->unavailableReason()
+        $problem = $publishers->unavailableReason($target, $project)
+            // Hosted apps are public for now (HOST-001): there's no OneDrop sign-in in front of them.
+            ?? ($target === PublishTarget::Hosting && $visibility === PublishVisibility::Private ? __('Hosted apps are public for now. Publish to your domain or Tailscale to keep it private.') : null)
             ?? ($project->sandbox?->status !== SandboxStatus::Running ? __("The project's sandbox isn't running.") : null)
             // Taken down after a review on the hosted install (ADMIN-006): private publishing still works.
             ?? ($visibility === PublishVisibility::Public && $project->abuseReview?->status === AbuseReviewStatus::TakenDown ? __(AbuseCheck::TAKEN_DOWN_MESSAGE) : null);

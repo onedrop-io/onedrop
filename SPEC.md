@@ -670,7 +670,9 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Approval should only be needed once per project (republishing reuses it).
 - User should see a clear explanation if publishing fails (e.g. key rejected, Funnel not allowed for the tailnet).
 - If Funnel (public) or HTTPS certificates are off for the tailnet, user should see a link to turn them on in the Publish panel; publishing continues by itself once they're on.
+- While publishing, the Publish button in the header should show a spinner and say Publishing…, so user can see it is still working with the panel closed.
 - Publishing should never stay "Publishing…" forever: if it stops unexpectedly, user should see it failed and can try again.
+- A hiccup while checking on publishing (a timed-out command, a busy database) should not fail it: it checks again, and only fails once it runs out of time.
 
 ## SHARE-001: Share a project to show it off
 
@@ -1346,6 +1348,86 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - If Jev fails or times out, or the page can't be read, the app should be published as normal (the page is just left out when it can't be read) and the error reported.
 - Publishing privately, a self-hosted install, and an install without a platform key should never be checked.
 
+## HOST-001: Deploy a project to hosting
+
+- When an admin turned on Fly.io or Cloudflare (ADMIN-007), or the project's organization connected its own account (HOST-003), user should be able to choose Hosting in the Publish panel, beside Your domain and Tailscale, and the project remembers it. Without either, Hosting isn't offered.
+- Hosted apps should be public for now (anyone with the URL); publishing privately is for Your domain and Tailscale.
+- Deploying should read the app's `.onedrop/host.json` in the sandbox, run its `.onedrop/build`, and pack it there. A front end (`"static"` in host.json) should be served from a Cloudflare Worker at a workers.dev address, with unknown paths getting its index.html. An app with a server should run on a Fly.io machine at https://<app>.fly.dev: the sandbox's own image plus the project's files, started with `.onedrop/start` (or `.onedrop/dev`) behind the sandbox's proxy, as in the preview.
+- The sandbox should only get signed links to upload the release; provider keys never reach it. Releases wait on the snapshot disk when it's S3-compatible, otherwise in an R2 bucket made once in the Cloudflare account (with a key for that bucket only); with neither, the Publish panel says so.
+- User should see what the deploy is doing in the Publish panel (reading the app, building, setting up services, building the image, starting the app) and its log, with the builder's log when the install can be reached.
+- The Publish panel should stay short (status, where, who, what changed, the latest deploy, and a link to Manage hosting) and scroll when the window is too short; the rest of hosting (earlier deploys, updating automatically, machine size, what the app has, Move to Postgres, deleting its data) is in Tools → Publishing, with the latest deploy's log open.
+- The deploy log should be colored like the Services logs (failures red, going live green), open scrolled to its newest lines, and its addresses should open in a new tab.
+- A hosted app should keep running when its sandbox is suspended, stopped, updated or recreated; its sandbox can sleep meanwhile. When nobody visits it, its machine (and a Neon database) should sleep and cost almost nothing, and the next visit should wake it.
+- Deploying again (Republish) should ship the sandbox's latest code only; the hosted app's data stays where it is, and its address stays the same.
+- A Vite app with no `.onedrop/host.json` (a build script, an index.html, nothing that runs a server) should be deployed as a front end, built with its own build script, and the deploy log should say so.
+- An app packed in a sandbox with another CPU (e.g. arm64 Docker on a Mac) should still run on Fly.io: its packages are installed again for the hosted machine from its lockfile.
+- A deploy whose app never answers should put the last good version back and say it failed; a deploy that fails earlier leaves the running version alone.
+- A deploy whose app keeps stopping as it starts should fail within about a minute, not after the full wait, with the app's last output in the deploy log.
+- Unpublishing, or moving to another target, should stop the hosted app (its machine, or its site); its data is kept until the user deletes it (HOST-002).
+
+## HOST-002: Databases and files for hosted apps
+
+- On a deploy, OneDrop should make what the app is missing at the admin's (or the organization's) providers: a Neon Postgres for `"postgres"` in host.json, an Upstash Redis for `"redis"`, an R2 bucket with a key for that bucket only for `"s3"`, and a Fly volume when the app keeps data on disk (`.onedrop/data`, `database/database.sqlite`, the `"data"` paths, or App Storage).
+- The hosted app should get each service's address under the names it reads in the sandbox (`DATABASE_URL`, plus `DB_CONNECTION`/`DB_URL` for Laravel; `REDIS_URL`; the `AWS_*` settings), and the volume's data in place at the same paths.
+- On the first deploy that makes the volume or the Postgres, the sandbox's data should be copied into them once (its data paths and App Storage onto the volume, its local Postgres into Neon); later deploys never copy it again. Redis isn't copied.
+- User should see what the project has at hosting providers in Tools → Publishing: each service, its provider, and whether it's in the organization's own account.
+- Once the project isn't published to Hosting, user should be able to delete all of it (databases and files included) after confirming. Deleting the project deletes it too.
+- Provider keys should never be put in a sandbox or a hosted app; only each service's own connection details (a bucket key that only works for its bucket) reach the hosted app.
+
+## HOST-003: Use your own hosting accounts
+
+- Organization owners and admins should be able to connect the organization's own account for each hosting provider (Fly.io, Cloudflare, Neon, Upstash) in Settings → Organization, under Hosting, with its keys stored encrypted and never shown again (blank keeps the saved key).
+- When the organization connected its own account for a provider, new things for its apps should be made there and billed to it by the provider; otherwise they use the install's account (ADMIN-007), if it's turned on. Things already made stay in the account they were made in.
+- User should see for each provider whether it's connected, uses OneDrop's account, or isn't set up, and how many things of its apps are in its own account.
+- Disconnecting an account should never delete anything in it, and isn't allowed while its apps still have something there (delete their hosted data first).
+
+## HOST-004: See what the hosted app is missing
+
+- After each agent turn, user should see whether the sandbox has changes the hosted app doesn't: a dot on the Publish button, and in the panel how many changes there are since the live deploy with their commit messages (the latest few).
+- The Publish panel's button should say Update while there are changes, and updating should clear them once the new deploy is live.
+- A project that isn't published to Hosting should show no changes.
+
+## HOST-005: Roll back a hosted app
+
+- User should see the recent deploys of a hosted app with a server in Tools → Publishing, the live one marked, and be able to put an earlier one back after confirming.
+- Rolling back should start the app on that deploy's image without building again, keep the app's data as it is now, and show in the deploy log which deploy it put back.
+- Only this project's own earlier live deploys of an app with a server can be put back (a front end has no images to go back to).
+
+## HOST-006: Update the hosted app automatically
+
+- User should be able to turn on "Update automatically" for a hosted project in Tools → Publishing; it's off by default.
+- With it on, about a minute after a turn ends the hosted app should update by itself when the agent finished (not waiting on the user, not working again, no newer message), the preview showed no new errors since the turn, no deploy is running, and the sandbox has changes the hosted app doesn't.
+- Otherwise nothing should happen until the next turn.
+
+## HOST-007: The hosted app's database
+
+- On a project published to Hosting, user should be able to switch Tools → Database between the sandbox's database and the hosted app's live one ("Hosted (live)"), with a note that it's the visitors' real data.
+- The hosted app's database should be browsed, edited and queried the same way, on its own machine (woken first if it's asleep, and whether or not the sandbox is running), as the app's own user so the files stay the app's, and with the database it was given (`DATABASE_URL`) listed first rather than the sandbox's local servers.
+- Saving edits to the hosted database, or running SQL that may change it, should ask first.
+- User should be able to download a consistent copy of a SQLite database, from the sandbox or the hosted app, as a file to open in other tools; the copy is offered through a short-lived link and deleted an hour later.
+- No provider key reaches the browser, the sandbox or the database tool; a project not published to Hosting has no hosted database.
+
+## HOST-008: Continuous SQLite backups
+
+- A hosted app with SQLite databases in its data (found in its data paths when it's packed) should back them up continuously, about every second, to its own R2 bucket with a key for that bucket only, when the app's Cloudflare account is set up.
+- On a new, empty volume, its databases should come back from their backups before anything else, and the sandbox's first-deploy copy should only fill in what's missing; the restored files stay the app's.
+- User should see the backups in Tools → Publishing's list of what the app has, and they're deleted with the rest of its hosted data.
+- Without a Cloudflare account the deploy should still go live, and its log should say the databases rely on the volume's daily snapshots.
+
+## HOST-009: Move to Postgres
+
+- User should see a hosted app's SQLite database in Tools → Publishing with Move to Postgres, while the app keeps its data in SQLite on a volume and has no Postgres yet.
+- Moving should ask first, then ask the agent to switch the app over (portable SQL, a `.onedrop/migrate` that makes its tables, `"postgres"` in host.json, the sandbox staying on SQLite), and the panel should say a move is waiting for the next update.
+- Until the app uses Postgres, deploys should carry on with SQLite and the move keeps waiting.
+- The next deploy should make a Neon database and, on the hosted machine before the app starts, make the tables with `.onedrop/migrate` and copy every row of the hosted SQLite data into them in one transaction (values converted to each column's type, id sequences carrying on), once. The sandbox's own Postgres is never copied in a move, and the SQLite file stays on the volume.
+- If the tables don't match the SQLite ones, or the copy fails, nothing should be copied, the deploy should fail with why, and the SQLite version should go back, without Postgres in its environment; the next update tries again.
+
+## HOST-010: Machine size
+
+- User should be able to choose a hosted app's machine size in Tools → Publishing: Small (1 shared CPU, the install's memory, 1 GB by default), Medium (2 shared CPUs, 2 GB), Large (2 dedicated CPUs, 4 GB) or Extra large (4 dedicated CPUs, 8 GB).
+- Changing it on a hosted app with a server should ask first, then restart the live version on the new size within seconds, without building again; chosen before the app is hosted, the first deploy uses it.
+- The panel should say that larger machines wake a little slower after sleeping.
+
 ## ADMIN-001: Name and logo
 
 - Admin should be able to change the app's name from Settings → General, and see it in the header, sign-in pages, browser tab title and emails. (The sidebar shows the organization's name, ORG-002.)
@@ -1392,6 +1474,14 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should not be able to publish a taken-down app publicly or share it again until an admin approves it; publishing privately still works.
 - Admin should see the latest decisions (who approved or took down what, and when), and be able to approve a taken-down app from there.
 - Non-admins should not be able to see the reviews or decide them.
+
+## ADMIN-007: Hosting providers
+
+- Admin should see Settings → Hosting listing each hosting provider (Fly.io, Cloudflare, Neon, Upstash) with what it's used for (apps with a server and data volumes; front ends and S3 file storage; Postgres; Redis), an on/off switch, and how many things are in its account, next to a details pane for the selected one. There's one provider per role, so no ordering.
+- Admin should be able to change a provider's settings in the details pane (API keys, account or organization IDs, region; for Fly.io also the base image, memory and volume size); keys are stored encrypted and never shown again, and leaving a key blank keeps the saved one.
+- Admin should see what a turned-on provider still needs before apps can be hosted on it.
+- Settings saved here should win over the ones in `.env`, and running queue workers should pick them up without a restart.
+- Non-admins should not be able to see or change these settings.
 
 ## SKILL-001: Agent Skills in Tools
 

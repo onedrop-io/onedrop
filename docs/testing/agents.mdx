@@ -1,0 +1,114 @@
+---
+title: 'Agents'
+description: 'Manual tests for OpenCode, Claude Code and Codex: connecting, running, stopping, switching and recovering.'
+noindex: true
+---
+
+Run the [shared checks](#every-agent) once per agent, then that agent's own section. After bumping an agent's version, also compare its event stream with what its `*Events` class expects (see `AGENTS.md`).
+
+## Every agent
+
+Start a new project on the agent and model under test, with a small prompt.
+
+### A turn runs and finishes
+
+- [ ] The chat shows the agent working within a few seconds: thinking, tool calls and file edits stream in as they happen.
+- [ ] The preview leaves the placeholder and shows the app once the agent starts a dev server.
+- [ ] The turn ends cleanly: no error line, the send button comes back.
+- [ ] A follow-up message ("make the heading blue") continues the same conversation; the agent knows what it built.
+- [ ] **Tools → Git** shows a checkpoint commit for the turn.
+
+### Stop and queue
+
+1. Send a message that takes a while ("add a settings page with five fields").
+2. While it runs, type and send a second message.
+3. Click stop.
+
+- [ ] The second message waits in the queue instead of interrupting.
+- [ ] Stop ends the turn within a few seconds and the chat says it was stopped.
+- [ ] The queued message runs next, or can be removed before it does.
+
+### Reload during a turn
+
+1. Send a message, then reload the page while the agent works.
+
+- [ ] The chat comes back with everything so far and keeps streaming.
+- [ ] Closing the tab and reopening the project mid-turn does the same.
+
+### Errors reach the agent
+
+1. Ask the agent to add a page that throws an error, then open it in the preview.
+
+- [ ] A bar over the preview shows the error, and **Fix it** sends it to the chat.
+- [ ] With **Autofix** on, a new error after a turn is sent to the agent once by itself; with it off, nothing is sent.
+
+### A bad connection says so
+
+1. In **Settings → AI**, reconnect the provider with an invalid key (or revoke it at the provider).
+2. Send a message.
+
+- [ ] The chat says the key was rejected, in plain words, not a stack trace.
+- [ ] Reconnecting a good key and sending again works.
+
+### Model and reasoning
+
+- [ ] Changing the model in the picker applies to the next message (the chat or the agent's output says which model ran).
+- [ ] **Auto** picks a model per message and shows which one it picked.
+- [ ] A reasoning level other than **Default** is accepted and the turn runs.
+
+## OpenCode
+
+- [ ] Runs on an OpenRouter key, an Anthropic or OpenAI API key, a Gemini key, an Ollama key, and a ChatGPT sign-in (pick an OpenAI model).
+- [ ] With a local Ollama server (`http://localhost:11434` on a local install), its pulled models show in the picker and a turn runs on one.
+- [ ] Without any Claude API key, OpenCode isn't offered a Claude subscription.
+
+## Claude Code
+
+### Claude subscription sign-in
+
+Needs a Claude Pro or Max account. Disconnect Claude first if `DEV_CLAUDE_CREDENTIAL` seeded one.
+
+1. Connect Claude with **Use my Claude subscription** and open a project on Claude Code.
+2. Click **Sign in to Claude** above the chat box.
+
+- [ ] A **Shell** tab opens running `claude auth login`.
+- [ ] After pasting Claude's code, the Shell says **Login successful**, the workspace switches back to **Preview**, and the line above the chat says who is signed in.
+- [ ] A message runs on the subscription.
+- [ ] On Docker sandboxes, a second project is already signed in.
+- [ ] A message sent before signing in picks itself back up after sign-in, even after a page reload.
+- [ ] Disconnecting Claude in **Settings → AI** signs Claude Code out; the next message asks to sign in again.
+
+### API key
+
+- [ ] With only an Anthropic API key, Claude Code runs and the picker lists only Claude models.
+
+## Codex
+
+### ChatGPT sign-in
+
+1. In **Settings → AI**, click **Sign in with ChatGPT** and approve the code at OpenAI.
+
+- [ ] OneDrop connects as soon as you approve, without a reload.
+- [ ] A project on Codex runs a turn, and the picker lists only the models OpenAI includes with Codex.
+- [ ] **Get a new code** gives a fresh code when the first expires.
+
+### API key
+
+- [ ] With only an OpenAI API key, Codex runs a turn.
+
+## Switching agents
+
+1. In a project with a few turns, switch from one agent to another in the picker.
+
+- [ ] The chat notes the switch and the new agent starts a fresh conversation.
+- [ ] The app's files are unchanged and the preview keeps working.
+- [ ] Switching is refused while the agent is working.
+- [ ] Repeat for each pair you changed: OpenCode ↔ Claude Code ↔ Codex.
+
+## AI credits
+
+Only on installs with AI credits on.
+
+- [ ] A new organization with no connection can build on **AI credits**, and the balance beside the model picker goes down after a turn.
+- [ ] The **Usage** page shows the same balance.
+- [ ] Once credits run out, the chat says when the next $1 arrives and points to **Settings → AI**.

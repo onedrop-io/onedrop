@@ -9,19 +9,28 @@ import type {
     DatabaseTable,
 } from '@/types';
 
+/** Whose database: the sandbox's, or the hosted app's (HOST-007). */
+export type DatabaseLocation = 'sandbox' | 'hosted';
+
 /**
- * Calls to the app's own databases, through the project's sandbox.
+ * Calls to the app's own databases, through the project's sandbox or its hosted app's machine.
  */
 export const databaseApi = {
-    connections: (projectId: number) =>
+    connections: (projectId: number, where: DatabaseLocation = 'sandbox') =>
         request<{ connections: DatabaseConnection[] }>(
-            ProjectDatabaseController.connections.url(projectId),
+            ProjectDatabaseController.connections.url(projectId, {
+                query: { where },
+            }),
         ).then((body) => body.connections),
 
-    tables: (projectId: number, connection: string) =>
+    tables: (
+        projectId: number,
+        connection: string,
+        where: DatabaseLocation = 'sandbox',
+    ) =>
         request<{ tables: DatabaseTable[] }>(
             ProjectDatabaseController.tables.url(projectId, {
-                query: { connection },
+                query: { connection, where },
             }),
         ).then((body) => body.tables),
 
@@ -35,8 +44,10 @@ export const databaseApi = {
             sort: { column: string; direction: 'asc' | 'desc' } | null;
             filters: DatabaseFilter[];
         },
+        where: DatabaseLocation = 'sandbox',
     ) => {
         const query: Record<string, string | number> = {
+            where,
             connection: options.connection,
             table: options.table,
             page: options.page,
@@ -64,15 +75,34 @@ export const databaseApi = {
         connection: string,
         table: string,
         changes: DatabaseChanges,
+        where: DatabaseLocation = 'sandbox',
     ) =>
         request<{ inserted: number; updated: number; deleted: number }>(
             ProjectDatabaseController.change.url(projectId),
-            { connection, table, ...changes },
+            { connection, table, where, ...changes },
         ),
 
-    query: (projectId: number, connection: string, sql: string) =>
+    query: (
+        projectId: number,
+        connection: string,
+        sql: string,
+        where: DatabaseLocation = 'sandbox',
+    ) =>
         request<DatabaseQueryResult>(
             ProjectDatabaseController.query.url(projectId),
-            { connection, sql },
+            { connection, sql, where },
+        ),
+
+    /** A consistent copy of a SQLite database, as a short-lived download link. */
+    download: (
+        projectId: number,
+        connection: string,
+        where: DatabaseLocation = 'sandbox',
+    ) =>
+        request<{ url: string; name: string; bytes: number }>(
+            ProjectDatabaseController.download.url(projectId, {
+                query: { where },
+            }),
+            { connection },
         ),
 };

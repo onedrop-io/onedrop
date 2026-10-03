@@ -71,6 +71,7 @@
                             "guides/git",
                             "guides/agent-skills",
                             "guides/publish",
+                            "guides/hosting",
                             "guides/share"
                         ]
                     },
@@ -106,6 +107,7 @@
                             "self-hosting/social-login",
                             "self-hosting/github-app",
                             "self-hosting/sandboxes",
+                            "self-hosting/hosting",
                             "self-hosting/tailscale"
                         ]
                     },
@@ -116,6 +118,26 @@
                             "development/architecture",
                             "development/contributing",
                             "development/troubleshooting"
+                        ]
+                    }
+                ]
+            },
+            {
+                "tab": "Manual testing",
+                "icon": "clipboard-check",
+                "hidden": true,
+                "groups": [
+                    {
+                        "group": "Manual testing",
+                        "icon": "clipboard-check",
+                        "public": false,
+                        "pages": [
+                            "testing/overview",
+                            "testing/agents",
+                            "testing/shell",
+                            "testing/tools",
+                            "testing/sandboxes",
+                            "testing/publishing"
                         ]
                     }
                 ]

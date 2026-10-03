@@ -4,10 +4,13 @@ namespace App\Sandbox\Publishing;
 
 use App\Enums\PublishTarget;
 use App\Models\Project;
+use App\Sandbox\Hosting\Deployer;
+use App\Sandbox\Hosting\HostingProviders;
 
 /**
  * The places a project can be published, and who can open it there. On a server both its own domain and Tailscale
- * are offered; elsewhere, Tailscale.
+ * are offered; elsewhere, Tailscale. Hosting (HOST-001) is offered wherever an admin or the project's organization set
+ * up a hosting provider.
  */
 class Publishers
 {
@@ -19,6 +22,7 @@ class Publishers
         return match ($target) {
             PublishTarget::Domain => app(DomainPublisher::class),
             PublishTarget::Tailscale => app(Publisher::class),
+            PublishTarget::Hosting => app(HostingPublisher::class),
         };
     }
 
@@ -31,11 +35,12 @@ class Publishers
     }
 
     /**
-     * The targets on offer, the domain first when it works, each with who "Private" and "Public" mean there.
+     * The targets on offer, the domain first when it works, then hosting when it's set up, each with who "Private" and
+     * "Public" mean there (null when it can't be private: hosted apps are public for now).
      *
-     * @return list<array{target: string, label: string, private: string, public: string, unavailable: string|null}>
+     * @return list<array{target: string, label: string, private: string|null, public: string, unavailable: string|null}>
      */
-    public function options(): array
+    public function options(?Project $project = null): array
     {
         $domain = $this->for(PublishTarget::Domain)->unavailableReason() === null ? [[
             'target' => PublishTarget::Domain->value,
@@ -45,13 +50,35 @@ class Publishers
             'unavailable' => null,
         ]] : [];
 
-        return [...$domain, [
+        $hosting = $project && app(HostingProviders::class)->available($project->organization) ? [[
+            'target' => PublishTarget::Hosting->value,
+            'label' => __('Hosting'),
+            'private' => null,
+            'public' => __('Anyone on the internet with the URL. Runs on its own, off the sandbox.'),
+            'unavailable' => app(Deployer::class)->unavailableReason($project),
+        ]] : [];
+
+        return [...$domain, ...$hosting, [
             'target' => PublishTarget::Tailscale->value,
             'label' => 'Tailscale',
             'private' => __("People on your team's tailnet"),
             'public' => __('Anyone on the internet with the URL'),
             'unavailable' => $this->for(PublishTarget::Tailscale)->unavailableReason(),
         ]];
+    }
+
+    /**
+     * Why the project can't be published to a target now, or null when it can.
+     */
+    public function unavailableReason(PublishTarget $target, Project $project): ?string
+    {
+        if ($target === PublishTarget::Hosting) {
+            return app(HostingProviders::class)->available($project->organization)
+                ? app(Deployer::class)->unavailableReason($project)
+                : "Hosting isn't set up on this install.";
+        }
+
+        return $this->for($target)->unavailableReason();
     }
 
     /**
@@ -64,7 +91,7 @@ class Publishers
         }
 
         $target = ($project->publish_target ?? PublishTarget::Tailscale)->value;
-        $option = collect($this->options())->firstWhere('target', $target);
+        $option = collect($this->options($project))->firstWhere('target', $target);
 
         return $option[$project->publish_visibility->value] ?? null;
     }
@@ -72,9 +99,9 @@ class Publishers
     /**
      * The target used when none is chosen: the first one on offer that works.
      */
-    public function default(): PublishTarget
+    public function default(?Project $project = null): PublishTarget
     {
-        foreach ($this->options() as $option) {
+        foreach ($this->options($project) as $option) {
             if ($option['unavailable'] === null) {
                 return PublishTarget::from($option['target']);
             }

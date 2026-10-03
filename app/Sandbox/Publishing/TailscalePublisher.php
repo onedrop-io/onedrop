@@ -3,6 +3,7 @@
 namespace App\Sandbox\Publishing;
 
 use App\Enums\PublishVisibility;
+use App\Jobs\ConfirmPublication;
 use App\Models\Project;
 use Illuminate\Contracts\Process\ProcessResult;
 use Illuminate\Process\Exceptions\ProcessTimedOutException;
@@ -108,6 +109,11 @@ class TailscalePublisher implements Publisher
         }
 
         return "https://{$dnsName}";
+    }
+
+    public function confirmAttempts(): int
+    {
+        return ConfirmPublication::ATTEMPTS;
     }
 
     public function stop(Project $project): void

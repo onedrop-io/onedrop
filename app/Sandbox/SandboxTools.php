@@ -28,9 +28,9 @@ class SandboxTools
 
     /**
      * Tool files that only need what every image has (bash, coreutils, tar, curl), so they go into sandboxes on an older
-     * base too: snapshots then work for every sandbox, old ones included (SBX-009).
+     * base too: snapshots and hosting then work for every sandbox, old ones included (SBX-009, HOST-001).
      */
-    public const ANY_BASE = ['snapshot'];
+    public const ANY_BASE = ['snapshot', 'hosting'];
 
     /**
      * Long-running processes that load a tool file once, by the pattern `pkill -f` finds them with. start.sh starts

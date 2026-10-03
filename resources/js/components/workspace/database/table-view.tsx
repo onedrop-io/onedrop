@@ -17,6 +17,7 @@ import CellValue, {
     isPreview,
 } from '@/components/workspace/database/cell-value';
 import { databaseApi } from '@/lib/database-api';
+import type { DatabaseLocation } from '@/lib/database-api';
 import { cn } from '@/lib/utils';
 import type {
     DatabaseColumn,
@@ -54,11 +55,13 @@ export default function TableView({
     connection,
     table,
     onDirtyChange,
+    where = 'sandbox',
 }: {
     projectId: number;
     connection: string;
     table: string;
     onDirtyChange: (dirty: boolean) => void;
+    where?: DatabaseLocation;
 }) {
     const [data, setData] = useState<DatabaseRows | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -98,14 +101,18 @@ export default function TableView({
         setLoading(true);
 
         databaseApi
-            .rows(projectId, {
-                connection,
-                table,
-                page,
-                perPage,
-                sort,
-                filters,
-            })
+            .rows(
+                projectId,
+                {
+                    connection,
+                    table,
+                    page,
+                    perPage,
+                    sort,
+                    filters,
+                },
+                where,
+            )
             .then((body) => {
                 if (!cancelled) {
                     setData(body);
@@ -118,7 +125,17 @@ export default function TableView({
         return () => {
             cancelled = true;
         };
-    }, [projectId, connection, table, page, perPage, sort, filters, reload]);
+    }, [
+        projectId,
+        connection,
+        table,
+        page,
+        perPage,
+        sort,
+        filters,
+        reload,
+        where,
+    ]);
 
     const columns = useMemo(() => data?.columns ?? [], [data]);
     const primary = columns.filter((column) => column.primary);
@@ -228,7 +245,13 @@ export default function TableView({
         );
 
     const save = async () => {
-        if (!data) {
+        if (
+            !data ||
+            (where === 'hosted' &&
+                !window.confirm(
+                    'Save these changes to the hosted app’s live database? Your visitors see them right away.',
+                ))
+        ) {
             return;
         }
 
@@ -236,16 +259,24 @@ export default function TableView({
         setSaveError(null);
 
         try {
-            await databaseApi.change(projectId, connection, table, {
-                inserts,
-                updates: Object.entries(edits)
-                    .filter(([index]) => !deletes.has(Number(index)))
-                    .map(([index, values]) => ({
-                        key: keyOf(data.rows[Number(index)]),
-                        values,
-                    })),
-                deletes: [...deletes].map((index) => keyOf(data.rows[index])),
-            });
+            await databaseApi.change(
+                projectId,
+                connection,
+                table,
+                {
+                    inserts,
+                    updates: Object.entries(edits)
+                        .filter(([index]) => !deletes.has(Number(index)))
+                        .map(([index, values]) => ({
+                            key: keyOf(data.rows[Number(index)]),
+                            values,
+                        })),
+                    deletes: [...deletes].map((index) =>
+                        keyOf(data.rows[index]),
+                    ),
+                },
+                where,
+            );
             clearChanges();
             setReload((n) => n + 1);
         } catch (e) {

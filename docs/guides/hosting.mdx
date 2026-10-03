@@ -1,0 +1,104 @@
+---
+title: 'Host an app'
+description: 'Run a published app on its own, off its sandbox, with its data in managed databases.'
+---
+
+Publishing to **Hosting** deploys a copy of your app that runs on its own, separate from the sandbox you build in. Your sandbox can sleep, update or be replaced, and the hosted app keeps running. When nobody's visiting, it sleeps and costs almost nothing; the next visit wakes it in under a second.
+
+Hosting appears in the Publish panel once an admin has set it up in **Settings → Hosting** (see [Hosting providers](/self-hosting/hosting)), or your organization has connected its own accounts.
+
+<Info>
+    Nothing is created at a hosting provider while you build. Databases and
+    machines are only made when you publish to Hosting, so an app you never host
+    costs nothing outside its sandbox.
+</Info>
+
+## Where your app runs
+
+| Your app                                         | Where it goes                                                |
+| ------------------------------------------------ | ------------------------------------------------------------ |
+| A front end only (no server of its own)          | Cloudflare, at `https://<name>.<account>.workers.dev`        |
+| An app with a server                             | A Fly.io machine, at `https://<name>.fly.dev`                |
+| An app with a server and a Postgres database     | Fly.io, with the database on Neon                            |
+| An app with a server and Redis                   | Fly.io, with Redis on Upstash                                |
+| An app that stores files through the S3 API      | Fly.io, with a Cloudflare R2 bucket                          |
+| An app that keeps data on disk (SQLite, uploads) | Fly.io, with a volume holding that data and your App Storage |
+
+The agent decides which of these your app is and writes it down in the project (in `.onedrop/host.json`), so you don't have to. If it hasn't, a plain Vite app (React, Vue or similar, with no server of its own) is served as a front end, and anything else runs on Fly.io. If you want to check, ask it: "is this app ready for Hosting?"
+
+<Note>
+    Building on a Mac? Your sandbox runs on Apple Silicon, but Fly.io machines
+    don't, so each deploy installs your app's packages again for Fly.io. That
+    adds a minute or so to building the image.
+</Note>
+
+## Publish to Hosting
+
+<Steps>
+    <Step title="Open the Publish panel">
+        Click **Publish** at the top right of the workspace.
+    </Step>
+    <Step title="Choose Hosting">
+        Hosted apps are public: anyone with the URL can open them. To keep an
+        app private, publish to your domain or Tailscale instead.
+    </Step>
+    <Step title="Click Publish">
+        The status follows the deploy: reading the app, building and packing it,
+        setting up its services, building the image, and starting it. The first
+        deploy of an app with a server takes a few minutes; later ones are
+        faster.
+    </Step>
+</Steps>
+
+Open **Deploy #n** in the panel to see the deploy's log, and the list below it for what your app has at each provider and whether it's in your organization's own account.
+
+## Your data
+
+On the first deploy, OneDrop copies your sandbox's data into the hosted app once: its Postgres database into Neon, and its SQLite file, data folders and App Storage onto the volume. From then on the hosted data is the real data. **Republish** ships your latest code only and never overwrites it.
+
+Redis is a cache, so it starts empty when hosted.
+
+**Backups.** SQLite databases on the volume are backed up continuously, about every second, to their own Cloudflare R2 bucket (shown as **SQLite backups** in **Tools → Publishing**). If the volume is ever lost, a new one gets the databases back from there before the app starts. Fly also snapshots each volume daily and keeps 14 days. Postgres on Neon has Neon's own backups.
+
+### Machine size
+
+Each app with a server runs on one machine. If it gets slow under load, pick a bigger one under **Machine size** in **Tools → Publishing**: Small (1 shared CPU, 1 GB), Medium (2 shared CPUs, 2 GB), Large (2 dedicated CPUs, 4 GB) or Extra large (4 dedicated CPUs, 8 GB). The app restarts on it within a few seconds; nothing is rebuilt. Larger machines cost more at your hosting provider, and Large and Extra large take a few seconds longer to wake after sleeping.
+
+### Move to Postgres
+
+Apps keep their data in SQLite on the volume, which is fast and cheap but only works on one machine. When an app needs more than that, click **Move to Postgres** next to its SQLite database in **Tools → Publishing**:
+
+1. The agent switches the app over in the sandbox. The sandbox keeps using SQLite; the hosted app gets Postgres.
+2. Click **Update** once it's done. The deploy makes a Postgres database on Neon, makes the app's tables there, and copies the hosted data in, all of it or none.
+3. If something doesn't fit (a table the app's migrations don't make, say), nothing is copied, the deploy says why, and the hosted app goes back to SQLite. Ask the agent to fix it, then update again.
+
+The SQLite file stays on the volume afterwards, as a copy of the data from before the move.
+
+## Where to find it
+
+The **Publish** menu has what you need to publish: the status, where it's published, what changed since, the latest deploy's log, and **Update**. Everything else about the hosted app is in **Tools → Publishing** (or **Manage hosting** in the Publish menu): earlier deploys to roll back to, **Update automatically**, **Machine size**, what the app has at each provider, **Move to Postgres** and **Delete hosted data**.
+
+## Keep it up to date
+
+Your hosted app doesn't change while you keep building. It only updates when you publish again, so half-finished work never reaches your visitors.
+
+- **What's changed.** After each turn, a dot on **Publish** shows the sandbox has changes the hosted app doesn't. The panel lists them ("3 changes since you published", with what each one did) and its button says **Update**.
+- **Update** deploys the sandbox's latest code to the same address. If the new version doesn't start, the previous one is put back and the panel says what went wrong. If it crashes as it starts, the deploy stops within a minute and its log shows the app's last output.
+- **Roll back.** Under **Earlier deploys**, pick an earlier version and click **Roll back**. It comes back in a few seconds, without building again. Your data stays as it is now, so anything the newer version changed in the database stays changed. Front ends can't roll back yet.
+- **Update automatically** (off by default) updates the hosted app by itself about a minute after a turn, when the agent finished without waiting on you and the preview showed no new errors. Leave it off if you often build a feature over several messages.
+
+## Unpublish and delete
+
+- **Unpublish** stops the hosted app. Its databases and files are kept, so publishing to Hosting again picks up where it left off.
+- Once it's unpublished, **Delete hosted data** deletes everything the app has at its providers, databases and files included. This can't be undone. Deleting the project does the same.
+
+## Use your organization's own accounts
+
+Organization owners and admins can connect the organization's own Fly.io, Cloudflare, Neon and Upstash accounts in **Settings → Organization**, under **Hosting**. New apps are then hosted there, billed to you by the provider, instead of on OneDrop's accounts. Each provider is separate: you can connect Neon and keep using OneDrop's Fly.io.
+
+Things already made stay in the account they were made in. You can't disconnect an account while your apps still have something in it; delete their hosted data first.
+
+## Not hostable yet
+
+- Apps that only run under their own Docker Compose stack.
+- Private hosted apps. Use your domain or Tailscale for those.

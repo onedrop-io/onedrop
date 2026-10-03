@@ -8,6 +8,7 @@ use App\Models\ProjectSnapshot;
 use App\Models\Sandbox;
 use App\Models\User;
 use App\Sandbox\ExecResult;
+use App\Sandbox\Hosting\HostingChanges;
 use App\Sandbox\ProjectBackups;
 use App\Sandbox\ProjectSnapshots;
 use App\Sandbox\Providers\FakeSandboxProvider;
@@ -237,7 +238,7 @@ test('old snapshots are pruned, keeping the latest ten and one a day for a week,
 })->group('SBX-009');
 
 test('a snapshot is taken after every turn, with the code backup', function () {
-    (new BackupProject($this->project))->handle(app(ProjectBackups::class), app(ProjectSnapshots::class));
+    (new BackupProject($this->project))->handle(app(ProjectBackups::class), app(ProjectSnapshots::class), app(HostingChanges::class));
 
     expect($this->project->snapshots()->sole()->reason)->toBe('turn');
 })->group('SBX-009');

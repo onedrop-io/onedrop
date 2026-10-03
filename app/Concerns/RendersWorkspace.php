@@ -5,11 +5,14 @@ namespace App\Concerns;
 use App\Enums\AbuseReviewStatus;
 use App\Enums\AgentProvider;
 use App\Enums\CredentialType;
+use App\Enums\DeploymentStatus;
 use App\Enums\MessageRole;
 use App\Enums\PublishStatus;
+use App\Enums\PublishTarget;
 use App\Enums\SandboxStatus;
 use App\Jobs\CreateSandbox;
 use App\Models\Attachment;
+use App\Models\Deployment;
 use App\Models\Message;
 use App\Models\Project;
 use App\Models\Task;
@@ -18,6 +21,9 @@ use App\Sandbox\Agents\MessageChecks;
 use App\Sandbox\Agents\ModelCatalog;
 use App\Sandbox\Agents\PlainActivity;
 use App\Sandbox\Gateway;
+use App\Sandbox\Hosting\Deployer;
+use App\Sandbox\Hosting\HostedServices;
+use App\Sandbox\Hosting\MachineSizes;
 use App\Sandbox\Publishing\Publishers;
 use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxProvider;
@@ -93,11 +99,12 @@ trait RendersWorkspace
                 'waiting_for' => $project->publish_status === PublishStatus::Publishing ? ($project->publish_waiting_for ?? 'login') : null,
                 'target' => $project->publish_target,
                 'audience' => app(Publishers::class)->audience($project),
-                'targets' => app(Publishers::class)->options(),
+                'targets' => app(Publishers::class)->options($project),
                 // Nowhere to publish at all (each target's own reason is in targets).
-                'unavailable' => collect(app(Publishers::class)->options())->every(fn (array $option) => $option['unavailable'] !== null)
-                    ? app(Publishers::class)->options()[0]['unavailable']
+                'unavailable' => collect(app(Publishers::class)->options($project))->every(fn (array $option) => $option['unavailable'] !== null)
+                    ? app(Publishers::class)->options($project)[0]['unavailable']
                     : null,
+                'hosting' => $this->hostingProps($project),
             ],
             'sharing' => $this->sharingProps($project),
             'sandbox' => $sandbox ? [
@@ -125,6 +132,55 @@ trait RendersWorkspace
                 'created_at' => $message->created_at?->toIso8601String(),
             ]),
         ]);
+    }
+
+    /**
+     * The project's latest deploy to hosting and what it has there (HOST-001, HOST-002), or null when it never had any.
+     *
+     * @return array<string, mixed>|null
+     */
+    protected function hostingProps(Project $project): ?array
+    {
+        $deployment = $project->deployments()->latest('id')->first();
+        $services = app(HostedServices::class)->describe($project);
+
+        if ($deployment === null && $services === []) {
+            return null;
+        }
+
+        $hosted = $project->publish_target === PublishTarget::Hosting && $project->publish_status !== null;
+
+        $live = $project->deployments()->where('status', DeploymentStatus::Live)->latest('id')->first();
+
+        return [
+            'deployment' => $deployment ? [
+                ...$deployment->only('number', 'kind', 'status', 'step', 'url', 'log', 'error'),
+                'created_at' => $deployment->created_at?->toIso8601String(),
+            ] : null,
+            // What the sandbox has that the hosted app doesn't yet (HOST-004).
+            'changes' => $hosted ? $project->hosting_changes : null,
+            // Recent deploys of an app with a server, to put one back (HOST-005); the live one first.
+            'history' => $hosted ? $project->deployments()
+                ->where('status', DeploymentStatus::Live)->where('kind', 'server')->whereNotNull('image')
+                ->latest('id')->limit(5)->get()
+                ->map(fn (Deployment $past) => [
+                    'id' => $past->id,
+                    'number' => $past->number,
+                    'commit' => $past->commit ? substr($past->commit, 0, 7) : null,
+                    'finished_at' => $past->finished_at?->toIso8601String(),
+                    'live' => $past->id === $live?->id,
+                ])->values()->all() : [],
+            'auto_deploy' => $project->auto_deploy,
+            // Move to Postgres (HOST-009): the SQLite file it would move, and whether a move is waiting for the next deploy.
+            'sqlite' => $hosted ? app(Deployer::class)->hostedSqlite($project) : null,
+            'moving_to_postgres' => $project->hosting_sqlite_import !== null,
+            // The machine it runs on, and the sizes on offer (HOST-010).
+            'size' => $project->hosting_size ?? MachineSizes::DEFAULT,
+            'sizes' => MachineSizes::options(),
+            'services' => $services,
+            // Its data can be deleted once it isn't published there.
+            'can_delete' => ! $hosted && $services !== [],
+        ];
     }
 
     /**

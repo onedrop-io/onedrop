@@ -3,11 +3,12 @@ title: 'Publish a project'
 description: 'Give a project its own URL, private to your team or public to anyone.'
 ---
 
-Publishing gives a project its own address. On a [server install](/install#install-on-a-server) it can be on your own domain, such as `https://timesheets-4.onedrop.example.com`. Anywhere, including a laptop, it can be on your team's [Tailscale](https://tailscale.com) network, such as `https://timesheets-4.your-tailnet.ts.net`.
+Publishing gives a project its own address. On a [server install](/install#install-on-a-server) it can be on your own domain, such as `https://timesheets-4.onedrop.example.com`. Anywhere, including a laptop, it can be on your team's [Tailscale](https://tailscale.com) network, such as `https://timesheets-4.your-tailnet.ts.net`. Where hosting is set up, it can also be deployed to [Hosting](/guides/hosting), where it runs on its own.
 
 <Info>
-    Publishing shares the live sandbox, including changes the agent is still
-    making. It is not a separate production build.
+    Publishing to your domain or Tailscale shares the live sandbox, including
+    changes the agent is still making. Publishing to [Hosting](/guides/hosting)
+    deploys a separate copy that only changes when you republish.
 </Info>
 
 ## Publish
@@ -16,16 +17,18 @@ Publishing gives a project its own address. On a [server install](/install#insta
     <Step title="Open the Publish panel">
         Click **Publish** at the top right of the workspace.
     </Step>
-    <Step title="Choose where (servers only)">
-        On a server, pick **Your domain** or **Tailscale**. Elsewhere it's
-        always Tailscale.
+    <Step title="Choose where">
+        On a server, pick **Your domain** or **Tailscale**. Where hosting is set
+        up, **Hosting** is offered too. Otherwise it's Tailscale.
     </Step>
     <Step title="Choose who can open it">
         **Private** or **Public** (see the table below).
     </Step>
     <Step title="Click Publish">
         The status changes to **Publishing…** and then shows the URL with a copy
-        button.
+        button. You can close the panel: the **Publish** button spins and says
+        **Publishing…** until it's done. You can close the panel: the **Publish** button spins and says
+        **Publishing…** until it's done.
     </Step>
 </Steps>
 

@@ -77,8 +77,12 @@ use Illuminate\Support\Str;
  * @property Carbon|null $updated_at
  * @property-read string|null $last_reply_at When the agent last replied (loaded with withMax, for the sidebar).
  * @property-read bool|null $task_working Whether any of its tasks' agents is running (loaded with withExists, for the sidebar).
+ * @property array{count: int, commits: list<array{sha: string, message: string}>}|null $hosting_changes What the sandbox has that the hosted app doesn't yet (HOST-004)
+ * @property bool $auto_deploy Update the hosted app by itself after a turn that went well (HOST-006)
+ * @property string|null $hosting_sqlite_import The hosted SQLite file a Move to Postgres copies into the app's new Postgres, until it has (HOST-009)
+ * @property string|null $hosting_size The hosted app's machine size; null is the install's default (HOST-010)
  */
-#[Fillable(['organization_id', 'name', 'prompt', 'status', 'agent_session_id', 'sign_in_retry_message_id', 'agent_harness', 'agent_provider', 'agent_model', 'agent_variant', 'agent_auto', 'publish_status', 'publish_visibility', 'publish_target', 'published_url', 'published_at', 'published_by', 'publish_error', 'publish_login_url', 'publish_waiting_for', 'onedrop_enabled', 'onedrop_client_id', 'onedrop_client_secret', 'onedrop_callback_path', 'onedrop_group_ids', 'pinned_at', 'read_at', 'archived_at', 'sidebar_position', 'backup_commit', 'backed_up_at', 'icon_path', 'icon_mime', 'icon_hash', 'git_remote_url', 'git_remote_username', 'git_remote_token', 'git_sync_status', 'git_sync_error', 'git_synced_at', 'github_installation_id', 'autofix', 'track_requirements', 'turn_outcome'])]
+#[Fillable(['organization_id', 'name', 'prompt', 'status', 'agent_session_id', 'sign_in_retry_message_id', 'agent_harness', 'agent_provider', 'agent_model', 'agent_variant', 'agent_auto', 'publish_status', 'publish_visibility', 'publish_target', 'published_url', 'published_at', 'published_by', 'publish_error', 'publish_login_url', 'publish_waiting_for', 'onedrop_enabled', 'onedrop_client_id', 'onedrop_client_secret', 'onedrop_callback_path', 'onedrop_group_ids', 'pinned_at', 'read_at', 'archived_at', 'sidebar_position', 'backup_commit', 'backed_up_at', 'icon_path', 'icon_mime', 'icon_hash', 'git_remote_url', 'git_remote_username', 'git_remote_token', 'git_sync_status', 'git_sync_error', 'git_synced_at', 'github_installation_id', 'autofix', 'track_requirements', 'turn_outcome', 'hosting_changes', 'auto_deploy', 'hosting_sqlite_import', 'hosting_size'])]
 #[Hidden(['onedrop_client_secret', 'git_remote_token'])]
 class Project extends Model implements Conversation
 {
@@ -93,7 +97,7 @@ class Project extends Model implements Conversation
      *
      * @var array<string, mixed>
      */
-    protected $attributes = ['autofix' => true, 'track_requirements' => true];
+    protected $attributes = ['autofix' => true, 'track_requirements' => true, 'auto_deploy' => false];
 
     /**
      * Order projects the way the sidebar lists them (PRJ-010). Ties go to the newest.
@@ -122,6 +126,8 @@ class Project extends Model implements Conversation
         return [
             'status' => ProjectStatus::class,
             'autofix' => 'boolean',
+            'hosting_changes' => 'array',
+            'auto_deploy' => 'boolean',
             'track_requirements' => 'boolean',
             'agent_auto' => 'boolean',
             'agent_harness' => AgentHarness::class,
@@ -339,6 +345,26 @@ class Project extends Model implements Conversation
     public function snapshots(): HasMany
     {
         return $this->hasMany(ProjectSnapshot::class);
+    }
+
+    /**
+     * Its deployments to hosting, oldest first (HOST-001).
+     *
+     * @return HasMany<Deployment, $this>
+     */
+    public function deployments(): HasMany
+    {
+        return $this->hasMany(Deployment::class);
+    }
+
+    /**
+     * What was made for it at hosting providers (HOST-001, HOST-002).
+     *
+     * @return HasMany<HostedService, $this>
+     */
+    public function hostedServices(): HasMany
+    {
+        return $this->hasMany(HostedService::class);
     }
 
     /**

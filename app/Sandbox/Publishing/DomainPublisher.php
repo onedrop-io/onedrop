@@ -3,6 +3,7 @@
 namespace App\Sandbox\Publishing;
 
 use App\Enums\PublishVisibility;
+use App\Jobs\ConfirmPublication;
 use App\Models\Project;
 use App\Sandbox\Gateway;
 
@@ -26,6 +27,11 @@ class DomainPublisher implements Publisher
     public function confirm(Project $project, PublishVisibility $visibility): ?string
     {
         return 'https://'.$this->gateway->publishedHost($project);
+    }
+
+    public function confirmAttempts(): int
+    {
+        return ConfirmPublication::ATTEMPTS;
     }
 
     public function stop(Project $project): void {}

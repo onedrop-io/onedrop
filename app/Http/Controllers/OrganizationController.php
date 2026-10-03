@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Enums\OrganizationRole;
 use App\Http\Middleware\ResolveOrganization;
+use App\Models\HostedService;
 use App\Models\Organization;
 use App\Models\User;
 use App\Sandbox\Agents\AiCredits;
+use App\Sandbox\Hosting\HostingProviders;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -51,7 +53,7 @@ class OrganizationController extends Controller
     }
 
     /**
-     * Its name, address and members (ORG-004, ORG-005).
+     * Its name, address, members and own hosting accounts (ORG-004, ORG-005, HOST-003).
      */
     public function edit(Request $request): Response
     {
@@ -70,6 +72,14 @@ class OrganizationController extends Controller
                     'role' => $member->pivot->role,
                     'joined_at' => $member->pivot->created_at?->toIso8601String(),
                 ]),
+            // Its own hosting accounts (HOST-003), for the people who can change them.
+            'hosting' => $organization->isManagedBy($user) ? app(HostingProviders::class)->describeFor(
+                $organization,
+                HostedService::query()->where('owner', HostedService::OWNER_ORGANIZATION)
+                    ->whereHas('project', fn ($query) => $query->where('organization_id', $organization->id))
+                    ->selectRaw('provider, COUNT(*) as count')->groupBy('provider')
+                    ->pluck('count', 'provider')->map(fn ($count) => (int) $count)->all(),
+            ) : null,
             'can' => [
                 'update' => $organization->isManagedBy($user),
                 'manage_owners' => $organization->isOwnedBy($user),

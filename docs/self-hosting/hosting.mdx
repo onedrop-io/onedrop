@@ -1,0 +1,88 @@
+---
+title: 'Hosting providers'
+description: 'Set up Fly.io, Cloudflare, Neon and Upstash so published apps can run off their sandbox.'
+---
+
+[Hosting](/guides/hosting) deploys published apps to outside providers so they run on their own. Admins set up the install's accounts in **Settings → Hosting**. Each organization can also connect its own accounts in **Settings → Organization**, which are used instead of the install's.
+
+Each provider does one job:
+
+| Provider   | Used for                                                                                           |
+| ---------- | -------------------------------------------------------------------------------------------------- |
+| Fly.io     | Apps with a server (one machine each, asleep when idle), and volumes for data on disk              |
+| Cloudflare | Front ends (Workers static assets), R2 buckets for apps that use S3, and continuous SQLite backups |
+| Neon       | Postgres, one Neon project per app                                                                 |
+| Upstash    | Redis, one database per app                                                                        |
+
+Hosting is offered once Fly.io or Cloudflare is turned on. An app that needs a service whose provider isn't set up fails to deploy and says which one is missing.
+
+## Before you start
+
+- **Release storage.** Sandboxes upload each release through signed links, and the providers download it from there. When `SANDBOX_SNAPSHOT_DISK` is S3-compatible (S3, R2, MinIO), releases go there. Otherwise, such as on a laptop, OneDrop makes an `onedrop-releases` R2 bucket in your Cloudflare account the first time, so turn Cloudflare on. See [Project snapshots](/self-hosting/sandboxes#project-snapshots).
+- **A public base image.** Hosted apps run on the sandbox image, which Fly.io pulls. The default, `ghcr.io/onedrop-io/onedrop-sandbox:latest`, is public. A locally built `onedrop-sandbox` image isn't reachable by Fly.io.
+- **Builder logs (optional).** The machine that builds each image sends its log back to OneDrop when it can reach `APP_URL`. On a laptop it can't, and the log only shows OneDrop's own steps.
+
+## Set up each provider
+
+<AccordionGroup>
+    <Accordion title="Fly.io">
+        Create an organization token with `fly tokens create org` and enter it
+        with the organization's slug (`personal` for your personal one). Pick a
+        region, such as `iad`. The base image, memory per app and volume size
+        are optional.
+    </Accordion>
+    <Accordion title="Cloudflare">
+        Enter your account ID and an API token with **Workers Scripts: Edit**,
+        **Workers R2 Storage: Edit** and **Account API Tokens: Edit**. The last
+        one lets OneDrop make a key for each bucket that only works for that
+        bucket. Front ends get a `workers.dev` address, so pick a workers.dev
+        subdomain in the Cloudflare dashboard first.
+    </Accordion>
+    <Accordion title="Neon">
+        Enter an API key. For an organization API key, also enter the
+        organization ID. Databases sleep when idle, like the apps, so an idle
+        app only costs its storage; the first query after a quiet spell waits
+        about half a second.
+    </Accordion>
+    <Accordion title="Upstash">
+        Enter the account's email and a Developer API key (from an account made
+        on upstash.com, not through Fly.io or Vercel).
+    </Accordion>
+</AccordionGroup>
+
+Keys are stored encrypted and never shown again. Leave a key blank to keep the saved one. Settings saved here win over `.env`, and queue workers pick them up without a restart.
+
+## How a deploy works
+
+1. The sandbox runs the app's `.onedrop/build`, packs its files, and uploads them to release storage through signed links. Provider keys never reach the sandbox.
+2. OneDrop makes what the app is missing: the Fly app, a volume, a Neon database, an Upstash database, an R2 bucket.
+3. A short-lived builder machine in the app's own Fly account adds the files to the base image and pushes it to Fly's registry. On the first deploy it also copies the sandbox's Postgres into Neon.
+4. The app's machine starts on the new image, with its services' addresses in its environment and the sandbox's data unpacked onto its volume (first deploy only).
+5. If the new version never answers, the previous image is put back.
+
+Fly snapshots volumes daily and keeps 14 days of snapshots.
+
+## Environment variables
+
+| Variable                     | Default                                     | Description                                                 |
+| ---------------------------- | ------------------------------------------- | ----------------------------------------------------------- |
+| `HOSTING_FLY_ENABLED`        | `false`                                     | Turn Fly.io on.                                             |
+| `FLY_API_TOKEN`              | empty                                       | Fly.io organization token.                                  |
+| `FLY_ORG`                    | `personal`                                  | Fly.io organization slug.                                   |
+| `FLY_REGION`                 | `iad`                                       | Where apps and volumes go.                                  |
+| `FLY_MEMORY_MB`              | `1024`                                      | Memory per hosted app.                                      |
+| `FLY_VOLUME_GB`              | `1`                                         | Size of each app's volume.                                  |
+| `HOSTING_BASE_IMAGE`         | `ghcr.io/onedrop-io/onedrop-sandbox:latest` | Image hosted apps run on.                                   |
+| `HOSTING_CLOUDFLARE_ENABLED` | `false`                                     | Turn Cloudflare on.                                         |
+| `CLOUDFLARE_ACCOUNT_ID`      | empty                                       | Cloudflare account ID.                                      |
+| `CLOUDFLARE_API_TOKEN`       | empty                                       | Cloudflare API token (permissions above).                   |
+| `HOSTING_NEON_ENABLED`       | `false`                                     | Turn Neon on.                                               |
+| `NEON_API_KEY`               | empty                                       | Neon API key.                                               |
+| `NEON_ORG_ID`                | empty                                       | Neon organization ID, for organization API keys.            |
+| `NEON_REGION`                | `aws-us-east-1`                             | Where databases go.                                         |
+| `HOSTING_UPSTASH_ENABLED`    | `false`                                     | Turn Upstash on.                                            |
+| `UPSTASH_EMAIL`              | empty                                       | Upstash account email.                                      |
+| `UPSTASH_API_KEY`            | empty                                       | Upstash Developer API key.                                  |
+| `UPSTASH_REGION`             | `us-east-1`                                 | Where Redis databases go.                                   |
+| `HOSTING_CRANE_VERSION`      | `v0.20.6`                                   | crane version the builder downloads.                        |
+| `HOSTING_LITESTREAM_VERSION` | `v0.3.13`                                   | Litestream version hosted apps download for SQLite backups. |

@@ -1,0 +1,79 @@
+---
+title: 'Manual testing'
+description: 'How to test the parts of OneDrop that automated tests cannot reach: real agents, real sandboxes, real publishing.'
+noindex: true
+---
+
+<Warning>
+  Internal. These pages are hidden from the docs navigation and search. They're for people working on OneDrop.
+</Warning>
+
+The Pest suite runs against a fake sandbox, a fake publisher and fake agents, so it can't tell you whether Claude Code still signs in, whether a Shell survives a reload, or whether a published URL actually loads. These checklists cover that: the big concepts, tested by hand against real sandboxes and real AI providers.
+
+## When to run them
+
+| You changed                                                         | Run                                         |
+| ------------------------------------------------------------------- | ------------------------------------------- |
+| An agent version in `docker/sandbox/Dockerfile`, a runner or `*Events` class | [Agents](/testing/agents) for that agent    |
+| `forwarder.mjs`, `HarnessRunner`, the chat or the queue             | [Agents](/testing/agents), all three        |
+| `start.sh`, `shell-keys.js`, the Shell tab, `onedrop-tool` or `docker/sandbox/lazy` | [Shell](/testing/shell)                     |
+| A Tools panel or the sandbox script behind it (`db.php`, `auth.php`…) | That panel in [Tools](/testing/tools)       |
+| A sandbox provider, `SandboxUpdater`, `SandboxTools`, snapshots     | [Sandboxes](/testing/sandboxes)             |
+| A publisher, the gateway, hosting or sharing                        | [Publishing](/testing/publishing)           |
+| Before a release, or a big merge                                    | Everything                                  |
+
+Each checklist names what must be true. When something fails, note the step and what you saw, then fix it with a Pest test that covers it where one can.
+
+## Set up
+
+<Steps>
+  <Step title="Run the app with real Docker sandboxes">
+    In `.env`, set `SANDBOX_PROVIDER=docker`, then build the image once and start everything:
+
+    ```bash
+    php artisan sandbox:build-image
+    composer run dev
+    ```
+
+    `composer run dev` runs the queue and the scheduler too. Without the queue the agent never starts; without the scheduler sandboxes never suspend or update.
+  </Step>
+  <Step title="Sign in as the dev user">
+    `dev@example.com` / `password`. Use `sam@example.com` / `password` when a test needs a second person in the organization. Don't reset the database to get them back without checking first; test against a copy instead.
+  </Step>
+  <Step title="Connect the AI you're testing">
+    In **Settings → AI**. Each agent needs its own connection:
+
+    | Agent       | Needs                                                  |
+    | ----------- | ------------------------------------------------------ |
+    | OpenCode    | Any API key (OpenRouter is cheapest), or a ChatGPT sign-in |
+    | Claude Code | An Anthropic API key, or a Claude subscription sign-in |
+    | Codex       | A ChatGPT sign-in, or an OpenAI API key                |
+
+    `DEV_CLAUDE_CREDENTIAL` in `.env` seeds the dev user with a Claude connection.
+  </Step>
+  <Step title="Use cheap models and small prompts">
+    "Make a page that says hello" is enough for most checks. Save bigger builds for the steps that need a real app, like Database or Hosting.
+  </Step>
+</Steps>
+
+## Add a section
+
+Every major feature gets a section here when it ships, alongside its spec, Pest tests and user docs (see `AGENTS.md`). Add it to the page for its area, or make a new page under `docs/testing/` and add it to the **Manual testing** tab in `docs/docs.json`.
+
+Write each test the same way:
+
+```mdx
+### Publish to Tailscale (PUB-002)
+
+1. Open a running project and click **Publish**.
+2. Choose **Tailscale** and **Private**, then **Publish**.
+
+- [ ] The status goes from **Publishing…** to a `*.ts.net` URL.
+- [ ] The URL opens the app from a device on the tailnet.
+- [ ] It doesn't open from a device off the tailnet.
+```
+
+- Name the spec ID in the heading, so the test, the spec and the Pest tests can be found together.
+- Steps say what to do; checkboxes say what must be true. Check what a user sees, not internals, unless the internals are the point (a file kept across an update).
+- Say what each test needs that isn't in the setup above: a second user, a tailnet, a Hosting account.
+- Keep the page frontmatter's `noindex: true`.

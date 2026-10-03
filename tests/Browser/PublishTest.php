@@ -58,6 +58,9 @@ test('without an auth key the panel offers a Tailscale sign-in link', function (
     ]);
 
     visit("/projects/{$this->project->id}")
+        // The header button shows it's still working with the panel closed.
+        ->assertSeeIn('@publish-button', 'Publishing…')
+        ->assertPresent('[data-test="publish-button"] [role="status"]')
         ->click('@publish-button')
         ->assertSeeIn('@publish-status', 'Publishing')
         ->assertSeeIn('@publish-login', 'Approve this project in Tailscale')

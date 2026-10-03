@@ -5,6 +5,7 @@ namespace App\Actions;
 use App\Jobs\DestroySandbox;
 use App\Models\Attachment;
 use App\Models\Project;
+use App\Sandbox\Hosting\HostedServices;
 use App\Sandbox\ProjectBackups;
 use App\Sandbox\ProjectIcons;
 use App\Sandbox\ProjectSnapshots;
@@ -15,10 +16,11 @@ use Illuminate\Support\Facades\Storage;
 
 class DeleteProject
 {
-    public function __construct(protected Publishers $publishers, protected ProjectBackups $backups, protected ProjectSnapshots $snapshots, protected ProjectIcons $icons, protected ShareCards $shareCards) {}
+    public function __construct(protected Publishers $publishers, protected ProjectBackups $backups, protected ProjectSnapshots $snapshots, protected ProjectIcons $icons, protected ShareCards $shareCards, protected HostedServices $hosted) {}
 
     /**
-     * Delete the project: take its app offline, then remove its chat, attachments, code backup, snapshots, icon, share page, and sandbox.
+     * Delete the project: take its app offline, then remove its chat, attachments, code backup, snapshots, icon, share page,
+     * sandbox, and everything made for it at hosting providers (HOST-002).
      */
     public function handle(Project $project): void
     {
@@ -29,6 +31,8 @@ class DeleteProject
                 report($e);
             }
         }
+
+        $this->hosted->destroyAll($project);
 
         // The main sandbox and every task's copy of the app (TASK-003).
         $sandboxes = $project->sandboxes()->get();

@@ -1,0 +1,432 @@
+#!/usr/bin/env bash
+# Hosting (HOST-001, HOST-002): packs the app for its hosted copy in the sandbox, and runs it there.
+#
+#   hosting inspect           what the app needs hosted, as JSON: {static, services, data, storage}
+#                             (from .onedrop/host.json and the files that are there)
+#   hosting pack DIR [seed]   build it (.onedrop/build) and pack it: DIR/release.tar.gz (the workspace and this
+#                             script, for the base image), or DIR/static.tar.gz (a front end's files). With "seed", also
+#                             its data for the first deploy: DIR/seed.tar.gz (data paths and App Storage) and
+#                             DIR/postgres.dump (its local Postgres). Prints "name size" per file, and "note …" for the log.
+#   hosting put FILE          upload FILE to $ONEDROP_HOSTING_URL (headers in $ONEDROP_HOSTING_HEADERS), then delete it
+#   hosting deps [DIR]        install a workspace's packages again for this machine (the builder, when the sandbox that
+#                             packed it has another CPU, e.g. arm64 Docker on a Mac): native ones only work on their own
+#   hosting run               the hosted app's entrypoint, as root: the volume's data in place, then `hosting app` as the
+#                             sandbox user
+#   hosting app               keep the proxy and the app (.onedrop/start, or .onedrop/dev) running, logging to stdout;
+#                             an app that keeps stopping as it starts answers 503 (X-OneDrop-App: crashed) with its output
+#
+# .onedrop/host.json (written by the agent, see guides/hosting.md):
+#   {"static": "dist"}                                    a front end: .onedrop/build writes its files to dist/
+#   {"services": ["postgres", "redis", "s3"]}            managed services it reads from DATABASE_URL, REDIS_URL, AWS_*
+#   {"data": ["database/database.sqlite", "uploads"]}    files and folders under /workspace kept on the volume
+# Without host.json, a plain Vite app (a build script, index.html, nothing that runs a server) is taken for a front end
+# ("guessed": true); anything else for an app with a server.
+set -euo pipefail
+
+WORKSPACE=/workspace
+MANIFEST="$WORKSPACE/.onedrop/host.json"
+STORAGE="${APP_STORAGE_DIR:-/data/storage}"
+RUNNER=/opt/onedrop-hosting/run
+
+# The manifest as JSON, with its data paths checked (relative, inside the workspace) and the defaults filled in:
+# .onedrop/data always, and Laravel's default SQLite file when it's there.
+manifest() {
+    node - "$MANIFEST" "$WORKSPACE" "$STORAGE" <<'NODE'
+const fs = require('fs');
+const path = require('path');
+const [file, workspace, storage] = process.argv.slice(2);
+let raw = {};
+let described = true;
+try {
+    raw = JSON.parse(fs.readFileSync(file, 'utf8'));
+} catch (error) {
+    if (error.code !== 'ENOENT') {
+        console.error(`.onedrop/host.json isn't valid JSON: ${error.message}`);
+        process.exit(1);
+    }
+    described = false;
+}
+const clean = (p) => {
+    const normal = path.posix.normalize(String(p)).replace(/^\.\/|\/$/g, '');
+    return normal && !normal.startsWith('..') && !path.posix.isAbsolute(normal) && normal !== '.' ? normal : null;
+};
+const declared = Array.isArray(raw.data) ? raw.data : [];
+const data = [...new Set(['.onedrop/data', 'database/database.sqlite', ...declared].map(clean).filter(Boolean))]
+    .filter((p) => fs.existsSync(path.join(workspace, p)));
+const services = (Array.isArray(raw.services) ? raw.services : []).filter((s) => ['postgres', 'redis', 's3'].includes(s));
+const buckets = fs.existsSync(storage) ? fs.readdirSync(storage).filter((b) => !b.startsWith('.')) : [];
+// A Vite app that only builds files: its build script, its index.html, and nothing that would run a server.
+const frontEnd = () => {
+    const has = (p) => fs.existsSync(path.join(workspace, p));
+    let pkg;
+    try {
+        pkg = JSON.parse(fs.readFileSync(path.join(workspace, 'package.json'), 'utf8'));
+    } catch {
+        return null;
+    }
+    const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+    const servers = ['express', 'fastify', 'koa', 'hono', '@hono/node-server', 'next', 'nuxt', '@sveltejs/kit', 'astro',
+        '@remix-run/node', '@react-router/node', '@react-router/dev', '@nestjs/core', '@tanstack/react-start', 'vike',
+        'socket.io', '@prisma/client', 'drizzle-orm', 'better-sqlite3', 'pg', 'mysql2', 'mongoose'];
+    const start = String(pkg.scripts?.start ?? '');
+    if (!pkg.scripts?.build || !deps.vite || !has('index.html') || servers.some((name) => deps[name])
+        || ['.onedrop/start', 'composer.json', 'artisan', 'Gemfile', 'requirements.txt', 'pyproject.toml', 'go.mod',
+            'server.js', 'server.ts', 'server.mjs', 'server'].some(has)
+        || (start !== '' && !/^vite(\s|$)/.test(start))) {
+        return null;
+    }
+    const config = ['vite.config.ts', 'vite.config.js', 'vite.config.mts', 'vite.config.mjs'].find(has);
+    const outDir = config && fs.readFileSync(path.join(workspace, config), 'utf8').match(/outDir\s*:\s*['"`]([^'"`]+)['"`]/);
+    return clean(outDir ? outDir[1] : 'dist');
+};
+// SQLite databases kept in the data paths, which hosting backs up continuously with Litestream (HOST-008).
+const isSqlite = (p) => {
+    try {
+        const fd = fs.openSync(p, 'r');
+        const head = Buffer.alloc(16);
+        fs.readSync(fd, head, 0, 16, 0);
+        fs.closeSync(fd);
+        return head.toString('latin1') === 'SQLite format 3\0';
+    } catch {
+        return false;
+    }
+};
+const sqliteIn = (rel, depth = 0) => {
+    const full = path.join(workspace, rel);
+    const stat = fs.statSync(full, { throwIfNoEntry: false });
+    if (!stat) return [];
+    if (stat.isFile()) return /\.(sqlite3?|db3?)$/i.test(rel) && isSqlite(full) ? [rel] : [];
+    if (!stat.isDirectory() || depth >= 4) return [];
+    return fs.readdirSync(full).flatMap((name) => sqliteIn(path.posix.join(rel, name), depth + 1));
+};
+const sqlite = [...new Set(data.flatMap((p) => sqliteIn(p)))];
+let staticDir = typeof raw.static === 'string' && clean(raw.static) ? clean(raw.static) : null;
+const guessed = !described && (staticDir = frontEnd()) !== null;
+console.log(JSON.stringify({ static: staticDir, services: [...new Set(services)], data, sqlite, storage: buckets.length > 0, ...(guessed ? { guessed } : {}) }));
+NODE
+}
+
+# The app's local Postgres, from the environment or its .env: DATABASE_URL, DB_URL, or Laravel's DB_* settings.
+postgres_url() {
+    local env="$WORKSPACE/.env" url=""
+    url="${DATABASE_URL:-}"
+    if [ -z "$url" ] && [ -f "$env" ]; then
+        url="$(sed -n 's/^DATABASE_URL=//p; s/^DB_URL=//p' "$env" | head -n1 | tr -d "\"'")"
+        if [ -z "$url" ] && grep -q '^DB_CONNECTION=pgsql' "$env"; then
+            local host port db user pass
+            host="$(sed -n 's/^DB_HOST=//p' "$env" | tr -d "\"'")"
+            port="$(sed -n 's/^DB_PORT=//p' "$env" | tr -d "\"'")"
+            db="$(sed -n 's/^DB_DATABASE=//p' "$env" | tr -d "\"'")"
+            user="$(sed -n 's/^DB_USERNAME=//p' "$env" | tr -d "\"'")"
+            pass="$(sed -n 's/^DB_PASSWORD=//p' "$env" | tr -d "\"'")"
+            url="postgresql://${user}:${pass}@${host:-127.0.0.1}:${port:-5432}/${db}"
+        fi
+    fi
+    case "$url" in postgres://* | postgresql://*) echo "$url" ;; esac
+}
+
+FROZEN=()
+WATCHDOG=
+
+# Stop the sandbox user's processes while their files are copied, as snapshot does; a watchdog thaws them if this dies.
+freeze() {
+    local pid
+    for pid in $(pgrep -u "$(id -u)"); do
+        [ "$pid" = $$ ] || [ "$pid" = "$PPID" ] || [ "$pid" = "$BASHPID" ] || { kill -STOP "$pid" 2>/dev/null && FROZEN+=("$pid"); } || true
+    done
+    (sleep 120; kill -CONT "${FROZEN[@]}" 2>/dev/null) </dev/null >/dev/null 2>&1 &
+    WATCHDOG=$!
+}
+
+thaw() {
+    [ "${#FROZEN[@]}" -gt 0 ] && kill -CONT "${FROZEN[@]}" 2>/dev/null || true
+    [ -n "$WATCHDOG" ] && kill "$WATCHDOG" 2>/dev/null || true
+    FROZEN=()
+}
+
+# tar exits 1 when a file changed while it was read (a log being written); the archive is still good.
+tar_ok() {
+    tar --warning=no-file-changed --warning=no-file-removed "$@" || [ $? -eq 1 ]
+}
+
+# The package manager a folder's lockfile is for.
+package_manager() {
+    if [ -f "$1/pnpm-lock.yaml" ]; then echo pnpm
+    elif [ -f "$1/yarn.lock" ]; then echo yarn
+    elif [ -f "$1/bun.lock" ] || [ -f "$1/bun.lockb" ]; then echo bun
+    else echo npm
+    fi
+}
+
+# Install a workspace's packages again, from their lockfiles, for this machine: in each folder with its own
+# node_modules and lockfile (the root, or apps side by side), keeping the files' owner.
+deps() {
+    local root="${1:-$WORKSPACE}" lock dir owner
+    while IFS= read -r lock; do
+        dir="$(dirname "$lock")"
+        [ -d "$dir/node_modules" ] || continue
+        owner="$(stat -c %u:%g "$dir")"
+        echo "Installing the packages in ${dir#"$root"}/ again for $(uname -m)."
+        rm -rf "$dir/node_modules"
+        case "$(package_manager "$dir")" in
+            pnpm) (cd "$dir" && CI=1 pnpm install --frozen-lockfile) ;;
+            yarn) (cd "$dir" && if [ -f .yarnrc.yml ]; then yarn install --immutable; else yarn install --frozen-lockfile; fi) ;;
+            bun) (cd "$dir" && bun install --frozen-lockfile) ;;
+            *) (cd "$dir" && npm ci --no-audit --no-fund --no-update-notifier) ;;
+        esac
+        [ ! -d "$dir/node_modules" ] || chown -R "$owner" "$dir/node_modules"
+    done < <(find "$root" -maxdepth 3 -name node_modules -prune -o \
+        \( -name package-lock.json -o -name pnpm-lock.yaml -o -name yarn.lock -o -name bun.lock -o -name bun.lockb \) -print)
+}
+
+pack() {
+    local dir="$1" seed="${2:-}" json static
+    mkdir -p "$dir"
+    json="$(manifest)"
+    static="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).static ?? "")' "$json")"
+
+    local build=./.onedrop/build
+    if [ ! -x "$WORKSPACE/.onedrop/build" ]; then
+        build=
+        # A front end with no .onedrop/build is built with its own build script.
+        if [ -n "$static" ] && node -e 'process.exit(require(process.argv[1]).scripts?.build ? 0 : 1)' "$WORKSPACE/package.json" 2>/dev/null; then
+            build="$(package_manager "$WORKSPACE") run build"
+        fi
+    fi
+    if [ -n "$build" ]; then
+        if ! (cd "$WORKSPACE" && $build) >"$dir/build.log" 2>&1; then
+            echo "${build#./} failed:" >&2
+            tail -n 30 "$dir/build.log" >&2
+            exit 1
+        fi
+    fi
+
+    if [ -n "$static" ]; then
+        if [ ! -f "$WORKSPACE/$static/index.html" ]; then
+            echo "$static/index.html isn't there after the build." >&2
+            exit 1
+        fi
+        tar -czf "$dir/static.tar.gz" -C "$WORKSPACE/$static" .
+        echo "static $(stat -c %s "$dir/static.tar.gz")"
+        return
+    fi
+
+    # The runner goes in with the workspace, so any base image with bash and node can run the app.
+    local stage excludes=() path
+    stage="$(mktemp -d)"
+    mkdir -p "$stage/opt/onedrop-hosting"
+    cp "$0" "$stage/opt/onedrop-hosting/run"
+    chmod 755 "$stage/opt/onedrop-hosting/run"
+    # The database tool too, so Tools → Database works on the hosted app whatever the base image's copy is (HOST-007).
+    cp "$(dirname "$0")/db.php" "$stage/opt/onedrop-hosting/db.php" 2>/dev/null || true
+    # And what moves its SQLite data into Postgres, for Move to Postgres (HOST-009).
+    cp "$(dirname "$0")/pg-import.php" "$stage/opt/onedrop-hosting/pg-import.php" 2>/dev/null || true
+    # The CPU its packages were installed for, so the builder installs them again for the hosted machine's if it differs.
+    uname -m >"$stage/opt/onedrop-hosting/arch"
+    while IFS= read -r path; do
+        [ -n "$path" ] && excludes+=("--exclude=workspace/$path")
+    done < <(node -e 'for (const p of JSON.parse(process.argv[1]).data) console.log(p)' "$json")
+    tar_ok -czf "$dir/release.tar.gz" --numeric-owner \
+        --exclude=workspace/.git --exclude=workspace/.onedrop/attachments --exclude=workspace/.onedrop/errors.log \
+        --exclude='workspace/node_modules/.cache' "${excludes[@]}" \
+        -C / workspace -C "$stage" opt
+    rm -rf "$stage"
+    echo "release $(stat -c %s "$dir/release.tar.gz")"
+
+    [ "$seed" = seed ] || return 0
+
+    if node -e 'process.exit(JSON.parse(process.argv[1]).services.includes("postgres") ? 0 : 1)' "$json"; then
+        local url
+        url="$(postgres_url)"
+        if [ -n "$url" ] && pg_dump -Fc --no-owner --no-acl -f "$dir/postgres.dump" "$url" 2>"$dir/pg_dump.log"; then
+            echo "postgres $(stat -c %s "$dir/postgres.dump")"
+        else
+            echo "note Couldn't dump the local Postgres, so the hosted one starts empty. $(tail -n 1 "$dir/pg_dump.log" 2>/dev/null)"
+        fi
+    fi
+
+    local paths=()
+    while IFS= read -r path; do
+        [ -n "$path" ] && paths+=("workspace/$path")
+    done < <(node -e 'for (const p of JSON.parse(process.argv[1]).data) console.log(p)' "$json")
+    local storage_parent storage_name
+    storage_parent="$(dirname "$STORAGE")"
+    storage_name="$(basename "$STORAGE")"
+    trap thaw EXIT
+    freeze
+    if [ -d "$STORAGE" ]; then
+        tar_ok -czf "$dir/seed.tar.gz" --numeric-owner -C / "${paths[@]}" -C "$storage_parent" "$storage_name"
+    else
+        tar_ok -czf "$dir/seed.tar.gz" --numeric-owner -C / "${paths[@]}"
+    fi
+    thaw
+    echo "seed $(stat -c %s "$dir/seed.tar.gz")"
+}
+
+curl_headers() {
+    local line
+    while IFS= read -r line; do [ -n "$line" ] && printf -- '-H\n%s\n' "$line"; done <<<"${ONEDROP_HOSTING_HEADERS:-}"
+}
+
+LITESTREAM_CONFIG=/tmp/onedrop-litestream.yml
+
+# Litestream (HOST-008): continuous backups of the app's SQLite databases ($ONEDROP_SQLITE, paths under /workspace)
+# to their own R2 bucket. Writes its config and prints the binary's path, cached on the volume; nothing when backups
+# aren't set up or it can't be fetched (the app still starts).
+litestream_ready() {
+    [ -n "${ONEDROP_BACKUP_BUCKET:-}" ] && [ -n "${ONEDROP_SQLITE:-}" ] || return 1
+    local bin=/data/.onedrop/bin/litestream version="${ONEDROP_LITESTREAM_VERSION:-v0.3.13}" arch=amd64 path
+    [ "$(uname -m)" = aarch64 ] && arch=arm64
+    if [ ! -x "$bin" ]; then
+        mkdir -p "$(dirname "$bin")"
+        curl -fsSL --retry 3 "https://github.com/benbjohnson/litestream/releases/download/${version}/litestream-${version}-linux-${arch}.tar.gz" \
+            | tar -xz -C "$(dirname "$bin")" litestream || { echo "Couldn't fetch Litestream; SQLite isn't backed up continuously." >&2; return 1; }
+    fi
+    {
+        echo "dbs:"
+        IFS=: read -r -a paths <<<"$ONEDROP_SQLITE"
+        for path in "${paths[@]}"; do
+            [ -n "$path" ] || continue
+            printf '  - path: %s\n    replicas:\n      - type: s3\n        bucket: %s\n        path: %s\n        endpoint: %s\n        region: auto\n        force-path-style: true\n        sync-interval: 1s\n' \
+                "/data/workspace/$path" "$ONEDROP_BACKUP_BUCKET" "$path" "$ONEDROP_BACKUP_ENDPOINT"
+        done
+    } >"$LITESTREAM_CONFIG"
+    chmod 644 "$LITESTREAM_CONFIG"
+    echo "$bin"
+}
+
+# On the hosted machine, as root: the volume (at /data) holds each data path under /data/workspace and App Storage at
+# /data/storage. A new volume gets its SQLite databases back from their backups first, then the sandbox's data
+# ($ONEDROP_SEED_URL, the first deploy) for anything still missing, once.
+run() {
+    if [ "${ONEDROP_VOLUME:-}" = 1 ]; then
+        local litestream
+        litestream="$(litestream_ready)" || litestream=
+
+        if [ ! -f /data/.onedrop-seeded ]; then
+            if [ -n "$litestream" ]; then
+                local db
+                IFS=: read -r -a dbs <<<"$ONEDROP_SQLITE"
+                for db in "${dbs[@]}"; do
+                    [ -n "$db" ] || continue
+                    mkdir -p "$(dirname "/data/workspace/$db")"
+                    "$litestream" restore -config "$LITESTREAM_CONFIG" -if-db-not-exists -if-replica-exists "/data/workspace/$db" \
+                        && [ -f "/data/workspace/$db" ] && echo "Restored $db from its backup."
+                done
+            fi
+            if [ -n "${ONEDROP_SEED_URL:-}" ]; then
+                echo "Copying the sandbox's data onto the volume."
+                # A database restored from its backup is newer than the sandbox's copy: keep it.
+                curl -fsS --retry 5 "$ONEDROP_SEED_URL" | tar -xz -C /data --numeric-owner --skip-old-files || echo "Couldn't copy the sandbox's data; starting without it."
+            fi
+            mkdir -p /data/workspace /data/storage
+            chown -R sandbox:sandbox /data
+            touch /data/.onedrop-seeded
+        fi
+
+        local path
+        IFS=: read -r -a paths <<<"${ONEDROP_DATA:-}"
+        for path in "${paths[@]}"; do
+            [ -n "$path" ] || continue
+            mkdir -p "$(dirname "/data/workspace/$path")"
+            chown sandbox:sandbox "$(dirname "/data/workspace/$path")"
+            rm -rf "${WORKSPACE:?}/$path"
+            mkdir -p "$(dirname "$WORKSPACE/$path")"
+            ln -sfn "/data/workspace/$path" "$WORKSPACE/$path"
+        done
+        export APP_STORAGE_DIR=/data/storage
+    fi
+
+    mkdir -p "${APP_STORAGE_DIR:-/data/storage}"
+    chown sandbox:sandbox "${APP_STORAGE_DIR:-/data/storage}"
+    exec runuser -u sandbox -- env HOME=/home/sandbox ONEDROP_LITESTREAM="${litestream:-}" "$RUNNER" app
+}
+
+# For a minute, answer every request with a 503 and the end of /tmp/onedrop-app.log: the app can't start, and the deploy
+# watching it shows why (it looks for X-OneDrop-App: crashed).
+say_why() {
+    timeout 60 node -e '
+        const body = require("fs").readFileSync("/tmp/onedrop-app.log", "utf8").replace(/\x1b\[[0-9;]*m/g, "").split("\n").slice(-40).join("\n");
+        require("http").createServer((req, res) => {
+            res.writeHead(503, { "content-type": "text/plain; charset=utf-8", "x-onedrop-app": "crashed", "retry-after": "60" });
+            res.end(body);
+        }).listen(process.env.PORT, "0.0.0.0");' || true
+}
+
+move_to_postgres() {
+    (
+        set -e
+        cd "$WORKSPACE"
+        echo "Moving the app's SQLite data ($ONEDROP_IMPORT_SQLITE) into Postgres."
+        if [ -x .onedrop/migrate ]; then
+            ./.onedrop/migrate
+        else
+            echo "There's no .onedrop/migrate to make the app's tables in Postgres."
+        fi
+        php /opt/onedrop-hosting/pg-import.php "$WORKSPACE/$ONEDROP_IMPORT_SQLITE"
+    ) 2>&1 | tee /tmp/onedrop-app.log
+    [ "${PIPESTATUS[0]}" = 0 ] || return 1
+    touch /data/.onedrop-moved-to-postgres
+    echo "Moved the app's data into Postgres."
+}
+
+app() {
+    cd "$WORKSPACE"
+    (
+        while true; do
+            node /opt/onedrop/host-proxy.mjs >>/tmp/onedrop-proxy.log 2>&1
+            sleep 1
+        done
+    ) &
+
+    # Continuous backups of the SQLite databases, alongside the app (HOST-008).
+    if [ -n "${ONEDROP_LITESTREAM:-}" ]; then
+        (
+            while true; do
+                "$ONEDROP_LITESTREAM" replicate -config "$LITESTREAM_CONFIG" 2>&1 | sed -u 's/^/litestream: /'
+                sleep 5
+            done
+        ) &
+    fi
+
+    # Move to Postgres (HOST-009), once: the app's migrations make its tables in Postgres (.onedrop/migrate), then its
+    # SQLite data is copied in. The app doesn't start before that's done: it would find an empty database.
+    if [ -n "${ONEDROP_IMPORT_SQLITE:-}" ] && [ ! -f /data/.onedrop-moved-to-postgres ]; then
+        until move_to_postgres; do
+            say_why
+        done
+    fi
+
+    local command=.onedrop/dev started quick=0 status=0
+    [ -x .onedrop/start ] && command=.onedrop/start
+    while true; do
+        echo "Starting the app ($command)."
+        started=$SECONDS
+        if bash -c "cd $WORKSPACE && exec ./$command" 2>&1 | tee /tmp/onedrop-app.log; then status=0; else status=${PIPESTATUS[0]}; fi
+        echo "The app stopped ($status); starting it again."
+        if (( SECONDS - started < 30 )); then quick=$((quick + 1)); else quick=0; fi
+        # Stopping three times as it starts: say why for a minute (the deploy checks for it), then try again.
+        if (( quick >= 3 )); then
+            quick=0
+            say_why
+        fi
+        sleep 1
+    done
+}
+
+case "${1:-}" in
+    inspect) manifest ;;
+    pack) pack "$2" "${3:-}" ;;
+    put)
+        mapfile -t headers < <(curl_headers)
+        curl -fsS --retry 3 -X PUT "${headers[@]}" -T "$2" "$ONEDROP_HOSTING_URL" >/dev/null
+        rm -f "$2"
+        ;;
+    deps) deps "${2:-}" ;;
+    run) run ;;
+    app) app ;;
+    *)
+        echo "Usage: hosting inspect | pack DIR [seed] | put FILE | deps [DIR] | run | app" >&2
+        exit 2
+        ;;
+esac

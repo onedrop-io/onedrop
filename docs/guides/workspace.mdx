@@ -217,6 +217,12 @@ Edits, new rows and deletions are held until you press **Save changes**, and the
 
 Views can't be edited. Nor can existing rows of a table without a primary key; change those with the SQL runner instead. Binary values and values over 10 KB show as a read-only preview.
 
+**Download** (the arrow next to the database menu) saves a copy of a SQLite database, safe to take while the app is using it, that you can open in TablePlus, DB Browser for SQLite or DBeaver.
+
+### Your hosted app's database
+
+When the project is published to [Hosting](/guides/hosting), a **Sandbox / Hosted (live)** switch appears above the browser. **Hosted** shows the hosted app's own data: its SQLite file on its volume, or the Postgres it was given. It works even while the sandbox sleeps, and wakes the hosted app if it's asleep. Everything above works there too, but on your visitors' real data, so saving changes and running SQL that could change it ask first. Download works there as well.
+
 <Note>
     The database is reached from inside the sandbox, so connection details and
     passwords never leave it. Sandboxes created before this feature need a

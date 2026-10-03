@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import CellValue from '@/components/workspace/database/cell-value';
 import { useAppearance } from '@/hooks/use-appearance';
 import { databaseApi } from '@/lib/database-api';
+import type { DatabaseLocation } from '@/lib/database-api';
 import type {
     DatabaseConnection,
     DatabaseQueryResult,
@@ -110,8 +111,10 @@ export default function SqlRunner({
     tables,
     initialSql,
     onRan,
+    where = 'sandbox',
 }: {
     projectId: number;
+    where?: DatabaseLocation;
     connection: string;
     driver: DatabaseConnection['driver'];
     tables: DatabaseTable[] | null;
@@ -129,10 +132,23 @@ export default function SqlRunner({
             return;
         }
 
+        // On the hosted app's database, anything that may change it is confirmed first (HOST-007).
+        if (
+            where === 'hosted' &&
+            !/^\s*(select|with|pragma|explain|show|describe)\b/i.test(sql) &&
+            !window.confirm(
+                'Run this on the hosted app’s live database? Your visitors’ data changes too.',
+            )
+        ) {
+            return;
+        }
+
         setRunning(true);
 
         try {
-            setResult(await databaseApi.query(projectId, connection, sql));
+            setResult(
+                await databaseApi.query(projectId, connection, sql, where),
+            );
             setError(null);
             onRan();
         } catch (e) {

@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Enums\PublishStatus;
 use App\Models\Project;
+use App\Sandbox\Publishing\HostingPublisher;
 use App\Sandbox\Publishing\Publishers;
 use App\Sandbox\Publishing\PublishException;
 use App\Sandbox\Publishing\PublishNeedsFeature;
@@ -41,8 +42,10 @@ class ConfirmPublication implements ShouldQueue
             return;
         }
 
+        $publisher = $publishers->forProject($project);
+
         try {
-            $url = $publishers->forProject($project)->confirm($project, $project->publish_visibility);
+            $url = $publisher->confirm($project, $project->publish_visibility);
         } catch (PublishNeedsLogin $e) {
             $this->waitFor($project, 'login', $e->loginUrl);
             $this->retryOrGiveUp($project, self::LOGIN_ATTEMPTS, 'Nobody approved the project in Tailscale in time. Publish again to get a new sign-in link.');
@@ -74,17 +77,27 @@ class ConfirmPublication implements ShouldQueue
             return;
         }
 
-        $this->retryOrGiveUp($project, self::ATTEMPTS, 'Tailscale took too long to come up. Try again.');
+        $this->retryOrGiveUp($project, $publisher->confirmAttempts(), $publisher instanceof HostingPublisher
+            ? 'The deploy took too long. Try again.'
+            : 'Tailscale took too long to come up. Try again.');
     }
 
     /**
-     * Something crashed mid-check (e.g. a command timed out): fail visibly rather than stay "Publishing…" forever.
+     * Something crashed mid-check (e.g. a command timed out, or the database was locked): check again while attempts
+     * are left, since the endpoint (a deploy, a tailnet node) carries on without this job. After the last one, fail
+     * visibly rather than stay "Publishing…" forever.
      */
     public function failed(?Throwable $exception): void
     {
         $project = $this->project->fresh();
 
         if ($project?->publish_status !== PublishStatus::Publishing) {
+            return;
+        }
+
+        if ($this->attempt < app(Publishers::class)->forProject($project)->confirmAttempts()) {
+            self::dispatch($project, $this->attempt + 1)->delay(now()->addSeconds(self::RETRY_SECONDS));
+
             return;
         }
 

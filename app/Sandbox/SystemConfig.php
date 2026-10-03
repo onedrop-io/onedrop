@@ -3,10 +3,11 @@
 namespace App\Sandbox;
 
 use App\Models\SystemSetting;
+use App\Sandbox\Hosting\HostingProviders;
 use Illuminate\Support\Facades\Artisan;
 
 /**
- * Lays the settings admins save in the app (ADMIN-001, ADMIN-002) over config/, so they win over `.env` and the
+ * Lays the settings admins save in the app (ADMIN-001, ADMIN-002, ADMIN-007) over config/, so they win over `.env` and the
  * rest of the code keeps reading config().
  */
 class SystemConfig
@@ -26,6 +27,15 @@ class SystemConfig
         foreach (SandboxProviders::PROVIDERS as $provider => $definition) {
             foreach (array_intersect_key($sandboxes['providers'][$provider] ?? [], $definition['fields']) as $key => $value) {
                 config(["sandbox.providers.{$provider}.{$key}" => $value]);
+            }
+        }
+
+        // The install's hosting accounts (ADMIN-007).
+        foreach (SystemSetting::group(HostingProviders::SETTING)['providers'] ?? [] as $provider => $values) {
+            if (isset(HostingProviders::PROVIDERS[$provider]) && is_array($values)) {
+                foreach (array_intersect_key($values, [...HostingProviders::PROVIDERS[$provider]['fields'], 'enabled' => true]) as $key => $value) {
+                    config(["hosting.providers.{$provider}.{$key}" => $value]);
+                }
             }
         }
 

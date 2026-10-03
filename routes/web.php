@@ -4,6 +4,7 @@ use App\Http\Controllers\AcceptInvitationController;
 use App\Http\Controllers\Admin\AbuseReviewController;
 use App\Http\Controllers\Admin\BrandingController;
 use App\Http\Controllers\Admin\DatabaseBackupController;
+use App\Http\Controllers\Admin\HostingProviderController;
 use App\Http\Controllers\Admin\OrganizationController as AdminOrganizationController;
 use App\Http\Controllers\Admin\SandboxProviderController;
 use App\Http\Controllers\Admin\ServerController;
@@ -22,6 +23,7 @@ use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OneDropOAuthController;
 use App\Http\Controllers\OpenRouterAuthController;
 use App\Http\Controllers\OrganizationController;
+use App\Http\Controllers\OrganizationHostingController;
 use App\Http\Controllers\OrganizationMemberController;
 use App\Http\Controllers\ProjectAgentController;
 use App\Http\Controllers\ProjectAttachmentController;
@@ -34,6 +36,7 @@ use App\Http\Controllers\ProjectFileController;
 use App\Http\Controllers\ProjectFlagController;
 use App\Http\Controllers\ProjectGitController;
 use App\Http\Controllers\ProjectGrowthController;
+use App\Http\Controllers\ProjectHostingController;
 use App\Http\Controllers\ProjectIconController;
 use App\Http\Controllers\ProjectLogController;
 use App\Http\Controllers\ProjectMessageController;
@@ -125,6 +128,11 @@ Route::post('sandbox-events/{sandbox}/files', [SandboxEventController::class, 'f
     ->middleware(['signed:relative', 'throttle:600,1'])
     ->name('sandbox-events.files');
 
+// Called by a hosting deploy's builder machine with its log (HOST-001); it gets this signed address when it starts.
+Route::post('sandbox-events/deployments/{deployment}/log', [ProjectHostingController::class, 'log'])
+    ->middleware(['signed', 'throttle:60,1'])
+    ->name('hosting.deployments.log');
+
 // Back to the admin's own account (USR-003). Only `auth`: the person being impersonated may not have verified their email.
 Route::delete('impersonation', [ImpersonationController::class, 'destroy'])->middleware('auth')->name('impersonation.destroy');
 
@@ -190,6 +198,7 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
         Route::get('projects/{project}/database/rows', [ProjectDatabaseController::class, 'rows'])->name('projects.database.rows');
         Route::post('projects/{project}/database/changes', [ProjectDatabaseController::class, 'change'])->name('projects.database.change');
         Route::post('projects/{project}/database/query', [ProjectDatabaseController::class, 'query'])->name('projects.database.query');
+        Route::post('projects/{project}/database/download', [ProjectDatabaseController::class, 'download'])->name('projects.database.download');
         Route::get('projects/{project}/auth', [ProjectAuthController::class, 'show'])->name('projects.auth.show');
         Route::get('projects/{project}/auth/users', [ProjectAuthController::class, 'users'])->name('projects.auth.users');
         Route::get('projects/{project}/auth/users/export', [ProjectAuthController::class, 'export'])->name('projects.auth.users.export');
@@ -299,6 +308,10 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
         Route::put('agent-models/favorites', [AgentModelController::class, 'favorite'])->name('agent-models.favorite');
         Route::post('projects/{project}/publication', [ProjectPublicationController::class, 'store'])->name('projects.publication.store');
         Route::delete('projects/{project}/publication', [ProjectPublicationController::class, 'destroy'])->name('projects.publication.destroy');
+        Route::delete('projects/{project}/hosting', [ProjectHostingController::class, 'destroy'])->name('projects.hosting.destroy');
+        Route::patch('projects/{project}/hosting', [ProjectHostingController::class, 'update'])->name('projects.hosting.update');
+        Route::post('projects/{project}/hosting/move-to-postgres', [ProjectHostingController::class, 'moveToPostgres'])->name('projects.hosting.move-to-postgres');
+        Route::post('projects/{project}/hosting/deployments/{deployment}/roll-back', [ProjectHostingController::class, 'rollBack'])->scopeBindings()->name('projects.hosting.roll-back');
     });
 
     Route::get('usage', [UsageController::class, 'index'])->name('usage.index');
@@ -317,6 +330,8 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
         Route::get('logo', [OrganizationController::class, 'logo'])->name('organizations.logo');
         Route::post('logo', [OrganizationController::class, 'storeLogo'])->name('organizations.logo.store');
         Route::delete('logo', [OrganizationController::class, 'destroyLogo'])->name('organizations.logo.destroy');
+        Route::put('hosting/{provider}', [OrganizationHostingController::class, 'update'])->name('organizations.hosting.update');
+        Route::delete('hosting/{provider}', [OrganizationHostingController::class, 'destroy'])->name('organizations.hosting.destroy');
 
         Route::get('invitations', [InvitationController::class, 'index'])->name('invitations.index');
         Route::post('invitations', [InvitationController::class, 'store'])->name('invitations.store');
@@ -349,6 +364,9 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
         Route::get('sandboxes', [SandboxProviderController::class, 'index'])->name('sandboxes.index');
         Route::put('sandboxes/order', [SandboxProviderController::class, 'reorder'])->name('sandboxes.reorder');
         Route::put('sandboxes/{provider}', [SandboxProviderController::class, 'update'])->name('sandboxes.update');
+
+        Route::get('hosting', [HostingProviderController::class, 'index'])->name('hosting.index');
+        Route::put('hosting/{provider}', [HostingProviderController::class, 'update'])->name('hosting.update');
 
         Route::get('monitoring', [ServerMonitoringController::class, 'show'])->name('monitoring.show');
 

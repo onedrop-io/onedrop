@@ -61,8 +61,9 @@ export type LogLine = { index: number; nodes: ReactNode[] };
 /**
  * Log output as colored lines, for a dark background. Lines a program colored itself (ANSI escapes) keep
  * those colors; other lines get their timestamps, levels, keys, quoted strings, URLs and durations colored
- * (slow ones amber or red) and dot leaders dimmed. Other escapes (cursor moves, `\r` redraws) are dropped,
- * so they don't show as junk. With a search, only the lines passing it are kept, and its terms are marked.
+ * (slow ones amber or red) and dot leaders dimmed, and URLs open in a new tab. Other escapes (cursor moves,
+ * `\r` redraws) are dropped, so they don't show as junk. With a search, only the lines passing it are kept,
+ * and its terms are marked.
  */
 export function highlightLog(
     text: string,
@@ -164,6 +165,26 @@ function highlightPlain(
                     {marked(line.slice(last, match.index))}
                 </Fragment>,
             );
+        }
+
+        if (match.groups?.url) {
+            // Punctuation ending a sentence ("Live at https://….") isn't part of the address.
+            const url = match[0].replace(/[.,;:!?)\]]+$/, '');
+
+            nodes.push(
+                <a
+                    key={nodes.length}
+                    href={url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={tokenClass(match)}
+                >
+                    {marked(url)}
+                </a>,
+            );
+            last = match.index + url.length;
+
+            continue;
         }
 
         nodes.push(

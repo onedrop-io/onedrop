@@ -1,0 +1,112 @@
+---
+title: 'Tools'
+description: 'Manual tests for the Tools panels, the Services tab and the files panel, against a real app in a real sandbox.'
+noindex: true
+---
+
+Most panels run a script inside the sandbox, so they need an app to look at. Build one first: "a Laravel app with a tasks table, sign-in, and a page listing tasks". For Postgres and MySQL checks, ask for a Docker Compose app with that database.
+
+## Database
+
+- [ ] **Tools → Database** finds the app's SQLite file without setup.
+- [ ] With a Postgres or MySQL URL in `.env` (or a compose `db` service), it connects to that database; with several, the menu at the top left switches between them.
+- [ ] Sort, filter, edit a cell, add a row and delete a row; nothing is saved until **Save changes**, then it all is.
+- [ ] Leaving a table with unsaved changes asks first.
+- [ ] The SQL runner runs a statement with **Cmd/Ctrl+Enter** and suggests table and column names.
+- [ ] A change made here shows in the preview after a reload.
+
+## Users & Auth
+
+- [ ] **Set up sign-in** sends the request to the agent, and the app gets working sign-up and sign-in.
+- [ ] People who sign up in the preview appear under **Users**.
+- [ ] Turning a sign-in method off removes it from the app's sign-in page.
+- [ ] **Sign in with OneDrop** lets a OneDrop user into the app.
+- [ ] Saving Google, GitHub or Microsoft keys makes that button work in the app.
+
+## Secrets
+
+- [ ] Adding a secret writes it to the app's `.env`, and the app can read it after a restart.
+- [ ] Pasting a whole `.env` file adds each line as its own secret.
+- [ ] Values are hidden until revealed, and never show in the chat.
+- [ ] With OpenRouter set up, pasting a secret into the chat asks **This looks like a secret. Save it in Secrets instead?** before it reaches the agent.
+
+## Feature Flags
+
+- [ ] Adding a flag through the agent makes it show in **Tools → Feature Flags**.
+- [ ] Switching it off and on changes the app at once, without a code change.
+- [ ] Removing a flag removes it from the app's code.
+
+## App Storage
+
+- [ ] Create a bucket, upload files (drag in a few at once), and see them with their file type icons.
+- [ ] Preview, download, move, copy the path of and delete objects; tick several (Shift for a range) and **Download zip**, **Move** or **Delete** them together.
+- [ ] Ask the agent to use the bucket for uploads; a file uploaded through the app shows up in the panel.
+- [ ] Buckets and their files survive a sandbox [update](/testing/sandboxes#updates).
+
+## Tables
+
+1. Ask the agent for "a contacts table I can edit like Airtable".
+
+- [ ] Cells edit in place; adding a field, a formula and a linked record works.
+- [ ] Saved views keep their filters, sorts and hidden fields after a reload.
+- [ ] The record panel shows a record's activity and attachments.
+
+## Monitoring and Growth
+
+1. Open a few pages of the app in the preview, and in its own tab.
+
+- [ ] **Monitoring** shows requests, status classes and response times, and the CPU and memory charts fill in within a minute or two.
+- [ ] **Growth** analytics count the visits; **Published only** leaves out preview traffic.
+- [ ] **Run scan with agent** returns an SEO rating with each check listed.
+- [ ] **Set up with agent** adds custom events, and triggering one in the app shows its count.
+
+## Git
+
+- [ ] History lists each turn's checkpoint; opening one shows its diff.
+- [ ] **Undo the last commit** and **Restore** an earlier version change the files and the preview.
+- [ ] Committing your own change from the header works, with a message you write.
+- [ ] Connecting GitHub (app or token) and pushing puts the code on GitHub; **Open a pull request** opens one.
+
+## Agent Skills
+
+- [ ] Adding a skill and turning it on makes the agent follow it on the next turn.
+- [ ] Turning it off stops that.
+- [ ] **Share with everyone** shows it to `sam@example.com` under **Shared with you**; **Stop sharing** turns it off in their projects.
+
+## Developer
+
+- [ ] **Networking** lists the app's addresses and open ports.
+- [ ] **Resources** shows CPU, memory and disk.
+- [ ] **SSH** gives a command that connects from your terminal, and opening in VS Code or Cursor works.
+
+## App Icon
+
+- [ ] A new project gets an icon as the agent starts building.
+- [ ] **Upload image** and **Draw a new one** update the sidebar tile and the app's `public/favicon.svg`.
+
+## Services tab
+
+- [ ] **Preview server** shows the dev command and **Restart** restarts it (the Console tab shows the restart).
+- [ ] With a Docker Compose app, each container shows with its state, uptime and ports.
+- [ ] A container's logs open in color; search (`error -healthcheck`, `"exact phrase"`, `a OR b`) filters them; **Live** follows new lines.
+- [ ] Restart, stop and start a container.
+- [ ] **Ports** lists the preview, host proxy, Shell, SSH and Docker services.
+
+## Console colors and search (TAB-002)
+
+Use a sandbox started from an image built after this change (`php artisan sandbox:update` moves older ones over).
+
+- [ ] A Laravel app's Console shows `artisan serve`'s request lines with grey timestamps and dots, and slow requests' times in amber (100ms and up) or red (500ms and up).
+- [ ] A Vite or npm dev server's output keeps its own colors (Vite's green "ready", its URLs).
+- [ ] A Docker Compose app's Console shows each service's name in its own color.
+- [ ] No stray `[32m`-style codes show, even during a burst of output.
+- [ ] Searching (`error -favicon`, `"exact phrase"`, `a OR b`) keeps only matching lines and shows how many; clicking one clears the search and highlights it among its neighbours.
+- [ ] New output keeps arriving while searching; scrolling up stops the view from jumping to the bottom.
+- [ ] A published app's hosting output has no color codes.
+
+## Files panel and editor
+
+- [ ] The tree updates within a second or two when the agent (or a Shell command) adds, removes or renames a file.
+- [ ] Go to a file by name; rename, move, delete and create files and folders.
+- [ ] Editing a file and saving it updates the preview.
+- [ ] The open file goes along with the next chat message.

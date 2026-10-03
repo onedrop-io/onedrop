@@ -7,8 +7,11 @@
  * sandbox's own Docker), then browses, edits or queries one of them. Connection details and passwords
  * never leave the sandbox: the platform only ever sees connection ids.
  *
- * Reads one JSON request from $APP_DB_REQUEST and prints one JSON response:
+ * Reads one JSON request from $APP_DB_REQUEST (or stdin, when it's unset) and prints one JSON response:
  * {"ok": true, "data": ...} or {"ok": false, "error": "..."}.
+ *
+ * On a hosted app (ONEDROP_HOSTED=1, HOST-007) the same tool runs on its machine: the database it was given
+ * (DATABASE_URL) comes first, and servers named in .env files, which only existed in the sandbox, are left out.
  *
  * Usage: APP_DB_REQUEST='{"op":"connections"}' php /opt/onedrop/db.php
  */
@@ -408,7 +411,8 @@ function sqliteFiles(string $dir, int $depth = 0): array
     foreach (@scandir($dir) ?: [] as $name) {
         $path = "{$dir}/{$name}";
 
-        if ($name === '.' || $name === '..' || is_link($path) || in_array(relative($path), SKIPPED_DIRS, true) || in_array($name, SKIPPED_DIRS, true)) {
+        // Symlinked files are followed (a hosted app's data files are links to its volume); symlinked folders aren't.
+        if ($name === '.' || $name === '..' || (is_link($path) && is_dir($path)) || in_array(relative($path), SKIPPED_DIRS, true) || in_array($name, SKIPPED_DIRS, true)) {
             continue;
         }
 
@@ -449,9 +453,20 @@ function connections(): array
     $byId = [];
     $containers = databaseContainers();
     $reached = [];
+    $hosted = getenv('ONEDROP_HOSTED') === '1';
+
+    // Hosted, the database it was given comes first.
+    if ($hosted && ($url = getenv('DATABASE_URL')) && ($connection = fromUrl($url, $root))) {
+        $byId['env:hosted:DATABASE_URL'] = $connection + ['id' => 'env:hosted:DATABASE_URL', 'source' => 'Hosting (DATABASE_URL)'];
+    }
 
     foreach ($envFiles as $file) {
         foreach (envConnections($file) as $connection) {
+            // A server in .env is the sandbox's own (127.0.0.1, a container): not there when hosted.
+            if ($hosted && $connection['driver'] !== 'sqlite') {
+                continue;
+            }
+
             // A host like DB_HOST=db names a container, which only its compose network resolves: reach it directly.
             foreach (isset($connection['server']) ? $containers : [] as $index => $container) {
                 if (in_array($connection['server']['host'], $container['names'], true)) {
@@ -950,10 +965,53 @@ function query(PDO $pdo, array $request): array
     ];
 }
 
+/**
+ * A consistent copy of a SQLite database (VACUUM INTO, safe while the app writes), uploaded to a signed link, for
+ * downloading it (HOST-007).
+ *
+ * @param  array<string, mixed>  $request
+ * @return array{bytes: int}
+ */
+function backup(PDO $pdo, string $driver, array $request): array
+{
+    if ($driver !== 'sqlite') {
+        throw new ToolError('Only SQLite databases can be downloaded.');
+    }
+
+    $url = (string) ($request['upload_url'] ?? '');
+
+    if (! preg_match('#^https?://#', $url)) {
+        throw new ToolError('No address to upload the copy to.');
+    }
+
+    $copy = sys_get_temp_dir().'/onedrop-db-'.bin2hex(random_bytes(6)).'.sqlite';
+
+    try {
+        $pdo->exec('VACUUM INTO '.$pdo->quote($copy));
+        $command = ['curl', '-fsS', '--retry', '3', '-X', 'PUT', '-T', $copy];
+
+        foreach ((array) ($request['upload_headers'] ?? []) as $name => $value) {
+            array_push($command, '-H', $name.': '.(is_array($value) ? implode(', ', $value) : $value));
+        }
+
+        $command[] = $url;
+        exec(implode(' ', array_map('escapeshellarg', $command)).' 2>&1', $output, $code);
+
+        if ($code !== 0) {
+            throw new ToolError("Couldn't upload the copy: ".trim(implode(' ', $output)));
+        }
+
+        return ['bytes' => (int) filesize($copy)];
+    } finally {
+        @unlink($copy);
+    }
+}
+
 // auth.php includes this file for its helpers; only run a request when called directly.
 if (! defined('APP_DB_LIBRARY')) {
     try {
-        $request = json_decode((string) getenv('APP_DB_REQUEST'), true);
+        $raw = getenv('APP_DB_REQUEST');
+        $request = json_decode($raw === false || $raw === '' ? (string) stream_get_contents(STDIN) : $raw, true);
 
         if (! is_array($request)) {
             throw new ToolError('The request was not valid JSON.');
@@ -965,7 +1023,7 @@ if (! defined('APP_DB_LIBRARY')) {
             respond(['ok' => true, 'data' => array_map(describe(...), connections())]);
         }
 
-        if (! in_array($op, ['tables', 'rows', 'changes', 'query'], true)) {
+        if (! in_array($op, ['tables', 'rows', 'changes', 'query', 'backup'], true)) {
             throw new ToolError('Unknown operation.');
         }
 
@@ -976,6 +1034,7 @@ if (! defined('APP_DB_LIBRARY')) {
             'rows' => rows($pdo, $driver, $request),
             'changes' => changes($pdo, $driver, $request),
             'query' => query($pdo, $request),
+            'backup' => backup($pdo, $driver, $request),
         }]);
     } catch (ToolError|PDOException $e) {
         respond(['ok' => false, 'error' => $e->getMessage()]);

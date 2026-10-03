@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Enums\PublishStatus;
+use App\Enums\PublishTarget;
 use App\Enums\SandboxStatus;
 use App\Models\Sandbox;
 use App\Sandbox\SandboxException;
@@ -113,13 +114,16 @@ class SuspendIdleSandboxes extends Command
     }
 
     /**
-     * A published app has visitors the platform doesn't see; an agent or an update is using it now.
+     * An app published from the sandbox has visitors the platform doesn't see; an agent or an update is using it now.
      */
     protected function inUse(Sandbox $sandbox): bool
     {
         $project = $sandbox->project;
 
-        return $project->publish_status === PublishStatus::Live || $project->busyIn($sandbox) || SandboxUpdater::isUpdating($project);
+        // A hosted app runs off the sandbox (HOST-001), so its sandbox can sleep.
+        $servesApp = $project->publish_status === PublishStatus::Live && $project->publish_target !== PublishTarget::Hosting;
+
+        return $servesApp || $project->busyIn($sandbox) || SandboxUpdater::isUpdating($project);
     }
 
     /**

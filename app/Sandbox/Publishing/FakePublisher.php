@@ -3,6 +3,7 @@
 namespace App\Sandbox\Publishing;
 
 use App\Enums\PublishVisibility;
+use App\Jobs\ConfirmPublication;
 use App\Models\Project;
 
 /**
@@ -44,6 +45,11 @@ class FakePublisher implements Publisher
         $this->published[$project->id] = $visibility;
 
         return "https://{$project->publishHostname()}.example.ts.net";
+    }
+
+    public function confirmAttempts(): int
+    {
+        return ConfirmPublication::ATTEMPTS;
     }
 
     public function stop(Project $project): void

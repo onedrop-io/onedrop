@@ -1,11 +1,18 @@
 <?php
 
+use App\Enums\HostedServiceKind;
+use App\Enums\PublishStatus;
+use App\Enums\PublishTarget;
+use App\Enums\PublishVisibility;
 use App\Models\AgentConnection;
+use App\Models\HostedService;
 use App\Models\Project;
 use App\Models\Sandbox;
 use App\Models\User;
 use App\Sandbox\Providers\FakeSandboxProvider;
 use App\Sandbox\SandboxProvider;
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Http;
 
 beforeEach(function () {
     $this->workspace = databaseWorkspace();
@@ -167,3 +174,31 @@ test('a cell can be set to the text "cancel", and Escape still cancels', functio
 
     $page->assertNoJavaScriptErrors();
 })->group('DB-001');
+
+test("on a hosted project, the user switches to the hosted app's live database", function () {
+    $hosted = databaseWorkspace();
+    // The hosted copy has a fourth user the sandbox doesn't.
+    (new PDO('sqlite:'.$hosted.'/database/database.sqlite'))->exec("INSERT INTO users (name, email) VALUES ('Dee', 'dee@example.com')");
+    config(['hosting.providers.fly' => ['enabled' => true, 'api_token' => 'fly-token', 'org_slug' => 'onedrop', 'region' => 'iad']]);
+    Http::fake([
+        'api.machines.dev/v1/apps/*/machines/m_app/exec' => fn (Request $request) => Http::response(runHostedDatabaseCommand($hosted, $request['command'])),
+        'api.machines.dev/v1/apps/*/machines/m_app' => Http::response(['state' => 'started', 'config' => []]),
+    ]);
+    $this->project->update(['publish_target' => PublishTarget::Hosting, 'publish_status' => PublishStatus::Live, 'publish_visibility' => PublishVisibility::Public, 'published_url' => 'https://x.fly.dev']);
+    HostedService::factory()->for($this->project)->create(['kind' => HostedServiceKind::App, 'details' => ['machine' => 'm_app']]);
+
+    visit("/projects/{$this->project->id}")
+        ->resize(1920, 1080)
+        ->click('@tab-tools')
+        ->click('@tool-database')
+        ->click('@db-table-users')
+        ->assertSeeIn('@db-row-count', '3 rows')
+        ->click('@db-location-hosted')
+        ->assertSeeIn('@db-hosted-note', 'live data')
+        ->click('@db-table-users')
+        ->assertSeeIn('@db-row-count', '4 rows')
+        ->assertVisible('@db-download')
+        ->click('@db-location-sandbox')
+        ->assertMissing('@db-hosted-note')
+        ->assertNoJavaScriptErrors();
+})->group('HOST-007');

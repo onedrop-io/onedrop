@@ -54,6 +54,20 @@ exec php artisan serve --host=0.0.0.0 --port="$PORT"
 
 In `bootstrap/app.php`, trust the preview's proxy: `$middleware->trustProxies(at: '*');`.
 
+For Hosting (guides/hosting.md), also create `/workspace/.onedrop/build` (`npm run build`) and `/workspace/.onedrop/start`,
+both executable. The SQLite file and App Storage are kept by themselves; list Postgres or Redis in `.onedrop/host.json`
+only when the app uses them.
+
+```bash
+#!/usr/bin/env bash
+set -e
+rm -f public/hot
+php artisan migrate --force
+php artisan queue:work --tries=3 &
+php artisan reverb:start --host=127.0.0.1 --port=8080 &
+exec php artisan serve --host=0.0.0.0 --port="$PORT"
+```
+
 ## Building on it
 
 - Keep the starter kit's layout, components (`resources/js/components/ui`) and sign-in pages; build

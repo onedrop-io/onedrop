@@ -3,6 +3,7 @@
 namespace App\Sandbox;
 
 use App\Enums\PublishStatus;
+use App\Enums\PublishTarget;
 use App\Enums\PublishVisibility;
 use App\Enums\SandboxStatus;
 use App\Jobs\CreateSandbox;
@@ -173,7 +174,9 @@ class SandboxUpdater
         // The old sandbox stays until the new one has every file, so an update that fails or is cut off (a deploy, a
         // queue timeout) never loses them.
         $keepsOld = $old && ($backup || $snapshot);
-        $republishAs = $project->publish_status === PublishStatus::Live ? $project->publish_visibility : null;
+        // A hosted app runs off the sandbox (HOST-001), so a new sandbox doesn't touch it.
+        $hosted = $project->publish_target === PublishTarget::Hosting;
+        $republishAs = $project->publish_status === PublishStatus::Live && ! $hosted ? $project->publish_visibility : null;
         $sandbox = null;
 
         if ($backup) {
@@ -195,7 +198,7 @@ class SandboxUpdater
             }
 
             // The publish sidecar shares the old sandbox's network, so it goes too; republished below.
-            if ($project->publish_status) {
+            if ($project->publish_status && ! $hosted) {
                 $this->publishers->forProject($project)->stop($project);
                 $project->update(['publish_status' => null, 'published_url' => null]);
             }

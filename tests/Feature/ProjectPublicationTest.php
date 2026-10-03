@@ -172,14 +172,27 @@ test('publishing waits for funnel to be turned on, shows the link, then goes liv
         ->and($project->publish_login_url)->toBeNull();
 })->group('PUB-001');
 
-test('a publishing job that crashes marks publishing failed instead of leaving it stuck', function (string $job) {
+test('a publishing job that crashes marks publishing failed instead of leaving it stuck', function (Closure $job) {
     $this->project->update(['publish_status' => PublishStatus::Publishing, 'publish_visibility' => PublishVisibility::Public]);
 
-    (new $job($this->project))->failed(new RuntimeException('timed out'));
+    $job($this->project)->failed(new RuntimeException('timed out'));
 
     expect($this->project->fresh()->publish_status)->toBe(PublishStatus::Failed)
         ->and($this->project->fresh()->publish_error)->toContain('Try again');
-})->with([ConfirmPublication::class, PublishProject::class])->group('PUB-001');
+})->with([
+    'starting' => fn (Project $project) => new PublishProject($project),
+    'the last check' => fn (Project $project) => new ConfirmPublication($project, app(Publishers::class)->forProject($project)->confirmAttempts()),
+])->group('PUB-001');
+
+test('a check that crashes with attempts left checks again instead of failing', function () {
+    Queue::fake();
+    $this->project->update(['publish_status' => PublishStatus::Publishing, 'publish_visibility' => PublishVisibility::Public]);
+
+    (new ConfirmPublication($this->project, 3))->failed(new RuntimeException('database is locked'));
+
+    expect($this->project->fresh()->publish_status)->toBe(PublishStatus::Publishing);
+    Queue::assertPushed(ConfirmPublication::class, fn (ConfirmPublication $job) => $job->attempt === 4);
+})->group('PUB-001');
 
 test('a crashed job after unpublishing leaves the project alone', function () {
     (new ConfirmPublication($this->project))->failed(new RuntimeException('timed out'));

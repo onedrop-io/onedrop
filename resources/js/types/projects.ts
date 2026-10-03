@@ -217,16 +217,65 @@ export type Publication = {
     target: PublishTarget | null;
     /** Where it can be published, and who Private and Public mean there. */
     targets: PublishTargetOption[];
+    /** Its latest deploy to hosting and what it has there (HOST-001, HOST-002); null when it never had any. */
+    hosting: Hosting | null;
 };
 
-export type PublishTarget = 'domain' | 'tailscale';
+export type PublishTarget = 'domain' | 'tailscale' | 'hosting';
 
 export type PublishTargetOption = {
     target: PublishTarget;
     label: string;
-    private: string;
+    /** Null when it can't be private there (hosted apps are public for now). */
+    private: string | null;
     public: string;
     unavailable: string | null;
+};
+
+export type Hosting = {
+    deployment: {
+        number: number;
+        kind: 'server' | 'static' | null;
+        status: 'running' | 'live' | 'failed';
+        step: string;
+        url: string | null;
+        log: string | null;
+        error: string | null;
+        created_at: string | null;
+    } | null;
+    services: {
+        id: number;
+        kind: string;
+        label: string;
+        provider: string;
+        /** Whose account it's in (HOST-003). */
+        owner: 'organization' | 'platform';
+        holds_data: boolean;
+    }[];
+    /** What the sandbox has that the hosted app doesn't yet (HOST-004). */
+    changes: {
+        count: number;
+        commits: { sha: string; message: string }[];
+    } | null;
+    /** Recent deploys of an app with a server, the live one marked, to put one back (HOST-005). */
+    history: {
+        id: number;
+        number: number;
+        commit: string | null;
+        finished_at: string | null;
+        live: boolean;
+    }[];
+    /** Update the hosted app by itself after a turn that went well (HOST-006). */
+    auto_deploy: boolean;
+    /** The hosted SQLite file Move to Postgres would move, when it can (HOST-009). */
+    sqlite: string | null;
+    /** A Move to Postgres is waiting for the next deploy. */
+    moving_to_postgres: boolean;
+    /** The machine size it runs on, and the sizes on offer (HOST-010). */
+    size: string;
+    sizes: { key: string; label: string }[];
+    /** Its hosted data can be deleted (it isn't published there). */
+    can_delete: boolean;
 };
 
 /** The Share panel: the project's share page, or what sharing would start from (SHARE-001). */

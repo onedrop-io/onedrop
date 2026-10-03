@@ -27,12 +27,13 @@ use Illuminate\Support\Str;
  * @property string|null $ai_credits_key Its OpenRouter key for runs on AI credits (CREDIT-001), limited to its balance
  * @property string|null $ai_credits_key_hash That key's id at OpenRouter
  * @property float $ai_credits_charged What that key had spent (USD) when its usage was last charged to the credits
+ * @property array<string, array<string, mixed>>|null $hosting_accounts Its own hosting accounts (HOST-003): provider => settings
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read OrganizationMember $pivot Set on organizations loaded through a user's organizations
  */
 #[Fillable(['name', 'slug', 'logo_path', 'logo_hash'])]
-#[Hidden(['ai_credits_key', 'ai_credits_key_hash'])]
+#[Hidden(['ai_credits_key', 'ai_credits_key_hash', 'hosting_accounts'])]
 class Organization extends Model
 {
     /** @use HasFactory<OrganizationFactory> */
@@ -48,6 +49,7 @@ class Organization extends Model
         return [
             'ai_credits_key' => 'encrypted',
             'ai_credits_charged' => 'float',
+            'hosting_accounts' => 'encrypted:array',
         ];
     }
 

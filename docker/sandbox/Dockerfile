@@ -109,13 +109,14 @@ ARG MODERN_SCREENSHOT_VERSION=4.7.0
 RUN npm install --prefix /opt/onedrop/capture --no-save --no-audit --no-fund "modern-screenshot@${MODERN_SCREENSHOT_VERSION}" \
     && rm -rf /root/.npm
 
+
 # /data/storage holds App Storage buckets: on the sandbox's disk but outside the app's code and git.
 RUN useradd --create-home --shell /bin/bash sandbox \
     && mkdir -p /workspace /data/storage && chown sandbox:sandbox /workspace /data/storage
 
 COPY placeholder /opt/onedrop/placeholder
-# shell-entry runs each Shell tab in its own tmux session (tmux.conf, shell-reap), so a reloaded page gets it back (LAYOUT-005). fork copies the app for a task and merges its work back (TASK-003). file-watcher.mjs tells the Files panel when files come and go (FILE-004). inspector.js is the preview's Inspect mode, served by host-proxy.mjs (AGT-014). share-card makes share cards (SHARE-001). db.php backs the Tools → Database panel (SQLite, Postgres and MySQL through PDO); auth.php backs Users & Auth; secrets.php backs Secrets; storage.php backs App Storage; git.php backs Git. snapshot packs and restores project snapshots (SBX-009).
-COPY start.sh restart stop-agent shell-entry shell-reap tmux.conf checkpoint fork share-card forwarder.mjs file-watcher.mjs host-proxy.mjs inspector.js db.php auth.php secrets.php storage.php git.php skills.php snapshot instructions.md opencode.json /opt/onedrop/
+# shell-entry runs each Shell tab in its own tmux session (tmux.conf, shell-reap), so a reloaded page gets it back (LAYOUT-005). fork copies the app for a task and merges its work back (TASK-003). file-watcher.mjs tells the Files panel when files come and go (FILE-004). inspector.js is the preview's Inspect mode, served by host-proxy.mjs (AGT-014). share-card makes share cards (SHARE-001). db.php backs the Tools → Database panel (SQLite, Postgres and MySQL through PDO); auth.php backs Users & Auth; secrets.php backs Secrets; storage.php backs App Storage; git.php backs Git. snapshot packs and restores project snapshots (SBX-009). hosting packs the app for hosting and runs it there (HOST-001); pg-import.php moves a hosted app's SQLite data into Postgres (HOST-009).
+COPY start.sh restart stop-agent shell-entry shell-reap tmux.conf checkpoint fork share-card forwarder.mjs file-watcher.mjs host-proxy.mjs inspector.js db.php auth.php secrets.php storage.php git.php skills.php snapshot hosting pg-import.php instructions.md opencode.json /opt/onedrop/
 # Task guides the agent follows (e.g. guides/auth.md for adding sign-in).
 COPY guides /opt/onedrop/guides
 # Kits the agent copies into an app with `kit <name>`, as the app's own code (kits/tables: Airtable-style tables, TABLE-001).

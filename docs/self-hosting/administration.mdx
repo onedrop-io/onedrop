@@ -37,6 +37,10 @@ Upload a logo (PNG, JPEG, WebP, or SVG, up to 1 MB) to replace the droplet on th
 - **Settings:** fill in a provider's settings (image, CPU and memory, idle timeouts, [Docker inside sandboxes](/self-hosting/sandboxes#docker-inside-sandboxes), region, API key) and click **Save**. API keys are stored encrypted and never shown again; leave the field empty to keep the saved key.
 - **Required settings:** a provider that's on but missing them (an API key for both managed providers, and a workspace for Blaxel) says what it needs and is skipped until it has them. You can't turn off the last provider that's on and set up.
 
+## Hosting providers
+
+**Settings → Hosting** lists Fly.io, Cloudflare, Neon and Upstash, what each is used for, an on/off switch, and how many things are in its account. Click a provider to enter its keys and settings. Hosting shows up in the Publish panel once Fly.io or Cloudflare is on. See [Hosting providers](/self-hosting/hosting).
+
 ## Monitoring
 
 **Settings → Monitoring** shows the server's CPU use, memory, disk space, block I/O, and network traffic, as the current value and a chart over the past hour, day, or week. It also shows Docker's disk usage (images, containers, volumes, and build cache) and how many users, projects, and sandboxes the install has.

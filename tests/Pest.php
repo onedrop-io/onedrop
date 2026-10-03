@@ -3,11 +3,15 @@
 use App\Models\Organization;
 use App\Sandbox\ExecResult;
 use App\Sandbox\Providers\FakeSandboxProvider;
+use App\Sandbox\SandboxProvider;
+use App\Sandbox\SandboxTools;
 use App\Sandbox\WorkspaceAuth;
 use App\Sandbox\WorkspaceDatabase;
 use App\Sandbox\WorkspaceSecrets;
 use App\Sandbox\WorkspaceStorage;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Vite;
 use Tests\TestCase;
@@ -319,4 +323,133 @@ function orgPath(string $path = ''): string
 function fakeStripeKey(): string
 {
     return 'sk_'.'live_51Hx9aKJ2b3C4d5E6f7G8h9I0j';
+}
+
+/**
+ * A fake sandbox that answers the hosting tool: `inspect` with $manifest, `pack` with $packed.
+ */
+function hostingSandbox(): FakeSandboxProvider
+{
+    $provider = new class extends FakeSandboxProvider
+    {
+        /** @var array<string, mixed> */
+        public array $manifest = ['static' => null, 'services' => [], 'data' => ['.onedrop/data'], 'storage' => false];
+
+        public string $packed = "release 2097152\nseed 1024";
+
+        public ?string $packError = null;
+
+        /** The workspace's commit, and what `git log` says since the live deploy (count, then "sha<TAB>subject" lines). */
+        public string $head = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+
+        public string $changes = '';
+
+        /** Lines of the preview's errors.log, for the check after a turn. */
+        public string $previewErrors = '';
+
+        public function exec(string $id, array $command, array $env = [], bool $detach = false): ExecResult
+        {
+            $this->executed[] = ['id' => $id, 'command' => $command, 'env' => $env, 'detach' => $detach];
+            $tool = SandboxTools::PATH.'/hosting';
+
+            return match (true) {
+                // Every tool current, on the current base.
+                ($command[3] ?? null) === 'hash' => new ExecResult(0, collect(app(SandboxTools::class)->expected())->map(fn ($hash, $path) => "{$hash}  {$path}")->implode("\n")),
+                $command === [$tool, 'inspect'] => new ExecResult(0, json_encode($this->manifest)),
+                str_contains($command[2] ?? '', 'rev-parse --verify') => new ExecResult(0, $this->head."\n"),
+                isset($env['ONEDROP_FROM']) => new ExecResult(0, $this->changes),
+                ($command[0] ?? null) === 'sh' && str_contains($command[2] ?? '', 'errors.log') => new ExecResult(0, "200\n{$this->previewErrors}"),
+                ($command[0] ?? null) === $tool && $command[1] === 'pack' => $this->packError
+                    ? new ExecResult(1, '', $this->packError)
+                    : new ExecResult(0, in_array('seed', $command, true) ? $this->packed : collect(explode("\n", $this->packed))->reject(fn ($line) => str_starts_with($line, 'seed') || str_starts_with($line, 'postgres'))->implode("\n")),
+                default => new ExecResult(0, ''),
+            };
+        }
+
+        /**
+         * The commands run with the hosting tool, without its path.
+         *
+         * @return list<string>
+         */
+        public function hostingCommands(): array
+        {
+            return collect($this->executed)
+                ->filter(fn ($run) => ($run['command'][0] ?? null) === SandboxTools::PATH.'/hosting')
+                ->map(fn ($run) => implode(' ', array_slice($run['command'], 1, 1)).(in_array('seed', $run['command'], true) ? ' seed' : ''))
+                ->values()->all();
+        }
+    };
+
+    app()->instance(SandboxProvider::class, $provider);
+
+    return $provider;
+}
+
+/**
+ * Fly.io, Neon, Upstash and Cloudflare as a deploy sees them, recording what was asked.
+ *
+ * @param  array{builder_exit?: int}  $options
+ */
+function fakeHostingProviders(array $options = []): void
+{
+    Http::fake([
+        'api.machines.dev/v1/apps' => Http::response(['id' => 'app1'], 201),
+        'api.machines.dev/v1/apps/*/ip_assignments' => fn (Request $request) => $request->method() === 'GET'
+            ? Http::response(['ips' => []])
+            : Http::response(['ip' => '1.2.3.4', 'shared' => true]),
+        'api.machines.dev/v1/apps/*/volumes' => Http::response(['id' => 'vol_123']),
+        'api.machines.dev/v1/apps/*/machines' => fn (Request $request) => Http::response([
+            'id' => str_contains(json_encode($request['config']['metadata'] ?? []), 'builder') ? 'builder_1' : 'machine_app',
+        ]),
+        'api.machines.dev/v1/apps/*/machines/builder_1' => fn (Request $request) => $request->method() === 'GET'
+            ? Http::response(['state' => 'stopped', 'config' => [], 'events' => [['request' => ['exit_event' => ['exit_code' => $options['builder_exit'] ?? 0]]]]])
+            : Http::response([]),
+        // $GLOBALS['hostedMachineState'] changes the app machine's state (e.g. suspended).
+        'api.machines.dev/v1/apps/*/machines/machine_app*' => fn () => Http::response(['state' => $GLOBALS['hostedMachineState'] ?? 'started', 'config' => ['image' => 'x']]),
+        'api.machines.dev/v1/apps/*' => Http::response([], 202),
+        'console.neon.tech/api/v2/projects' => Http::response(['project' => ['id' => 'neon_1'], 'connection_uris' => [['connection_uri' => 'postgresql://u:p@ep-1.neon.tech/neondb']]], 201),
+        'console.neon.tech/api/v2/projects/*' => Http::response(['project' => ['id' => 'neon_1']]),
+        'api.upstash.com/v2/redis/database' => Http::response(['database_id' => 'up_1', 'endpoint' => 'calm-fox-123', 'port' => 6379, 'password' => 'secret']),
+        'api.upstash.com/v2/redis/database/*' => Http::response('"OK"'),
+        'api.cloudflare.com/client/v4/accounts/*/workers/scripts/*/assets-upload-session' => Http::response(['success' => true, 'result' => ['jwt' => 'done-jwt', 'buckets' => []]]),
+        'api.cloudflare.com/client/v4/accounts/*/workers/scripts/*/subdomain' => Http::response(['success' => true, 'result' => []]),
+        'api.cloudflare.com/client/v4/accounts/*/workers/subdomain' => Http::response(['success' => true, 'result' => ['subdomain' => 'acme']]),
+        'api.cloudflare.com/client/v4/accounts/*/workers/scripts/*' => Http::response(['success' => true, 'result' => []]),
+        'api.cloudflare.com/client/v4/accounts/*/r2/buckets' => Http::response(['success' => true, 'result' => []]),
+        'api.cloudflare.com/client/v4/accounts/*/tokens' => Http::response(['success' => true, 'result' => ['id' => 'tok_1', 'value' => 'token-value']]),
+        'api.cloudflare.com/*' => Http::response(['success' => true, 'result' => ['status' => 'COMPLETED']]),
+        // The app's own answer: $GLOBALS['hostedAppStatus'] (and hostedAppBody, hostedAppHeaders) change it between deploys.
+        '*.fly.dev' => fn () => Http::response($GLOBALS['hostedAppBody'] ?? 'ok', $GLOBALS['hostedAppStatus'] ?? 200, $GLOBALS['hostedAppHeaders'] ?? []),
+    ]);
+}
+
+/**
+ * Answer a hosted app's database command (WorkspaceDatabase on a Fly machine, HOST-007) by running the real
+ * db.php against a local workspace, with the environment the command sets (`env KEY=VALUE… sh -c …`).
+ *
+ * @param  list<string>  $command
+ * @return array{exit_code: int, stdout: string, stderr: string}
+ */
+function runHostedDatabaseCommand(string $workspace, array $command): array
+{
+    $start = array_search('env', $command, true) + 1;
+    $pairs = array_slice($command, $start, array_search('sh', array_slice($command, $start), true));
+    $env = collect($pairs)->mapWithKeys(fn (string $pair) => [strstr($pair, '=', true) => substr(strstr($pair, '='), 1)])->all();
+    $result = Process::env(['APP_WORKSPACE' => $workspace, ...$env])->run([PHP_BINARY, base_path('docker/sandbox/db.php')]);
+
+    return ['exit_code' => $result->exitCode(), 'stdout' => $result->output(), 'stderr' => $result->errorOutput()];
+}
+
+/**
+ * The request sent to start the app's own machine (not the builder).
+ *
+ * @return array<string, mixed>|null
+ */
+function appMachineRequest(): ?array
+{
+    $sent = Http::recorded(fn (Request $request) => $request->method() === 'POST'
+        && preg_match('#/apps/[^/]+/machines(/machine_app)?$#', $request->url())
+        && ($request['config']['metadata']['onedrop'] ?? null) === 'app');
+
+    return $sent->last()[0] ?? null ? $sent->last()[0]->data() : null;
 }

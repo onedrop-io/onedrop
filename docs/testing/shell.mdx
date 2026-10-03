@@ -1,0 +1,68 @@
+---
+title: 'Shell'
+description: 'Manual tests for the Shell tab: sessions, reloads, panes, built-in tools and the cloud CLIs that install on first use.'
+noindex: true
+---
+
+Open a project whose sandbox is running.
+
+## Sessions
+
+### A Shell opens and takes input
+
+- [ ] The project opens with a **Shell** tab; it shows the OneDrop banner with the project's name.
+- [ ] Clicking the tab puts the cursor in it; typing works straight away.
+- [ ] The prompt starts in `/workspace`, and `ls` lists the app's files with git status.
+- [ ] Copy and paste work both ways (select text in the Shell, paste a command into it).
+- [ ] Resizing the browser or the pane rewraps the output; `btop` fills the pane.
+
+### More Shells
+
+- [ ] **+ → Shell** opens **Shell 2**, **Shell 3**…, each with its own session (`cd /tmp` in one doesn't move the other).
+- [ ] Shell tabs can be dragged into a new order.
+
+### Sessions survive a reload
+
+1. In a Shell, start something long-running: `while true; do date; sleep 1; done`.
+2. Reload the page.
+
+- [ ] The Shell comes back with what was on screen, and the loop is still printing.
+- [ ] Moving the Shell to another pane keeps it running too.
+- [ ] A new browser tab on the same project gets its own new Shells.
+- [ ] A Shell whose tab you close ends a few minutes later (`ps` in another Shell no longer shows it).
+
+### Panes
+
+- [ ] **Split right** and **Split down** each open a new Shell in a new pane, up to four panes.
+- [ ] **Open shell here** from the files panel opens a Shell in that folder.
+
+### After the sandbox sleeps
+
+1. Leave the project for over a minute (the sandbox suspends), then come back.
+
+- [ ] The Shell reconnects by itself and still has its session.
+- [ ] After five minutes or more (the sandbox stops), the Shell starts a fresh session that works.
+
+## Built-in tools
+
+Run each one; it should start without an install step.
+
+- [ ] `bat`, `rg`, `fd`, `z`, `jq`, `tree` and **Ctrl-R** history search.
+- [ ] `lazygit`, `micro` (**Ctrl-S** saves) and `vim` open full-screen and exit cleanly.
+- [ ] `psql`, `mysql`, `redis-cli`, `python3`, `uv`, `pnpm`, `yarn`, `yq`, `xh`, `shellcheck` print their versions.
+- [ ] `/opt/onedrop/restart` restarts the preview.
+
+## Cloud and service CLIs
+
+These install on first use through `onedrop-tool`.
+
+- [ ] `onedrop-tool list` shows every tool, its version, and whether it's installed.
+- [ ] Running a tool that isn't installed yet (try `wrangler --version`, then `gcloud --version`) installs it with a short message, then runs the command.
+- [ ] Running it again starts at once.
+- [ ] `onedrop-tool install az doctl` installs both ahead of time.
+- [ ] An app with its own copy (`wrangler` in its `node_modules`) uses that copy.
+- [ ] Installed tools are still there after the sandbox [updates](/testing/sandboxes#updates).
+
+## Claude sign-in from the Shell
+
+See [Claude subscription sign-in](/testing/agents#claude-subscription-sign-in). The Shell must accept the pasted code and show **Login successful**.

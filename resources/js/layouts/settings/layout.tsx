@@ -4,6 +4,7 @@ import {
     Bell,
     Box,
     Building2,
+    CloudUpload,
     DatabaseBackup,
     Globe,
     Palette,
@@ -31,6 +32,7 @@ import { cn, toUrl } from '@/lib/utils';
 import { dashboard } from '@/routes';
 import { index as backupsIndex } from '@/routes/admin/backups';
 import { edit as editGeneral } from '@/routes/admin/general';
+import { index as hostingIndex } from '@/routes/admin/hosting';
 import { show as showMonitoring } from '@/routes/admin/monitoring';
 import { index as reviewsIndex } from '@/routes/admin/reviews';
 import { index as sandboxesIndex } from '@/routes/admin/sandboxes';
@@ -100,6 +102,7 @@ const adminSection = (multiTenant: boolean): NavSection => ({
             : []),
         { title: 'General', href: editGeneral(), icon: Settings2 },
         { title: 'Sandboxes', href: sandboxesIndex(), icon: Box },
+        { title: 'Hosting', href: hostingIndex(), icon: CloudUpload },
         { title: 'Monitoring', href: showMonitoring(), icon: Activity },
         { title: 'Server', href: editServer(), icon: Globe },
         { title: 'Backups', href: backupsIndex(), icon: DatabaseBackup },
