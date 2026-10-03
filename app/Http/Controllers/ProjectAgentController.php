@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\ChangeProjectAgent;
 use App\Concerns\ValidatesAgentSelection;
-use App\Enums\MessageRole;
 use App\Models\Attachment;
 use App\Models\Project;
 use App\Sandbox\Agents\AgentQueue;
@@ -11,7 +11,6 @@ use App\Sandbox\Agents\ModelCatalog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class ProjectAgentController extends Controller
@@ -23,37 +22,14 @@ class ProjectAgentController extends Controller
      * A different agent can't pick up the other one's conversation, so it starts a fresh one. With agent_auto
      * (AGT-011), the model and reasoning level are picked per message from the chosen provider.
      */
-    public function update(Request $request, Project $project, ModelCatalog $catalog): RedirectResponse
+    public function update(Request $request, Project $project, ModelCatalog $catalog, ChangeProjectAgent $changeAgent): RedirectResponse
     {
         Gate::authorize('update', $project);
 
         $agent = $this->validatedAgentSelection($request, $request->user(), $catalog, required: true);
         $request->validate(['agent_auto' => ['sometimes', 'boolean']]);
-        $auto = $request->boolean('agent_auto');
-        $switching = $agent['agent_harness'] !== $catalog->harnessFor($project);
 
-        if ($switching && $project->agentBusy()) {
-            throw ValidationException::withMessages(['agent_harness' => __('Wait for the agent to finish, or stop it, before switching agents.')]);
-        }
-
-        $project->update([...$agent, 'agent_auto' => $auto, ...($switching ? ['agent_session_id' => null] : [])]);
-
-        // Tasks use the project's agent too, so theirs start fresh conversations as well.
-        if ($switching) {
-            $project->tasks()->reorder()->update(['agent_session_id' => null]);
-        }
-
-        if ($switching) {
-            $project->messages()->create([
-                'role' => MessageRole::Activity,
-                'content' => __('Switched to :agent. It starts a fresh conversation; your files are kept.', ['agent' => $agent['agent_harness']->label()]),
-            ]);
-        }
-
-        if (! $auto) {
-            $request->user()->rememberModel($agent['agent_provider'], $agent['agent_model']);
-        }
-        $request->user()->preferAgent($agent);
+        $changeAgent->handle($project, $request->user(), $agent, $request->boolean('agent_auto'));
 
         return to_route('projects.show', $project);
     }

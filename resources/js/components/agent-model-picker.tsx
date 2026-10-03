@@ -7,9 +7,7 @@ import {
     Sparkles,
     Star,
 } from 'lucide-react';
-import { router } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
-import AgentModelController from '@/actions/App/Http/Controllers/AgentModelController';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -17,13 +15,18 @@ import {
     DropdownMenuLabel,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import AiCreditsBalance from '@/components/ai-credits-balance';
+import {
+    CreditsBalance,
+    loadCatalog,
+    rememberCatalog,
+    saveFavorite,
+} from '@/lib/client';
+import type { Catalog } from '@/lib/client';
 import { cn } from '@/lib/utils';
 import type {
     AgentHarness,
     AgentProvider,
     AgentSelection,
-    CatalogHarness,
     CatalogModel,
     CatalogProvider,
 } from '@/types';
@@ -91,48 +94,7 @@ function formatContext(tokens: number | null): string | null {
         : `${Math.round(tokens / 1000)}k`;
 }
 
-type Catalog = {
-    /** The agents the user can run, OpenCode first. */
-    harnesses: CatalogHarness[];
-    providers: CatalogProvider[];
-    favorites: string[];
-    /** Recently chosen models ("provider:model"), newest first. */
-    recent: string[];
-};
-
 const RECENT_LIMIT = 3;
-
-let cachedCatalog: Promise<Catalog> | null = null;
-
-function loadCatalog(): Promise<Catalog> {
-    cachedCatalog ??= fetch(AgentModelController.index.url(), {
-        headers: { Accept: 'application/json' },
-        credentials: 'same-origin',
-    }).then((response) => {
-        if (!response.ok) {
-            cachedCatalog = null;
-            throw new Error('Could not load models');
-        }
-
-        return response.json() as Promise<Catalog>;
-    });
-
-    return cachedCatalog;
-}
-
-// Connecting or removing a provider (Settings → AI) changes which agents and models
-// can run; every Inertia response drops the cached catalog so the next menu open refetches it.
-if (typeof window !== 'undefined') {
-    router.on('success', () => {
-        cachedCatalog = null;
-    });
-}
-
-function csrfToken(): string {
-    const match = document.cookie.match(/(?:^|; )XSRF-TOKEN=([^;]+)/);
-
-    return match ? decodeURIComponent(match[1]) : '';
-}
 
 /** Every agent, so the menu can say how to unlock the ones the user can't run yet. */
 const HARNESSES: { id: AgentHarness; label: string; hint: string }[] = [
@@ -202,7 +164,7 @@ export default function AgentModelPicker({
                     disabled={disabled}
                 />
             )}
-            <AiCreditsBalance inUse={selection.provider === 'credits'} />
+            <CreditsBalance inUse={selection.provider === 'credits'} />
         </div>
     );
 }
@@ -340,7 +302,7 @@ function ModelMenu({
             };
 
             setCatalog(next);
-            cachedCatalog = Promise.resolve(next);
+            rememberCatalog(next);
         }
     };
 
@@ -381,18 +343,8 @@ function ModelMenu({
             : catalog.favorites.filter((item) => item !== key);
 
         setCatalog({ ...catalog, favorites: next });
-        cachedCatalog = Promise.resolve({ ...catalog, favorites: next });
-
-        void fetch(AgentModelController.favorite.url(), {
-            method: 'PUT',
-            credentials: 'same-origin',
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-                'X-XSRF-TOKEN': csrfToken(),
-            },
-            body: JSON.stringify({ provider, model, favorite }),
-        });
+        rememberCatalog({ ...catalog, favorites: next });
+        saveFavorite(provider, model, favorite);
     };
 
     const renderRow = ({

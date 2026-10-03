@@ -190,3 +190,22 @@ test('compose templates follow Docker inside sandboxes on the provider new proje
     'Docker, off' => ['docker', ['sandbox.providers.docker.nested_docker' => 'off'], false],
     'Blaxel' => ['blaxel', [], false],
 ])->group('PRJ-012', 'SBX-008');
+
+test('the desktop app gets the same templates and free apps, and starts from one', function () {
+    Queue::fake();
+    $token = $this->user->createToken('Laptop')->plainTextToken;
+
+    $this->withToken($token)->getJson(route('api.projects.create'))
+        ->assertOk()
+        ->assertJsonCount(count(AppTemplate::cases()), 'templates')
+        ->assertJsonPath('compose', true);
+    $this->withToken($token)->getJson(route('api.projects.create.apps'))->assertOk()->assertJsonCount(2, 'apps');
+    $this->withToken($token)->getJson(route('api.projects.create.featured'))->assertOk()->assertJsonStructure(['featured']);
+
+    $this->withToken($token)
+        ->postJson(route('api.projects.store'), ['prompt' => 'Set up n8n: workflows.', 'template' => 'dokploy/n8n'])
+        ->assertCreated();
+
+    expect($this->user->projects()->sole()->name)->toBe('n8n');
+    Queue::assertPushedWithChain(CreateSandbox::class, [ApplyRegistryTemplate::class, RunAgentTask::class, UpdateProjectIcon::class]);
+})->group('PRJ-012', 'DESK-004');

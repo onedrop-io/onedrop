@@ -9,7 +9,11 @@
         "check": "vp check",
         "check:fix": "vp check --fix",
         "types:check": "tsc --noEmit",
-        "atmn": "atmn -c \"autumn/autumn.config.ts\""
+        "atmn": "atmn -c \"autumn/autumn.config.ts\"",
+        "desktop:dev": "cd desktop && tauri dev",
+        "desktop:build": "cd desktop && tauri build",
+        "desktop:vite": "vite --config desktop/vite.config.ts",
+        "desktop:vite:build": "vite build --config desktop/vite.config.ts"
     },
     "dependencies": {
         "@codemirror/autocomplete": "^6.20.3",
@@ -38,6 +42,9 @@
         "@radix-ui/react-toggle-group": "^1.1.2",
         "@radix-ui/react-tooltip": "^1.1.8",
         "@tailwindcss/vite": "^4.1.11",
+        "@tauri-apps/api": "^2.12.1",
+        "@tauri-apps/plugin-notification": "^2.5.1",
+        "@tauri-apps/plugin-opener": "^2.7.0",
         "@types/react": "^19.2.0",
         "@types/react-dom": "^19.2.0",
         "@types/three": "^0.186.0",
@@ -66,6 +73,7 @@
     "devDependencies": {
         "@laravel/vite-plugin-wayfinder": "^0.1.3",
         "@rolldown/plugin-babel": "^0.2.3",
+        "@tauri-apps/cli": "^2.12.1",
         "@types/node": "^22.13.5",
         "atmn": "^2.0.57",
         "babel-plugin-react-compiler": "^1.0.0",

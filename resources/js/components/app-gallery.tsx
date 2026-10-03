@@ -40,7 +40,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Spinner } from '@/components/ui/spinner';
-import TurnOnDocker from '@/components/turn-on-docker';
+import { TurnOnDocker } from '@/lib/client';
 import { cn } from '@/lib/utils';
 import type { CatalogTemplate } from '@/types';
 

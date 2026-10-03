@@ -226,3 +226,13 @@ test('runs on AI credits are recorded as paid by them, not by OpenRouter', funct
     expect($usage->provider)->toBe(AgentProvider::Credits)
         ->and($usage->paid_by)->toBe(UsagePayer::Credits);
 })->group('CREDIT-001', 'USAGE-001');
+
+test('the desktop app shows the same balance beside its model picker', function () {
+    fakeCredits(520);
+    $token = $this->user->createToken('Laptop')->plainTextToken;
+
+    $this->withToken($token)->getJson(route('api.ai-credits'))
+        ->assertOk()
+        ->assertJsonPath('credits.left', 5.2);
+    $this->withToken($token)->getJson(route('api.user.show'))->assertJsonPath('user.ai_connected', true);
+})->group('CREDIT-001', 'DESK-004');

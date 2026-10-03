@@ -48,3 +48,4 @@ yarn-error.log
 
 # Editor swap files (vim), which can hold a copy of .env.
 *.swp
+/desktop/dist

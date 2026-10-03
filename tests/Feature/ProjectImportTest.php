@@ -133,3 +133,18 @@ test('a successful import records the sync', function () {
     expect($project->fresh()->git_sync_status)->toBeNull()
         ->and($project->fresh()->git_synced_at)->not->toBeNull();
 })->group('PRJ-009');
+
+test('the desktop app imports a repository into a new project', function () {
+    Queue::fake();
+    $token = $this->user->createToken('Laptop')->plainTextToken;
+
+    $this->withToken($token)
+        ->postJson(route('api.projects.store'), ['prompt' => '', 'repository' => "file://{$this->remote}"])
+        ->assertCreated();
+
+    $project = $this->user->projects()->sole();
+
+    expect($project->name)->toBe('Team Timer')
+        ->and($project->git_remote_url)->toBe("file://{$this->remote}")
+        ->and(($this->importedBranch)())->toBe('main');
+})->group('PRJ-009', 'DESK-004');

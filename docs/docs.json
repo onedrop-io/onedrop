@@ -83,7 +83,8 @@
                             "guides/usage",
                             "guides/invite-people",
                             "guides/groups-and-users",
-                            "guides/remote-access"
+                            "guides/remote-access",
+                            "guides/desktop-app"
                         ]
                     }
                 ]

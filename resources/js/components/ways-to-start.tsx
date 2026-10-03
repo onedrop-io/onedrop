@@ -1,4 +1,3 @@
-import { Deferred } from '@inertiajs/react';
 import { LayoutTemplate, Package } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -10,7 +9,7 @@ import AppGallery, {
     categoryName,
     templateIcons,
 } from '@/components/app-gallery';
-import TurnOnDocker from '@/components/turn-on-docker';
+import { TurnOnDocker } from '@/lib/client';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import type { AppTemplate, CatalogTemplate, FeaturedApp } from '@/types';
@@ -203,29 +202,23 @@ export function FreeAppsPanel({
                     These run with Docker. <TurnOnDocker />
                 </p>
             )}
-            <Deferred
-                data="featured"
-                fallback={<Skeleton className="h-56 rounded-xl sm:h-72" />}
-            >
-                <AppCoverflow apps={featured ?? []} onOpen={onView} />
-            </Deferred>
-            <Deferred
-                data="apps"
-                fallback={
-                    <div className="@container">
-                        <div className={appGridClass}>
-                            {Array.from({ length: 6 }, (_, key) => (
-                                <Skeleton
-                                    key={key}
-                                    className="h-44 rounded-xl"
-                                />
-                            ))}
-                        </div>
+            {/* Skeletons until each list arrives (deferred on the web, fetched on their own in the desktop app). */}
+            {featured === undefined ? (
+                <Skeleton className="h-56 rounded-xl sm:h-72" />
+            ) : (
+                <AppCoverflow apps={featured} onOpen={onView} />
+            )}
+            {apps === undefined ? (
+                <div className="@container">
+                    <div className={appGridClass}>
+                        {Array.from({ length: 6 }, (_, key) => (
+                            <Skeleton key={key} className="h-44 rounded-xl" />
+                        ))}
                     </div>
-                }
-            >
+                </div>
+            ) : (
                 <AppGallery
-                    apps={apps ?? []}
+                    apps={apps}
                     onPick={onView}
                     limit={limit}
                     renderApp={(app) => (
@@ -238,7 +231,7 @@ export function FreeAppsPanel({
                         />
                     )}
                 />
-            </Deferred>
+            )}
         </div>
     );
 }

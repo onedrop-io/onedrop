@@ -1,0 +1,45 @@
+---
+title: 'Desktop app'
+description: 'Use OneDrop from a native app on macOS, Windows or Linux.'
+---
+
+The OneDrop desktop app has the core of the workspace in its own window: your projects, the chat with the agent, and your app's live preview. It connects to any OneDrop install, the one on your computer or your team's server.
+
+## Sign in
+
+1. Open the app and enter your OneDrop's address. For OneDrop on your own computer that's `http://localhost:8000`.
+2. Click **Sign in with your browser**. Your browser opens on OneDrop, where you sign in as usual (password, passkey, Google, single sign-on).
+3. Check that the page names your computer, then click **Allow**. You're back in the app, signed in.
+
+The app keeps its sign-in in your system's keychain and stays signed in until you sign out.
+
+<Note>
+    Your AI connections stay on your OneDrop server; the app never sees them.
+    If you haven't connected an AI yet, the app sends you to the browser to
+    [set one up](/guides/set-up-ai) first.
+</Note>
+
+## What's in the app
+
+- **Projects** in the sidebar: pinned, recent and archived, showing which ones the agent is working on and which have new replies. Each project's menu can rename, pin, archive, open it in the browser, or delete it.
+- **The chat and preview**, as in the web [workspace](/guides/workspace): send messages and files, queue them while the agent works, send one now, stop the agent, and pick the agent and model. Reload the preview or open it in its own window.
+- **New projects** from a description or a template.
+- **Notifications** when an agent finishes while you're in another app.
+
+Files, git, publishing, and the other tools open in your browser for now: click the globe in a project's title bar.
+
+## Sign out
+
+Sign out from the account menu at the bottom of the sidebar. To sign the app out on a computer you no longer have, open **Settings → Desktop app** on the web and click **Sign out** next to it.
+
+## Run it from source
+
+The app lives in `desktop/` (Tauri, with the web app's React components). You need [Rust](https://www.rust-lang.org/tools/install) and the [Tauri prerequisites](https://tauri.app/start/prerequisites/) for your system.
+
+```bash
+npm install
+npm run desktop:dev     # opens the app, reloading as you change desktop/src
+npm run desktop:build   # installers in desktop/src-tauri/target/release/bundle
+```
+
+The app talks to OneDrop's API at `/api/v1` with the token it got when you signed in.

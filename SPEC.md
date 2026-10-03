@@ -1565,3 +1565,38 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should not be able to spend more than the organization has left, even from the sandbox's shell: the organization's key is limited to its balance before every run.
 - When the credits run out, the run should stop with a message saying when they refill and that connecting their own AI in Settings → AI keeps building going.
 - User who connects their own AI should keep "AI credits" as one more choice in the model picker.
+
+## DESK-001: Sign in to the desktop app
+
+- User should be able to install the OneDrop desktop app on macOS, Windows or Linux and sign in to any OneDrop install by its address (`http://localhost:8000` for one on their own computer).
+- User should finish signing in in their browser, with whatever they normally sign in with there (password, two-factor, passkey, Google, single sign-on), and click "Allow" on a page that names their computer.
+- User should be taken back to the app, signed in, and stay signed in until they sign out; the app should keep its sign-in in the system keychain.
+- User should see a sign-in link that didn't come from the app (anything not going back to this computer, or without PKCE) refused, never redirected.
+- User should be able to sign out from the app's account menu, and to see where the app is signed in and sign any of those out in Settings → Desktop app.
+- User without an AI connection should be sent to the web to set one up, then carry on in the app.
+
+## DESK-002: Projects in the desktop app
+
+- User should see their projects in the app's sidebar as on the web: pinned, recent and archived, with their icons, which ones the agent is working on (and its latest step) and which have replies they haven't seen.
+- User should be able to rename, pin, archive, open in the browser, and delete a project from its menu.
+- User in several organizations should see the projects of the one they're working in, and be able to switch organizations from the account menu (ORG-002).
+- User should get a system notification when a project's agent finishes while they're in another app (NOTIF-001).
+
+## DESK-003: The workspace in the desktop app
+
+- User should be able to open a project in the app and see its chat with the agent next to its running app's preview.
+- User should be able to send messages with attachments, queue them while the agent works, send one now, remove a queued one, stop the agent (getting queued messages back to edit), and choose the agent, model and reasoning level, as on the web.
+- User should be able to hide the chat, resize it, reload the preview, open the preview in its own window, and switch to the sandbox's Shell.
+- User whose agent runs on their Claude subscription should see under the chat box whether Claude Code is signed in, and be able to click "Sign in to Claude" to run Claude Code's own sign-in in the sandbox's Shell, whose sign-in link opens in their browser; once signed in, the Preview comes back and a message that failed for want of a sign-in runs again (AI-005).
+- Opening a project in the app should mark it read, keep its sandbox awake, and wake it if it was asleep, as on the web.
+- User should be able to open the project in the browser for the tools the app doesn't have yet (files, git, publishing and the rest).
+
+## DESK-004: Start a project from the desktop app
+
+- User should see the same new-project page as on the web, from the same components: greeted by name, the three ways to start (from scratch, from a template, or by installing a free app, PRJ-012), templates suggested as they type (PRJ-001), and importing a repository (PRJ-009), with attachments and the web's agent and model picker and AI credits balance.
+- User should be able to open a free app's details, with its pictures, and use it to start a project straight away.
+- User should be able to connect GitHub from the import, and open Settings pages the page points to (Settings → Sandboxes, Usage), in their browser, and find their repositories offered when they come back to the app.
+
+## DESK-005: The desktop app updates live
+
+- User should see the chat, the agent's progress and the sandbox's status update as they happen, over the install's live updates when it has them (LIVE-001), and by checking for changes while something is happening when it doesn't.
