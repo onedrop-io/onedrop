@@ -410,3 +410,25 @@ test('the new-project page offers the user\'s repositories to import, newest fir
             ->where('github.signed_in', true)
             ->where('github.connect_url', route('github-app.install')));
 })->group('PRJ-009');
+
+test('the desktop app offers the same repositories to import, and connects GitHub in the browser', function () {
+    ($this->github)([
+        'api.github.com/user/installations/888/repositories*' => Http::response(['repositories' => [
+            ($this->repository)('acme/site', ['pushed_at' => '2026-09-25T10:00:00Z', 'private' => false]),
+        ]]),
+    ]);
+    $token = $this->user->createToken('Laptop')->plainTextToken;
+
+    $this->withToken($token)->getJson(route('api.github.repositories'))
+        ->assertOk()
+        ->assertJsonPath('repositories.0.full_name', 'acme/site')
+        ->assertJsonCount(3, 'repositories');
+
+    $this->withToken($token)->getJson(route('api.projects.create'))
+        ->assertOk()
+        ->assertJsonPath('defaultAi', 'Claude')
+        ->assertJsonPath('github.configured', true)
+        ->assertJsonPath('github.signed_in', true)
+        ->assertJsonPath('github.connect_url', route('github-app.install'))
+        ->assertJsonPath('github.returned', null);
+})->group('PRJ-009', 'DESK-004');

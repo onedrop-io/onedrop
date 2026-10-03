@@ -17,6 +17,9 @@ class EnsureAgentConnected
     public function handle(Request $request, Closure $next): Response
     {
         if (! $request->user()?->agentConnections()->exists() && ! app(AiCredits::class)->enabled()) {
+            // The desktop app can't show onboarding: it sends the user to the web for it (DESK-001).
+            abort_if($request->is('api/*'), 409, __('Set up AI on the web first.'));
+
             return to_route('onboarding.ai');
         }
 

@@ -1,13 +1,14 @@
 import { Head, router, usePage } from '@inertiajs/react';
 import { PenLine, Shuffle, Sparkles, X } from 'lucide-react';
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import GitHubAppController from '@/actions/App/Http/Controllers/GitHubAppController';
 import ProjectController from '@/actions/App/Http/Controllers/ProjectController';
 import AgentModelPicker from '@/components/agent-model-picker';
 import PromptComposer from '@/components/prompt-composer';
 import RepositoryPicker, {
     RepositoryToggle,
 } from '@/components/repository-picker';
-import type { ImportGitHub } from '@/components/repository-picker';
+import type { ImportGitHub, Repository } from '@/components/repository-picker';
 import { AppDetails, TemplateLogo } from '@/components/app-gallery';
 import {
     FreeAppsPanel,
@@ -17,6 +18,7 @@ import {
     tones,
 } from '@/components/ways-to-start';
 import { useOrganization } from '@/hooks/use-organization';
+import { jsonRequest } from '@/lib/json-request';
 import { indexTemplates, matchTemplates } from '@/lib/template-match';
 import { cn } from '@/lib/utils';
 import type {
@@ -238,6 +240,16 @@ export default function CreateProject({
                                         onChange={setRepository}
                                         onClose={() => setImporting(false)}
                                         github={github}
+                                        loadRepositories={() =>
+                                            jsonRequest<{
+                                                repositories: Repository[];
+                                            }>(
+                                                GitHubAppController.importable.url(),
+                                            ).then(
+                                                ({ repositories }) =>
+                                                    repositories,
+                                            )
+                                        }
                                     />
                                 )
                             }

@@ -1,0 +1,41 @@
+[package]
+name = "onedrop-desktop"
+version = "0.1.0"
+description = "OneDrop for the desktop"
+authors = ["OneDrop"]
+license = "Elastic-2.0"
+edition = "2021"
+rust-version = "1.90"
+
+[lib]
+# The `_lib` suffix keeps the library apart from the binary on Windows (cargo#8519).
+name = "onedrop_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+tauri-plugin-notification = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+keyring = { version = "3", features = [
+    "apple-native",
+    "windows-native",
+    "sync-secret-service",
+    "crypto-rust",
+] }
+sha2 = "0.10"
+base64 = "0.22"
+rand = "0.8"
+url = "2"
+whoami = "1"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

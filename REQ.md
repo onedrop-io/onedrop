@@ -462,6 +462,22 @@ One-line install on a computer or a server; AWS via Pulumi; Laravel Cloud; admin
 - **2026-09-30: Taking an app down stops its public app and deletes its share page, and it can't be published publicly or shared until an admin approves it; private publishing and building still work.** A takedown that the user could undo by clicking Publish again wouldn't be one, and the app may be fixable, so admins can reverse it from the decided list. No email to admins or owners yet; admins find held apps on the page.
 - **2026-09-30: `phpunit.xml` blanks `OPENROUTER_API_KEY`,** because the key in a developer's `.env` otherwise reached tests, and with the sync queue every finished run in a test would call Jev for real. Tests that need a key set `services.openrouter.key` themselves.
 
+## Desktop app
+
+DESK-001..005. A native app for macOS, Windows and Linux (Tauri) with the core loop: sign in, the projects, the chat and the preview, and starting a project. It talks to an install over HTTP, through a versioned API (`/api/v1`) that the web app doesn't use. The other tools open in the browser for now.
+
+### Decisions
+
+- **2026-09-30: Tauri, with the web app's React components.** It builds for all three platforms from one codebase, ships small installers on each system's own webview, and reuses the components that don't need Inertia (Markdown, the UI kit, resize handles). Not Electron (a browser bundled in every install), and not a native toolkit (Flutter, Qt), which would mean rewriting the UI and losing the code views; the preview needs a browser engine anyway.
+- **2026-10-03: The desktop app shows the web's own components where it can (the model picker, the repository picker), not copies.** They take how to reach the server from each app (`configureAgentModels`, `loadRepositories`), so the two stay in sync. Pages built on Inertia forms (the composer) are mirrored instead, and kept in step by hand.
+- **2026-09-30: The API is added next to the web app; the web pages stay on Inertia.** API controllers share the web controllers' logic through actions and traits (StartProject, UpdateProject, ChangeProjectAgent, RendersWorkspace, SummarizesProjects), so the two return the same data. Web controllers reused by the API get a thin `Api\` subclass, because a method routed twice changes the routes Wayfinder generates for the web app.
+- **2026-09-30: Bearer tokens only (Sanctum personal access tokens); the API ignores the web session.** No cookie auth, CSRF or stateful domains to configure for an app that isn't a browser tab. Tokens are prefixed `onedrop_` so secret scanners catch leaked ones, never expire on their own, and can be revoked from the app or Settings → Desktop app.
+- **2026-09-30: Sign in through the browser, back to a loopback address with PKCE (RFC 8252).** The browser already has the user's passkeys, single sign-on and password manager, so the app never asks for a password. Only `http://127.0.0.1|localhost|[::1]:<port>/callback` is ever redirected to, so a code can't leave the computer; codes last 5 minutes and work once; the "Allow" page names the computer so a forged sign-in link stands out. Not a custom URL scheme: it doesn't work in development builds and any app can claim one.
+- **2026-09-30: The app keeps its token in the system keychain** (Keychain, Credential Manager, Secret Service), never in a file or the webview's storage.
+- **2026-09-30: AI credentials never pass through the API.** The app neither sends nor receives them; they stay on the server, which hands them to sandboxes as it does for the web app. Connecting an AI happens on the web.
+- **2026-10-01: The app works in one organization at a time, the one the user last worked in (ORG-002).** The API runs the same `organization` middleware as the web: a project's own routes use its organization, everything else the user's current one, and switching in the app switches it on the web too. No organization in the API's addresses, unlike `/o/{slug}` on the web, because the app has no addresses to share.
+- **2026-09-30: Previews on a server open through the sandbox's own sign-in address.** The app has no session for the gateway's `open` route, so the API hands out the gateway's one-minute sign-in address directly. A frame inside the app may not keep that address's cookie (it's another site's), so the preview can also open in a window of its own.
+
 ## Marketing
 
 HOME-001, HOME-003, HOME-004, PRICE-001.

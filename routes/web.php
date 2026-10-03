@@ -12,6 +12,7 @@ use App\Http\Controllers\AgentModelController;
 use App\Http\Controllers\AiCreditsController;
 use App\Http\Controllers\ChatGptAuthController;
 use App\Http\Controllers\ClaudeLoginController;
+use App\Http\Controllers\DesktopSignInController;
 use App\Http\Controllers\GitHubAppController;
 use App\Http\Controllers\GroupController;
 use App\Http\Controllers\GroupMemberController;
@@ -130,6 +131,9 @@ Route::delete('impersonation', [ImpersonationController::class, 'destroy'])->mid
 
 Route::middleware(['auth', 'verified', 'organization'])->group(function () {
     Route::get('oauth/authorize', [OneDropOAuthController::class, 'authorize'])->middleware('throttle:60,1')->name('onedrop.authorize');
+    // Signing in to the desktop app (DESK-001): the app opens this page, and gets the browser back with a one-time code.
+    Route::get('desktop/authorize', [DesktopSignInController::class, 'show'])->middleware('throttle:60,1')->name('desktop.authorize');
+    Route::post('desktop/authorize', [DesktopSignInController::class, 'store'])->middleware('throttle:20,1')->name('desktop.authorize.store');
     Route::get('onboarding/ai', [OnboardingController::class, 'ai'])->name('onboarding.ai');
     Route::get('auth/openrouter', [OpenRouterAuthController::class, 'redirect'])->name('openrouter.redirect');
     Route::get('auth/openrouter/callback', [OpenRouterAuthController::class, 'callback'])->name('openrouter.callback');

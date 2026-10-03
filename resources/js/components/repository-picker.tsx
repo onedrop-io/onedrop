@@ -1,8 +1,6 @@
 import { Lock, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import GitHubAppController from '@/actions/App/Http/Controllers/GitHubAppController';
 import SocialProviderIcon from '@/components/social-provider-icon';
-import { jsonRequest } from '@/lib/json-request';
 import { cn } from '@/lib/utils';
 
 export type ImportGitHub = {
@@ -13,7 +11,7 @@ export type ImportGitHub = {
     returned: { error: string | null } | null;
 };
 
-type Repository = {
+export type Repository = {
     full_name: string;
     private: boolean;
     html_url: string;
@@ -57,11 +55,17 @@ export default function RepositoryPicker({
     onChange,
     onClose,
     github,
+    loadRepositories,
+    onConnectGitHub,
 }: {
     value: string;
     onChange: (value: string) => void;
     onClose: () => void;
     github: ImportGitHub;
+    /** The user's GitHub repositories, from the web app's route or the desktop app's API. */
+    loadRepositories: () => Promise<Repository[]>;
+    /** Connect GitHub somewhere else than this page (the desktop app opens the browser). */
+    onConnectGitHub?: (url: string) => void;
 }) {
     const [repositories, setRepositories] = useState<Repository[] | null>(null);
     const [loadError, setLoadError] = useState<string | null>(null);
@@ -74,18 +78,15 @@ export default function RepositoryPicker({
 
         let cancelled = false;
 
-        jsonRequest<{ repositories: Repository[] }>(
-            GitHubAppController.importable.url(),
-        )
-            .then(
-                ({ repositories }) =>
-                    !cancelled && setRepositories(repositories),
-            )
+        loadRepositories()
+            .then((repositories) => !cancelled && setRepositories(repositories))
             .catch((error: Error) => !cancelled && setLoadError(error.message));
 
         return () => {
             cancelled = true;
         };
+        // Loaded once each time GitHub is signed in.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [github.signed_in]);
 
     const matches = useMemo(() => {
@@ -187,6 +188,12 @@ export default function RepositoryPicker({
                         Public repositories work as they are.{' '}
                         <a
                             href={github.connect_url ?? undefined}
+                            onClick={(event) => {
+                                if (onConnectGitHub && github.connect_url) {
+                                    event.preventDefault();
+                                    onConnectGitHub(github.connect_url);
+                                }
+                            }}
                             className="text-foreground underline underline-offset-2"
                             data-test="repository-connect-github"
                         >

@@ -11,6 +11,7 @@ use App\Jobs\CreateSandbox;
 use App\Models\Attachment;
 use App\Models\Message;
 use App\Models\Project;
+use App\Models\Sandbox;
 use App\Models\Task;
 use App\Sandbox\Agents\Conversation;
 use App\Sandbox\Agents\MessageChecks;
@@ -35,6 +36,17 @@ trait RendersWorkspace
      */
     protected function renderWorkspace(Request $request, Project $project, Conversation $conversation, bool $newTask = false): Response
     {
+        return Inertia::render('projects/show', $this->workspaceProps($request, $project, $conversation, $newTask));
+    }
+
+    /**
+     * What the workspace shows: the project, the conversation's chat, and its sandbox's addresses. Opening it marks the
+     * conversation read and keeps the sandbox current and awake.
+     *
+     * @return array<string, mixed>
+     */
+    protected function workspaceProps(Request $request, Project $project, Conversation $conversation, bool $newTask = false): array
+    {
         $catalog = app(ModelCatalog::class);
         $gateway = app(Gateway::class);
 
@@ -51,11 +63,11 @@ trait RendersWorkspace
         // A task with its own copy of the app shows that copy's preview, shell and files (TASK-003).
         $sandbox = $task && Task::getsCopies() ? $task->sandbox()->first() : $project->sandbox;
         $sandbox?->wake(app(SandboxProvider::class));
-        $open = fn (string $kind, string $path = '/') => route('projects.gateway.open', [$project, $kind, ...($sandbox?->task_id ? ['task' => $sandbox->task_id] : []), ...($path !== '/' ? ['path' => $path] : [])]);
+        $open = fn (string $kind, string $path = '/') => $sandbox ? $this->gatewayAddress($request, $project, $sandbox, $kind, $path) : null;
         $messages = $newTask ? collect() : $conversation->messages()->with('attachments')->get();
         $queued = $newTask ? collect() : $conversation->queuedMessages()->with('attachments')->get();
 
-        return Inertia::render('projects/show', [
+        return [
             // A message the user just sent that's waiting for their answer (SECRET-002, REQ-003), shown once. Being a
             // closure, partial reloads that don't ask for it leave it for the page load after the send.
             'held' => fn () => $newTask ? null : MessageChecks::pullPrompt($request->user(), $conversation),
@@ -120,7 +132,16 @@ trait RendersWorkspace
                 'attachments' => $message->attachments->map(fn (Attachment $attachment): array => $this->attachmentProps($project, $attachment)),
                 'created_at' => $message->created_at?->toIso8601String(),
             ]),
-        ]);
+        ];
+    }
+
+    /**
+     * Where the workspace's frames open the sandbox's preview or shell on a server: the app's own address, which signs
+     * the browser in to the sandbox's address on every load.
+     */
+    protected function gatewayAddress(Request $request, Project $project, Sandbox $sandbox, string $kind, string $path = '/'): string
+    {
+        return route('projects.gateway.open', [$project, $kind, ...($sandbox->task_id ? ['task' => $sandbox->task_id] : []), ...($path !== '/' ? ['path' => $path] : [])]);
     }
 
     /**
@@ -174,8 +195,16 @@ trait RendersWorkspace
         return [
             ...$attachment->only('id', 'name', 'mime_type', 'size'),
             'image' => $attachment->isVisibleImage(),
-            'url' => route('projects.attachments.show', [$project, $attachment]),
+            'url' => route($this->attachmentRoute(), [$project, $attachment]),
         ];
+    }
+
+    /**
+     * The route that opens a message's attachment.
+     */
+    protected function attachmentRoute(): string
+    {
+        return 'projects.attachments.show';
     }
 
     /**

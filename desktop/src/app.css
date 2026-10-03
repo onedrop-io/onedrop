@@ -1,0 +1,18 @@
+/* The web app's theme, so the desktop app looks the same, plus the shared components it uses. */
+@import '../../resources/css/app.css';
+
+@source '../../resources/js/components';
+@source '.';
+
+/* Text in a desktop app isn't selectable unless it's content. */
+body {
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.selectable,
+input,
+textarea {
+    user-select: text;
+    -webkit-user-select: text;
+}

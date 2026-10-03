@@ -1,0 +1,14 @@
+{
+    "$schema": "../gen/schemas/desktop-schema.json",
+    "identifier": "default",
+    "description": "What the app's own window may do. Pages from the server (previews in their own window) get none of it.",
+    "windows": ["main"],
+    "permissions": [
+        "core:default",
+        "core:window:allow-start-dragging",
+        "core:window:allow-set-focus",
+        "core:webview:allow-create-webview-window",
+        "opener:default",
+        "notification:default"
+    ]
+}
