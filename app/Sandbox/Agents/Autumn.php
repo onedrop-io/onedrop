@@ -80,7 +80,8 @@ class Autumn
         }
 
         $resetsAt = $balance['next_reset_at'] ?? null;
-        $grants = collect($balance['breakdown'] ?? [])->filter(fn (mixed $grant) => is_array($grant));
+        $breakdown = is_array($balance['breakdown'] ?? null) ? $balance['breakdown'] : [];
+        $grants = collect($breakdown)->filter(fn (mixed $grant) => is_array($grant));
         $part = fn (bool $monthly): array => [
             'left' => (float) $grants->filter(fn (array $grant) => (($grant['reset']['interval'] ?? null) === 'one_off') !== $monthly)->sum('remaining'),
             'granted' => (float) $grants->filter(fn (array $grant) => (($grant['reset']['interval'] ?? null) === 'one_off') !== $monthly)->sum('included_grant'),
