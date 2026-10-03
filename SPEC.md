@@ -471,7 +471,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see what the preview runs (the command in `.onedrop/dev`, or the placeholder page), whether it's running, and be able to restart it.
 - User should see every container the sandbox's own Docker runs (SBX-008), grouped by compose project, with each one's service, state (running, restarting with its exit code, stopped), how long, and its published ports.
 - User should be able to read a container's recent logs by clicking its row (or its arrow, from the keyboard), and restart, stop or start it without the row opening.
-- User should see logs in color: the colors a program prints itself (ANSI), otherwise timestamps, levels (errors in red, warnings in amber), keys, quoted strings and URLs.
+- User should see logs in color: the colors a program prints itself (ANSI), otherwise timestamps, levels (errors in red, warnings in amber), keys, quoted strings, URLs and durations (amber from 100ms, red from 500ms), with dot leaders dimmed.
 - User should be able to search a container's logs, seeing only the matching lines with each match marked and how many lines matched.
 - User should be able to search like Papertrail: several words must all appear, `"a phrase"` matches exactly, `-word` excludes, `OR` gives alternatives, and parentheses group.
 - User should be able to click a matching line to clear the search and see it highlighted among the lines around it.
@@ -581,6 +581,15 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should have modern command-line tools in the Shell tab: `bat` (view files with highlighting), `rg` (search), `fd` (find files), `z` (jump to directories), `jq` (JSON), `btop` (processes), `lazygit` (git), `micro` (editor, also used for commit messages), `vim` and `ncdu` (what's using disk space).
 - User should see file listings (`ls`, `ll`, `la`, `tree`) with folders first, colours, a git column and relative times; `ls` with GNU-only flags (e.g. `-ltr`) should still work.
 - User should see a clear notice when the console or shell isn't available (e.g. sandbox not running, or an older sandbox without a shell).
+
+## TAB-002: Console colors and search
+
+- User should see the Console's output in color, like the Services tab's logs (SVC-001): the colors the dev server prints itself, otherwise timestamps dimmed, levels (errors in red, warnings in amber), keys, quoted strings, URLs, and durations (amber from 100ms, red from 500ms), with dot leaders dimmed.
+- User should see the colors tools print in a terminal (Vite, npm, Laravel's `artisan serve`, Docker Compose service names) even though the dev server's output goes to a file.
+- User should not see stray escape codes, even when one arrives split across two reads.
+- User should be able to search the Console with the same syntax as service logs (words, `"a phrase"`, `-exclude`, `OR`, parentheses), seeing only the matching lines with each match marked and how many lines matched.
+- User should be able to click a matching line to clear the search and see it highlighted among the lines around it.
+- New output should keep coming in while searching, and the Console should stay at the newest line unless the user scrolls up.
 
 ## LAYOUT-001: Hide the chat
 

@@ -146,9 +146,13 @@ up() {
     since="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     docker compose --ansi never up --detach --remove-orphans || exit 1
 
+    # Coloured service names for the Console tab (start.sh sets FORCE_COLOR), plain anywhere else.
+    local ansi=never
+    [ -n "${FORCE_COLOR:-}" ] && ansi=always
+
     trap 'docker compose --ansi never stop; exit 0' TERM INT
     while true; do
-        docker compose --ansi never logs --follow --since "$since" &
+        docker compose --ansi "$ansi" logs --follow --since "$since" &
         wait $!
         since="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
         sleep 2 &

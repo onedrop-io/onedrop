@@ -75,3 +75,49 @@ test('closable tabs can be dragged into a different order', function () {
         ->assertScript($order, 'tab-tools,tab-preview,tab-services,tab-shell,tab-console')
         ->assertNoJavaScriptErrors();
 })->group('TAB-001');
+
+test('the console shows the dev server\'s colors, colors plain lines, and can be searched', function () {
+    $reads = 0;
+    $provider = new FakeSandboxProvider;
+    $provider->execUsing = function (array $command) use (&$reads) {
+        if ($command[0] === 'sh') {
+            $log = "\e[32m  VITE v7 ready\e[0m in 300 ms\n"
+                ."2026-10-03 20:22:38 /build/assets/app.js ............ ~ 504.99ms\n"
+                ."2026-10-03 20:22:38 /favicon.svg .................. ~ 0.13ms\n"
+                ."2026-10-03 20:22:39 / ............................. ~ 120ms\n"
+                ."ERROR connection refused\n"
+                ."\e[3";
+
+            return new ExecResult(0, strlen($log)."\n".$log);
+        }
+
+        // The rest of the escape cut off by the first read.
+        return new ExecResult(0, $command[0] === 'tail' && $reads++ === 0 ? "1mafter the split\e[0m\n" : '');
+    };
+    app()->instance(SandboxProvider::class, $provider);
+
+    $user = User::factory()->has(AgentConnection::factory())->create();
+    $project = Project::factory()->for($user)->create();
+    Sandbox::factory()->for($project)->create(['preview_url' => null, 'shell_url' => null]);
+    $this->actingAs($user);
+
+    visit("/projects/{$project->id}")
+        ->click('@tab-console')
+        ->assertSeeIn('[data-test="console-output"] .text-green-400', 'VITE v7 ready')
+        ->assertSeeIn('[data-test="console-output"] .text-red-400', '504.99ms')
+        ->assertSeeIn('[data-test="console-output"] .text-amber-300', '120ms')
+        ->assertSeeIn('[data-test="console-output"] .text-neutral-500', '0.13ms')
+        ->assertSeeIn('[data-test="console-output"] .text-neutral-500', '2026-10-03 20:22:39')
+        ->assertSeeIn('[data-test="console-output"] .font-semibold', 'ERROR')
+        ->assertSeeIn('[data-test="console-output"] .text-red-400', 'after the split')
+        ->assertDontSeeIn('@console-output', '[3')
+        ->type('@console-search', 'build -favicon')
+        ->assertSeeIn('@console-matches', '1 line')
+        ->assertSeeIn('[data-test="console-output"] mark', 'build')
+        ->assertDontSeeIn('@console-output', 'connection refused')
+        ->click('[data-test="console-output"] [data-line="1"]')
+        ->assertValue('@console-search', '')
+        ->assertSeeIn('@console-output', 'connection refused')
+        ->assertPresent('[data-line="1"].bg-amber-400\/15')
+        ->assertNoJavaScriptErrors();
+})->group('TAB-002', 'SVC-001');

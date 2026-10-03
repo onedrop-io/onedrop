@@ -75,6 +75,30 @@ test('the preview switches to the app dev server after /opt/onedrop/restart', fu
     }
 })->group('AGT-001');
 
+test('the app dev server is told to print its colors, though its output goes to a file', function () {
+    $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
+    $id = $docker->create(new SandboxSpec('onedrop-test-'.bin2hex(random_bytes(3))));
+
+    try {
+        $script = 'mkdir -p /workspace/.onedrop /workspace/public'
+            .' && printf "#!/usr/bin/env bash\necho \"colors=\$FORCE_COLOR,\$CLICOLOR_FORCE\"\nexec php -S 0.0.0.0:\$PORT -t /workspace/public\n" > /workspace/.onedrop/dev'
+            .' && chmod +x /workspace/.onedrop/dev && /opt/onedrop/restart';
+        expect($docker->exec($id, ['bash', '-c', $script])->successful())->toBeTrue();
+
+        $log = retry(40, function () use ($docker, $id) {
+            $log = $docker->exec($id, ['cat', '/tmp/onedrop-server.log'])->output;
+            throw_unless(str_contains($log, 'colors='), new RuntimeException('dev server not started yet'));
+
+            return $log;
+        }, 250);
+
+        expect($log)->toContain('colors=1,1');
+        expect(trim($docker->exec($id, ['bash', '-lc', 'echo "${FORCE_COLOR:-unset}"'])->output))->toBe('unset');
+    } finally {
+        $docker->destroy($id);
+    }
+})->group('TAB-002');
+
 test('the web terminal answers on the shell port', function () {
     $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
     $id = $docker->create(new SandboxSpec('onedrop-test-'.bin2hex(random_bytes(3)), shellPort: 7681));

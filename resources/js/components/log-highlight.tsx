@@ -42,6 +42,8 @@ const TOKEN = new RegExp(
         String.raw`(?<time>\b\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:[.,]\d+)?(?:Z|[+-]\d{2}:?\d{2})?|\b\d{2}:\d{2}:\d{2}(?:\.\d+)?\b)`,
         String.raw`(?<level>\b(?:${LEVEL_WORDS})\b|(?<=\blevel=)\w+)`,
         String.raw`(?<url>\bhttps?://[^\s"'<>]+)`,
+        String.raw`(?<duration>(?<![\w.])\d+(?:\.\d+)?\s?(?:µs|ms|s)\b)`,
+        String.raw`(?<leader>\.{4,})`,
         String.raw`(?<key>"[\w.@-]+"(?=\s*:)|\b[\w.-]+(?==))`,
         String.raw`(?<string>"(?:[^"\\\n]|\\.)*")`,
     ].join('|'),
@@ -58,9 +60,9 @@ export type LogLine = { index: number; nodes: ReactNode[] };
 
 /**
  * Log output as colored lines, for a dark background. Lines a program colored itself (ANSI escapes) keep
- * those colors; other lines get their timestamps, levels, keys, quoted strings and URLs colored. Other
- * escapes (cursor moves, `\r` redraws) are dropped, so they don't show as junk. With a search, only the
- * lines passing it are kept, and its terms are marked.
+ * those colors; other lines get their timestamps, levels, keys, quoted strings, URLs and durations colored
+ * (slow ones amber or red) and dot leaders dimmed. Other escapes (cursor moves, `\r` redraws) are dropped,
+ * so they don't show as junk. With a search, only the lines passing it are kept, and its terms are marked.
  */
 export function highlightLog(
     text: string,
@@ -194,12 +196,34 @@ function tokenClass(match: RegExpMatchArray): string {
         return 'text-sky-300 underline';
     }
 
+    if (groups.duration) {
+        return durationClass(groups.duration);
+    }
+
+    if (groups.leader) {
+        return 'text-neutral-600';
+    }
+
     if (groups.key) {
         return 'text-violet-300';
     }
 
     // A quoted level, as in JSON logs' "level":"error".
     return levelClass(match[0].slice(1, -1)) ?? 'text-emerald-300';
+}
+
+/** Durations dimmed when quick, amber from 100ms and red from 500ms, so slow requests stand out. */
+function durationClass(duration: string): string {
+    const amount = parseFloat(duration);
+    const unit = duration.replace(/[\d.\s]/g, '');
+    const ms =
+        unit === 's' ? amount * 1000 : unit === 'µs' ? amount / 1000 : amount;
+
+    if (ms >= 500) {
+        return 'text-red-400';
+    }
+
+    return ms >= 100 ? 'text-amber-300' : 'text-neutral-500';
 }
 
 function levelClass(word: string): string | null {
