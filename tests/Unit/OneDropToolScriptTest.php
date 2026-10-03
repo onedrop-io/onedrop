@@ -68,7 +68,7 @@ test('every version in the image is one Renovate keeps current', function () {
     }
 
     expect($dockerfile)->toMatch('/^FROM php:8\.4-cli-bookworm@sha256:[0-9a-f]{64}$/m')
-        ->and($dockerfile)->toContain('PATH="${PATH}:/opt/onedrop/lazy"');
+        ->and($dockerfile)->toContain('PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/onedrop/lazy ');
 })->group('SBX-011');
 
 test('a stand-in runs the installed tool with its arguments, without installing it again', function () {

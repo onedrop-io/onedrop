@@ -152,8 +152,9 @@ RUN usermod -aG docker sandbox \
 
 USER sandbox
 WORKDIR /workspace
+# PATH is spelled out: Runtime's builder doesn't expand ${PATH} in ENV, so "${PATH}:…" left npx off it.
 ENV LANG=C.UTF-8 PORT=8000 SHELL_PORT=7681 PROXY_PORT=8081 SSH_PORT=2222 APP_STORAGE_DIR=/data/storage \
-    PATH="${PATH}:/opt/onedrop/lazy" COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+    PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/onedrop/lazy COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 # Playwright's ffmpeg records the tests' videos; it's fetched for the version the tests guide pins, so runs don't
 # download it. Tests use the Chromium installed above, not one of Playwright's. HOME is set for this step only:
 # Runtime's builder keeps HOME=/root after USER, so npm's cache would be unwritable there. Not bumped by Renovate:

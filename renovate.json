@@ -1,80 +1,61 @@
 {
-  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "description": "Keeps the sandbox's tools current (SBX-011): the versions in docker/sandbox/Dockerfile and docker/sandbox/onedrop-tool, one weekly pull request. Dependabot keeps GitHub Actions current; the app's own Composer and npm packages aren't touched.",
-  "extends": [
-    "config:recommended",
-    "docker:pinDigests"
-  ],
-  "enabledManagers": [
-    "dockerfile",
-    "custom.regex"
-  ],
-  "includePaths": [
-    "docker/sandbox/Dockerfile",
-    "docker/sandbox/onedrop-tool"
-  ],
-  "customManagers": [
-    {
-      "customType": "regex",
-      "description": "A \"# renovate: datasource=… depName=…\" comment above a version line (ARG NAME=1.2.3 or name=1.2.3).",
-      "managerFilePatterns": [
-        "/^docker/sandbox/Dockerfile$/",
-        "/^docker/sandbox/onedrop-tool$/"
-      ],
-      "matchStrings": [
-        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: extractVersion=(?<extractVersion>\\S+))?\\s*\\n(?:ARG )?\\w+=(?<currentValue>\\S+)"
-      ],
-      "extractVersionTemplate": "{{#if extractVersion}}{{{extractVersion}}}{{else}}^v?(?<version>.+)${{/if}}"
-    }
-  ],
-  "schedule": [
-    "before 6am on monday"
-  ],
-  "timezone": "UTC",
-  "minimumReleaseAge": "3 days",
-  "labels": [
-    "sandbox tools"
-  ],
-  "packageRules": [
-    {
-      "description": "Everything in one pull request a week: each merged change to the Dockerfile moves every sandbox to a new one once idle.",
-      "matchFileNames": [
-        "docker/sandbox/**"
-      ],
-      "groupName": "sandbox tools"
-    },
-    {
-      "description": "Agent CLIs on their own: the platform parses their JSON events, so each bump needs OpenCodeEvents, ClaudeCodeEvents or CodexEvents re-checked against the new CLI's output (AGENTS.md).",
-      "matchPackageNames": [
-        "opencode-ai",
-        "@anthropic-ai/claude-code",
-        "@openai/codex"
-      ],
-      "groupName": "agent CLIs",
-      "prBodyNotes": [
-        "Before merging, re-check the events parser against the new CLI's real output: `opencode run --format json`, `claude -p --output-format stream-json --verbose`, `codex exec --json`."
-      ]
-    },
-    {
-      "description": "PHP stays on 8.4 (users' apps run on it); only rebuilt 8.4 images (digests) come through.",
-      "matchDatasources": [
-        "docker"
-      ],
-      "matchPackageNames": [
-        "php"
-      ],
-      "matchUpdateTypes": [
-        "major",
-        "minor"
-      ],
-      "enabled": false
-    },
-    {
-      "description": "The Google Cloud CLI's image tags are plain versions plus variants (alpine, slim, emulators); only the plain ones are its releases.",
-      "matchPackageNames": [
-        "gcr.io/google.com/cloudsdktool/google-cloud-cli"
-      ],
-      "versioning": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$"
-    }
-  ]
+    "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+    "description": "Keeps the sandbox's tools current (SBX-011): the versions in docker/sandbox/Dockerfile and docker/sandbox/onedrop-tool, one weekly pull request. Dependabot keeps GitHub Actions current; the app's own Composer and npm packages aren't touched.",
+    "extends": ["config:recommended", "docker:pinDigests"],
+    "enabledManagers": ["dockerfile", "custom.regex"],
+    "includePaths": [
+        "docker/sandbox/Dockerfile",
+        "docker/sandbox/onedrop-tool"
+    ],
+    "customManagers": [
+        {
+            "customType": "regex",
+            "description": "A \"# renovate: datasource=… depName=…\" comment above a version line (ARG NAME=1.2.3 or name=1.2.3).",
+            "managerFilePatterns": [
+                "/^docker/sandbox/Dockerfile$/",
+                "/^docker/sandbox/onedrop-tool$/"
+            ],
+            "matchStrings": [
+                "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: extractVersion=(?<extractVersion>\\S+))?\\s*\\n(?:ARG )?\\w+=(?<currentValue>\\S+)"
+            ],
+            "extractVersionTemplate": "{{#if extractVersion}}{{{extractVersion}}}{{else}}^v?(?<version>.+)${{/if}}"
+        }
+    ],
+    "schedule": ["before 6am on monday"],
+    "timezone": "UTC",
+    "minimumReleaseAge": "3 days",
+    "labels": ["sandbox tools"],
+    "packageRules": [
+        {
+            "description": "Everything in one pull request a week: each merged change to the Dockerfile moves every sandbox to a new one once idle.",
+            "matchFileNames": ["docker/sandbox/**"],
+            "groupName": "sandbox tools"
+        },
+        {
+            "description": "Agent CLIs on their own: the platform parses their JSON events, so each bump needs OpenCodeEvents, ClaudeCodeEvents or CodexEvents re-checked against the new CLI's output (AGENTS.md).",
+            "matchPackageNames": [
+                "opencode-ai",
+                "@anthropic-ai/claude-code",
+                "@openai/codex"
+            ],
+            "groupName": "agent CLIs",
+            "prBodyNotes": [
+                "Before merging, re-check the events parser against the new CLI's real output: `opencode run --format json`, `claude -p --output-format stream-json --verbose`, `codex exec --json`."
+            ]
+        },
+        {
+            "description": "PHP stays on 8.4 (users' apps run on it); only rebuilt 8.4 images (digests) come through.",
+            "matchDatasources": ["docker"],
+            "matchPackageNames": ["php"],
+            "matchUpdateTypes": ["major", "minor"],
+            "enabled": false
+        },
+        {
+            "description": "The Google Cloud CLI's image tags are plain versions plus variants (alpine, slim, emulators); only the plain ones are its releases.",
+            "matchPackageNames": [
+                "gcr.io/google.com/cloudsdktool/google-cloud-cli"
+            ],
+            "versioning": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$"
+        }
+    ]
 }
