@@ -1,0 +1,3 @@
+#!/bin/sh
+# onedrop-tool on PATH, for `onedrop-tool list` and `onedrop-tool install`.
+exec /opt/onedrop/onedrop-tool "$@"

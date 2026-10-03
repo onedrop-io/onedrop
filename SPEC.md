@@ -454,6 +454,17 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Sandboxes made from older images should be snapshotted too: the snapshot tool only needs what every image has and is copied into them when missing (SBX-002).
 - Deleting a project should delete its snapshots.
 
+## SBX-011: Cloud and service CLIs in the shell
+
+- User should be able to run the common cloud, hosting, database and infrastructure CLIs in the Shell tab and over SSH without installing them: `aws`, `sam`, `gcloud` (with `gsutil`, `bq`), `az`, `wrangler`, `vercel`, `netlify`, `fly`, `railway`, `render`, `doctl`, `cloud` (Laravel Cloud), `supabase`, `firebase`, `neonctl`, `turso`, `pscale`, `mongosh`, `gh`, `glab`, `stripe`, `terraform`, `tofu`, `pulumi`, `kubectl`, `helm`, `k9s`, `cloudflared`, `eas`, `bun`, `deno` and `go`. The agent can run them too.
+- The first time one is run, it should install itself (a message says so), then run with the arguments given; after that it starts straight away. Two shells running it at once install it once.
+- A failed install should say it failed and leave nothing half-installed, so the next run tries again.
+- A copy the user or the app installed (e.g. the app's own `wrangler` in `node_modules`, or a tool in `~/.local/bin`) should win over the platform's.
+- User should be able to see every one, its version and whether it's installed with `onedrop-tool list`, and install some ahead of time with `onedrop-tool install`.
+- The image should also have `psql` and `pg_dump` (the newest major, so they work with any server version), `mysql`, `redis-cli`, `python3` (with `venv` and `pip`), `uv`/`uvx`, `pnpm` and `yarn` (through corepack), `yq`, `xh` and `shellcheck`.
+- Every tool in the image and every first-use tool should be kept current: one pull request a week bumps their versions and the base images (by digest, so Debian security fixes come with them), with the agent CLIs in a pull request of their own. Each such pull request builds the image and installs and runs every tool on both architectures before it can merge.
+- A newer version of a first-use tool should reach running sandboxes like any other tool file (SBX-002), without a new image, and install on its next use.
+
 ## SVC-001: Services tab
 
 - User should be able to open a Services tab from the workspace's "+" menu and see what's running in the project's sandbox, updated every few seconds while it's shown.

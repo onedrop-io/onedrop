@@ -4,6 +4,11 @@ cd /workspace 2>/dev/null || true
 # Settings from sandbox start on providers that can't set env at create (see RuntimeSandboxProvider).
 [ -f ~/.onedrop-env ] && set -a && . ~/.onedrop-env && set +a
 
+# Service CLIs that install on first use (onedrop-tool), last on PATH. The image sets this too, but SSH sessions start
+# with sshd's own PATH, and sandboxes on an older image get the stand-ins before their next new sandbox.
+[[ ":$PATH:" == *:/opt/onedrop/lazy:* ]] || PATH="$PATH:/opt/onedrop/lazy"
+export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+
 [[ $- == *i* ]] || return
 
 HISTSIZE=10000
@@ -95,7 +100,8 @@ __onedrop_banner() {
 EOF
     printf '\n  \e[1m%s\e[0m \e[2m· /workspace\e[0m\n' "${APP_PROJECT_NAME:-Your sandbox}"
     printf '  \e[2mll · tree · bat · rg · fd · z <dir> · Ctrl-R history\e[0m\n'
-    printf '  \e[2mlazygit · btop · micro <file> · /opt/onedrop/restart restarts the preview\e[0m\n\n'
+    printf '  \e[2mlazygit · btop · micro <file> · /opt/onedrop/restart restarts the preview\e[0m\n'
+    printf '  \e[2maws · gcloud · gh · wrangler · …: onedrop-tool list\e[0m\n\n'
 }
 if [ -z "${ONEDROP_BANNER_SHOWN:-}" ] && (( $(tput cols 2>/dev/null || echo 80) >= 44 )); then
     export ONEDROP_BANNER_SHOWN=1

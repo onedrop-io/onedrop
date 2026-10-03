@@ -1,0 +1,52 @@
+name: sandbox tools
+
+# Proves a change to the sandbox's tools still builds and runs (SBX-011), above all Renovate's weekly version bumps:
+# builds the image, runs each tool in it, and installs and runs every first-use tool from onedrop-tool. A release that
+# renamed its download, or a tool that no longer starts, fails here instead of in a user's Shell.
+
+on:
+  pull_request:
+    paths: ['docker/sandbox/Dockerfile', 'docker/sandbox/onedrop-tool', 'docker/sandbox/lazy/**', 'docker/sandbox/bashrc']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build the sandbox image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: docker/sandbox
+          tags: onedrop-sandbox:check
+          load: true
+          cache-from: type=gha,scope=onedrop-sandbox-${{ matrix.runner }}
+
+      - name: Run the image's tools
+        run: |
+          docker run --rm --entrypoint bash onedrop-sandbox:check -c '
+            set -e
+            for command in "ttyd --version" "starship --version" "eza --version" "fzf --version" "bat --version" \
+                "rg --version" "fd --version" "zoxide --version" "jq --version" "btop --version" "lazygit --version" \
+                "micro --version" "yq --version" "xh --version" "uv --version" "psql --version" "mysql --version" \
+                "redis-cli --version" "python3 --version" "shellcheck --version" "pnpm --version" "yarn --version" \
+                "opencode --version" "claude --version" "codex --version" "composer --version" "docker --version"; do
+              out=$($command 2>&1) || { echo "$command failed: $out"; exit 1; }
+              printf "%-12s %s\n" "${command%% *}" "$(grep -m1 . <<<"$out")"
+            done'
+
+      - name: Install and run every first-use tool
+        run: docker run --rm --entrypoint bash onedrop-sandbox:check -c 'onedrop-tool check'

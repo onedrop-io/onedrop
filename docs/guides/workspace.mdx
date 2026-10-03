@@ -87,6 +87,27 @@ To point at something in the app for the agent, click **Annotate** (the brush) i
 | **Ctrl-R**               | Search your command history                                              |
 | `/opt/onedrop/restart`       | Restart the preview                                                      |
 
+### Cloud and service CLIs
+
+The Shell also has the command-line tools for the services apps use. Each one installs itself the first time you run it, which takes a few seconds (up to a minute for the biggest), then stays installed:
+
+| Area                    | Commands                                                                                              |
+| ----------------------- | ----------------------------------------------------------------------------------------------------- |
+| Clouds                  | `aws`, `sam`, `gcloud` (with `gsutil`, `bq`), `az`, `doctl`                                           |
+| Hosting                 | `wrangler`, `vercel`, `netlify`, `fly`, `railway`, `render`, `cloud` (Laravel Cloud), `cloudflared`   |
+| Databases and backends  | `supabase`, `firebase`, `neonctl`, `turso`, `pscale`, `mongosh`                                       |
+| Code and payments       | `gh`, `glab`, `stripe`, `eas` (Expo)                                                                  |
+| Infrastructure          | `terraform`, `tofu`, `pulumi`, `kubectl`, `helm`, `k9s`                                               |
+| Languages               | `bun`, `deno`, `go`                                                                                   |
+
+Run `onedrop-tool list` to see each one's version and whether it's installed yet, or `onedrop-tool install gcloud az` to install some ahead of time. If your app has its own copy (say `wrangler` in its `node_modules`), that one is used.
+
+These are always in the Shell: `psql` and `pg_dump`, `mysql`, `redis-cli`, `python3` with `pip` and `venv`, `uv`, `pnpm` and `yarn`, `yq` (YAML), `xh` (HTTP requests) and `shellcheck`.
+
+OneDrop keeps all of them up to date. A new version of a tool installs the next time you run it.
+
+<Note>To use a tool with your own account, sign in to it in your Shell (`gh auth login`, `aws configure`, `gcloud auth login`). The sign-in stays in the sandbox, where the agent could read it too. The agent won't sign in or deploy for you.</Note>
+
 ## When the app hits an error
 
 The agent sees your app's errors, whatever it's built with. The sandbox records three kinds in `/workspace/.onedrop/errors.log`:

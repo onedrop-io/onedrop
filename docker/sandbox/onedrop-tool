@@ -1,0 +1,355 @@
+#!/usr/bin/env bash
+# Service CLIs (clouds, hosting, databases, infrastructure) that install on first use, so the image stays small and
+# each one's version can change without a new image (SBX-011). Every command has a stand-in in /opt/onedrop/lazy, at
+# the end of PATH, that runs it through here; a copy the user or the app installed themselves comes first on PATH.
+#
+#   onedrop-tool run COMMAND [ARG...]   run COMMAND, installing its tool first when this version isn't installed
+#   onedrop-tool install TOOL...        install tools now (--all for every one)
+#   onedrop-tool check                  install every tool and run each one's version command (CI)
+#   onedrop-tool list                   each tool, its version, its commands, and whether it's installed
+#   onedrop-tool commands               "TOOL COMMAND" per command, for the stand-ins' test
+#
+# Tools install as the sandbox user into ~/.cache/onedrop/tools/TOOL-VERSION (no root; snapshots skip caches, so
+# an updated sandbox installs them again on first use). A new version replaces the old one on its next use.
+set -euo pipefail
+
+ROOT="${ONEDROP_TOOLS_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/onedrop/tools}"
+
+# Versions, kept current by Renovate (renovate.json): the "# renovate:" line above each says where releases come from.
+
+# renovate: datasource=github-tags depName=aws/aws-cli
+aws=2.37.9
+# renovate: datasource=pypi depName=azure-cli
+az=2.90.0
+# renovate: datasource=github-releases depName=oven-sh/bun extractVersion=^bun-v(?<version>.+)$
+bun=1.4.2
+# renovate: datasource=packagist depName=laravel/cloud-cli
+cloud=0.6.3
+# renovate: datasource=github-releases depName=cloudflare/cloudflared
+cloudflared=2026.9.3
+# renovate: datasource=github-releases depName=denoland/deno
+deno=2.9.7
+# renovate: datasource=github-releases depName=digitalocean/doctl
+doctl=1.177.0
+# renovate: datasource=npm depName=eas-cli
+eas=24.10.0
+# renovate: datasource=npm depName=firebase-tools
+firebase=15.32.1
+# renovate: datasource=github-releases depName=superfly/flyctl
+flyctl=0.4.111
+# renovate: datasource=docker depName=gcr.io/google.com/cloudsdktool/google-cloud-cli
+gcloud=587.0.0
+# renovate: datasource=github-releases depName=cli/cli
+gh=2.102.0
+# renovate: datasource=gitlab-releases depName=gitlab-org/cli
+glab=1.120.0
+# renovate: datasource=golang-version depName=go
+go=1.27.1
+# renovate: datasource=github-releases depName=helm/helm
+helm=4.3.0
+# renovate: datasource=github-releases depName=derailed/k9s
+k9s=0.51.0
+# renovate: datasource=github-releases depName=kubernetes/kubernetes
+kubectl=1.37.1
+# renovate: datasource=github-releases depName=mongodb-js/mongosh
+mongosh=2.12.0
+# renovate: datasource=npm depName=neonctl
+neonctl=8.0.2
+# renovate: datasource=npm depName=netlify-cli
+netlify=27.10.2
+# renovate: datasource=github-releases depName=planetscale/cli
+pscale=0.343.0
+# renovate: datasource=github-releases depName=pulumi/pulumi
+pulumi=3.267.0
+# renovate: datasource=github-releases depName=railwayapp/cli
+railway=5.63.1
+# renovate: datasource=github-releases depName=render-oss/cli
+render=2.28.0
+# renovate: datasource=github-releases depName=aws/aws-sam-cli
+sam=1.166.2
+# renovate: datasource=github-releases depName=stripe/stripe-cli
+stripe=1.53.0
+# renovate: datasource=github-releases depName=supabase/cli
+supabase=2.119.0
+# renovate: datasource=github-releases depName=hashicorp/terraform
+terraform=1.16.5
+# renovate: datasource=github-releases depName=opentofu/opentofu
+tofu=1.13.1
+# renovate: datasource=github-releases depName=tursodatabase/turso-cli
+turso=1.0.33
+# renovate: datasource=npm depName=vercel
+vercel=62.2.0
+# renovate: datasource=npm depName=wrangler
+wrangler=4.147.0
+
+# Each tool, the commands it puts on PATH, and what it is (for `list`).
+TOOLS=(
+    'aws|aws|AWS'
+    'az|az|Microsoft Azure'
+    'bun|bun bunx|Bun (JavaScript runtime)'
+    'cloud|cloud|Laravel Cloud'
+    'cloudflared|cloudflared|Cloudflare Tunnel'
+    'deno|deno|Deno (JavaScript runtime)'
+    'doctl|doctl|DigitalOcean'
+    'eas|eas|Expo (EAS)'
+    'firebase|firebase|Firebase'
+    'flyctl|fly flyctl|Fly.io'
+    'gcloud|gcloud gsutil bq|Google Cloud'
+    'gh|gh|GitHub'
+    'glab|glab|GitLab'
+    'go|go gofmt|Go'
+    'helm|helm|Helm (Kubernetes)'
+    'k9s|k9s|k9s (Kubernetes)'
+    'kubectl|kubectl|Kubernetes'
+    'mongosh|mongosh|MongoDB shell'
+    'neonctl|neonctl neon|Neon'
+    'netlify|netlify ntl|Netlify'
+    'pscale|pscale|PlanetScale'
+    'pulumi|pulumi|Pulumi'
+    'railway|railway|Railway'
+    'render|render|Render'
+    'sam|sam|AWS SAM'
+    'stripe|stripe|Stripe'
+    'supabase|supabase|Supabase'
+    'terraform|terraform|Terraform'
+    'tofu|tofu|OpenTofu'
+    'turso|turso|Turso'
+    'vercel|vercel|Vercel'
+    'wrangler|wrangler|Cloudflare Workers'
+)
+
+case "$(uname -m)" in
+    aarch64 | arm64) arch=aarch64 goarch=arm64 node=arm64 ;;
+    *) arch=x86_64 goarch=amd64 node=x64 ;;
+esac
+
+die() {
+    echo "onedrop-tool: $*" >&2
+    exit 1
+}
+
+# field ENTRY N: the Nth |-separated field of a TOOLS entry.
+field() { cut -d'|' -f"$2" <<<"$1"; }
+
+tool_for() {
+    local entry
+    for entry in "${TOOLS[@]}"; do
+        if [[ " $(field "$entry" 2) " == *" $1 "* ]]; then
+            field "$entry" 1
+            return
+        fi
+    done
+    return 1
+}
+
+version_of() { echo "${!1}"; }
+
+fetch() { curl -fsSL --retry 3 --retry-connrefused "$1"; }
+
+# untar URL [TAR-ARG...]: unpack a .tar.gz into $dir/bin.
+untar() {
+    local url=$1
+    shift
+    fetch "$url" | tar -xz -C "$dir/bin" "$@"
+}
+
+# unzip_to URL TARGET: unpack a .zip into TARGET.
+unzip_to() {
+    fetch "$1" >"$dir/download.zip"
+    unzip -q -o "$dir/download.zip" -d "$2"
+    rm "$dir/download.zip"
+}
+
+binary() { # binary URL NAME
+    fetch "$1" >"$dir/bin/$2"
+    chmod +x "$dir/bin/$2"
+}
+
+npm_tool() { # npm_tool PACKAGE
+    npm install --prefix "$dir" --no-audit --no-fund --no-update-notifier --loglevel=error "$1@$v" >&2
+    rmdir "$dir/bin"
+    ln -s node_modules/.bin "$dir/bin"
+}
+
+# Each install_TOOL puts the tool's commands in $dir/bin, with the version in $v.
+install_aws() {
+    unzip_to "https://awscli.amazonaws.com/awscli-exe-linux-$arch-$v.zip" "$dir/src"
+    "$dir/src/aws/install" --install-dir "$dir/aws-cli" --bin-dir "$dir/bin" >/dev/null
+    rm -rf "$dir/src"
+}
+install_az() {
+    # uv's own Python, inside the tool's folder (not ~/.local, which snapshots keep).
+    export UV_PYTHON_INSTALL_DIR="$dir/python"
+    uv venv --quiet --python 3.12 "$dir/venv"
+    uv pip install --quiet --python "$dir/venv/bin/python" "azure-cli==$v"
+    ln -s ../venv/bin/az "$dir/bin/az"
+}
+install_bun() {
+    local name=bun-linux-${arch/x86_64/x64}
+    unzip_to "https://github.com/oven-sh/bun/releases/download/bun-v$v/$name.zip" "$dir"
+    mv "$dir/$name/bun" "$dir/bin/bun" && rmdir "$dir/$name"
+    ln -s bun "$dir/bin/bunx"
+}
+install_cloud() {
+    composer require --working-dir "$dir" --no-interaction --quiet "laravel/cloud-cli:$v"
+    ln -s ../vendor/bin/cloud "$dir/bin/cloud"
+}
+install_cloudflared() { binary "https://github.com/cloudflare/cloudflared/releases/download/$v/cloudflared-linux-$goarch" cloudflared; }
+install_deno() { unzip_to "https://github.com/denoland/deno/releases/download/v$v/deno-$arch-unknown-linux-gnu.zip" "$dir/bin"; }
+install_doctl() { untar "https://github.com/digitalocean/doctl/releases/download/v$v/doctl-$v-linux-$goarch.tar.gz" doctl; }
+install_eas() { npm_tool eas-cli; }
+install_firebase() { npm_tool firebase-tools; }
+install_flyctl() {
+    untar "https://github.com/superfly/flyctl/releases/download/v$v/flyctl_${v}_Linux_${arch/aarch64/arm64}.tar.gz" flyctl
+    ln -s flyctl "$dir/bin/fly"
+}
+install_gcloud() {
+    rmdir "$dir/bin"
+    fetch "https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-$v-linux-${arch/aarch64/arm}.tar.gz" | tar -xz -C "$dir" --strip-components=1
+}
+install_gh() { untar "https://github.com/cli/cli/releases/download/v$v/gh_${v}_linux_$goarch.tar.gz" --strip-components=2 "gh_${v}_linux_$goarch/bin/gh"; }
+install_glab() { untar "https://gitlab.com/gitlab-org/cli/-/releases/v$v/downloads/glab_${v}_linux_$goarch.tar.gz" --strip-components=1 bin/glab; }
+install_go() {
+    rmdir "$dir/bin"
+    fetch "https://go.dev/dl/go$v.linux-$goarch.tar.gz" | tar -xz -C "$dir" --strip-components=1
+}
+install_helm() { untar "https://get.helm.sh/helm-v$v-linux-$goarch.tar.gz" --strip-components=1 "linux-$goarch/helm"; }
+install_k9s() { untar "https://github.com/derailed/k9s/releases/download/v$v/k9s_Linux_$goarch.tar.gz" k9s; }
+install_kubectl() { binary "https://dl.k8s.io/release/v$v/bin/linux/$goarch/kubectl" kubectl; }
+install_mongosh() {
+    rmdir "$dir/bin"
+    fetch "https://github.com/mongodb-js/mongosh/releases/download/v$v/mongosh-$v-linux-$node.tgz" | tar -xz -C "$dir" --strip-components=1
+}
+install_neonctl() { npm_tool neonctl; }
+install_netlify() { npm_tool netlify-cli; }
+install_pscale() { untar "https://github.com/planetscale/cli/releases/download/v$v/pscale_${v}_linux_$goarch.tar.gz" pscale; }
+install_pulumi() { untar "https://get.pulumi.com/releases/sdk/pulumi-v$v-linux-$node.tar.gz" --strip-components=1; }
+install_railway() { untar "https://github.com/railwayapp/cli/releases/download/v$v/railway-v$v-$arch-unknown-linux-musl.tar.gz" railway; }
+install_render() {
+    unzip_to "https://github.com/render-oss/cli/releases/download/v$v/cli_${v}_linux_$goarch.zip" "$dir/src"
+    mv "$dir/src/cli_v$v" "$dir/bin/render"
+    rm -rf "$dir/src"
+}
+install_sam() {
+    unzip_to "https://github.com/aws/aws-sam-cli/releases/download/v$v/aws-sam-cli-linux-${arch/aarch64/arm64}.zip" "$dir/src"
+    "$dir/src/install" --install-dir "$dir/sam" --bin-dir "$dir/bin" >/dev/null
+    rm -rf "$dir/src"
+}
+install_stripe() { untar "https://github.com/stripe/stripe-cli/releases/download/v$v/stripe_${v}_linux_${arch/aarch64/arm64}.tar.gz" stripe; }
+install_supabase() { untar "https://github.com/supabase/cli/releases/download/v$v/supabase_linux_$goarch.tar.gz" supabase; }
+install_terraform() { unzip_to "https://releases.hashicorp.com/terraform/$v/terraform_${v}_linux_$goarch.zip" "$dir/bin"; rm -f "$dir/bin/LICENSE.txt"; }
+install_tofu() { untar "https://github.com/opentofu/opentofu/releases/download/v$v/tofu_${v}_linux_$goarch.tar.gz" tofu; }
+install_turso() { untar "https://github.com/tursodatabase/turso-cli/releases/download/v$v/turso-cli_Linux_${arch/aarch64/arm64}.tar.gz" turso; }
+install_vercel() { npm_tool vercel; }
+install_wrangler() { npm_tool wrangler; }
+
+# install TOOL: install the current version once (two shells running it at once wait for each other), then remove
+# older versions. A half-finished install (no .installed) is started again.
+install() {
+    local tool=$1 v dir
+    v=$(version_of "$tool")
+    dir="$ROOT/$tool-$v"
+    [ -e "$dir/.installed" ] && return
+
+    mkdir -p "$ROOT"
+    exec 9>"$ROOT/.$tool.lock"
+    flock 9
+    if [ ! -e "$dir/.installed" ]; then
+        echo "Installing $tool $v (first use; it stays installed)…" >&2
+        rm -rf "$dir"
+        mkdir -p "$dir/bin"
+        # A subshell of its own (not an `if` condition, where set -e is off), so any failed step stops the install.
+        set +e
+        (cd "$dir" && set -e && "install_$tool") >&2
+        local status=$?
+        set -e
+        if [ "$status" -ne 0 ]; then
+            rm -rf "$dir"
+            die "couldn't install $tool $v. Check the sandbox can reach the internet, then try again."
+        fi
+        touch "$dir/.installed"
+        find "$ROOT" -mindepth 1 -maxdepth 1 -type d -name "$tool-*" ! -name "$tool-$v" -exec rm -rf {} +
+    fi
+    exec 9>&-
+}
+
+run() {
+    local command=${1:-} tool v
+    [ -n "$command" ] || die "usage: onedrop-tool run COMMAND [ARG...]"
+    tool=$(tool_for "$command") || die "$command isn't a tool onedrop-tool installs."
+    shift
+    install "$tool"
+    v=$(version_of "$tool")
+    PATH="$ROOT/$tool-$v/bin:$PATH" exec "$ROOT/$tool-$v/bin/$command" "$@"
+}
+
+# The command `check` runs to prove a tool works.
+version_command() {
+    case "$1" in
+        doctl) echo 'doctl version' ;;
+        go) echo 'go version' ;;
+        helm) echo 'helm version' ;;
+        k9s) echo 'k9s version --short' ;;
+        kubectl) echo 'kubectl version --client' ;;
+        terraform) echo 'terraform version' ;;
+        tofu) echo 'tofu version' ;;
+        *) echo "$(field "$(entry_of "$1")" 2 | cut -d' ' -f1) --version" ;;
+    esac
+}
+
+entry_of() {
+    local entry
+    for entry in "${TOOLS[@]}"; do
+        [ "$(field "$entry" 1)" = "$1" ] && echo "$entry" && return
+    done
+    return 1
+}
+
+case "${1:-}" in
+    run)
+        shift
+        run "$@"
+        ;;
+    install)
+        shift
+        [ "${1:-}" = --all ] && set -- $(for entry in "${TOOLS[@]}"; do field "$entry" 1; done)
+        [ $# -gt 0 ] || die "usage: onedrop-tool install TOOL... (or --all)"
+        for tool in "$@"; do
+            entry_of "$tool" >/dev/null || die "$tool isn't a tool onedrop-tool installs."
+            install "$tool"
+        done
+        ;;
+    check)
+        mkdir -p "$ROOT"
+        failed=0
+        for entry in "${TOOLS[@]}"; do
+            tool=$(field "$entry" 1)
+            read -r command args <<<"$(version_command "$tool")"
+            # shellcheck disable=SC2086
+            if out=$("$0" run "$command" $args 2>"$ROOT/.check-errors"); then
+                printf '%-12s ok  %s\n' "$tool" "$(grep -m1 . <<<"$out")"
+            else
+                printf '%-12s FAILED\n%s\n%s\n' "$tool" "$out" "$(cat "$ROOT/.check-errors")"
+                failed=1
+            fi
+        done
+        exit "$failed"
+        ;;
+    list)
+        for entry in "${TOOLS[@]}"; do
+            tool=$(field "$entry" 1)
+            v=$(version_of "$tool")
+            state='installs on first use'
+            [ -e "$ROOT/$tool-$v/.installed" ] && state=installed
+            printf '%-24s %-14s %-24s %s\n' "$(field "$entry" 3)" "$v" "$(field "$entry" 2)" "$state"
+        done
+        ;;
+    commands)
+        for entry in "${TOOLS[@]}"; do
+            for command in $(field "$entry" 2); do echo "$(field "$entry" 1) $command"; done
+        done
+        ;;
+    *)
+        die "usage: onedrop-tool run COMMAND [ARG...] | install TOOL... | check | list | commands"
+        ;;
+esac

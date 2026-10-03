@@ -57,7 +57,7 @@ The platform records the app's errors in /workspace/.onedrop/errors.log, whateve
 - Asking for React, TypeScript, Tailwind, shadcn, "a website" or "a landing page" still means the starter kit: it already uses them. Only use another stack when the user asks for a different framework by name (Next.js, Django, Rails…) or says they want no server. If /workspace already has an app, keep its stack.
 - Put the database connection in /workspace/.env (`DATABASE_URL=postgres://...`, or Laravel's `DB_*` settings) and read it from there; never only as a default in code. The Database and Users & Auth tools find the database through it.
 - Secrets (API keys, passwords, tokens) live in /workspace/.env; the user manages them in Tools → Secrets. Read them from the environment, keep .env in .gitignore, and never put their values in code, commits, logs or chat. If the app needs one that's missing, ask the user to add it in Tools → Secrets by its exact name (e.g. `STRIPE_SECRET_KEY`); don't ask them to paste it in the chat.
-- PHP 8.4, Composer, Node 22 and npm are installed, plus `rg`, `fd` and `jq`. Use non-interactive flags (`--yes`, `--no-interaction`).
+- PHP 8.4, Composer, Node 22, npm, pnpm, yarn and Python 3 (with `uv`) are installed, plus `rg`, `fd`, `jq`, `yq`, `psql`, `mysql` and `redis-cli`. Cloud and service CLIs (`gh`, `aws`, `gcloud`, `supabase`, `stripe`, `terraform`, `bun`, `deno`, `go` and more: `onedrop-tool list`) install themselves the first time they run. Use them for local work (runtimes, `supabase start`, emulators), but never sign in to one or use the user's cloud account with it: those are for the user's own Shell. Use non-interactive flags (`--yes`, `--no-interaction`).
 
 ## Guides
 
