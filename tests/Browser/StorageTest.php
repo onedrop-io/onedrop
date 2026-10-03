@@ -43,16 +43,19 @@ test('app storage creates a bucket, uploads and browses objects, and asks the ag
         ->assertScript('document.activeElement?.dataset.test', 'storage-folder-name')
         ->type('@storage-folder-name', 'cats')
         ->click('@storage-folder-submit')
-        ->click('[data-test="storage-folder-cats"] td:first-child button')
+        ->click('[data-test="storage-folder-cats"] td:nth-child(2) button')
         ->assertSeeIn('@storage-breadcrumbs', 'cats');
 
     // Pest's browser server doesn't pass multipart uploads through yet; ProjectStorageTest covers uploading.
     copy($photo, $root.'/photos/cats/'.basename($photo));
+    file_put_contents($root.'/photos/invoice.pdf', '%PDF-1.4');
 
     $page->click('@storage-refresh')
         ->assertSeeIn('@storage-list', basename($photo))
-        ->assertSeeIn('@storage-usage', '1 object')
+        ->assertPresent('[data-test="storage-object-'.basename($photo).'"] svg.lucide-file-image')
+        ->assertSeeIn('@storage-usage', '2 objects')
         ->click('[data-test="storage-breadcrumbs"] > button')
+        ->assertPresent('[data-test="storage-object-invoice.pdf"] svg.lucide-file-text')
         ->type('@storage-search', 'tabby')
         ->assertSeeIn('@storage-list', 'cats/'.basename($photo))
         ->click('@storage-view-menu')
@@ -70,7 +73,7 @@ test('app storage creates a bucket, uploads and browses objects, and asks the ag
     $page = visit("/projects/{$project->id}?tool=storage")->resize(1500, 1000);
 
     $page->assertSeeIn('@storage-view-menu', 'Objects')
-        ->click('[data-test="storage-folder-cats"] td:first-child button')
+        ->click('[data-test="storage-folder-cats"] td:nth-child(2) button')
         ->click('[data-test="storage-menu-'.basename($photo).'"]')
         ->click('[data-test="storage-delete-'.basename($photo).'"]')
         ->click('@storage-delete-submit')
@@ -113,4 +116,46 @@ test('app storage loads while the agent is working', function () {
         ->click('@tool-storage')
         ->assertSeeIn('@storage-empty', 'Store files for your app')
         ->assertNoJavaScriptErrors();
+})->group('STORE-001');
+
+test('app storage selects a range of objects, moves them and deletes them together', function () {
+    $root = storageRoot();
+    app()->instance(SandboxProvider::class, fakeStorageSandbox($root));
+    mkdir($root.'/photos');
+
+    foreach (['a.jpg', 'b.jpg', 'c.jpg', 'd.jpg'] as $name) {
+        file_put_contents($root.'/photos/'.$name, $name);
+    }
+
+    $user = User::factory()->has(AgentConnection::factory())->create();
+    $project = Project::factory()->for($user)->create();
+    Sandbox::factory()->for($project)->create(['preview_url' => null]);
+    $this->actingAs($user);
+
+    $page = visit("/projects/{$project->id}?tool=storage")->resize(1500, 1000);
+
+    // A range: a.jpg, then Shift on c.jpg.
+    $page->click('[data-test="storage-select-a.jpg"]')
+        ->script("document.querySelector('[data-test=\"storage-select-c.jpg\"]').dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true }))");
+
+    $page->assertSeeIn('@storage-selection', '3 selected')
+        ->click('@storage-selection-move')
+        ->assertScript('document.activeElement?.dataset.test', 'storage-move-to')
+        ->type('@storage-move-to', 'archive')
+        ->click('@storage-move-submit')
+        ->assertVisible('[data-test="storage-folder-archive"]')
+        ->assertMissing('@storage-selection')
+        ->assertSeeIn('@storage-list', 'd.jpg');
+
+    expect(scandir($root.'/photos/archive'))->toBe(['.', '..', 'a.jpg', 'b.jpg', 'c.jpg']);
+
+    $page->click('@storage-select-all')
+        ->assertSeeIn('@storage-selection', '2 selected')
+        ->click('@storage-selection-delete')
+        ->assertSeeIn('@storage-delete-dialog', 'Delete 2 items?')
+        ->click('@storage-delete-submit')
+        ->assertSeeIn('@storage-objects-empty', 'No objects')
+        ->assertNoJavaScriptErrors();
+
+    expect(scandir($root.'/photos'))->toBe(['.', '..']);
 })->group('STORE-001');

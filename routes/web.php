@@ -266,7 +266,9 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
         Route::get('projects/{project}/storage/{bucket}/objects', [ProjectStorageController::class, 'objects'])->name('projects.storage.objects');
         Route::post('projects/{project}/storage/{bucket}/objects', [ProjectStorageController::class, 'upload'])->name('projects.storage.upload');
         Route::delete('projects/{project}/storage/{bucket}/objects', [ProjectStorageController::class, 'destroyObject'])->name('projects.storage.objects.destroy');
+        Route::post('projects/{project}/storage/{bucket}/move', [ProjectStorageController::class, 'move'])->name('projects.storage.move');
         Route::get('projects/{project}/storage/{bucket}/download', [ProjectStorageController::class, 'download'])->name('projects.storage.download');
+        Route::post('projects/{project}/storage/{bucket}/zip', [ProjectStorageController::class, 'zip'])->name('projects.storage.zip');
         Route::post('projects/{project}/storage/{bucket}/folders', [ProjectStorageController::class, 'folder'])->name('projects.storage.folder');
         Route::post('projects/{project}/storage/{bucket}/agent', [ProjectStorageController::class, 'agent'])->name('projects.storage.agent');
         Route::get('projects/{project}/developer/networking', [ProjectDeveloperController::class, 'networking'])->name('projects.developer.networking');

@@ -57,11 +57,19 @@ export const storageApi = {
             { path },
         ),
 
-    delete: (projectId: number, bucket: string, path: string) =>
-        request<{ deleted: string }>(
+    /** Delete objects and folders, with everything in them. */
+    delete: (projectId: number, bucket: string, paths: string[]) =>
+        request<{ deleted: string[] }>(
             ProjectStorageController.destroyObject.url(at(projectId, bucket)),
-            { path },
+            { paths },
             'DELETE',
+        ),
+
+    /** Move objects and folders into a folder ('' for the top of the bucket). */
+    move: (projectId: number, bucket: string, paths: string[], to: string) =>
+        request<{ moved: { from: string; to: string }[] }>(
+            ProjectStorageController.move.url(at(projectId, bucket)),
+            { paths, to },
         ),
 
     downloadUrl: (
@@ -91,6 +99,38 @@ export async function downloadObject(
         { credentials: 'same-origin', headers: { Accept: 'application/json' } },
     );
 
+    await saveResponse(response, object.name);
+}
+
+/** Download objects and folders as one zip, named from the folder being viewed (`base`). */
+export async function downloadZip(
+    projectId: number,
+    bucket: string,
+    paths: string[],
+    base: string,
+): Promise<void> {
+    const token = document.cookie.match(/(?:^|; )XSRF-TOKEN=([^;]+)/)?.[1];
+    const response = await fetch(
+        ProjectStorageController.zip.url(at(projectId, bucket)),
+        {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'X-XSRF-TOKEN': decodeURIComponent(token ?? ''),
+            },
+            body: JSON.stringify({ paths, base }),
+        },
+    );
+
+    await saveResponse(
+        response,
+        `${base === '' ? bucket : (base.split('/').pop() ?? bucket)}.zip`,
+    );
+}
+
+async function saveResponse(response: Response, name: string): Promise<void> {
     if (!response.ok) {
         const body = await response.json().catch(() => ({}));
 
@@ -100,7 +140,7 @@ export async function downloadObject(
     const url = URL.createObjectURL(await response.blob());
     const link = document.createElement('a');
     link.href = url;
-    link.download = object.name;
+    link.download = name;
     link.click();
     URL.revokeObjectURL(url);
 }

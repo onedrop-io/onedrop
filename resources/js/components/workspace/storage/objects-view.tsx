@@ -4,20 +4,24 @@ import {
     Download,
     EllipsisVertical,
     Eye,
+    FileArchive,
     FilePlus,
     Folder,
+    FolderInput,
     FolderPlus,
     FolderUp,
     RefreshCw,
     Search,
     Trash2,
     Upload,
+    X,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { DragEvent, FormEvent } from 'react';
+import type { DragEvent, FormEvent, MouseEvent } from 'react';
 import { toast } from 'sonner';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
     Dialog,
     DialogClose,
@@ -37,6 +41,7 @@ import FileIcon from '@/components/workspace/file-icon';
 import { useClipboard } from '@/hooks/use-clipboard';
 import {
     downloadObject,
+    downloadZip,
     droppedFiles,
     formatBytes,
     storageApi,
@@ -51,7 +56,8 @@ const MAX_UPLOAD_BYTES = 10_240 * 1024;
 const PREVIEWABLE = /\.(png|jpe?g|gif|webp|avif|bmp)$/i;
 
 /**
- * One bucket's objects: browse folders, search, upload (buttons or drag and drop), preview, download, delete.
+ * One bucket's objects: browse folders, search, upload (buttons or drag and drop), preview, download, move, delete;
+ * select several (checkboxes, Shift for a range) to download them as a zip, move, copy the paths of, or delete them.
  */
 export default function ObjectsView({
     projectId,
@@ -75,9 +81,12 @@ export default function ObjectsView({
     const [dragging, setDragging] = useState(false);
     const [creatingFolder, setCreatingFolder] = useState(false);
     const [deleting, setDeleting] = useState<{
-        path: string;
+        paths: string[];
         folder: boolean;
     } | null>(null);
+    const [moving, setMoving] = useState<string[] | null>(null);
+    const [selected, setSelected] = useState<string[]>([]);
+    const anchor = useRef<string | null>(null);
     const [previewing, setPreviewing] = useState<StorageObject | null>(null);
     const fileInput = useRef<HTMLInputElement>(null);
     const folderInput = useRef<HTMLInputElement>(null);
@@ -102,6 +111,16 @@ export default function ObjectsView({
             .catch((e: Error) => setError(e.message))
             .finally(() => setLoading(false));
     }, [projectId, bucket, prefix, query]);
+
+    // Keep only what's still listed: a new folder, search or refresh drops the rest of the selection.
+    useEffect(() => {
+        const listed = new Set([
+            ...(listing?.folders ?? []).map((folder) => folder.path),
+            ...(listing?.objects ?? []).map((object) => object.path),
+        ]);
+
+        setSelected((paths) => paths.filter((path) => listed.has(path)));
+    }, [listing]);
 
     // Reload when the folder or search changes, and when a run starts or ends (the agent may store files).
     useEffect(() => {
@@ -171,6 +190,55 @@ export default function ObjectsView({
         copy(path).then((ok) => ok && toast.success(`Copied ${path}`));
 
     const searching = query !== '';
+    const rows = [
+        ...(listing?.folders ?? []).map((folder) => folder.path),
+        ...(listing?.objects ?? []).map((object) => object.path),
+    ];
+    const folderPaths = new Set(
+        (listing?.folders ?? []).map((folder) => folder.path),
+    );
+    const allSelected = rows.length > 0 && selected.length === rows.length;
+
+    /** Check or uncheck a row; with Shift, every row from the last one clicked takes its new state. */
+    const toggle = (path: string, event: MouseEvent) => {
+        event.preventDefault();
+        const checked = !selected.includes(path);
+        const from = anchor.current ? rows.indexOf(anchor.current) : -1;
+        const to = rows.indexOf(path);
+        const range =
+            event.shiftKey && from !== -1
+                ? rows.slice(Math.min(from, to), Math.max(from, to) + 1)
+                : [path];
+
+        anchor.current = path;
+        setSelected((paths) =>
+            checked
+                ? [...paths, ...range.filter((row) => !paths.includes(row))]
+                : paths.filter((row) => !range.includes(row)),
+        );
+    };
+
+    const downloadSelected = () => {
+        const id = toast.loading('Making the zip…');
+
+        downloadZip(
+            projectId,
+            bucket,
+            selected,
+            searching ? '' : prefix.replace(/\/$/, ''),
+        )
+            .then(() => toast.dismiss(id))
+            .catch((e: Error) => toast.error(e.message, { id }));
+    };
+
+    const copySelected = () =>
+        copy(selected.join('\n')).then(
+            (ok) =>
+                ok &&
+                toast.success(
+                    `Copied ${selected.length} ${selected.length === 1 ? 'path' : 'paths'}`,
+                ),
+        );
     const count =
         (listing?.folders.length ?? 0) + (listing?.objects.length ?? 0);
     const crumbs = prefix === '' ? [] : prefix.replace(/\/$/, '').split('/');
@@ -243,6 +311,67 @@ export default function ObjectsView({
                     event.target.value = '';
                 }}
             />
+
+            {selected.length > 0 && (
+                <div
+                    className="flex flex-wrap items-center gap-1 rounded-lg bg-muted/60 px-2 py-1 text-sm"
+                    data-test="storage-selection"
+                >
+                    <span className="mr-auto px-1 font-medium">
+                        {selected.length} selected
+                    </span>
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={downloadSelected}
+                        data-test="storage-selection-download"
+                    >
+                        <FileArchive /> Download zip
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setMoving(selected)}
+                        data-test="storage-selection-move"
+                    >
+                        <FolderInput /> Move
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => void copySelected()}
+                        data-test="storage-selection-copy"
+                    >
+                        <Copy /> Copy paths
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() =>
+                            setDeleting({
+                                paths: selected,
+                                folder: selected.some((path) =>
+                                    folderPaths.has(path),
+                                ),
+                            })
+                        }
+                        data-test="storage-selection-delete"
+                    >
+                        <Trash2 /> Delete
+                    </Button>
+                    <Button
+                        size="icon"
+                        variant="ghost"
+                        className="size-8"
+                        aria-label="Clear selection"
+                        onClick={() => setSelected([])}
+                        data-test="storage-selection-clear"
+                    >
+                        <X />
+                    </Button>
+                </div>
+            )}
 
             <div className="flex items-center justify-between gap-2 text-sm">
                 <nav
@@ -344,6 +473,23 @@ export default function ObjectsView({
                     <table className="w-full text-sm">
                         <thead className="text-left text-xs text-muted-foreground">
                             <tr className="border-b border-sidebar-border/70 dark:border-sidebar-border">
+                                <th className="w-8 py-2 pl-3">
+                                    <Checkbox
+                                        aria-label="Select all"
+                                        checked={
+                                            allSelected
+                                                ? true
+                                                : selected.length > 0
+                                                  ? 'indeterminate'
+                                                  : false
+                                        }
+                                        onCheckedChange={() =>
+                                            setSelected(allSelected ? [] : rows)
+                                        }
+                                        className="align-middle"
+                                        data-test="storage-select-all"
+                                    />
+                                </th>
                                 <th className="px-3 py-2 font-normal">Name</th>
                                 <th className="w-24 px-3 py-2 text-right font-normal">
                                     Size
@@ -361,6 +507,19 @@ export default function ObjectsView({
                                     className="border-b border-sidebar-border/40 last:border-0 hover:bg-muted/50"
                                     data-test={`storage-folder-${folder.name}`}
                                 >
+                                    <td className="py-1.5 pl-3">
+                                        <Checkbox
+                                            aria-label={`Select ${folder.name}`}
+                                            checked={selected.includes(
+                                                folder.path,
+                                            )}
+                                            onClick={(event) =>
+                                                toggle(folder.path, event)
+                                            }
+                                            className="align-middle"
+                                            data-test={`storage-select-${folder.name}`}
+                                        />
+                                    </td>
                                     <td className="px-3 py-1.5">
                                         <button
                                             type="button"
@@ -385,9 +544,12 @@ export default function ObjectsView({
                                         <RowMenu
                                             name={folder.name}
                                             onCopy={() => copyPath(folder.path)}
+                                            onMove={() =>
+                                                setMoving([folder.path])
+                                            }
                                             onDelete={() =>
                                                 setDeleting({
-                                                    path: folder.path,
+                                                    paths: [folder.path],
                                                     folder: true,
                                                 })
                                             }
@@ -406,6 +568,19 @@ export default function ObjectsView({
                                         className="border-b border-sidebar-border/40 last:border-0 hover:bg-muted/50"
                                         data-test={`storage-object-${object.name}`}
                                     >
+                                        <td className="py-1.5 pl-3">
+                                            <Checkbox
+                                                aria-label={`Select ${object.name}`}
+                                                checked={selected.includes(
+                                                    object.path,
+                                                )}
+                                                onClick={(event) =>
+                                                    toggle(object.path, event)
+                                                }
+                                                className="align-middle"
+                                                data-test={`storage-select-${object.name}`}
+                                            />
+                                        </td>
                                         <td className="px-3 py-1.5">
                                             <button
                                                 type="button"
@@ -457,9 +632,12 @@ export default function ObjectsView({
                                                 onCopy={() =>
                                                     copyPath(object.path)
                                                 }
+                                                onMove={() =>
+                                                    setMoving([object.path])
+                                                }
                                                 onDelete={() =>
                                                     setDeleting({
-                                                        path: object.path,
+                                                        paths: [object.path],
                                                         folder: false,
                                                     })
                                                 }
@@ -489,9 +667,25 @@ export default function ObjectsView({
             <DeleteObjectDialog
                 target={deleting}
                 onClose={() => setDeleting(null)}
-                onDelete={(path) =>
-                    storageApi.delete(projectId, bucket, path).then(() => {
+                onDelete={(paths) =>
+                    storageApi.delete(projectId, bucket, paths).then(() => {
                         setDeleting(null);
+                        setSelected([]);
+                        changed();
+                    })
+                }
+            />
+            <MoveDialog
+                paths={moving}
+                folder={searching ? '' : prefix.replace(/\/$/, '')}
+                onClose={() => setMoving(null)}
+                onMove={(paths, to) =>
+                    storageApi.move(projectId, bucket, paths, to).then(() => {
+                        setMoving(null);
+                        setSelected([]);
+                        toast.success(
+                            `Moved ${paths.length === 1 ? paths[0].split('/').pop() : `${paths.length} items`} to ${to === '' ? 'the top of the bucket' : to}.`,
+                        );
                         changed();
                     })
                 }
@@ -541,12 +735,14 @@ function RowMenu({
     onPreview,
     onDownload,
     onCopy,
+    onMove,
     onDelete,
 }: {
     name: string;
     onPreview?: () => void;
     onDownload?: () => void;
     onCopy: () => void;
+    onMove: () => void;
     onDelete: () => void;
 }) {
     return (
@@ -578,6 +774,12 @@ function RowMenu({
                 )}
                 <DropdownMenuItem onSelect={onCopy}>
                     <Copy /> Copy path
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                    onSelect={onMove}
+                    data-test={`storage-move-${name}`}
+                >
+                    <FolderInput /> Move
                 </DropdownMenuItem>
                 <DropdownMenuItem
                     variant="destructive"
@@ -676,9 +878,9 @@ function DeleteObjectDialog({
     onClose,
     onDelete,
 }: {
-    target: { path: string; folder: boolean } | null;
+    target: { paths: string[]; folder: boolean } | null;
     onClose: () => void;
-    onDelete: (path: string) => Promise<void>;
+    onDelete: (paths: string[]) => Promise<void>;
 }) {
     const [error, setError] = useState<string | null>(null);
     const [deleting, setDeleting] = useState(false);
@@ -692,13 +894,20 @@ function DeleteObjectDialog({
         >
             <DialogContent data-test="storage-delete-dialog">
                 <DialogTitle className="truncate pr-6">
-                    Delete {target?.path}?
+                    Delete{' '}
+                    {target?.paths.length === 1
+                        ? target.paths[0]
+                        : `${target?.paths.length} items`}
+                    ?
                 </DialogTitle>
                 <DialogDescription>
-                    {target?.folder
-                        ? 'This permanently deletes the folder and everything in it.'
-                        : 'This permanently deletes the object.'}{' '}
-                    Your app can’t get it back.
+                    {target?.paths.length === 1
+                        ? target.folder
+                            ? 'This permanently deletes the folder and everything in it. Your app can’t get it back.'
+                            : 'This permanently deletes the object. Your app can’t get it back.'
+                        : target?.folder
+                          ? 'This permanently deletes them, and everything in the folders. Your app can’t get them back.'
+                          : 'This permanently deletes them. Your app can’t get them back.'}
                 </DialogDescription>
                 <InputError message={error ?? undefined} />
                 <DialogFooter className="gap-2">
@@ -716,7 +925,7 @@ function DeleteObjectDialog({
                             }
 
                             setDeleting(true);
-                            onDelete(target.path)
+                            onDelete(target.paths)
                                 .catch((e: Error) => setError(e.message))
                                 .finally(() => setDeleting(false));
                         }}
@@ -725,6 +934,93 @@ function DeleteObjectDialog({
                         Delete
                     </Button>
                 </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function MoveDialog({
+    paths,
+    folder,
+    onClose,
+    onMove,
+}: {
+    paths: string[] | null;
+    /** The folder being viewed, offered as the starting point. */
+    folder: string;
+    onClose: () => void;
+    onMove: (paths: string[], to: string) => Promise<void>;
+}) {
+    const [to, setTo] = useState('');
+    const [error, setError] = useState<string | null>(null);
+    const [saving, setSaving] = useState(false);
+
+    useEffect(() => {
+        if (paths) {
+            setTo(folder === '' ? '' : `${folder}/`);
+            setError(null);
+        }
+    }, [paths, folder]);
+
+    const submit = (event: FormEvent) => {
+        event.preventDefault();
+
+        if (!paths) {
+            return;
+        }
+
+        setSaving(true);
+        onMove(paths, to.trim().replace(/^\/+|\/+$/g, ''))
+            .catch((e: Error) => setError(e.message))
+            .finally(() => setSaving(false));
+    };
+
+    return (
+        <Dialog
+            open={paths !== null}
+            onOpenChange={(next) => !next && onClose()}
+        >
+            <DialogContent data-test="storage-move-dialog">
+                <form onSubmit={submit} className="space-y-4">
+                    <DialogTitle className="truncate pr-6">
+                        Move{' '}
+                        {paths?.length === 1
+                            ? paths[0].split('/').pop()
+                            : `${paths?.length} items`}
+                    </DialogTitle>
+                    <DialogDescription>
+                        Into a folder of this bucket, made if it doesn’t exist.
+                        Leave it empty for the top of the bucket.
+                    </DialogDescription>
+                    <div className="space-y-1">
+                        <Input
+                            autoFocus
+                            aria-label="Folder"
+                            value={to}
+                            onChange={(event) => {
+                                setTo(event.target.value);
+                                setError(null);
+                            }}
+                            placeholder="archive/2026"
+                            data-test="storage-move-to"
+                        />
+                        <InputError message={error ?? undefined} />
+                    </div>
+                    <DialogFooter className="gap-2">
+                        <DialogClose asChild>
+                            <Button type="button" variant="secondary">
+                                Cancel
+                            </Button>
+                        </DialogClose>
+                        <Button
+                            type="submit"
+                            disabled={saving}
+                            data-test="storage-move-submit"
+                        >
+                            Move
+                        </Button>
+                    </DialogFooter>
+                </form>
             </DialogContent>
         </Dialog>
     );

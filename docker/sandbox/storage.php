@@ -5,7 +5,7 @@
  *
  * Buckets are folders in $APP_STORAGE_DIR (/data/storage), on the sandbox's disk but outside the app's code;
  * objects are the files inside them. The app reads and writes them directly (see guides/storage.md).
- * This lists, creates and deletes buckets, and lists, searches, uploads, reads and deletes objects.
+ * This lists, creates and deletes buckets, and lists, searches, uploads, reads, moves, zips and deletes objects.
  *
  * Reads one JSON request from $APP_STORAGE_REQUEST and prints one JSON response:
  * {"ok": true, "data": ...} or {"ok": false, "error": "..."}.
@@ -23,6 +23,7 @@ const UPLOAD_PATTERN = '/^[a-f0-9]{16,64}$/';
 const PATH_BYTES_MAX = 1024;
 const SEARCH_RESULTS_MAX = 500;
 const LIST_ENTRIES_MAX = 5000;
+const BATCH_PATHS_MAX = 1000;
 
 /** Unfinished uploads older than this are removed. */
 const UPLOAD_TTL_SECONDS = 86400;
@@ -288,31 +289,164 @@ function createFolder(array $request): array
 }
 
 /**
- * Delete an object, or a folder and everything in it.
+ * Delete objects and folders (with everything in them). Paths already gone are skipped,
+ * so a folder and something inside it can be deleted together.
  *
  * @param  array<string, mixed>  $request
- * @return array{path: string}
+ * @return array{deleted: list<string>}
  */
-function deleteObject(array $request): array
+function deleteObjects(array $request): array
 {
     $bucketDir = bucketDir($request['bucket'] ?? null);
-    $path = validPath($request['path'] ?? null);
-    $target = $bucketDir.'/'.$path;
+    $deleted = [];
 
-    if (is_link($target)) {
-        unlink($target);
+    foreach (validPaths($request['paths'] ?? null) as $path) {
+        $target = $bucketDir.'/'.$path;
 
-        return ['path' => $path];
+        if (is_link($target)) {
+            unlink($target);
+        } elseif (file_exists($target)) {
+            $real = insideBucket($bucketDir, $target);
+            is_dir($real) ? removeTree($real) : unlink($real);
+        } else {
+            continue;
+        }
+
+        $deleted[] = $path;
     }
 
-    if (! file_exists($target)) {
-        throw new ToolError("{$path} isn't in the bucket anymore. Refresh to see what's there.");
+    return ['deleted' => $deleted];
+}
+
+/**
+ * Move objects and folders into a folder of the bucket (created if missing). Everything is checked
+ * before anything moves, so a clash moves nothing.
+ *
+ * @param  array<string, mixed>  $request
+ * @return array{moved: list<array{from: string, to: string}>}
+ */
+function moveObjects(array $request): array
+{
+    $bucketDir = bucketDir($request['bucket'] ?? null);
+    $folder = validPath($request['to'] ?? '', allowEmpty: true);
+    $folderDir = $folder === '' ? $bucketDir : $bucketDir.'/'.$folder;
+    $where = $folder === '' ? 'the top of the bucket' : $folder;
+    $moves = [];
+
+    if (file_exists($folderDir) && ! is_dir($folderDir)) {
+        throw new ToolError("{$folder} is a file, not a folder.");
     }
 
-    $real = insideBucket($bucketDir, $target);
-    is_dir($real) ? removeTree($real) : unlink($real);
+    foreach (validPaths($request['paths'] ?? null) as $path) {
+        $source = $bucketDir.'/'.$path;
 
-    return ['path' => $path];
+        if (! file_exists($source) && ! is_link($source)) {
+            throw new ToolError("{$path} isn't in the bucket anymore. Refresh to see what's there.");
+        }
+
+        insideBucket($bucketDir, is_link($source) ? dirname($source) : $source);
+
+        if (is_dir($source) && ($folder === $path || str_starts_with($folder, $path.'/'))) {
+            throw new ToolError("{$path} can't move into itself.");
+        }
+
+        $to = ltrim($folder.'/'.basename($path), '/');
+
+        if ($to === $path) {
+            continue;
+        }
+
+        if (file_exists($bucketDir.'/'.$to) || is_link($bucketDir.'/'.$to) || isset($moves[$to])) {
+            throw new ToolError(sprintf('%s is already in %s.', basename($path), $where));
+        }
+
+        $moves[$to] = $path;
+    }
+
+    if ($folder !== '' && ! is_dir($folderDir)) {
+        makeParents($bucketDir, $folderDir);
+
+        if (! @mkdir($folderDir, 0755)) {
+            throw new ToolError("Couldn't create {$folder}.");
+        }
+    }
+
+    insideBucket($bucketDir, $folderDir);
+    $moved = [];
+
+    foreach ($moves as $to => $from) {
+        if (! @rename($bucketDir.'/'.$from, $bucketDir.'/'.$to)) {
+            throw new ToolError("Couldn't move {$from}.");
+        }
+
+        $moved[] = ['from' => $from, 'to' => $to];
+    }
+
+    return ['moved' => $moved];
+}
+
+/**
+ * Objects and folders (with everything in them) as one zip, base64-encoded, if their files add up to no
+ * more than "max" bytes. Entries are named from "base" (the folder being viewed) when they're inside it.
+ *
+ * @param  array<string, mixed>  $request
+ * @return array{data: string, files: int}
+ */
+function zipObjects(array $request): array
+{
+    $bucketDir = bucketDir($request['bucket'] ?? null);
+    $base = validPath($request['base'] ?? '', allowEmpty: true);
+    $max = (int) ($request['max'] ?? 0);
+    $files = [];
+    $bytes = 0;
+
+    foreach (validPaths($request['paths'] ?? null) as $path) {
+        $target = $bucketDir.'/'.$path;
+
+        if (! file_exists($target)) {
+            throw new ToolError("{$path} isn't in the bucket anymore. Refresh to see what's there.");
+        }
+
+        $real = insideBucket($bucketDir, $target);
+
+        foreach (is_dir($real) ? filesIn($real) : [new SplFileInfo($real)] as $file) {
+            if (! $file->isFile()) {
+                continue;
+            }
+
+            $fileReal = insideBucket($bucketDir, $file->getPathname());
+            $inBucket = substr($fileReal, strlen((string) realpath($bucketDir)) + 1);
+            $name = $base !== '' && str_starts_with($inBucket, $base.'/') ? substr($inBucket, strlen($base) + 1) : $inBucket;
+            $bytes += (int) $file->getSize();
+
+            if ($max > 0 && $bytes > $max) {
+                throw new ToolError(sprintf('The selection is too large to download as a zip (the limit is %d MB).', intdiv($max, 1_000_000)));
+            }
+
+            $files[$name] = $fileReal;
+        }
+    }
+
+    if ($files === []) {
+        throw new ToolError('There are no files in the selection, only empty folders.');
+    }
+
+    $zipFile = tempnam(sys_get_temp_dir(), 'storage-zip-');
+    $zip = new ZipArchive;
+
+    if ($zipFile === false || $zip->open($zipFile, ZipArchive::OVERWRITE) !== true) {
+        throw new ToolError("Couldn't make the zip.");
+    }
+
+    foreach ($files as $name => $file) {
+        $zip->addFile($file, $name);
+    }
+
+    $zip->close();
+    $data = base64_encode((string) file_get_contents($zipFile));
+    @unlink($zipFile);
+
+    return ['data' => $data, 'files' => count($files)];
 }
 
 /**
@@ -415,6 +549,20 @@ function readObject(array $request): array
     return [...objectInfo($bucketDir, new SplFileInfo($target)), 'data' => base64_encode($bytes)];
 }
 
+/**
+ * A batch's cleaned paths: at least one, at most BATCH_PATHS_MAX, without repeats.
+ *
+ * @return list<string>
+ */
+function validPaths(mixed $paths): array
+{
+    if (! is_array($paths) || $paths === [] || count($paths) > BATCH_PATHS_MAX) {
+        throw new ToolError(sprintf('Choose 1 to %d items.', BATCH_PATHS_MAX));
+    }
+
+    return array_values(array_unique(array_map(fn (mixed $path) => validPath($path), $paths)));
+}
+
 function uploadFile(mixed $id): string
 {
     if (! is_string($id) || ! preg_match(UPLOAD_PATTERN, $id)) {
@@ -479,7 +627,9 @@ try {
         'list' => listObjects($request),
         'search' => searchObjects($request),
         'mkdir' => createFolder($request),
-        'delete' => deleteObject($request),
+        'delete' => deleteObjects($request),
+        'move' => moveObjects($request),
+        'zip' => zipObjects($request),
         'upload-chunk' => uploadChunk($request),
         'upload-finish' => finishUpload($request),
         'read' => readObject($request),

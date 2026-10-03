@@ -104,19 +104,51 @@ class ProjectStorageController extends Controller
     }
 
     /**
-     * Delete an object, or a folder and everything in it.
+     * Delete objects and folders, with everything in them.
      */
     public function destroyObject(Request $request, Project $project, string $bucket, WorkspaceStorage $storage): JsonResponse
     {
         Gate::authorize('update', $project);
 
-        $path = $request->validate(['path' => self::PATH_RULES])['path'];
+        $paths = $this->validatedPaths($request);
 
-        return $this->fromSandbox($project, function (Sandbox $sandbox) use ($storage, $bucket, $path) {
-            $storage->delete($sandbox, $bucket, $path);
+        return $this->fromSandbox($project, fn (Sandbox $sandbox) => ['deleted' => $storage->delete($sandbox, $bucket, $paths)]);
+    }
 
-            return ['deleted' => trim($path, '/')];
-        });
+    /**
+     * Move objects and folders into another folder of the bucket.
+     */
+    public function move(Request $request, Project $project, string $bucket, WorkspaceStorage $storage): JsonResponse
+    {
+        Gate::authorize('update', $project);
+
+        $paths = $this->validatedPaths($request);
+        $folder = trim((string) ($request->validate(['to' => ['nullable', 'string', 'max:1024']])['to'] ?? ''), '/');
+
+        return $this->fromSandbox($project, fn (Sandbox $sandbox) => ['moved' => $storage->move($sandbox, $bucket, $paths, $folder)]);
+    }
+
+    /**
+     * Objects and folders downloaded as one zip.
+     */
+    public function zip(Request $request, Project $project, string $bucket, WorkspaceStorage $storage): Response|JsonResponse
+    {
+        Gate::authorize('view', $project);
+
+        $paths = $this->validatedPaths($request);
+        $base = trim((string) ($request->validate(['base' => ['nullable', 'string', 'max:1024']])['base'] ?? ''), '/');
+        $name = ($base === '' ? $bucket : basename($base)).'.zip';
+
+        return $this->fromSandbox($project, fn (Sandbox $sandbox) => response($storage->zip($sandbox, $bucket, $paths, $base), 200, [
+            'Content-Type' => 'application/zip',
+            'Content-Disposition' => HeaderUtils::makeDisposition(
+                HeaderUtils::DISPOSITION_ATTACHMENT,
+                $name,
+                preg_replace('/[^\x20-\x7e]|[%\/\\\\]/', '_', $name),
+            ),
+            'X-Content-Type-Options' => 'nosniff',
+            'Cache-Control' => 'private, no-store',
+        ]));
     }
 
     /**
@@ -160,6 +192,19 @@ class ProjectStorageController extends Controller
 
             return ['queued' => (bool) $queue->send($project, WorkspaceStorage::setupRequest($bucket, $uses))->queued];
         });
+    }
+
+    /**
+     * The objects and folders a batch action applies to.
+     *
+     * @return list<string>
+     */
+    protected function validatedPaths(Request $request): array
+    {
+        return array_values($request->validate([
+            'paths' => ['required', 'array', 'min:1', 'max:'.WorkspaceStorage::MAX_BATCH_PATHS],
+            'paths.*' => self::PATH_RULES,
+        ])['paths']);
     }
 
     /**

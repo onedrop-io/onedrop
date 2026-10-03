@@ -98,19 +98,27 @@ test('it never reaches outside the bucket', function (string $op, array $request
     mkdir($this->root.'/photos');
     mkdir($this->root.'/other');
     file_put_contents($this->root.'/other/secret.txt', 'secret');
+    file_put_contents($this->root.'/photos/a.txt', 'a');
     symlink($this->root.'/other', $this->root.'/photos/link');
 
     $response = runStorageTool($this->root, ['op' => $op, 'bucket' => 'photos', ...$request]);
 
     expect($response['ok'])->toBeFalse()
-        ->and(file_get_contents($this->root.'/other/secret.txt'))->toBe('secret');
+        ->and(file_get_contents($this->root.'/other/secret.txt'))->toBe('secret')
+        ->and(scandir($this->root.'/other'))->toBe(['.', '..', 'secret.txt']);
 })->with([
     'read with ..' => ['read', ['path' => '../other/secret.txt']],
     'read through a symlink' => ['read', ['path' => 'link/secret.txt']],
     'list with ..' => ['list', ['prefix' => '..']],
     'list through a symlink' => ['list', ['prefix' => 'link']],
-    'delete with ..' => ['delete', ['path' => '../other']],
-    'delete through a symlink' => ['delete', ['path' => 'link/secret.txt']],
+    'delete with ..' => ['delete', ['paths' => ['../other']]],
+    'delete through a symlink' => ['delete', ['paths' => ['link/secret.txt']]],
+    'move with ..' => ['move', ['paths' => ['../other/secret.txt'], 'to' => '']],
+    'move out with ..' => ['move', ['paths' => ['link'], 'to' => '..']],
+    'move through a symlink' => ['move', ['paths' => ['link/secret.txt'], 'to' => '']],
+    'move into a symlink' => ['move', ['paths' => ['a.txt'], 'to' => 'link']],
+    'zip with ..' => ['zip', ['paths' => ['../other']]],
+    'zip through a symlink' => ['zip', ['paths' => ['link/secret.txt']]],
     'mkdir with ..' => ['mkdir', ['path' => '../other/new']],
     'upload with a bad id' => ['upload-finish', ['upload' => '../../other/secret.txt', 'path' => 'x']],
 ])->group('STORE-001');
@@ -123,8 +131,8 @@ test('it creates folders, and deletes objects, folders and whole buckets', funct
 
     expect(runStorageTool($this->root, ['op' => 'mkdir', 'bucket' => 'photos', 'path' => 'cats'])['error'])->toBe('cats already exists.');
 
-    runStorageTool($this->root, ['op' => 'delete', 'bucket' => 'photos', 'path' => 'b.jpg']);
-    runStorageTool($this->root, ['op' => 'delete', 'bucket' => 'photos', 'path' => 'cats']);
+    expect(runStorageTool($this->root, ['op' => 'delete', 'bucket' => 'photos', 'paths' => ['b.jpg', 'cats', 'cats/kittens/a.jpg', 'gone.jpg']]))
+        ->toBe(['ok' => true, 'data' => ['deleted' => ['b.jpg', 'cats']]]);
     expect(scandir($this->root.'/photos'))->toBe(['.', '..']);
 
     runStorageTool($this->root, ['op' => 'delete-bucket', 'name' => 'photos']);
@@ -135,3 +143,63 @@ test('it explains a missing bucket', function () {
     expect(runStorageTool($this->root, ['op' => 'list', 'bucket' => 'photos']))
         ->toBe(['ok' => false, 'error' => "There's no bucket called photos. Refresh to see the current list."]);
 })->group('STORE-001');
+
+test('it moves objects and folders into a folder, creating it, and moves nothing on a clash', function () {
+    mkdir($this->root.'/photos/cats', 0755, true);
+    file_put_contents($this->root.'/photos/a.jpg', 'a');
+    file_put_contents($this->root.'/photos/b.jpg', 'b');
+    file_put_contents($this->root.'/photos/cats/tabby.jpg', 't');
+
+    expect(runStorageTool($this->root, ['op' => 'move', 'bucket' => 'photos', 'paths' => ['a.jpg', 'cats'], 'to' => 'archive/2026']))
+        ->toBe(['ok' => true, 'data' => ['moved' => [
+            ['from' => 'a.jpg', 'to' => 'archive/2026/a.jpg'],
+            ['from' => 'cats', 'to' => 'archive/2026/cats'],
+        ]]]);
+    expect(file_get_contents($this->root.'/photos/archive/2026/cats/tabby.jpg'))->toBe('t');
+
+    file_put_contents($this->root.'/photos/a.jpg', 'new');
+
+    expect(runStorageTool($this->root, ['op' => 'move', 'bucket' => 'photos', 'paths' => ['b.jpg', 'a.jpg'], 'to' => 'archive/2026']))
+        ->toBe(['ok' => false, 'error' => 'a.jpg is already in archive/2026.'])
+        ->and(file_exists($this->root.'/photos/b.jpg'))->toBeTrue();
+
+    expect(runStorageTool($this->root, ['op' => 'move', 'bucket' => 'photos', 'paths' => ['archive'], 'to' => 'archive/2026']))
+        ->toBe(['ok' => false, 'error' => "archive can't move into itself."]);
+
+    expect(runStorageTool($this->root, ['op' => 'move', 'bucket' => 'photos', 'paths' => ['archive/2026/a.jpg'], 'to' => '']))
+        ->toBe(['ok' => false, 'error' => 'a.jpg is already in the top of the bucket.']);
+})->group('STORE-001');
+
+test('it zips objects and folders, named from the folder being viewed, up to the limit', function () {
+    mkdir($this->root.'/photos/2026/cats', 0755, true);
+    file_put_contents($this->root.'/photos/2026/a.jpg', 'aaa');
+    file_put_contents($this->root.'/photos/2026/cats/tabby.jpg', 'ttt');
+    mkdir($this->root.'/photos/2026/empty');
+
+    $response = runStorageTool($this->root, ['op' => 'zip', 'bucket' => 'photos', 'paths' => ['2026/a.jpg', '2026/cats', '2026/empty'], 'base' => '2026']);
+    $file = tempnam(sys_get_temp_dir(), 'zip-test-');
+    file_put_contents($file, base64_decode($response['data']['data']));
+    $zip = new ZipArchive;
+    $zip->open($file);
+    $names = array_map(fn (int $i) => $zip->getNameIndex($i), range(0, $zip->numFiles - 1));
+    sort($names);
+
+    expect($names)->toBe(['a.jpg', 'cats/tabby.jpg'])
+        ->and($zip->getFromName('cats/tabby.jpg'))->toBe('ttt')
+        ->and($response['data']['files'])->toBe(2);
+
+    $zip->close();
+    unlink($file);
+
+    expect(runStorageTool($this->root, ['op' => 'zip', 'bucket' => 'photos', 'paths' => ['2026'], 'max' => 5]))
+        ->toBe(['ok' => false, 'error' => 'The selection is too large to download as a zip (the limit is 0 MB).']);
+    expect(runStorageTool($this->root, ['op' => 'zip', 'bucket' => 'photos', 'paths' => ['2026/empty']]))
+        ->toBe(['ok' => false, 'error' => 'There are no files in the selection, only empty folders.']);
+})->group('STORE-001');
+
+test('batch actions need 1 to 1000 paths', function (array $paths) {
+    mkdir($this->root.'/photos');
+
+    expect(runStorageTool($this->root, ['op' => 'delete', 'bucket' => 'photos', 'paths' => $paths]))
+        ->toBe(['ok' => false, 'error' => 'Choose 1 to 1000 items.']);
+})->with(['none' => [[]], 'too many' => [array_map(fn (int $i) => "f{$i}.jpg", range(1, 1001))]])->group('STORE-001');

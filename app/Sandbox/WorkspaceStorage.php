@@ -23,6 +23,9 @@ class WorkspaceStorage
     /** Largest object that can be downloaded or previewed, in bytes. */
     public const MAX_DOWNLOAD_BYTES = 25_000_000;
 
+    /** Most objects and folders one batch action (delete, move, zip) takes. */
+    public const MAX_BATCH_PATHS = 1000;
+
     /** Base64 characters sent per exec when uploading: a multiple of 4, under Linux's 128 KiB env limit. */
     public const UPLOAD_CHUNK_BYTES = 64_000;
 
@@ -93,13 +96,43 @@ class WorkspaceStorage
     }
 
     /**
-     * Delete an object, or a folder and everything in it.
+     * Delete objects and folders (with everything in them); paths already gone are skipped.
+     *
+     * @param  list<string>  $paths
+     * @return list<string> The paths deleted.
      *
      * @throws SandboxException|StorageException
      */
-    public function delete(Sandbox $sandbox, string $bucket, string $path): void
+    public function delete(Sandbox $sandbox, string $bucket, array $paths): array
     {
-        $this->call($sandbox, ['op' => 'delete', 'bucket' => $bucket, 'path' => $path]);
+        return $this->call($sandbox, ['op' => 'delete', 'bucket' => $bucket, 'paths' => $paths])['deleted'];
+    }
+
+    /**
+     * Move objects and folders into a folder ('' for the top of the bucket), or nothing if any would clash.
+     *
+     * @param  list<string>  $paths
+     * @return list<array{from: string, to: string}>
+     *
+     * @throws SandboxException|StorageException
+     */
+    public function move(Sandbox $sandbox, string $bucket, array $paths, string $folder): array
+    {
+        return $this->call($sandbox, ['op' => 'move', 'bucket' => $bucket, 'paths' => $paths, 'to' => $folder])['moved'];
+    }
+
+    /**
+     * Objects and folders as one zip's bytes, named from the folder being viewed.
+     *
+     * @param  list<string>  $paths
+     *
+     * @throws SandboxException|StorageException
+     */
+    public function zip(Sandbox $sandbox, string $bucket, array $paths, string $base = ''): string
+    {
+        $data = $this->call($sandbox, ['op' => 'zip', 'bucket' => $bucket, 'paths' => $paths, 'base' => $base, 'max' => self::MAX_DOWNLOAD_BYTES]);
+
+        return (string) base64_decode($data['data'], true);
     }
 
     /**

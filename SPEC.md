@@ -1172,8 +1172,12 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Bucket names should be 3–63 lowercase letters, digits and dashes, starting and ending with a letter or digit; creating one that already exists should say so.
 - User should be able to switch buckets, create another bucket from the bucket menu, and delete a bucket (and everything in it) after typing its name to confirm.
 - User should be able to browse a bucket by folder, seeing each object's name, size and when it changed, plus the folder's item count and the bucket's total objects and size.
+- User should see an icon for each object's type (image, video, audio, PDF, document, spreadsheet, archive), colored like the Files panel's.
 - User should be able to upload files and whole folders (with buttons or by dragging them in), create folders, search the whole bucket by name, and refresh.
-- User should be able to preview images, download an object, copy its path, and delete an object or folder after confirming.
+- User should be able to preview images, download an object, copy its path, move it, and delete an object or folder after confirming.
+- User should be able to select objects and folders with checkboxes (one, a range with Shift, or everything in the list) and then, for the whole selection: download it as one zip, move it to another folder in the bucket, copy the paths, or delete it after one confirmation.
+- Moving should refuse (and move nothing) when something with the same name is already in the target folder, or when a folder would move into itself; the target folder is created if it doesn't exist.
+- A zip download should be up to 25 MB of files in total.
 - Uploads should be up to 10 MB per file and replace an object at the same path; downloads and previews up to 25 MB.
 - User should see a Commands view with code for reading and writing the selected bucket from the app (Node.js and Laravel/PHP), and be able to ask the agent to set up uploads with that bucket (queued if it's working), following a platform guide.
 - Objects should live on the sandbox's disk outside the app's code (`$APP_STORAGE_DIR`, `/data/storage/<bucket>`), so they're not in git, the Files panel or the project zip; the preview and the published app use the same files, and they're kept when the sandbox is recreated with its files.

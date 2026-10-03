@@ -95,9 +95,63 @@ test('the owner uploads, browses, searches, downloads and deletes objects', func
         ->assertHeader('Content-Type', 'image/png')
         ->assertHeader('Content-Disposition', 'inline; filename=tabby.png');
 
-    $this->deleteJson(route('projects.storage.objects.destroy', [$this->project, 'photos']), ['path' => 'cats'])->assertOk();
+    $this->deleteJson(route('projects.storage.objects.destroy', [$this->project, 'photos']), ['paths' => ['cats']])
+        ->assertOk()
+        ->assertExactJson(['deleted' => ['cats']]);
 
     expect(is_dir($this->root.'/photos/cats'))->toBeFalse();
+})->group('STORE-001');
+
+test('the owner moves, zips and deletes several objects and folders at once', function () {
+    mkdir($this->root.'/photos/cats', 0755, true);
+    file_put_contents($this->root.'/photos/a.jpg', 'aaa');
+    file_put_contents($this->root.'/photos/cats/tabby.jpg', 'ttt');
+
+    $this->actingAs($this->user)
+        ->postJson(route('projects.storage.move', [$this->project, 'photos']), ['paths' => ['a.jpg', 'cats'], 'to' => '/archive/'])
+        ->assertOk()
+        ->assertJsonPath('moved.1', ['from' => 'cats', 'to' => 'archive/cats']);
+
+    $zip = $this->post(route('projects.storage.zip', [$this->project, 'photos']), ['paths' => ['archive/a.jpg', 'archive/cats'], 'base' => 'archive'])
+        ->assertOk()
+        ->assertHeader('Content-Type', 'application/zip')
+        ->assertDownload('archive.zip');
+    $file = tempnam(sys_get_temp_dir(), 'zip-test-');
+    file_put_contents($file, $zip->getContent());
+    $archive = new ZipArchive;
+    $archive->open($file);
+    expect($archive->getFromName('cats/tabby.jpg'))->toBe('ttt');
+    $archive->close();
+    unlink($file);
+
+    $this->deleteJson(route('projects.storage.objects.destroy', [$this->project, 'photos']), ['paths' => ['archive/a.jpg', 'archive/cats']])
+        ->assertOk()
+        ->assertExactJson(['deleted' => ['archive/a.jpg', 'archive/cats']]);
+
+    expect(scandir($this->root.'/photos/archive'))->toBe(['.', '..']);
+})->group('STORE-001');
+
+test('a move that clashes says so and moves nothing', function () {
+    mkdir($this->root.'/photos/archive', 0755, true);
+    file_put_contents($this->root.'/photos/a.jpg', 'new');
+    file_put_contents($this->root.'/photos/archive/a.jpg', 'old');
+
+    $this->actingAs($this->user)
+        ->postJson(route('projects.storage.move', [$this->project, 'photos']), ['paths' => ['a.jpg'], 'to' => 'archive'])
+        ->assertUnprocessable()
+        ->assertExactJson(['message' => 'a.jpg is already in archive.']);
+
+    expect(file_get_contents($this->root.'/photos/archive/a.jpg'))->toBe('old');
+})->group('STORE-001');
+
+test('batch actions need a list of paths', function () {
+    mkdir($this->root.'/photos');
+
+    $this->actingAs($this->user)
+        ->deleteJson(route('projects.storage.objects.destroy', [$this->project, 'photos']), ['paths' => []])
+        ->assertJsonValidationErrors('paths');
+    $this->postJson(route('projects.storage.zip', [$this->project, 'photos']), ['paths' => array_fill(0, 1001, 'a.jpg')])
+        ->assertJsonValidationErrors('paths');
 })->group('STORE-001');
 
 test('only images are shown inline; HTML and SVG always download', function (string $name) {
@@ -165,6 +219,8 @@ test('another user cannot see or change the project\'s storage', function () {
 
     $this->actingAs($other)->getJson(route('projects.storage.index', $this->project))->assertForbidden();
     $this->actingAs($other)->deleteJson(route('projects.storage.destroy', [$this->project, 'photos']))->assertForbidden();
+    $this->actingAs($other)->postJson(route('projects.storage.move', [$this->project, 'photos']), ['paths' => ['a'], 'to' => 'b'])->assertForbidden();
+    $this->actingAs($other)->postJson(route('projects.storage.zip', [$this->project, 'photos']), ['paths' => ['a']])->assertForbidden();
 
     expect(is_dir($this->root.'/photos'))->toBeTrue();
 })->group('STORE-001');
