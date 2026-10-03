@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AgentModelController;
+use App\Http\Controllers\Api\AiCreditsController;
 use App\Http\Controllers\Api\BroadcastingController;
 use App\Http\Controllers\Api\ClaudeLoginController;
 use App\Http\Controllers\Api\DesktopTokenController;
@@ -11,6 +12,7 @@ use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\ProjectIconController;
 use App\Http\Controllers\Api\ProjectMessageController;
 use App\Http\Controllers\Api\SandboxActivityController;
+use App\Http\Controllers\Api\TemplateScreenshotController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -36,6 +38,10 @@ Route::prefix('v1')->name('api.')->group(function () {
 
             Route::get('projects', [ProjectController::class, 'index'])->name('projects.index');
             Route::get('projects/new', [ProjectController::class, 'create'])->name('projects.create');
+            Route::get('projects/new/apps', [ProjectController::class, 'apps'])->name('projects.create.apps');
+            Route::get('projects/new/featured', [ProjectController::class, 'featured'])->name('projects.create.featured');
+            Route::get('templates/screenshots', TemplateScreenshotController::class)->name('templates.screenshots');
+            Route::get('ai-credits', AiCreditsController::class)->name('ai-credits');
             Route::post('projects', [ProjectController::class, 'store'])->name('projects.store');
             Route::get('projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
             Route::patch('projects/{project}', [ProjectController::class, 'update'])->name('projects.update');

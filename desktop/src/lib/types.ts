@@ -34,6 +34,8 @@ export type Me = {
     organization: Organization;
     organizations: Organization[];
     realtime: RealtimeConfig | null;
+    /** Web pages the app opens in the browser. */
+    links: { ai_settings: string; usage: string; sandboxes: string };
 };
 
 export type QueuedMessage = Pick<ChatMessage, 'id' | 'content' | 'attachments'>;
@@ -55,6 +57,8 @@ export type NewProjectOptions = {
     defaultAi: string | null;
     agent: AgentSelection | null;
     templates: AppTemplate[];
+    /** New projects' sandboxes can run free apps' Docker Compose stacks (PRJ-012). */
+    compose: boolean;
     /** Importing a repository instead (PRJ-009). */
     github: ImportGitHub;
 };

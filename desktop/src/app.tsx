@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
+import { configureClient } from '@/lib/client';
 import { api, ApiError, configureApi } from './lib/api';
+import { desktopClient } from './lib/client';
 import {
     clearSession,
     focusWindow,
@@ -82,6 +84,9 @@ export default function App() {
 
             try {
                 const me = await api<Me>('user');
+
+                // The components shared with the web app reach the server through the API (DESK-004).
+                configureClient(desktopClient(me));
 
                 setState({ kind: 'signed-in', session, me });
             } catch (error) {

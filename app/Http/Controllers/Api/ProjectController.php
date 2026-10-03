@@ -18,6 +18,7 @@ use App\Models\Sandbox;
 use App\Sandbox\Agents\ModelCatalog;
 use App\Sandbox\Gateway;
 use App\Sandbox\GitHubApp;
+use App\Sandbox\Templates\TemplateCatalog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -41,10 +42,11 @@ class ProjectController extends Controller
     }
 
     /**
-     * What a new project starts from, as on the web's new-project page: the agent it would use, the templates, and
-     * importing a repository (PRJ-009). Connecting GitHub happens in the browser, on the web's own address.
+     * What a new project starts from, as on the web's new-project page: the agent it would use, the built-in
+     * templates, whether free apps can run, and importing a repository (PRJ-009). The free apps come from apps() and
+     * featured(), which may be slow. Connecting GitHub happens in the browser, on the web's own address.
      */
-    public function create(Request $request, ModelCatalog $catalog, GitHubApp $github): JsonResponse
+    public function create(Request $request, ModelCatalog $catalog, GitHubApp $github, TemplateCatalog $templates): JsonResponse
     {
         $agent = $catalog->newProjectAgent($request->user());
 
@@ -52,6 +54,7 @@ class ProjectController extends Controller
             'defaultAi' => $request->user()->agentConnections()->firstWhere('is_default', true)?->provider->label(),
             'agent' => $agent ? $catalog->describe(['provider' => $agent['agent_provider'], 'model' => $agent['agent_model'], 'variant' => $agent['agent_variant']], $agent['agent_harness']) : null,
             'templates' => AppTemplate::options(),
+            'compose' => $templates->canRunCompose(),
             'github' => [
                 'configured' => $configured = $github->configured(),
                 'signed_in' => $configured && $request->user()->githubInstallations()->exists() && $github->userToken($request->user()) !== null,
@@ -59,6 +62,22 @@ class ProjectController extends Controller
                 'returned' => null,
             ],
         ]);
+    }
+
+    /**
+     * Every free open-source app under the built-in templates (PRJ-012).
+     */
+    public function apps(TemplateCatalog $templates): JsonResponse
+    {
+        return response()->json(['apps' => $templates->apps()]);
+    }
+
+    /**
+     * The popular free apps with a picture each, for the coverflow.
+     */
+    public function featured(TemplateCatalog $templates): JsonResponse
+    {
+        return response()->json(['featured' => $templates->featured()]);
     }
 
     /**

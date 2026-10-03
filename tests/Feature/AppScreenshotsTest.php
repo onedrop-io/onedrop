@@ -118,3 +118,12 @@ test('an app with no store screenshot is shown with its website\'s preview image
         ->toBe('https://93.184.216.36/og.png')
         ->and(app(AppScreenshots::class)->cover(($this->template)(['value' => 'dokploy/nothing', 'label' => 'Nothing'])))->toBeNull();
 })->group('PRJ-012');
+
+test('the desktop app asks for a free app\'s screenshots the same way', function () {
+    $token = User::factory()->has(AgentConnection::factory())->create()->createToken('Laptop')->plainTextToken;
+
+    $this->withToken($token)->getJson(route('api.templates.screenshots', ['template' => 'dokploy/n8n']))
+        ->assertOk()
+        ->assertJsonCount(4, 'screenshots');
+    $this->withToken($token)->getJson(route('api.templates.screenshots', ['template' => 'crm']))->assertNotFound();
+})->group('PRJ-012', 'DESK-004');

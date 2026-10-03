@@ -1,10 +1,8 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import TemplateScreenshotController from '@/actions/App/Http/Controllers/TemplateScreenshotController';
-import { jsonRequest } from '@/lib/json-request';
+import { loadScreenshots } from '@/lib/client';
+import type { Screenshot } from '@/lib/client';
 import { cn } from '@/lib/utils';
-
-type Screenshot = { url: string; source: string };
 
 /**
  * A free app's pictures (PRJ-012), asked for when its details open: its website's preview image, then app store
@@ -19,10 +17,8 @@ export default function AppScreenshots({ template }: { template: string }) {
     useEffect(() => {
         let current = true;
 
-        jsonRequest<{ screenshots: Screenshot[] }>(
-            TemplateScreenshotController.url({ query: { template } }),
-        )
-            .then(({ screenshots }) => {
+        loadScreenshots(template)
+            .then((screenshots) => {
                 if (!current) {
                     return;
                 }

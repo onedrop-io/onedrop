@@ -41,6 +41,12 @@ class UserController extends Controller
             'organizations' => $user->organizations()->orderBy('name')->get(['organizations.id', 'name', 'slug'])
                 ->map(fn (Organization $organization): array => $organization->only('id', 'name', 'slug'))->all(),
             'realtime' => $this->realtime(),
+            // Web pages the app opens in the browser.
+            'links' => [
+                'ai_settings' => route('agent-connections.index'),
+                'usage' => route('usage.index'),
+                'sandboxes' => route('admin.sandboxes.index'),
+            ],
         ]);
     }
 

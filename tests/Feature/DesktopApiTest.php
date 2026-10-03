@@ -220,7 +220,8 @@ test('the app learns where to connect for live updates', function () {
     $this->withToken($this->token)->getJson(route('api.user.show'))
         ->assertJsonPath('realtime.key', 'app-key')
         ->assertJsonPath('realtime.host', 'ws.example.com')
-        ->assertJsonPath('app.url', url('/'));
+        ->assertJsonPath('app.url', url('/'))
+        ->assertJsonPath('links.usage', route('usage.index'));
 })->group('DESK-005');
 
 test('the app listens on the channels of projects it can see', function () {

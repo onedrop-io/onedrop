@@ -1593,8 +1593,9 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## DESK-004: Start a project from the desktop app
 
-- User should see the same new-project page as on the web: greeted by name, describing a new app, starting from a template, or importing a repository (PRJ-009), with attachments and the web's agent and model picker, then land in its workspace while the agent starts.
-- User should be able to connect GitHub from the import in their browser, and find their repositories offered when they come back to the app.
+- User should see the same new-project page as on the web, from the same components: greeted by name, the three ways to start (from scratch, from a template, or by installing a free app, PRJ-012), templates suggested as they type (PRJ-001), and importing a repository (PRJ-009), with attachments and the web's agent and model picker and AI credits balance.
+- User should be able to open a free app's details, with its pictures, and use it to start a project straight away.
+- User should be able to connect GitHub from the import, and open Settings pages the page points to (Settings → Sandboxes, Usage), in their browser, and find their repositories offered when they come back to the app.
 
 ## DESK-005: The desktop app updates live
 

@@ -16,12 +16,12 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
-    creditsBalance,
+    CreditsBalance,
     loadCatalog,
     rememberCatalog,
     saveFavorite,
-} from '@/lib/agent-models';
-import type { Catalog } from '@/lib/agent-models';
+} from '@/lib/client';
+import type { Catalog } from '@/lib/client';
 import { cn } from '@/lib/utils';
 import type {
     AgentHarness,
@@ -140,8 +140,6 @@ export default function AgentModelPicker({
     /** Offer Auto (AGT-011): the model and reasoning picked for each message. */
     allowAuto?: boolean;
 }) {
-    const CreditsBalance = creditsBalance();
-
     return (
         <div
             className="flex min-w-0 items-center gap-1"
@@ -166,9 +164,7 @@ export default function AgentModelPicker({
                     disabled={disabled}
                 />
             )}
-            {CreditsBalance && (
-                <CreditsBalance inUse={selection.provider === 'credits'} />
-            )}
+            <CreditsBalance inUse={selection.provider === 'credits'} />
         </div>
     );
 }

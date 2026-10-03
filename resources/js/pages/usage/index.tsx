@@ -1,12 +1,8 @@
 import { Deferred, Head, Link, router } from '@inertiajs/react';
 import { RefreshCw } from 'lucide-react';
 import { useState } from 'react';
-import type { AiCreditsSummary } from '@/components/ai-credits-balance';
-import {
-    formatCredits,
-    formatRefill,
-    LOW,
-} from '@/components/ai-credits-balance';
+import type { AiCreditsSummary } from '@/components/ai-credits-view';
+import { formatCredits, formatRefill, LOW } from '@/components/ai-credits-view';
 import { ProviderIcon } from '@/components/agent-model-picker';
 import AreaLinesChart from '@/components/charts/area-lines-chart';
 import {
