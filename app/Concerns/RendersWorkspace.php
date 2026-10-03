@@ -5,6 +5,7 @@ namespace App\Concerns;
 use App\Enums\AbuseReviewStatus;
 use App\Enums\AgentProvider;
 use App\Enums\CredentialType;
+use App\Enums\MessageRole;
 use App\Enums\PublishStatus;
 use App\Enums\SandboxStatus;
 use App\Jobs\CreateSandbox;
@@ -15,6 +16,7 @@ use App\Models\Task;
 use App\Sandbox\Agents\Conversation;
 use App\Sandbox\Agents\MessageChecks;
 use App\Sandbox\Agents\ModelCatalog;
+use App\Sandbox\Agents\PlainActivity;
 use App\Sandbox\Gateway;
 use App\Sandbox\Publishing\Publishers;
 use App\Sandbox\SandboxException;
@@ -117,6 +119,8 @@ trait RendersWorkspace
                 'id' => $message->id,
                 'role' => $message->role,
                 'content' => $message->content,
+                // The step in plain words, for Simple mode (PRJ-013).
+                'plain' => $message->role === MessageRole::Activity ? PlainActivity::describe($message->content) : null,
                 'attachments' => $message->attachments->map(fn (Attachment $attachment): array => $this->attachmentProps($project, $attachment)),
                 'created_at' => $message->created_at?->toIso8601String(),
             ]),

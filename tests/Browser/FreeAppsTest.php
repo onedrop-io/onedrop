@@ -24,7 +24,7 @@ test('searching the free apps finds a Dokploy app, shows its details, and using 
         ->fill('email', 'dev@example.com')
         ->fill('password', 'password')
         ->press('@login-button')
-        ->assertSee('Or install a free app')
+        ->click('@way-existing')
         ->assertSeeIn('@free-apps', 'open source low-code platform')
         ->assertSeeIn('@free-apps', 'professional pub')
         ->fill('@app-search-input', 'workflows')
@@ -47,19 +47,22 @@ test('searching the free apps finds a Dokploy app, shows its details, and using 
     Queue::assertPushedWithChain(CreateSandbox::class, [ApplyRegistryTemplate::class, RunAgentTask::class, UpdateProjectIcon::class]);
 })->group('PRJ-012');
 
-test('pressing Cmd or Ctrl K from the prompt jumps to the free apps search', function () {
+test('pressing Cmd or Ctrl K from the prompt shows the free apps and jumps to their search', function () {
     visit('/login')
         ->fill('email', 'dev@example.com')
         ->fill('password', 'password')
         ->press('@login-button')
+        ->click('@way-existing')
         ->assertSeeIn('@free-apps', 'low-code platform')
         ->assertVisible('@app-search-shortcut')
         ->fill('@app-search-input', 'workflows')
+        ->click('@way-new')
+        ->assertMissing('@app-search-input')
         ->click('#composer-prompt')
         ->keys('#composer-prompt', 'ControlOrMeta+k')
+        ->assertAttribute('@way-existing', 'aria-pressed', 'true')
         ->assertScript("document.activeElement === document.querySelector('[data-test=\"app-search-input\"]')")
         ->assertScript('(() => { const input = document.activeElement; return input.selectionStart === 0 && input.selectionEnd === input.value.length; })()')
-        ->assertValue('#composer-prompt', '')
         ->assertNoJavaScriptErrors();
 })->group('PRJ-012');
 
@@ -68,6 +71,7 @@ test('registry templates can\'t be picked when sandboxes can\'t run Docker', fun
         ->fill('email', 'dev@example.com')
         ->fill('password', 'password')
         ->press('@login-button')
+        ->click('@way-existing')
         ->assertSee('These run with Docker.')
         ->fill('@app-search-input', 'n8n')
         ->assertSeeIn('@free-apps', 'low-code platform')
@@ -75,7 +79,6 @@ test('registry templates can\'t be picked when sandboxes can\'t run Docker', fun
         ->assertSeeIn('@app-details', 'Free and open source')
         ->assertVisible('@app-details-unavailable')
         ->assertVisible('[data-test="app-details-use"]:disabled')
-        ->assertValue('#composer-prompt', '')
         ->click('[data-test="app-details-unavailable"] [data-test="turn-on-docker-link"]')
         ->assertPathIs('/admin/sandboxes')
         ->assertNoJavaScriptErrors();
@@ -88,6 +91,7 @@ test('a member is told to ask an admin to turn on Docker, with no link to settin
         ->fill('email', 'sam@example.com')
         ->fill('password', 'password')
         ->press('@login-button')
+        ->click('@way-existing')
         ->assertSee('These run with Docker. An admin can turn on Docker inside sandboxes in Settings → Sandboxes.')
         ->assertMissing('@turn-on-docker-link')
         ->assertNoJavaScriptErrors();
@@ -101,7 +105,6 @@ test('a free app suggested for what they typed opens its details, and using it s
         ->fill('email', 'dev@example.com')
         ->fill('password', 'password')
         ->press('@login-button')
-        ->assertSeeIn('@free-apps', 'low-code platform')
         ->fill('#composer-prompt', 'n8n for our workflows')
         ->assertSeeIn('@already-built', 'Free app')
         ->click('@already-built-option')
@@ -124,6 +127,7 @@ test('on a phone, the free apps fit the screen and their details fill it', funct
         ->fill('email', 'dev@example.com')
         ->fill('password', 'password')
         ->press('@login-button')
+        ->click('@way-existing')
         ->assertSeeIn('@free-apps', 'Longword')
         ->assertScript("(() => { const grid = document.querySelector('[data-test=\"free-apps\"]').getBoundingClientRect(); return [...document.querySelectorAll('[data-test=\"free-apps\"] > *')].every((card) => card.getBoundingClientRect().right <= grid.right + 1); })()")
         ->click('Longword')

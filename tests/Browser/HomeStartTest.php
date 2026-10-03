@@ -17,7 +17,7 @@ test('a template or a free app picked on the home page is waiting on the new-pro
         ->fill('email', 'dev@example.com')
         ->fill('password', 'password')
         ->press('@login-button')
-        ->assertSee('Or install a free app');
+        ->assertSee('Something that exists');
 
     visit('/')
         ->assertSeeIn('@home-start', 'Start from scratch')
@@ -26,7 +26,8 @@ test('a template or a free app picked on the home page is waiting on the new-pro
         ->assertSeeIn('[data-test="home-start"] [data-test="free-apps"]', 'low-code platform')
         ->keys('#composer-prompt', 'Enter')
         ->assertSee('what are we working on today?')
-        ->assertScript("document.querySelector('#composer-prompt').value.length > 100")
+        ->assertSeeIn('@template-details-use', 'Use Sales CRM')
+        ->assertScript("document.querySelector('[data-test=\"template-details-prompt\"]').value.length > 100")
         ->assertNoJavaScriptErrors();
 
     visit('/')

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\AgentHarness;
 use App\Enums\AgentProvider;
+use App\Enums\BuildMode;
 use App\Enums\OrganizationRole;
 use App\Enums\ProjectSort;
 use Database\Factories\UserFactory;
@@ -52,11 +53,12 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     use HasFactory, Notifiable, PasskeyAuthenticatable, TwoFactorAuthenticatable;
 
     /**
-     * The sidebar sorts projects by last updated until they choose otherwise (PRJ-010).
+     * The sidebar sorts projects by last updated until they choose otherwise (PRJ-010), and Simple or Advanced
+     * is asked on the new-project page (PRJ-013).
      *
      * @var array<string, mixed>
      */
-    protected $attributes = ['project_sort' => 'updated'];
+    protected $attributes = ['project_sort' => 'updated', 'build_mode' => null];
 
     /** @var array<int, OrganizationRole|null> the user's role in each organization looked up so far */
     protected array $organizationRoles = [];
@@ -89,6 +91,7 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
             'recent_models' => 'array',
             'agent_preference' => 'array',
             'project_sort' => ProjectSort::class,
+            'build_mode' => BuildMode::class,
             'two_factor_confirmed_at' => 'datetime',
             'last_login_at' => 'datetime',
         ];

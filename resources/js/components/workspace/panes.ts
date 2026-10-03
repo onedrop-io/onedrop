@@ -54,9 +54,15 @@ function ordered(tabs: PaneTab[]): PaneTab[] {
 /** Tabs a project's workspace opens with after Tools and Preview (TAB-001). */
 const DEFAULT_TABS: PaneTab[] = ['shell', 'services', 'console'];
 
-/** The default layout: one pane with Tools, Preview and the default tabs, plus `active` (a tab the URL asks for) showing. */
-export function initialLayout(active: PaneTab = 'preview'): Layout {
-    const tabs = [...PINNED, ...DEFAULT_TABS];
+/**
+ * The default layout: one pane with Tools, Preview and the default tabs (none in Simple mode, PRJ-013), plus
+ * `active` (a tab the URL asks for) showing.
+ */
+export function initialLayout(
+    active: PaneTab = 'preview',
+    defaults: PaneTab[] = DEFAULT_TABS,
+): Layout {
+    const tabs = [...PINNED, ...defaults];
 
     return {
         panes: [

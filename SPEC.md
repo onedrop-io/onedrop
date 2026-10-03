@@ -208,8 +208,8 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 ## PRJ-001: Start a new project
 
 - After logging in, user should see a "what are we working on today?" prompt with suggestions.
-- User should see the three ways to start labelled in plain words, each with a one-line explanation: "Start from scratch" (describe it), "Or start from a template", and "Or install a free app" (the popular open-source apps). The labels hide while starting from a repository.
-- When what the user types sounds like a template or free app that already exists (a word from its name, or two or more from its tags or description), user should see up to three of them under the prompt as "This might already exist", each marked Template or Free app. Picking one starts from it and keeps what they typed after its description; "No thanks" hides them until the prompt is cleared; sending starts from scratch as usual. Free apps that can't run here aren't offered.
+- User should see three ways to start as a row of choices under the greeting, each with a one-line explanation: "Something new" (describe it; picked to begin with), "From a template", and "Something that exists" (a free open-source app, or in Advanced mode their own repository). Only the picked one's things show: the prompt for "Something new", the templates for "From a template", and the free apps (with the repository import above them in Advanced mode) for "Something that exists".
+- When what the user types sounds like a template or free app that already exists (a word from its name, or two or more from its tags or description), user should see up to three of them under the prompt as "This might already exist", each marked Template or Free app. Picking one opens its details, with what they typed kept after its description; "No thanks" hides them until the prompt is cleared; sending starts from scratch as usual. Free apps that can't run here aren't offered.
 - User should be able to describe an app and submit it to create a project.
 - User should be taken to the project workspace after creating it.
 - The project should be named from the description.
@@ -248,16 +248,16 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 ## PRJ-004: Start from a template
 
 - User should see templates for common business apps (CRM, project tracker, content calendar, inventory, hiring, events, help desk, time off, expenses, product roadmap, bug tracker, goals and OKRs, customer feedback, team directory, employee onboarding, equipment checkout, shift schedule, client portal, grant tracker, volunteer scheduling, rental properties) under the new-project prompt, each with its own icon.
-- User should be able to pick a template to fill in the prompt with a full description, then change it before sending.
+- Clicking a template (or one suggested for what they typed) should open its details, like a free app's: its icon, name, a "Template" label, what it is, its full description in a text box they can change ("What the AI will build", with what they typed after it when it was suggested), and what happens when they use it.
+- "Use <name>" should start the project right away with the description as changed, showing "Starting…" and, if it can't, why; it's disabled while the description is empty. Cancel closes it without starting anything.
 - A project started from a template should be named after the template.
-- Clearing the prompt should drop the template, so the project is named from what they type instead.
 
 ## PRJ-012: Browse templates from other registries
 
 - User should see every open-source app from the configured registries (Dokploy's to start) under the built-in templates as "Or install a free app", popular ones first, each on a card like Dokploy's with its logo, name, version (unless only "latest"), up to three lines of its description and up to three of its tags, two across on the new-project page and three on the wider home page, loaded after the page shows and not grouped or labelled by the registry it came from.
 - User should see the popular free apps that have a picture in a coverflow above the list: one large in the middle with its logo, name and description over its picture (an app store screenshot if there is one, else its website's preview image), the next ones angled behind it. It moves on every few seconds, but not while hovered or focused, or when the system asks for reduced motion. Clicking a side app (or a dot below) brings it to the middle; clicking the middle one opens its details. It loads after the page shows, separately from the list; an app whose picture won't load is left out.
 - User should be able to search the apps by name, description or tag (Enter opens the first match), and narrow them to a category (the most used tags).
-- User should be able to press ⌘K (Ctrl K off a Mac) anywhere on the new-project page to jump to the free apps' search, scrolled into view with what they'd typed there selected; the search box shows the shortcut for their system (not on touch screens).
+- User should be able to press ⌘K (Ctrl K off a Mac) anywhere on the new-project page to jump to the free apps' search (picking "Something that exists" if it isn't already), scrolled into view with what they'd typed there selected; the search box shows the shortcut for their system (not on touch screens).
 - Clicking a free app (in the list or suggested for what they typed) should open its details: logo, name, "Free and open source", its version (unless the registry says only "latest"), categories, full description, what happens when they use it, and links to its website, source code and documentation (https only). "Use <name>" starts the project from it right away (with what they typed after its description, if it was suggested), showing "Starting…" and, if it can't, why; the project is named after it.
 - A registry template (a Docker Compose stack) should start the project with its `docker-compose.yml` and its registry settings in the workspace, and the agent should fill in its variables, set the stack up as the preview and get it running.
 - User should see pictures of a free app at the top of its details, in a carousel they can step through (arrows, dots, or the arrow keys): first the preview image from the app's website (the one shown when its link is shared), then screenshots from the app stores that list it (Umbrel's and CasaOS's to start), each credited to where it came from. The pictures load when the details open; the carousel appears (fading in) only once one has loaded, and only steps through those that have, so an app with none never shows one. An admin should be able to turn off website previews or any app store in config.
@@ -318,7 +318,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## PRJ-009: Start a project from a repository
 
-- User should see a "Repository" toggle next to the agent picker on the new-project prompt; turning it on shows a repository field above the prompt and hides the templates.
+- In Advanced mode (PRJ-013), user should see a repository field above the prompt when they pick "Something that exists" on the new-project page, with the free apps under it; in Simple mode it isn't offered.
 - User should be able to type `owner/name`, paste a GitHub link (a `/tree/<branch>` link imports that branch), or any HTTPS git URL, and send it to create a project from that repository.
 - When they've connected GitHub (the GitHub App), user should see their repositories (across their installations, most recently pushed first, private ones marked, empty ones left out) suggested as they type, and be able to pick one.
 - When the GitHub App is set up but they haven't connected it, user should see "Connect GitHub" to import private repositories, which comes back to the new-project page with the Repository field open.
@@ -343,6 +343,18 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - The label should stay until the chat's next run starts, and not show while its agent is working.
 - The check should use the project owner's OpenRouter connection when they have one, otherwise the platform's `OPENROUTER_API_KEY`. Without either, or when Jev can't be reached, isn't sure (below 50%) or doesn't answer, nothing changes: the turn shows as done, as before.
 - A turn the user stopped, or that has no reply from the agent, shouldn't be labelled.
+
+## PRJ-013: Simple and Advanced modes
+
+- The first time user opens the new-project page, they should be asked "How do you like to build?" with two choices: "Simple" (describe it, the AI handles the technical side) and "Advanced" (models, files, the shell and git). Until they choose, everything shows, as in Advanced.
+- User should be able to switch modes at any time from a "Simple / Advanced" switch on the new-project page and from the account menu. The choice is remembered on their account, across devices.
+- In Simple mode, user should not see the agent, model and reasoning picker (on the new-project page or in the chat; their saved or default choice is used), or the repository import.
+- In Simple mode, user should not see the workspace's Commit button.
+- In Simple mode, a project's workspace should open with just Tools and Preview (no Shell, Services or Console tabs) and the files panel closed, but user should still be able to add any tab from "+" and open the files panel; tabs they already have open stay open. Opening the files panel in Simple mode isn't remembered.
+- In Simple mode, user should always see the chat when a project opens (and when they switch to Simple), even if they hid it before; hiding it still works, but isn't remembered.
+- In Simple mode, user should see the agent's steps in the chat in plain words, like the sidebar's ("Building the orders page", not "Editing resources/js/pages/orders/index.tsx"), with a step repeated in a row shown once.
+- Advanced mode should show everything, as before.
+- The dev user should be seeded in Advanced mode.
 
 ## SBX-001: A sandbox per project
 
@@ -811,7 +823,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 ## HOME-004: Start a project from the home page
 
 - Visitor should see the new-project page's three ways to start on the home page, under the hero: "Start from scratch" with a prompt, "Or start from a template" with the built-in templates (picking one fills the prompt), and "Or install a free app" with the same coverflow, searchable list (⌘K / Ctrl K included) and details as the new-project page (PRJ-012). Only the first 12 apps show until they search, pick a category or click "Show all N apps".
-- Logged-out visitor who sends a prompt, or clicks "Use" in a free app's details, should be asked to create an account (or log in, where sign-up is closed), then find it waiting on the new-project page: the prompt filled in (with its template, if they picked one), or the free app's details open.
+- Logged-out visitor who sends a prompt, or clicks "Use" in a free app's details, should be asked to create an account (or log in, where sign-up is closed), then find it waiting on the new-project page: the prompt filled in, or the template's details open with the description they sent (PRJ-004), or the free app's details open.
 - Logged-in user should go straight to their new-project page with it waiting.
 - A free app's details on the home page should say that using it asks them to create a free account first, for a visitor who isn't signed in.
 - While something they picked on the home page is waiting, the sign-up and log-in pages should show it beside the form: the free app's card (picture, logo, name, version, description) or the template or prompt they wrote, with the three steps ahead (create an account or log in, connect your AI, then we set it up). "Not now" should drop it and go back to the plain page.

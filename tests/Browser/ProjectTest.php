@@ -18,9 +18,10 @@ test('describing an app creates a project and opens the chat + preview workspace
         ->press('@login-button')
         ->assertPathIs(orgPath())
         ->assertSee('Dev, what are we working on today?')
-        ->assertSee('Start from scratch')
-        ->assertSee('Or start from a template')
-        ->assertSee('Or install a free app')
+        ->assertAttribute('@way-new', 'aria-pressed', 'true')
+        ->assertSee('From a template')
+        ->assertSee('Something that exists')
+        ->assertDontSee('Sales CRM')
         ->fill('#composer-prompt', 'A time-off tracker for my team')
         ->press('@composer-send')
         ->assertSee('Your app will appear here in a moment.');
@@ -53,8 +54,10 @@ test('describing something a template already does offers it, keeping what they 
         ->assertSeeIn('@already-built', 'This might already exist.')
         ->assertSeeIn('@already-built', 'Sales CRM')
         ->click('@already-built-option')
-        ->assertValue('#composer-prompt', AppTemplate::Crm->prompt()."\n\na crm for our sales team, with a lead source field")
-        ->assertMissing('@already-built')
+        ->assertSeeIn('@template-details-use', 'Use Sales CRM')
+        ->assertValue('@template-details-prompt', AppTemplate::Crm->prompt()."\n\na crm for our sales team, with a lead source field")
+        ->click('Cancel')
+        ->assertMissing('@template-details')
         ->fill('#composer-prompt', '')
         ->fill('#composer-prompt', 'hire new engineers')
         ->assertSeeIn('@already-built', 'Hiring Pipeline')
@@ -67,16 +70,21 @@ test('describing something a template already does offers it, keeping what they 
     expect(Project::sole()->prompt)->toBe('hire new engineers');
 })->group('PRJ-001');
 
-test('picking a template fills in the prompt and names the project after it', function () {
+test('picking a template opens its details, where its description can be changed before using it', function () {
     $page = visit('/login')
         ->fill('email', 'dev@example.com')
         ->fill('password', 'password')
         ->press('@login-button')
-        ->assertSee('Or start from a template')
+        ->click('@way-template')
         ->assertSee('Hiring Pipeline')
+        ->assertMissing('#composer-prompt')
         ->click('Sales CRM')
-        ->assertValue('#composer-prompt', AppTemplate::Crm->prompt())
-        ->press('@composer-send')
+        ->assertSeeIn('@template-details', 'What the AI will build')
+        ->assertValue('@template-details-prompt', AppTemplate::Crm->prompt())
+        ->fill('@template-details-prompt', '')
+        ->assertDisabled('@template-details-use')
+        ->fill('@template-details-prompt', 'A sales CRM for our three regions')
+        ->click('@template-details-use')
         ->assertSee('Your app will appear here in a moment.');
 
     $project = Project::sole();
@@ -85,5 +93,5 @@ test('picking a template fills in the prompt and names the project after it', fu
         ->assertSeeIn('[data-sidebar="sidebar"]', 'Sales CRM')
         ->assertNoJavaScriptErrors();
 
-    expect($project->prompt)->toBe(AppTemplate::Crm->prompt());
+    expect($project->prompt)->toBe('A sales CRM for our three regions');
 })->group('PRJ-004');

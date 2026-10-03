@@ -22,16 +22,14 @@ afterEach(function () {
     File::deleteDirectory($this->root);
 });
 
-test('turning on Repository next to the agent picker starts the project from a repository', function () {
+test('picking "Something that exists" starts the project from a repository', function () {
     $page = visit('/login')
         ->fill('email', 'dev@example.com')
         ->fill('password', 'password')
         ->press('@login-button')
-        ->assertSee('Or start from a template')
-        ->press('@repository-toggle')
+        ->click('@way-existing')
         ->assertVisible('@repository-input')
-        ->assertDontSee('Or start from a template')
-        ->assertDontSee('Start from scratch')
+        ->assertSee('Or install a free app')
         ->assertSee('Paste a public repository’s link.')
         ->fill('@repository-input', "file://{$this->root}/team-timer.git")
         ->press('@composer-send')
@@ -51,7 +49,7 @@ test('an unreachable repository shows why under the prompt', function () {
         ->fill('email', 'dev@example.com')
         ->fill('password', 'password')
         ->press('@login-button')
-        ->press('@repository-toggle')
+        ->click('@way-existing')
         ->fill('@repository-input', "file://{$this->root}/missing.git")
         ->press('@composer-send')
         ->assertSee('Couldn\'t reach that repository.')

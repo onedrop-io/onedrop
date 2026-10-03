@@ -21,34 +21,6 @@ type Repository = {
 };
 
 /**
- * The toggle next to the agent picker that starts the project from a repository instead of a description (PRJ-009).
- */
-export function RepositoryToggle({
-    pressed,
-    onPressedChange,
-}: {
-    pressed: boolean;
-    onPressedChange: (pressed: boolean) => void;
-}) {
-    return (
-        <button
-            type="button"
-            aria-pressed={pressed}
-            onClick={() => onPressedChange(!pressed)}
-            title="Start from a GitHub repository"
-            data-test="repository-toggle"
-            className={cn(
-                'inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-foreground hover:bg-muted',
-                pressed && 'bg-muted',
-            )}
-        >
-            <SocialProviderIcon provider="github" className="size-3.5" />
-            Repository
-        </button>
-    );
-}
-
-/**
  * Where the repository to import is typed or picked: any "owner/name" or HTTPS git URL, with the user's own
  * GitHub repositories suggested when they've connected GitHub.
  */

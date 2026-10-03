@@ -8,6 +8,7 @@ import {
     LogOut,
     Palette,
     Settings,
+    SlidersHorizontal,
     UserPlus,
 } from 'lucide-react';
 import {
@@ -25,6 +26,7 @@ import { OrganizationSubmenu } from '@/components/organization-menu';
 import { UserInfo } from '@/components/user-info';
 import type { Appearance } from '@/hooks/use-appearance';
 import { useAppearance } from '@/hooks/use-appearance';
+import { useBuildMode } from '@/hooks/use-build-mode';
 import { useMobileNavigation } from '@/hooks/use-mobile-navigation';
 import { useOrganization } from '@/hooks/use-organization';
 import { DOCUMENTATION_URL, REPOSITORY_URL } from '@/lib/links';
@@ -33,7 +35,7 @@ import { index as invitationsIndex } from '@/routes/invitations';
 import { usage as organizationUsage } from '@/routes/organizations';
 import { edit } from '@/routes/profile';
 import { index as usageIndex } from '@/routes/usage';
-import type { User } from '@/types';
+import type { BuildMode, User } from '@/types';
 
 type Props = {
     user: User;
@@ -47,10 +49,16 @@ const THEMES: { value: Appearance; label: string }[] = [
     { value: 'system', label: 'System' },
 ];
 
+const MODES: { value: BuildMode; label: string }[] = [
+    { value: 'simple', label: 'Simple' },
+    { value: 'advanced', label: 'Advanced' },
+];
+
 export function UserMenuContent({ user, onCreateOrganization }: Props) {
     const cleanup = useMobileNavigation();
     const organization = useOrganization();
     const { appearance, updateAppearance } = useAppearance();
+    const { chosen: mode, choose: chooseMode } = useBuildMode();
 
     const handleLogout = () => {
         cleanup();
@@ -142,6 +150,37 @@ export function UserMenuContent({ user, onCreateOrganization }: Props) {
                                 <DropdownMenuRadioItem
                                     key={value}
                                     value={value}
+                                >
+                                    {label}
+                                </DropdownMenuRadioItem>
+                            ))}
+                        </DropdownMenuRadioGroup>
+                    </DropdownMenuSubContent>
+                </DropdownMenuSub>
+                <DropdownMenuSub>
+                    <DropdownMenuSubTrigger
+                        className="gap-2 [&>svg:last-child]:ml-0"
+                        data-test="mode-menu"
+                    >
+                        <SlidersHorizontal className="size-4 text-muted-foreground" />
+                        Mode
+                        <span className="ml-auto text-muted-foreground">
+                            {MODES.find(({ value }) => value === mode)?.label ??
+                                'Advanced'}
+                        </span>
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                        <DropdownMenuRadioGroup
+                            value={mode ?? 'advanced'}
+                            onValueChange={(value) =>
+                                chooseMode(value as BuildMode)
+                            }
+                        >
+                            {MODES.map(({ value, label }) => (
+                                <DropdownMenuRadioItem
+                                    key={value}
+                                    value={value}
+                                    data-test={`mode-menu-${value}`}
                                 >
                                     {label}
                                 </DropdownMenuRadioItem>

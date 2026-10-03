@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Enums\AgentProvider;
+use App\Enums\BuildMode;
 use App\Enums\CredentialType;
 use App\Enums\GroupRole;
 use App\Enums\OrganizationRole;
@@ -28,9 +29,11 @@ class DatabaseSeeder extends Seeder
             return;
         }
 
+        // Advanced, since the dev user drives the files, shell and git (PRJ-013).
         $dev = User::factory()->admin()->create([
             'name' => 'Dev User',
             'email' => 'dev@example.com',
+            'build_mode' => BuildMode::Advanced,
         ]);
 
         $member = User::factory()->create([

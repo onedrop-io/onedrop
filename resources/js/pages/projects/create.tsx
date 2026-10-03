@@ -1,27 +1,39 @@
 import { Head, router, usePage } from '@inertiajs/react';
-import { PenLine, Shuffle, Sparkles, X } from 'lucide-react';
+import {
+    LayoutTemplate,
+    Package,
+    PenLine,
+    Shuffle,
+    SlidersHorizontal,
+    Sparkles,
+    Wand2,
+    X,
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import ProjectController from '@/actions/App/Http/Controllers/ProjectController';
 import AgentModelPicker from '@/components/agent-model-picker';
 import PromptComposer from '@/components/prompt-composer';
-import RepositoryPicker, {
-    RepositoryToggle,
-} from '@/components/repository-picker';
+import RepositoryPicker from '@/components/repository-picker';
 import type { ImportGitHub } from '@/components/repository-picker';
-import { AppDetails, TemplateLogo } from '@/components/app-gallery';
+import {
+    AppDetails,
+    TemplateDetails,
+    TemplateLogo,
+} from '@/components/app-gallery';
 import {
     FreeAppsPanel,
     TemplatesPanel,
-    WayToStart,
-    panelClass,
     tones,
 } from '@/components/ways-to-start';
+import { useBuildMode } from '@/hooks/use-build-mode';
 import { useOrganization } from '@/hooks/use-organization';
 import { indexTemplates, matchTemplates } from '@/lib/template-match';
 import { cn } from '@/lib/utils';
 import type {
     AgentSelection,
     AppTemplate,
+    BuildMode,
     CatalogTemplate,
     FeaturedApp,
 } from '@/types';
@@ -57,15 +69,25 @@ export default function CreateProject({
     const [selection, setSelection] = useState(agent);
     const { auth } = usePage().props;
     const organization = useOrganization();
-    // A built-in template picked on the home page comes with its prompt; a free app opens its details below.
+    // A built-in template picked on the home page opens its details with what they sent (PRJ-004); a free app
+    // opens its own once the apps have loaded.
     const startedFrom = templates.find(
         (option) => option.value === start?.template,
     );
     const [prompt, setPrompt] = useState(
-        remix?.prompt ?? start?.prompt ?? startedFrom?.prompt ?? '',
+        remix?.prompt ?? (startedFrom ? null : start?.prompt) ?? '',
     );
-    const [template, setTemplate] = useState<string | null>(
-        startedFrom?.value ?? null,
+    // The template whose details are open, and its description as they've changed it there.
+    const [templateViewing, setTemplateViewing] = useState<{
+        template: AppTemplate;
+        prompt: string;
+    } | null>(() =>
+        startedFrom
+            ? {
+                  template: startedFrom,
+                  prompt: start?.prompt ?? startedFrom.prompt,
+              }
+            : null,
     );
     // "No thanks" to the templates suggested for what they typed, until the prompt is cleared.
     const [dismissed, setDismissed] = useState(false);
@@ -74,11 +96,21 @@ export default function CreateProject({
         app: CatalogTemplate;
         keep: string;
     } | null>(null);
-    // Starting a project from the free app's details, and why it couldn't.
+    // Starting a project from a free app's or template's details, and why it couldn't.
     const [starting, setStarting] = useState(false);
     const [startError, setStartError] = useState<string | null>(null);
-    // Back from connecting GitHub here: open the import again.
-    const [importing, setImporting] = useState(github.returned !== null);
+    const { chosen: mode, simple, choose: chooseMode } = useBuildMode();
+    // Which way to start is showing (PRJ-001): what they picked on the home page, back from connecting GitHub
+    // (the repository import), or "Something new".
+    const [way, setWay] = useState<Way>(() => {
+        if (startedFrom) {
+            return 'template';
+        }
+
+        return start?.template || github.returned !== null ? 'existing' : 'new';
+    });
+    // Their own repository goes under "Something that exists", in Advanced mode (PRJ-009, PRJ-013).
+    const importing = way === 'existing' && !simple;
     const [repository, setRepository] = useState('');
     const firstName = auth.user.name.split(' ')[0];
     const [openedStart, setOpenedStart] = useState(false);
@@ -94,9 +126,7 @@ export default function CreateProject({
     );
     const typed = useDeferredValue(prompt);
     const suggestions =
-        template === null && !importing && !dismissed
-            ? matchTemplates(typed, index)
-            : [];
+        way === 'new' && !dismissed ? matchTemplates(typed, index) : [];
 
     const agentFields: Record<string, string | null> = selection
         ? {
@@ -123,18 +153,15 @@ export default function CreateProject({
     }, [apps, start, openedStart]);
 
     /**
-     * "Use" in a free app's details creates the project right away (PRJ-012), since the prompt may be scrolled out
-     * of sight; what they typed, if it was suggested, goes after the app's description.
+     * "Use" in a free app's or template's details creates the project right away (PRJ-004, PRJ-012), named after
+     * it; what they typed, if it was suggested, goes after its description.
      */
-    const startFrom = (app: CatalogTemplate, keep = '') => {
+    const startFrom = (from: AppTemplate, prompt: string) => {
         router.post(
             ProjectController.store(organization.slug).url,
             {
-                prompt:
-                    keep.trim() === ''
-                        ? app.prompt
-                        : `${app.prompt}\n\n${keep.trim()}`,
-                template: app.value,
+                prompt,
+                template: from.value,
                 ...agentFields,
             },
             {
@@ -149,22 +176,13 @@ export default function CreateProject({
         );
     };
 
-    /** Start from a template; `keep` is what they typed, added after its description. */
+    /** Open a template's details; `keep` is what they typed, added after its description (PRJ-004). */
     const pickTemplate = (picked: AppTemplate, keep = '') => {
-        setTemplate(picked.value);
-        setPrompt(
-            keep.trim() === ''
-                ? picked.prompt
-                : `${picked.prompt}\n\n${keep.trim()}`,
-        );
-
-        const composer = document.getElementById('composer-prompt');
-
-        if (composer instanceof HTMLTextAreaElement) {
-            composer.focus();
-            composer.setSelectionRange(0, 0);
-            composer.scrollTop = 0;
-        }
+        setStartError(null);
+        setTemplateViewing({
+            template: picked,
+            prompt: withKept(picked.prompt, keep),
+        });
     };
 
     return (
@@ -174,16 +192,21 @@ export default function CreateProject({
             <div className="flex flex-1 flex-col justify-center px-4 py-10">
                 <div className="mx-auto w-full max-w-3xl space-y-8">
                     <div className="space-y-2">
-                        <h1 className="text-3xl font-medium tracking-tight md:text-4xl">
-                            {firstName}, what are we working on today?
-                        </h1>
-                        {!importing && (
-                            <p className="text-muted-foreground">
-                                There are three ways to start. You can change
-                                anything later by chatting with the AI.
-                            </p>
-                        )}
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                            <h1 className="text-3xl font-medium tracking-tight md:text-4xl">
+                                {firstName}, what are we working on today?
+                            </h1>
+                            {mode && (
+                                <ModeSwitch mode={mode} onChange={chooseMode} />
+                            )}
+                        </div>
+                        <p className="text-muted-foreground">
+                            Pick how you’d like to start. You can change
+                            anything later by chatting with the AI.
+                        </p>
                     </div>
+
+                    {!mode && <ModeChooser onChoose={chooseMode} />}
 
                     {remix && (
                         <p
@@ -197,59 +220,73 @@ export default function CreateProject({
                     )}
 
                     <div
-                        className={cn(
-                            'space-y-4',
-                            !importing && [panelClass, tones.scratch.panel],
-                        )}
+                        className="grid gap-2 sm:grid-cols-3"
+                        role="group"
+                        aria-label="How to start"
                     >
-                        {!importing && (
-                            <WayToStart
-                                tone="scratch"
-                                icon={PenLine}
-                                title="Start from scratch"
-                                description="Describe your app in your own words. The AI builds it for you."
-                            />
-                        )}
-
-                        <PromptComposer
-                            action={ProjectController.store(organization.slug)}
-                            field="prompt"
-                            placeholder={
-                                importing
-                                    ? 'What should the agent do with it? (optional)'
-                                    : 'Describe the app you want to build…'
-                            }
-                            value={prompt}
-                            onValueChange={(value) => {
-                                setPrompt(value);
-
-                                if (value.trim() === '') {
-                                    setTemplate(null);
-                                    setDismissed(false);
+                        {WAYS.map((option) => (
+                            <WayButton
+                                key={option.way}
+                                option={option}
+                                description={
+                                    option.way === 'existing' && !simple
+                                        ? 'A free app, or your own code.'
+                                        : option.description
                                 }
-                            }}
-                            autoFocus={!importing}
-                            attachments
-                            allowEmpty={importing && repository.trim() !== ''}
-                            header={
-                                importing && (
-                                    <RepositoryPicker
-                                        value={repository}
-                                        onChange={setRepository}
-                                        onClose={() => setImporting(false)}
-                                        github={github}
-                                    />
-                                )
-                            }
-                            size="large"
-                            extraData={{
-                                template: importing ? null : template,
-                                repository: importing ? repository : null,
-                                ...agentFields,
-                            }}
-                            footer={
-                                <>
-                                    {selection ? (
+                                pressed={way === option.way}
+                                onClick={() => setWay(option.way)}
+                            />
+                        ))}
+                    </div>
+
+                    {(way === 'new' || importing) && (
+                        <div className="space-y-4">
+                            {importing && (
+                                <h2 className="text-sm font-medium text-muted-foreground">
+                                    Your own code
+                                </h2>
+                            )}
+                            <PromptComposer
+                                action={ProjectController.store(
+                                    organization.slug,
+                                )}
+                                field="prompt"
+                                placeholder={
+                                    importing
+                                        ? 'What should the agent do with it? (optional)'
+                                        : 'Describe the app you want to build…'
+                                }
+                                value={prompt}
+                                onValueChange={(value) => {
+                                    setPrompt(value);
+
+                                    if (value.trim() === '') {
+                                        setDismissed(false);
+                                    }
+                                }}
+                                autoFocus={!importing}
+                                attachments
+                                allowEmpty={
+                                    importing && repository.trim() !== ''
+                                }
+                                header={
+                                    importing && (
+                                        <RepositoryPicker
+                                            value={repository}
+                                            onChange={setRepository}
+                                            onClose={() => setWay('new')}
+                                            github={github}
+                                        />
+                                    )
+                                }
+                                size="large"
+                                extraData={{
+                                    repository: importing ? repository : null,
+                                    ...agentFields,
+                                }}
+                                footer={
+                                    // Simple mode uses their saved or default agent (PRJ-013).
+                                    simple ? null : selection ? (
                                         <AgentModelPicker
                                             selection={selection}
                                             onChange={setSelection}
@@ -261,41 +298,53 @@ export default function CreateProject({
                                                 {defaultAi}
                                             </span>
                                         )
-                                    )}
-                                    <RepositoryToggle
-                                        pressed={importing}
-                                        onPressedChange={setImporting}
-                                    />
-                                </>
-                            }
-                        />
-
-                        {suggestions.length > 0 && (
-                            <AlreadyBuilt
-                                suggestions={suggestions}
-                                onPick={(picked) =>
-                                    picked.compose
-                                        ? view(picked, prompt)
-                                        : pickTemplate(picked, prompt)
+                                    )
                                 }
-                                onDismiss={() => setDismissed(true)}
                             />
-                        )}
-                    </div>
 
-                    <div className={cn('space-y-6', importing && 'hidden')}>
+                            {suggestions.length > 0 && (
+                                <AlreadyBuilt
+                                    suggestions={suggestions}
+                                    onPick={(picked) =>
+                                        picked.compose
+                                            ? view(picked, prompt)
+                                            : pickTemplate(picked, prompt)
+                                    }
+                                    onDismiss={() => setDismissed(true)}
+                                />
+                            )}
+                        </div>
+                    )}
+
+                    {way === 'template' && (
                         <TemplatesPanel
+                            bare
                             templates={templates}
-                            selected={template}
+                            selected={templateViewing?.template.value ?? null}
                             onPick={(option) => pickTemplate(option)}
                         />
+                    )}
 
+                    {/* Kept mounted while hidden, so ⌘K can still jump to its search (PRJ-012). */}
+                    <div
+                        className={cn(
+                            'space-y-4',
+                            way !== 'existing' && 'hidden',
+                        )}
+                    >
+                        {importing && (
+                            <h2 className="text-sm font-medium text-muted-foreground">
+                                Or install a free app
+                            </h2>
+                        )}
                         <FreeAppsPanel
+                            bare
                             apps={apps}
                             featured={featured}
                             compose={compose}
-                            selected={template}
+                            selected={viewing?.app.value ?? null}
                             onView={(app) => view(app)}
+                            onShortcut={() => setWay('existing')}
                         />
                     </div>
 
@@ -305,13 +354,36 @@ export default function CreateProject({
                         onOpenChange={(open) => !open && setViewing(null)}
                         starting={starting}
                         error={startError}
-                        onUse={(app) => startFrom(app, viewing?.keep)}
+                        onUse={(app) =>
+                            startFrom(app, withKept(app.prompt, viewing?.keep))
+                        }
+                    />
+
+                    <TemplateDetails
+                        template={templateViewing?.template ?? null}
+                        prompt={templateViewing?.prompt ?? ''}
+                        onPromptChange={(changed) =>
+                            setTemplateViewing(
+                                (current) =>
+                                    current && { ...current, prompt: changed },
+                            )
+                        }
+                        onOpenChange={(open) =>
+                            !open && setTemplateViewing(null)
+                        }
+                        starting={starting}
+                        error={startError}
+                        onUse={(picked, changed) => startFrom(picked, changed)}
                     />
                 </div>
             </div>
         </>
     );
 }
+
+/** A template's or free app's description, with what they'd typed (when it was suggested for it) after it. */
+const withKept = (description: string, keep = ''): string =>
+    keep.trim() === '' ? description : `${description}\n\n${keep.trim()}`;
 
 /** A built-in template in the shape of a registry one, to match against what they type. */
 const builtIn = (template: AppTemplate): CatalogTemplate => ({
@@ -325,6 +397,178 @@ const builtIn = (template: AppTemplate): CatalogTemplate => ({
 });
 
 /** Templates and free apps that sound like what they typed, offered before they start from scratch (PRJ-001). */
+type Way = 'new' | 'template' | 'existing';
+
+/** The three ways to start a project, in words a first-time user knows (PRJ-001). */
+const WAYS: {
+    way: Way;
+    tone: keyof typeof tones;
+    icon: LucideIcon;
+    title: string;
+    description: string;
+}[] = [
+    {
+        way: 'new',
+        tone: 'scratch',
+        icon: PenLine,
+        title: 'Something new',
+        description: 'Describe it and the AI builds it.',
+    },
+    {
+        way: 'template',
+        tone: 'template',
+        icon: LayoutTemplate,
+        title: 'From a template',
+        description: 'A ready-made start to change.',
+    },
+    {
+        way: 'existing',
+        tone: 'app',
+        icon: Package,
+        title: 'Something that exists',
+        description: 'A free app, already built.',
+    },
+];
+
+function WayButton({
+    option,
+    description,
+    pressed,
+    onClick,
+}: {
+    option: (typeof WAYS)[number];
+    description: string;
+    pressed: boolean;
+    onClick: () => void;
+}) {
+    const Icon = option.icon;
+
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            aria-pressed={pressed}
+            className={cn(
+                'flex items-center gap-3 rounded-xl border border-input bg-background p-3 text-left transition-colors',
+                tones[option.tone].card,
+                pressed && tones[option.tone].pressed,
+            )}
+            data-test={`way-${option.way}`}
+        >
+            <span
+                className={cn(
+                    'flex size-9 shrink-0 items-center justify-center rounded-lg',
+                    tones[option.tone].tile,
+                )}
+            >
+                <Icon className="size-4" />
+            </span>
+            <span className="min-w-0">
+                <span className="block text-sm font-medium">
+                    {option.title}
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                    {description}
+                </span>
+            </span>
+        </button>
+    );
+}
+
+/** The two modes, in the words the chooser and the switch use (PRJ-013). */
+const MODES: {
+    mode: BuildMode;
+    icon: LucideIcon;
+    title: string;
+    description: string;
+}[] = [
+    {
+        mode: 'simple',
+        icon: Wand2,
+        title: 'Simple',
+        description: 'I describe it, the AI handles the technical side.',
+    },
+    {
+        mode: 'advanced',
+        icon: SlidersHorizontal,
+        title: 'Advanced',
+        description: 'I want models, files, the shell and git.',
+    },
+];
+
+/** Asked the first time they're here: how much of the builder to show (PRJ-013). */
+function ModeChooser({ onChoose }: { onChoose: (mode: BuildMode) => void }) {
+    return (
+        <div
+            className="space-y-3 rounded-2xl border border-dashed p-4 sm:p-5"
+            data-test="mode-chooser"
+        >
+            <div className="space-y-0.5">
+                <h2 className="font-semibold">How do you like to build?</h2>
+                <p className="text-sm text-muted-foreground">
+                    You can switch any time.
+                </p>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+                {MODES.map(({ mode, icon: Icon, title, description }) => (
+                    <button
+                        key={mode}
+                        type="button"
+                        onClick={() => onChoose(mode)}
+                        className="flex items-start gap-3 rounded-xl border border-input bg-background p-3 text-left transition-colors hover:border-foreground/30 hover:bg-muted/50"
+                        data-test={`mode-${mode}`}
+                    >
+                        <Icon className="mt-0.5 size-4 shrink-0" />
+                        <span>
+                            <span className="block text-sm font-medium">
+                                {title}
+                            </span>
+                            <span className="block text-xs text-muted-foreground">
+                                {description}
+                            </span>
+                        </span>
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+/** Simple / Advanced, once they've chosen (PRJ-013). */
+function ModeSwitch({
+    mode,
+    onChange,
+}: {
+    mode: BuildMode;
+    onChange: (mode: BuildMode) => void;
+}) {
+    return (
+        <div
+            className="inline-flex shrink-0 rounded-lg border p-0.5 text-xs"
+            role="group"
+            aria-label="Mode"
+        >
+            {MODES.map((option) => (
+                <button
+                    key={option.mode}
+                    type="button"
+                    onClick={() => onChange(option.mode)}
+                    aria-pressed={mode === option.mode}
+                    title={option.description}
+                    className={cn(
+                        'rounded-md px-2.5 py-1 text-muted-foreground transition-colors hover:text-foreground',
+                        mode === option.mode &&
+                            'bg-muted font-medium text-foreground',
+                    )}
+                    data-test={`mode-switch-${option.mode}`}
+                >
+                    {option.title}
+                </button>
+            ))}
+        </div>
+    );
+}
+
 function AlreadyBuilt({
     suggestions,
     onPick,

@@ -42,7 +42,7 @@ import {
 import { Spinner } from '@/components/ui/spinner';
 import TurnOnDocker from '@/components/turn-on-docker';
 import { cn } from '@/lib/utils';
-import type { CatalogTemplate } from '@/types';
+import type { AppTemplate, CatalogTemplate } from '@/types';
 
 /** The built-in templates' icons (PRJ-004). */
 export const templateIcons: Record<string, LucideIcon> = {
@@ -98,18 +98,26 @@ export default function AppGallery({
     onPick,
     renderApp,
     limit,
+    onShortcut,
 }: {
     apps: CatalogTemplate[];
     onPick: (app: CatalogTemplate) => void;
     renderApp: (app: CatalogTemplate) => ReactNode;
     /** Show only this many until they search, pick a category or ask for all (the home page, HOME-004). */
     limit?: number;
+    /** Called on ⌘K before the search is focused, to show the apps if they're hidden (PRJ-001). */
+    onShortcut?: () => void;
 }) {
     const [query, setQuery] = useState('');
     const [showingAll, setShowingAll] = useState(false);
     const [category, setCategory] = useState<string | null>(null);
     const searchInput = useRef<HTMLInputElement>(null);
     const shortcut = useMemo(() => (isApple() ? '⌘K' : 'Ctrl K'), []);
+    const shortcutHandler = useRef(onShortcut);
+
+    useEffect(() => {
+        shortcutHandler.current = onShortcut;
+    }, [onShortcut]);
 
     useEffect(() => {
         const onKeyDown = (event: KeyboardEvent) => {
@@ -121,16 +129,22 @@ export default function AppGallery({
                 searchInput.current
             ) {
                 event.preventDefault();
-                searchInput.current.scrollIntoView({
-                    block: 'center',
-                    behavior: window.matchMedia(
-                        '(prefers-reduced-motion: reduce)',
-                    ).matches
-                        ? 'auto'
-                        : 'smooth',
+                shortcutHandler.current?.();
+                // After the apps have shown, if they were hidden.
+                requestAnimationFrame(() => {
+                    const input = searchInput.current;
+
+                    input?.scrollIntoView({
+                        block: 'center',
+                        behavior: window.matchMedia(
+                            '(prefers-reduced-motion: reduce)',
+                        ).matches
+                            ? 'auto'
+                            : 'smooth',
+                    });
+                    input?.focus({ preventScroll: true });
+                    input?.select();
                 });
-                searchInput.current.focus({ preventScroll: true });
-                searchInput.current.select();
             }
         };
 
@@ -434,6 +448,146 @@ export function AppDetails({
                             >
                                 {starting && <Spinner />}
                                 {starting ? 'Starting…' : `Use ${app.label}`}
+                            </Button>
+                        </DialogFooter>
+                    </>
+                )}
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+const TEMPLATE_STEPS = [
+    'We make a new project named after it.',
+    'The AI builds the app from the description above.',
+    'You see it in the preview, with sample data to try.',
+];
+
+/**
+ * A built-in template's details (PRJ-004), like a free app's: what it is, its full description to change in place,
+ * and a button that starts the project from it right away.
+ */
+export function TemplateDetails({
+    template,
+    prompt,
+    starting = false,
+    error = null,
+    onPromptChange,
+    onOpenChange,
+    onUse,
+}: {
+    template: AppTemplate | null;
+    /** What the AI is asked to build: the template's description, as they've changed it. */
+    prompt: string;
+    /** The project is being created from it. */
+    starting?: boolean;
+    /** Why the project couldn't be created. */
+    error?: string | null;
+    onPromptChange: (prompt: string) => void;
+    onOpenChange: (open: boolean) => void;
+    onUse: (template: AppTemplate, prompt: string) => void;
+}) {
+    const Icon = template
+        ? (templateIcons[template.value] ?? LayoutTemplate)
+        : LayoutTemplate;
+
+    return (
+        <Dialog open={template !== null} onOpenChange={onOpenChange}>
+            <DialogContent
+                className={cn(
+                    'max-h-[90vh] gap-5 overflow-y-auto sm:max-w-2xl',
+                    // A phone gets the whole screen, like a page of its own.
+                    'max-sm:top-0 max-sm:left-0 max-sm:flex max-sm:h-dvh max-sm:max-h-none max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:flex-col max-sm:rounded-none max-sm:border-0',
+                )}
+                data-test="template-details"
+            >
+                {template && (
+                    <>
+                        <div className="flex items-start gap-4">
+                            <span className="flex size-14 shrink-0 items-center justify-center rounded-xl bg-sky-500/15 text-sky-600 dark:text-sky-400">
+                                <Icon className="size-6" />
+                            </span>
+                            <div className="min-w-0 space-y-1.5">
+                                <DialogTitle className="text-xl">
+                                    {template.label}
+                                </DialogTitle>
+                                <span className="inline-block rounded-full bg-sky-500/15 px-2 py-0.5 text-xs font-medium text-sky-700 dark:text-sky-400">
+                                    Template
+                                </span>
+                            </div>
+                        </div>
+
+                        <DialogDescription className="text-sm leading-relaxed text-foreground">
+                            {template.description}.
+                        </DialogDescription>
+
+                        <div className="space-y-2">
+                            <label
+                                htmlFor="template-prompt"
+                                className="text-sm font-medium"
+                            >
+                                What the AI will build
+                            </label>
+                            <textarea
+                                id="template-prompt"
+                                value={prompt}
+                                onChange={(event) =>
+                                    onPromptChange(event.target.value)
+                                }
+                                rows={10}
+                                className="w-full resize-y rounded-lg border border-input bg-transparent px-3 py-2 text-sm leading-relaxed shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                                data-test="template-details-prompt"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                Change anything first, like “for our three
+                                warehouses” or “add a field for the lead
+                                source”. You can ask for more in the chat later.
+                            </p>
+                        </div>
+
+                        <div className="space-y-2 rounded-xl bg-muted/60 p-4">
+                            <p className="text-sm font-medium">
+                                What happens when you use it
+                            </p>
+                            <ol className="space-y-1.5 text-sm text-muted-foreground">
+                                {TEMPLATE_STEPS.map((step, index) => (
+                                    <li key={step} className="flex gap-2.5">
+                                        <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-sky-500/15 text-xs font-medium text-sky-700 dark:text-sky-400">
+                                            {index + 1}
+                                        </span>
+                                        {step}
+                                    </li>
+                                ))}
+                            </ol>
+                        </div>
+
+                        {error && (
+                            <p
+                                className="text-sm text-destructive"
+                                data-test="template-details-error"
+                            >
+                                {error}
+                            </p>
+                        )}
+
+                        {/* Pinned to the bottom while the rest scrolls, so "Use" is always in reach. */}
+                        <DialogFooter className="sticky -bottom-6 -mx-6 -mb-6 border-t bg-background px-6 py-4 max-sm:mt-auto">
+                            <Button
+                                variant="outline"
+                                onClick={() => onOpenChange(false)}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                disabled={prompt.trim() === '' || starting}
+                                onClick={() => onUse(template, prompt)}
+                                className="bg-sky-600 text-white hover:bg-sky-700"
+                                data-test="template-details-use"
+                            >
+                                {starting && <Spinner />}
+                                {starting
+                                    ? 'Starting…'
+                                    : `Use ${template.label}`}
                             </Button>
                         </DialogFooter>
                     </>

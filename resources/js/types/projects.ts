@@ -167,6 +167,8 @@ export type ChatMessage = {
     id: number;
     role: 'user' | 'assistant' | 'activity';
     content: string;
+    /** An activity step in plain words, for Simple mode (PRJ-013). */
+    plain: string | null;
     attachments: MessageAttachment[];
     created_at: string | null;
 };

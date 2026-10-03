@@ -118,6 +118,7 @@ import ToolsPanel from '@/components/workspace/tools-panel';
 import FileViewer from '@/components/workspace/file-viewer';
 import ResizeHandle from '@/components/workspace/resize-handle';
 import { isLocalHostname, useIsRemote } from '@/hooks/use-is-remote';
+import { useBuildMode } from '@/hooks/use-build-mode';
 import { useClipboard } from '@/hooks/use-clipboard';
 import { useResizableWidth } from '@/hooks/use-resizable-width';
 import { useSandboxActivity } from '@/hooks/use-sandbox-activity';
@@ -238,6 +239,7 @@ export default function ShowProject({
     /** Claude Code runs on the owner's own Claude sign-in in the sandbox (AI-005). */
     claudeSubscription: boolean;
 }) {
+    const { simple } = useBuildMode();
     // On a phone or small tablet the chat and the workspace are tabs, one at a time (LAYOUT-006).
     const [mobileView, setMobileView] = useState<'chat' | 'workspace'>('chat');
 
@@ -268,14 +270,18 @@ export default function ShowProject({
         CHAT_WIDTH,
     );
     // Hidden or shown, as last left in this browser (LAYOUT-001); read after mount so server and client HTML match.
+    // Simple mode always starts with it showing, since the chat is how it's used (PRJ-013).
     const [chatOpen, setChatOpen] = useState(true);
 
     useEffect(() => {
-        setChatOpen(localStorage.getItem(CHAT_OPEN_KEY) !== 'false');
-    }, []);
+        setChatOpen(simple || localStorage.getItem(CHAT_OPEN_KEY) !== 'false');
+    }, [simple]);
 
     const toggleChat = () => {
-        localStorage.setItem(CHAT_OPEN_KEY, String(!chatOpen));
+        if (!simple) {
+            localStorage.setItem(CHAT_OPEN_KEY, String(!chatOpen));
+        }
+
         setChatOpen(!chatOpen);
     };
 
@@ -355,11 +361,13 @@ export default function ShowProject({
         <>
             <Head title={title ? `${title} · ${project.name}` : project.name} />
             <HeaderActions>
-                <GitActionsMenu
-                    projectId={project.id}
-                    running={sandbox?.status === 'running'}
-                    working={working}
-                />
+                {!simple && (
+                    <GitActionsMenu
+                        projectId={project.id}
+                        running={sandbox?.status === 'running'}
+                        working={working}
+                    />
+                )}
                 <ShareMenu
                     projectId={project.id}
                     projectName={project.name}
@@ -469,6 +477,20 @@ function ChatPanel({
     /** The file open in the editor (AGT-015). */
     openFile: ContextFile | null;
 }) {
+    const { simple } = useBuildMode();
+    // In Simple mode a step repeated in a row ("Building the app" three times) shows once (PRJ-013).
+    const shownMessages = simple
+        ? messages.filter((message, index) => {
+              const previous = messages[index - 1];
+
+              return !(
+                  message.role === 'activity' &&
+                  previous?.role === 'activity' &&
+                  (previous.plain ?? previous.content) ===
+                      (message.plain ?? message.content)
+              );
+          })
+        : messages;
     const bottom = useRef<HTMLDivElement>(null);
     const scroller = useRef<HTMLDivElement>(null);
     const [draft, setDraft] = useState<string | undefined>(undefined);
@@ -616,11 +638,12 @@ function ChatPanel({
                         }
                     />
                 )}
-                {messages.map((message, index) => (
+                {shownMessages.map((message, index) => (
                     <MessageItem
                         key={message.id}
                         message={message}
-                        live={working && index === messages.length - 1}
+                        simple={simple}
+                        live={working && index === shownMessages.length - 1}
                     />
                 ))}
                 {working && (
@@ -722,7 +745,7 @@ function ChatPanel({
                     }
                     footer={
                         <>
-                            {agent && (
+                            {agent && !simple && (
                                 <AgentModelPicker
                                     selection={agent}
                                     allowAuto
@@ -771,10 +794,13 @@ function sentAttachments(
 function MessageItem({
     message,
     live = false,
+    simple = false,
 }: {
     message: ChatMessage;
     /** The agent's current step: its dot pulses green. */
     live?: boolean;
+    /** Steps in plain words (PRJ-013). */
+    simple?: boolean;
 }) {
     if (message.role === 'user') {
         return (
@@ -807,7 +833,7 @@ function MessageItem({
                         live ? 'animate-pulse bg-emerald-500' : 'bg-current',
                     )}
                 />
-                {message.content}
+                {simple ? (message.plain ?? message.content) : message.content}
             </p>
         );
     }
@@ -900,6 +926,7 @@ function WorkspacePanel({
     // The URL says what to show (TASK-004): `?tab=tools&tool=database`, `?tab=file&file=…`, `?tab=console`.
     // `?tool=git` alone (e.g. back from connecting GitHub) opens that Tools section.
     const { url: pageUrl } = usePage();
+    const { simple } = useBuildMode();
     const [initialView] = useState(() => viewFromUrl(pageUrl));
     const [tool, setTool] = useState<string | null>(initialView.tool);
     /** The panes and their tabs (LAYOUT-002); the URL follows the tab showing in the pane last used. */
@@ -912,7 +939,8 @@ function WorkspacePanel({
                   ? (asked as PaneTab)
                   : 'preview';
 
-        return panes.initialLayout(first);
+        // Simple mode opens with just Tools and Preview; the rest are still in "+" (PRJ-013).
+        return panes.initialLayout(first, simple ? [] : undefined);
     });
     const tab = panes.focusedTab(layout);
     const showTab = (kind: PaneTab, paneId?: number) =>
@@ -1019,7 +1047,7 @@ function WorkspacePanel({
 
         const saved = localStorage.getItem(FILES_OPEN_KEY);
 
-        if (isPhone()) {
+        if (isPhone() || simple) {
             return;
         }
 
@@ -1030,8 +1058,15 @@ function WorkspacePanel({
         }
     }, []);
 
+    // Simple mode starts with the files panel closed, and doesn't remember opening it (PRJ-013).
+    useEffect(() => {
+        if (simple) {
+            setFilesOpen(false);
+        }
+    }, [simple]);
+
     const toggleFiles = () => {
-        if (!isPhone()) {
+        if (!isPhone() && !simple) {
             localStorage.setItem(FILES_OPEN_KEY, String(!filesOpen));
         }
 

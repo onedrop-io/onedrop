@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Settings\AgentConnectionController;
+use App\Http\Controllers\Settings\BuildModeController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\SecurityController;
 use App\Http\Controllers\Settings\SocialAccountController;
@@ -29,6 +30,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::inertia('settings/appearance', 'settings/appearance')->name('appearance.edit');
     Route::inertia('settings/notifications', 'settings/notifications')->name('notifications.edit');
+    Route::put('settings/build-mode', BuildModeController::class)->name('build-mode.update');
 
     Route::get('settings/ai', [AgentConnectionController::class, 'index'])->name('agent-connections.index');
     Route::post('settings/ai', [AgentConnectionController::class, 'store'])->name('agent-connections.store');

@@ -129,19 +129,29 @@ export function TemplatesPanel({
     templates,
     selected,
     onPick,
+    bare = false,
 }: {
     templates: AppTemplate[];
     selected: string | null;
     onPick: (template: AppTemplate) => void;
+    /** Just the templates, without the panel and its heading (the new-project page's "From a template", PRJ-001). */
+    bare?: boolean;
 }) {
     return (
-        <div className={cn('space-y-4', panelClass, tones.template.panel)}>
-            <WayToStart
-                tone="template"
-                icon={LayoutTemplate}
-                title="Or start from a template"
-                description="A ready-made starting point. Pick one, change anything, then send it."
-            />
+        <div
+            className={cn(
+                'space-y-4',
+                !bare && [panelClass, tones.template.panel],
+            )}
+        >
+            {!bare && (
+                <WayToStart
+                    tone="template"
+                    icon={LayoutTemplate}
+                    title="Or start from a template"
+                    description="A ready-made starting point. Pick one, change anything, then send it."
+                />
+            )}
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {templates.map((option) => {
                     const Icon = templateIcons[option.value] ?? LayoutTemplate;
@@ -178,9 +188,15 @@ export function FreeAppsPanel({
     selected,
     onView,
     limit,
+    bare = false,
+    onShortcut,
 }: {
     /** Show only this many until they search or ask for all. */
     limit?: number;
+    /** Just the apps, without the panel and its heading (the new-project page's "Something that exists", PRJ-001). */
+    bare?: boolean;
+    /** Called on ⌘K before the search is focused, to show the apps if they're hidden. */
+    onShortcut?: () => void;
     /** Deferred, since a registry may be slow. */
     apps?: CatalogTemplate[];
     /** Deferred on their own, since finding pictures is slow. */
@@ -191,13 +207,17 @@ export function FreeAppsPanel({
     onView: (app: CatalogTemplate) => void;
 }) {
     return (
-        <div className={cn('space-y-4', panelClass, tones.app.panel)}>
-            <WayToStart
-                tone="app"
-                icon={Package}
-                title="Or install a free app"
-                description="Free open-source apps, already built. Pick one and we set it up for you, ready to use."
-            />
+        <div
+            className={cn('space-y-4', !bare && [panelClass, tones.app.panel])}
+        >
+            {!bare && (
+                <WayToStart
+                    tone="app"
+                    icon={Package}
+                    title="Or install a free app"
+                    description="Free open-source apps, already built. Pick one and we set it up for you, ready to use."
+                />
+            )}
             {!compose && (
                 <p className="text-xs text-muted-foreground">
                     These run with Docker. <TurnOnDocker />
@@ -228,6 +248,7 @@ export function FreeAppsPanel({
                     apps={apps ?? []}
                     onPick={onView}
                     limit={limit}
+                    onShortcut={onShortcut}
                     renderApp={(app) => (
                         <AppCard
                             key={app.value}

@@ -1,3 +1,5 @@
+export type BuildMode = 'simple' | 'advanced';
+
 export type User = {
     id: number;
     name: string;
@@ -6,6 +8,8 @@ export type User = {
     email_verified_at: string | null;
     two_factor_enabled?: boolean;
     is_admin: boolean;
+    /** Simple or Advanced (PRJ-013); null until they choose, which shows everything. */
+    build_mode: BuildMode | null;
     created_at: string;
     updated_at: string;
     [key: string]: unknown;
