@@ -7,6 +7,7 @@ import {
     CloudUpload,
     DatabaseBackup,
     Globe,
+    Monitor,
     Palette,
     Settings,
     Settings2,
@@ -39,6 +40,7 @@ import { index as sandboxesIndex } from '@/routes/admin/sandboxes';
 import { edit as editServer } from '@/routes/admin/server';
 import { index as aiSettings } from '@/routes/agent-connections';
 import { edit as editAppearance } from '@/routes/appearance';
+import { index as desktopDevices } from '@/routes/desktop-devices';
 import { index as groupsIndex } from '@/routes/groups';
 import { edit as editOrganization } from '@/routes/organizations';
 import { index as invitationsIndex } from '@/routes/invitations';
@@ -59,6 +61,7 @@ const accountSection: NavSection = {
         { title: 'AI', href: aiSettings(), icon: Sparkles },
         { title: 'Appearance', href: editAppearance(), icon: Palette },
         { title: 'Notifications', href: editNotifications(), icon: Bell },
+        { title: 'Desktop app', href: desktopDevices(), icon: Monitor },
     ],
 };
 

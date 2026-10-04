@@ -56,6 +56,8 @@ export default defineConfig({
             'resources/js/components/ui/*',
             'resources/js/routes/**',
             'resources/js/wayfinder/**',
+            'desktop/dist/**',
+            'desktop/src-tauri/**',
         ],
         options: {
             denyWarnings: true,
@@ -78,6 +80,9 @@ export default defineConfig({
             'resources/js/components/charts/world-map-data.json',
             'resources/js/components/ui/*',
             'resources/views/mail/*',
+            'desktop/dist/**',
+            'desktop/src-tauri/target/**',
+            'desktop/src-tauri/gen/**',
         ],
         sortTailwindcss: {
             functions: ['clsx', 'cn', 'cva'],

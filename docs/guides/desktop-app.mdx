@@ -1,0 +1,43 @@
+---
+title: 'Desktop app'
+description: 'Use OneDrop from a native app on macOS, Windows or Linux.'
+---
+
+The OneDrop desktop app is OneDrop in its own window on macOS, Windows or Linux: everything the web app has, from starting projects and chatting with the agent to the preview, Tools, the Shell, Files and Settings. It connects to any OneDrop install, the one on your computer or your team's server.
+
+## Sign in
+
+1. Open the app and enter your OneDrop's address. For OneDrop on your own computer that's `http://localhost:8000`.
+2. Click **Sign in with your browser**. Your browser opens on OneDrop, where you sign in as usual (password, passkey, Google, single sign-on).
+3. Check that the page names your computer, then click **Allow**. You're back in the app, signed in.
+
+The app keeps its sign-in in your system's keychain and stays signed in until you sign out.
+
+<Note>
+    Your AI connections stay on your OneDrop server, as on the web. If you
+    haven't connected an AI yet, the app asks you to [set one
+    up](/guides/set-up-ai) first.
+</Note>
+
+## What's in the app
+
+Everything in the web app, on the same pages: the projects in the sidebar, the chat and the agent, the preview, Tools, the Shell, Files, tasks and the board, and Settings. A few things work the way a desktop app should:
+
+- **Downloads** (a project's files, a copy of a database) go to your Downloads folder.
+- **Links to other sites** (GitHub, your published app, Claude's sign-in) open in your browser.
+- **Notifications** tell you when an agent finishes while you're in another app.
+
+## Sign out
+
+Click **Log out** in the account menu at the bottom of the sidebar. To sign the app out on a computer you no longer have, open **Settings → Desktop app** and click **Sign out** next to it.
+
+## Run it from source
+
+The app lives in `desktop/`: Tauri, running the web app's own pages (`resources/js`) and talking to the install over HTTP with the token it got when you signed in. You need [Rust](https://www.rust-lang.org/tools/install) and the [Tauri prerequisites](https://tauri.app/start/prerequisites/) for your system, and PHP with `composer install` done, since the web's typed routes are generated from Laravel.
+
+```bash
+composer install && npm install
+npm run desktop:dev     # opens the app, reloading as you change desktop/src
+npm run desktop:build   # installers in desktop/src-tauri/target/release/bundle
+```
+

@@ -1754,3 +1754,25 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - App user should be able to group the timeline's rows by a field, scroll through time, jump to today, and see today marked.
 - App user should be able to drag a bar to move its dates, drag its ends to change the start or end, and click it to open the record.
 - Records without a start date should be listed apart, and can be dragged onto the timeline to give them dates.
+
+## DESK-001: Sign in to the desktop app
+
+- User should be able to install the OneDrop desktop app on macOS, Windows or Linux and sign in to any OneDrop install by its address (`http://localhost:8000` for one on their own computer).
+- User should finish signing in in their browser, with whatever they normally sign in with there (password, two-factor, passkey, Google, single sign-on), and click "Allow" on a page that names their computer.
+- User should be taken back to the app, signed in, and stay signed in until they sign out; the app should keep its sign-in in the system keychain.
+- User should see a sign-in link that didn't come from the app (anything not going back to this computer, or without PKCE) refused, never redirected.
+- User should be able to sign out with "Log out" in the app, and to see where the app is signed in and sign any of those out in Settings → Desktop app; a computer signed out there goes back to the app's sign-in.
+- User should see why the app can't reach the server, and be able to try again or sign out.
+
+## DESK-002: Everything the web app does, in the desktop app
+
+- User should see the web app's own pages in the desktop app, from the same code: the sidebar, starting projects, the workspace with the chat and the agent, the preview, Tools (Publishing, Domains, Monitoring, Database, Users & Auth, Growth, Feature Flags, App Storage, App Icon, Secrets, Git, Agent Skills, Developer and the rest), the Shell, Files, tasks and the board, Settings and admin.
+- The app should talk to the server over HTTP with its own token: the web's pages, their requests, images that need signing in (project icons, attachments) and live updates (LIVE-001) all go to the server the user signed in to.
+- What the web keeps between requests (a toast after deleting a project, the draft handed back when the agent is stopped) and its UI cookies (the open project, the sidebar, appearance) should work in the app as in the browser.
+- Previews on a server should open through the sandbox's own sign-in address, since the app has no session cookie for the app's address.
+
+## DESK-003: The desktop app on the computer
+
+- User should get downloads (a project's files, a database copy, a demo video) in their Downloads folder, shown in the file manager.
+- User should see links to other sites (GitHub, a published app, Claude's sign-in in the Shell) open in their browser, and the server's own pages open in the app.
+- User should get system notifications for "ready for review" (NOTIF-001).

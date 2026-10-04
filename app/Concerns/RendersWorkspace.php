@@ -10,6 +10,7 @@ use App\Enums\MessageRole;
 use App\Enums\PublishStatus;
 use App\Enums\PublishTarget;
 use App\Enums\SandboxStatus;
+use App\Http\Middleware\UseDesktopToken;
 use App\Jobs\CreateSandbox;
 use App\Models\Attachment;
 use App\Models\Deployment;
@@ -59,7 +60,11 @@ trait RendersWorkspace
         // A task with its own copy of the app shows that copy's preview, shell and files (TASK-003).
         $sandbox = $task && Task::getsCopies() ? $task->sandbox()->first() : $project->sandbox;
         $sandbox?->wake(app(SandboxProvider::class));
-        $open = fn (string $kind, string $path = '/') => route('projects.gateway.open', [$project, $kind, ...($sandbox?->task_id ? ['task' => $sandbox->task_id] : []), ...($path !== '/' ? ['path' => $path] : [])]);
+        // The desktop app (DESK-001) has no session for that address to sign in with: it gets the sandbox address's own
+        // sign-in, good for a minute, which every load of the workspace renews.
+        $open = fn (string $kind, string $path = '/') => $sandbox && UseDesktopToken::from($request)
+            ? $gateway->enterUrl($sandbox, $kind, $request->user(), $path)
+            : route('projects.gateway.open', [$project, $kind, ...($sandbox?->task_id ? ['task' => $sandbox->task_id] : []), ...($path !== '/' ? ['path' => $path] : [])]);
         $messages = $newTask ? collect() : $conversation->messages()->with('attachments')->get();
         $queued = $newTask ? collect() : $conversation->queuedMessages()->with('attachments')->get();
 

@@ -118,7 +118,8 @@ class HandleInertiaRequests extends Middleware
 
         return [
             'key' => (string) config('broadcasting.connections.reverb.key'),
-            'host' => ($browser['host'] ?? null) ?: null,
+            // None means the page's own address, which in the desktop app (DESK-001) is the server it signed in to.
+            'host' => ($browser['host'] ?? null) ?: (UseDesktopToken::from(request()) ? request()->getHost() : null),
             'port' => (int) $browser['port'],
             'scheme' => (string) $browser['scheme'],
         ];

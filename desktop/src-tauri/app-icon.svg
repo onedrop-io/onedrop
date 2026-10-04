@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+    <mask id="highlight">
+        <rect width="1024" height="1024" fill="white"/>
+        <path d="M424 572a96 96 0 0 0 83 93" stroke="black" stroke-width="51" stroke-linecap="round" fill="none"/>
+    </mask>
+    <rect x="100" y="100" width="824" height="824" rx="185" fill="#171717"/>
+    <path mask="url(#highlight)" fill="#fff" d="M512 208c-13 16-224 266-224 416a224 224 0 0 0 448 0c0-150-211-400-224-416Z"/>
+</svg>

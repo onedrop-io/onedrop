@@ -1,0 +1,5 @@
+/* The web app's styles: the desktop app shows the web app's own pages (DESK-001). */
+@import '../../resources/css/app.css';
+
+@source '../../resources/js';
+@source '.';
