@@ -9,6 +9,9 @@ cd /workspace 2>/dev/null || true
 [[ ":$PATH:" == *:/opt/onedrop/lazy:* ]] || PATH="$PATH:/opt/onedrop/lazy"
 export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 
+# A connected Gemini key under the names the Gemini CLI and pi look for (SBX-012).
+[ -n "${GOOGLE_GENERATIVE_AI_API_KEY:-}" ] && export GEMINI_API_KEY="${GEMINI_API_KEY:-$GOOGLE_GENERATIVE_AI_API_KEY}"
+
 [[ $- == *i* ]] || return
 
 HISTSIZE=10000
@@ -101,7 +104,8 @@ EOF
     printf '\n  \e[1m%s\e[0m \e[2m· /workspace\e[0m\n' "${APP_PROJECT_NAME:-Your sandbox}"
     printf '  \e[2mll · tree · bat · rg · fd · z <dir> · Ctrl-R history\e[0m\n'
     printf '  \e[2mlazygit · btop · micro <file> · /opt/onedrop/restart restarts the preview\e[0m\n'
-    printf '  \e[2maws · gcloud · gh · wrangler · …: onedrop-tool list\e[0m\n\n'
+    printf '  \e[2maws · gcloud · gh · wrangler · …: onedrop-tool list\e[0m\n'
+    printf '  \e[1mask\e[0m \e[2m<question> · claude · codex · opencode · pi · fx · gemini\e[0m\n\n'
 }
 if [ -z "${ONEDROP_BANNER_SHOWN:-}" ] && (( $(tput cols 2>/dev/null || echo 80) >= 44 )); then
     export ONEDROP_BANNER_SHOWN=1

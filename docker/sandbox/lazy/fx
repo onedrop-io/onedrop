@@ -1,0 +1,3 @@
+#!/bin/sh
+# Installs on first use (see /opt/onedrop/onedrop-tool).
+exec /opt/onedrop/onedrop-tool run "${0##*/}" "$@"

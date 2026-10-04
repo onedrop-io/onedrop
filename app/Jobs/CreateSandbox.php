@@ -41,6 +41,8 @@ class CreateSandbox implements ShouldQueue
                 'APP_PROJECT_NAME' => $this->project->name,
                 // Where the file watcher reports added, removed or renamed files (FILE-004).
                 'APP_FILES_CHANGED_URL' => rtrim(config('sandbox.callback_url'), '/').URL::signedRoute('sandbox-events.files', $sandbox, absolute: false),
+                // Where `ask` in the shell gets the project's AI for each question (SBX-012).
+                'ONEDROP_AI_URL' => rtrim(config('sandbox.callback_url'), '/').URL::signedRoute('sandbox-ai.show', $sandbox, absolute: false),
                 ...($connection?->sandboxEnvironment() ?? []),
             ],
             port: $port,

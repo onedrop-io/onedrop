@@ -52,6 +52,7 @@ use App\Http\Controllers\ProjectSkillController;
 use App\Http\Controllers\ProjectStorageController;
 use App\Http\Controllers\ProjectTestController;
 use App\Http\Controllers\SandboxActivityController;
+use App\Http\Controllers\SandboxAiController;
 use App\Http\Controllers\SandboxEventController;
 use App\Http\Controllers\SandboxGatewayController;
 use App\Http\Controllers\ShareController;
@@ -132,6 +133,11 @@ Route::post('sandbox-events/{sandbox}/files', [SandboxEventController::class, 'f
 Route::post('sandbox-events/deployments/{deployment}/log', [ProjectHostingController::class, 'log'])
     ->middleware(['signed', 'throttle:60,1'])
     ->name('hosting.deployments.log');
+
+// Called by `ask` in a sandbox's shell (SBX-012); the sandbox gets this signed address when it's created.
+Route::get('sandbox-ai/{sandbox}', [SandboxAiController::class, 'show'])
+    ->middleware(['signed:relative', 'throttle:30,1'])
+    ->name('sandbox-ai.show');
 
 // Back to the admin's own account (USR-003). Only `auth`: the person being impersonated may not have verified their email.
 Route::delete('impersonation', [ImpersonationController::class, 'destroy'])->middleware('auth')->name('impersonation.destroy');

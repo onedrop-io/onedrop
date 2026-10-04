@@ -2,6 +2,7 @@
 
 namespace App\Sandbox\Agents;
 
+use App\Enums\AgentHarness;
 use App\Enums\AgentProvider;
 use App\Enums\CredentialType;
 use App\Enums\SandboxStatus;
@@ -12,7 +13,7 @@ use App\Sandbox\SandboxProvider;
 /**
  * Asks the project's AI a single question with a one-off run in the sandbox (where the user's AI
  * credentials already go): OpenCode, or Claude Code on a Claude subscription (which OpenCode can't use).
- * The run gets no tools and doesn't touch the agent's session.
+ * The run gets no tools that change anything and doesn't touch the agent's session.
  */
 class OneOffPrompt
 {
@@ -27,13 +28,48 @@ class OneOffPrompt
     public function ask(Project $project, string $prompt): string
     {
         $sandbox = $project->sandbox;
-        $selection = $this->catalog->selectionFor($project);
-        $connection = $selection ? $project->user->agentConnections()->firstWhere('provider', $selection['provider']) : null;
 
         if ($sandbox?->status !== SandboxStatus::Running || $sandbox->external_id === null) {
             throw new SandboxException("The project's sandbox isn't running.");
         }
 
+        $setup = $this->setup($project);
+
+        if ($setup['harness'] === AgentHarness::ClaudeCode) {
+            return $this->askClaudeCode($sandbox->external_id, $setup['model'], $prompt);
+        }
+
+        $result = $this->provider->exec($sandbox->external_id, [
+            'bash', '-c', 'cd /tmp && exec opencode run --format json -m "$APP_MODEL" -- "$APP_PROMPT"',
+        ], [
+            ...$setup['env'],
+            'APP_MODEL' => $setup['model'],
+            'APP_PROMPT' => $prompt,
+        ]);
+
+        $text = $this->textFrom($result->output);
+
+        if (! $result->successful() || trim($text) === '') {
+            throw new SandboxException(strtok(trim($result->errorOutput), "\n") ?: 'no answer');
+        }
+
+        return $text;
+    }
+
+    /**
+     * How to ask the project's AI, here or from `ask` in the sandbox's shell (SBX-012): OpenCode with the model and
+     * an environment holding the credentials and a config that lets it read but not change or run anything, or Claude
+     * Code on a Claude subscription (which OpenCode can't use), signed in inside the sandbox, so no environment.
+     *
+     * @return array{harness: AgentHarness, model: string, env: array<string, string>}
+     *
+     * @throws SandboxException when no AI can be asked
+     * @throws ChatGptSignInFailed when a ChatGPT sign-in can't be refreshed
+     */
+    public function setup(Project $project): array
+    {
+        $selection = $this->catalog->selectionFor($project);
+        $connection = $selection ? $project->user->agentConnections()->firstWhere('provider', $selection['provider']) : null;
         $onCredits = $selection !== null && $selection['provider'] === AgentProvider::Credits;
 
         if ($selection === null || ($connection === null && ! $onCredits)) {
@@ -47,7 +83,7 @@ class OneOffPrompt
                 throw new SandboxException($e->getMessage());
             }
         } elseif ($connection->credential_type === CredentialType::ClaudeLogin) {
-            return $this->askClaudeCode($sandbox->external_id, $selection['model'], $prompt);
+            return ['harness' => AgentHarness::ClaudeCode, 'model' => $selection['model'], 'env' => []];
         } else {
             if ($connection->credential_type === CredentialType::ChatGpt) {
                 $connection = $this->chatGpt->ensureFresh($connection);
@@ -56,28 +92,20 @@ class OneOffPrompt
             $environment = $connection->sandboxEnvironment();
         }
 
-        $result = $this->provider->exec($sandbox->external_id, [
-            'bash', '-c', 'cd /tmp && exec opencode run --format json -m "$APP_MODEL" -- "$APP_PROMPT"',
-        ], [
-            ...$environment,
-            'APP_MODEL' => $this->catalog->opencodeId($selection['provider'], $selection['model']),
-            'APP_PROMPT' => $prompt,
-            // No project instructions and no tools: just answer. Keeps a connection's own config (an Ollama server's).
-            'OPENCODE_CONFIG_CONTENT' => json_encode([
-                ...json_decode($environment['OPENCODE_CONFIG_CONTENT'] ?? '{}', true),
-                'autoupdate' => false,
-                'share' => 'disabled',
-                'permission' => ['edit' => 'deny', 'bash' => 'deny', 'webfetch' => 'deny'],
-            ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES),
-        ]);
-
-        $text = $this->textFrom($result->output);
-
-        if (! $result->successful() || trim($text) === '') {
-            throw new SandboxException(strtok(trim($result->errorOutput), "\n") ?: 'no answer');
-        }
-
-        return $text;
+        return [
+            'harness' => AgentHarness::OpenCode,
+            'model' => $this->catalog->opencodeId($selection['provider'], $selection['model']),
+            'env' => [
+                ...$environment,
+                // No tools that change or run anything: just answer. Keeps a connection's own config (an Ollama server's).
+                'OPENCODE_CONFIG_CONTENT' => json_encode([
+                    ...json_decode($environment['OPENCODE_CONFIG_CONTENT'] ?? '{}', true),
+                    'autoupdate' => false,
+                    'share' => 'disabled',
+                    'permission' => ['edit' => 'deny', 'bash' => 'deny', 'webfetch' => 'deny'],
+                ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES),
+            ],
+        ];
     }
 
     /**

@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+# ask: put a question to the project's AI from the Shell tab or SSH (SBX-012).
+#
+#   ask how do I see what's using port 8000
+#   cat storage/logs/laravel.log | ask why is this failing
+#   git diff | ask write a commit message
+#
+# Each question gets the project's AI from the platform (ONEDROP_AI_URL, signed when the sandbox was created): the
+# model the project uses, and its credentials for this question only, so none are kept in the sandbox. The AI can
+# read the project's files but not change them or run commands.
+set -euo pipefail
+
+die() {
+    echo "ask: $*" >&2
+    exit 1
+}
+
+if [ "${1:-}" = -h ] || [ "${1:-}" = --help ]; then
+    sed -n '2,7s/^# \{0,1\}//p' "$0"
+    exit 0
+fi
+
+question="$*"
+input=""
+# What was piped in, cut at 100 KB so a big log can't fill the model's context.
+[ -t 0 ] || input=$(head -c 100000)
+
+[ -n "$question" ] || [ -n "$input" ] || die "ask a question, e.g. ask how do I undo my last commit"
+
+# Settings from sandbox start on providers that can't set env at create (see bashrc); SSH commands skip bashrc.
+if [ -z "${ONEDROP_AI_URL:-}" ] && [ -f ~/.onedrop-env ]; then
+    set -a && . ~/.onedrop-env && set +a
+fi
+
+[ -n "${ONEDROP_AI_URL:-}" ] || die "this sandbox is older than ask. It works once the project's sandbox is updated."
+
+setup=$(mktemp)
+trap 'rm -f "$setup"' EXIT
+status=$(curl -sS --retry 2 --max-time 30 -o "$setup" -w '%{http_code}' "$ONEDROP_AI_URL") || die "couldn't reach OneDrop. Try again in a minute."
+
+case "$status" in
+    200) ;;
+    422) die "$(jq -r '.message // "the project has no AI to ask."' "$setup")" ;;
+    429) die "too many questions at once. Try again in a minute." ;;
+    *) die "OneDrop couldn't set up the AI (HTTP $status). Try again in a minute." ;;
+esac
+
+harness=$(jq -r .harness "$setup")
+model=$(jq -r .model "$setup")
+while IFS= read -r -d '' variable; do
+    export "${variable?}"
+done < <(jq -j '.env | to_entries[] | "\(.key)=\(.value)\u0000"' "$setup")
+rm -f "$setup"
+
+prompt="You're answering a question typed into a terminal: bash on Debian Linux, in ${PWD}, in the sandbox of a project \
+whose code is in /workspace. Answer briefly, for a terminal: plain text, commands in short code blocks, no tables. \
+Look at the project's files when the question is about them; you can't change files or run commands, so give the \
+user the commands to run instead.
+
+${question:-What does this show, and what should I do about it?}"
+
+if [ -n "$input" ]; then
+    prompt+="
+
+Piped into the question:
+\`\`\`
+${input}
+\`\`\`"
+fi
+
+case "$harness" in
+    claude_code)
+        # Claude Code's own sign-in (AI-005), read-only tools; any key is left out so it can't bill an API account.
+        printf %s "$prompt" | exec env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u CLAUDE_CODE_OAUTH_TOKEN DISABLE_AUTOUPDATER=1 \
+            claude -p --no-session-persistence --tools Read,Grep,Glob --model "$model"
+        ;;
+    opencode)
+        exec opencode run -m "$model" -- "$prompt" </dev/null
+        ;;
+    *)
+        die "OneDrop asked for an AI this ask doesn't know ($harness)."
+        ;;
+esac

@@ -115,8 +115,8 @@ RUN useradd --create-home --shell /bin/bash sandbox \
     && mkdir -p /workspace /data/storage && chown sandbox:sandbox /workspace /data/storage
 
 COPY placeholder /opt/onedrop/placeholder
-# shell-entry runs each Shell tab in its own tmux session (tmux.conf, shell-reap), so a reloaded page gets it back (LAYOUT-005). fork copies the app for a task and merges its work back (TASK-003). file-watcher.mjs tells the Files panel when files come and go (FILE-004). inspector.js is the preview's Inspect mode, served by host-proxy.mjs (AGT-014). share-card makes share cards (SHARE-001). db.php backs the Tools → Database panel (SQLite, Postgres and MySQL through PDO); auth.php backs Users & Auth; secrets.php backs Secrets; storage.php backs App Storage; git.php backs Git. snapshot packs and restores project snapshots (SBX-009). hosting packs the app for hosting and runs it there (HOST-001); pg-import.php moves a hosted app's SQLite data into Postgres (HOST-009).
-COPY start.sh restart stop-agent shell-entry shell-reap tmux.conf checkpoint fork share-card forwarder.mjs file-watcher.mjs host-proxy.mjs inspector.js db.php auth.php secrets.php storage.php git.php skills.php snapshot hosting pg-import.php instructions.md opencode.json /opt/onedrop/
+# shell-entry runs each Shell tab in its own tmux session (tmux.conf, shell-reap), so a reloaded page gets it back (LAYOUT-005). fork copies the app for a task and merges its work back (TASK-003). file-watcher.mjs tells the Files panel when files come and go (FILE-004). inspector.js is the preview's Inspect mode, served by host-proxy.mjs (AGT-014). share-card makes share cards (SHARE-001). db.php backs the Tools → Database panel (SQLite, Postgres and MySQL through PDO); auth.php backs Users & Auth; secrets.php backs Secrets; storage.php backs App Storage; git.php backs Git. snapshot packs and restores project snapshots (SBX-009). hosting packs the app for hosting and runs it there (HOST-001); pg-import.php moves a hosted app's SQLite data into Postgres (HOST-009). ask puts a question to the project's AI from the shell (SBX-012).
+COPY start.sh restart stop-agent ask shell-entry shell-reap tmux.conf checkpoint fork share-card forwarder.mjs file-watcher.mjs host-proxy.mjs inspector.js db.php auth.php secrets.php storage.php git.php skills.php snapshot hosting pg-import.php instructions.md opencode.json /opt/onedrop/
 # Task guides the agent follows (e.g. guides/auth.md for adding sign-in).
 COPY guides /opt/onedrop/guides
 # Kits the agent copies into an app with `kit <name>`, as the app's own code (kits/tables: Airtable-style tables, TABLE-001).
@@ -147,7 +147,9 @@ RUN (ttyd --port 7699 --interface lo true >/dev/null 2>&1 &) \
     && curl -fsS --retry 10 --retry-connrefused --retry-delay 1 -o /tmp/ttyd.html http://127.0.0.1:7699/ \
     && node -e 'const fs = require("fs"); const page = fs.readFileSync("/tmp/ttyd.html", "utf8"); if (!page.includes("</head>")) { process.exit(1); } fs.writeFileSync("/opt/onedrop/shell.html", page.replace("</head>", () => "<script>" + fs.readFileSync("/opt/onedrop/shell-keys.js", "utf8") + "</script></head>"));' \
     && pkill ttyd && rm /tmp/ttyd.html
-RUN usermod -aG docker sandbox \
+# `ask` on PATH, for the Shell tab and SSH (SBX-012).
+RUN ln -s /opt/onedrop/ask /usr/local/bin/ask \
+    && usermod -aG docker sandbox \
     && echo 'sandbox ALL=(root) NOPASSWD: /opt/onedrop/dockerd' > /etc/sudoers.d/onedrop-dockerd \
     && chmod 0440 /etc/sudoers.d/onedrop-dockerd
 

@@ -241,7 +241,7 @@ Chat on the left, live preview on the right; resizable panels; files, shell and 
 
 ## Sandboxes
 
-SBX-001..009, SBX-011, TOOL-001, and every workspace tool (DB-001, SECRET-001..002, STORE-001, FLAG-001, MON-001, APPAUTH-001..002, GROW-001..003, RT-001).
+SBX-001..009, SBX-011..012, TOOL-001, and every workspace tool (DB-001, SECRET-001..002, STORE-001, FLAG-001, MON-001, APPAUTH-001..002, GROW-001..003, RT-001).
 One sandbox per project, on Docker locally and Runtime Cloud (or Blaxel) in production, kept up to date, checkpointed after every turn, backed up outside the provider, and suspended when idle.
 
 ### Decisions
@@ -316,6 +316,8 @@ One sandbox per project, on Docker locally and Runtime Cloud (or Blaxel) in prod
 - **2026-10-03: `psql` and `pg_dump` come from Postgres's own apt repository (the newest major), not Debian's 15,** since `pg_dump` refuses servers newer than itself.
 - **2026-10-03: App Storage's type icons come from the shared `FileIcon`, extended with media and document types** (video, audio, PDF, Word, spreadsheets, slides, AVIF/HEIC), not a separate set for App Storage, so the Files panel shows the same ones. Icons, not image thumbnails: a thumbnail is a fetch from the sandbox per row, and images already preview on click.
 - **2026-10-03: App Storage has batch actions (STORE-001): select with checkboxes (Shift for a range), then download as a zip, move, copy paths or delete.** Each is one call to the sandbox's tool with a list of paths (up to 1,000), not one request per item from the browser. A move checks everything before moving anything, so a name clash or a folder moving into itself leaves the bucket as it was; it never overwrites. A batch delete skips paths that are already gone, so a folder and something inside it can be deleted together. The zip is made in the sandbox and capped at 25 MB of files, like single downloads, because it comes back through exec output; larger downloads would need signed links. Move takes a typed folder path (created if missing), not a folder-tree picker, to keep it small.
+- **2026-10-03: `ask` in the shell gets the project's AI from the platform for each question (SBX-012), not from keys kept in the sandbox.** The user wanted `ask blah blah` (their own habit) and keys set up for every agent, "whatever is best, safe, and allowed". Keys written into the shell's environment were ruled out: the user's app and its dependencies, the agent, and the organization's admins (who can open any project's Shell) could all read them, and they would outlive a disconnect. Per question, the credentials exist only while it runs, and follow the project's current AI. `ask` runs OpenCode (or Claude Code on a Claude subscription) read-only, so it can look at the project but never change it.
+- **2026-10-03: AI credits and subscriptions only reach `ask`, never pi, fx or the Gemini CLI.** Credits run only the models CREDIT-001 allows, and those agents let anyone pick any model on OpenRouter; a Claude subscription may only be used by Claude Code (Anthropic's terms), and a ChatGPT sign-in is OpenCode's. Those agents use their own logins instead (`fx login`, pi's `/login`, `gemini`), which is the person's own explicit choice. They install on first use (SBX-011), since most projects never run them.
 
 ## AI credits
 

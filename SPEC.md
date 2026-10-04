@@ -477,6 +477,16 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Every tool in the image and every first-use tool should be kept current: one pull request a week bumps their versions and the base images (by digest, so Debian security fixes come with them), with the agent CLIs in a pull request of their own. Each such pull request builds the image and installs and runs every tool on both architectures before it can merge.
 - A newer version of a first-use tool should reach running sandboxes like any other tool file (SBX-002), without a new image, and install on its next use.
 
+## SBX-012: Ask the project's AI and run coding agents in the shell
+
+- User should be able to type `ask <question>` in the Shell tab or over SSH and get a short answer from the project's AI, streamed into the terminal, without setting anything up: the same AI and model the project's chat uses (their own connection, a Claude subscription through Claude Code's sign-in, a ChatGPT sign-in, or the organization's AI credits).
+- What's piped in should go with the question (`cat error.log | ask why`, `git diff | ask write a commit message`); a pipe with no question asks what it shows.
+- The AI should be able to read the project's files to answer, but not change files or run commands; it gives the commands instead.
+- No AI credentials should be kept in the sandbox for `ask`: each question gets them from the platform through a signed address the sandbox got when it was created, so `ask` always uses the AI the project uses now and stops working when the sandbox is deleted.
+- With no AI to ask (nothing connected, credits run out, a ChatGPT sign-in that can't be refreshed), `ask` should say why in one line. A sandbox from before `ask` should say it works once the sandbox is updated.
+- The Shell should also have the common coding agents: Claude Code, Codex and OpenCode in the image; pi, fx (Vercel Labs) and the Gemini CLI installed on first use (SBX-011). They sign in with their own logins (`claude`, `codex login`, `fx login`, pi's `/login`, `gemini`). A Gemini key connected in Settings → AI is there under the name the Gemini CLI and pi look for.
+- The Shell's welcome banner should mention `ask` and the agents.
+
 ## SVC-001: Services tab
 
 - User should be able to open a Services tab from the workspace's "+" menu and see what's running in the project's sandbox, updated every few seconds while it's shown.
