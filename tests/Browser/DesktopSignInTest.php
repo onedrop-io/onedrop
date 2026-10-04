@@ -17,7 +17,23 @@ test('the desktop app signs in through the browser and can be signed out in sett
     $port = random_int(40000, 49999);
     $app = new Process([PHP_BINARY, '-S', "127.0.0.1:{$port}", '-t', $docroot, "{$docroot}/index.php"]);
     $app->start();
-    usleep(300_000);
+
+    // Wait until it's listening: a fixed pause was too short on CI.
+    $deadline = microtime(true) + 10;
+    $listening = false;
+
+    while (! $listening && microtime(true) < $deadline) {
+        $socket = @fsockopen('127.0.0.1', $port, $errno, $error, 0.2);
+
+        if ($socket) {
+            fclose($socket);
+            $listening = true;
+        } else {
+            usleep(100_000);
+        }
+    }
+
+    expect($listening)->toBeTrue();
 
     try {
         $verifier = str_repeat('v', 64);
