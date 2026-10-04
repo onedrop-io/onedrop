@@ -122,6 +122,11 @@ test('only the desktop app\'s origins may call the server from another origin, a
         ->assertHeader('Access-Control-Allow-Origin', 'http://tauri.localhost')
         ->assertHeader('Access-Control-Expose-Headers');
 
+    // The development app signs in to any server, onedrop.io included.
+    $this->withHeaders(['Origin' => 'http://localhost:1420', 'Access-Control-Request-Method' => 'POST'])
+        ->options('/api/v1/desktop/token')
+        ->assertHeader('Access-Control-Allow-Origin', 'http://localhost:1420');
+
     $this->withHeaders(['Origin' => 'https://evil.example', 'Access-Control-Request-Method' => 'POST'])
         ->options(route('projects.show', $this->project))
         ->assertHeaderMissing('Access-Control-Allow-Origin');

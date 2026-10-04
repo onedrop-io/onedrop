@@ -10,13 +10,15 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => array_filter([
-        // macOS and Linux, Windows, and the app's development server (`npm run desktop:dev`).
+    // macOS and Linux, Windows, and the app's development server (`npm run desktop:dev`), which signs in to any
+    // server, onedrop.io included. No cookies cross origins (supports_credentials is off), so every request from
+    // these origins needs the app's token anyway.
+    'allowed_origins' => [
         'tauri://localhost',
         'http://tauri.localhost',
         'https://tauri.localhost',
-        env('APP_ENV') === 'local' ? 'http://localhost:1420' : null,
-    ]),
+        'http://localhost:1420',
+    ],
 
     'allowed_origins_patterns' => [],
 
