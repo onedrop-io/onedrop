@@ -153,8 +153,9 @@ test('Droppy offers hints, points at an easter egg, and cheers when one is found
 test('a visitor downloads the desktop app for their system or any other', function () {
     visit('/')
         ->assertSee('Or use it from your desktop')
-        ->assertSeeIn('@desktop-download', 'Download for Mac')
-        ->assertAttribute('@desktop-download', 'href', 'https://github.com/onedrop-io/onedrop/releases/download/desktop-latest/OneDrop-mac-apple-silicon.dmg')
+        // For the browser's own system: the tests run on Macs and on Linux.
+        ->assertSeeIn('@desktop-download', PHP_OS_FAMILY === 'Darwin' ? 'Download for Mac' : 'Download for Linux')
+        ->assertAttribute('@desktop-download-mac-apple-silicon', 'href', 'https://github.com/onedrop-io/onedrop/releases/download/desktop-latest/OneDrop-mac-apple-silicon.dmg')
         ->assertAttribute('@desktop-download-mac-intel', 'href', 'https://github.com/onedrop-io/onedrop/releases/download/desktop-latest/OneDrop-mac-intel.dmg')
         ->assertAttribute('@desktop-download-windows', 'href', 'https://github.com/onedrop-io/onedrop/releases/download/desktop-latest/OneDrop-windows-setup.exe')
         ->assertAttribute('@desktop-download-linux-appimage', 'href', 'https://github.com/onedrop-io/onedrop/releases/download/desktop-latest/OneDrop-linux.AppImage')
