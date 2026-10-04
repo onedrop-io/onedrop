@@ -23,9 +23,11 @@ export const HOSTED_SERVER = 'https://onedrop.io';
 const LOCAL_SERVER = 'http://localhost:8000';
 
 const SERVER_CHOICES = [
-    { id: 'hosted', label: 'onedrop.io', value: HOSTED_SERVER },
-    { id: 'local', label: 'This computer', value: LOCAL_SERVER },
+    { id: 'hosted', label: 'Use onedrop.io', value: HOSTED_SERVER },
+    { id: 'local', label: 'Use this computer', value: LOCAL_SERVER },
 ];
+
+const LINK = 'underline-offset-4 hover:text-foreground hover:underline';
 
 /** `https://onedrop.io` → `onedrop.io`; `http://localhost:8000` stays as is, so it's clear it's not HTTPS. */
 function displayServer(server: string): string {
@@ -148,9 +150,9 @@ export default function SignIn({
                         </p>
                     </div>
 
-                    {changing ? (
+                    {changing && (
                         <div className="grid gap-2">
-                            <Label htmlFor="server">Server</Label>
+                            <Label htmlFor="server">Server address</Label>
                             <Input
                                 id="server"
                                 value={server}
@@ -165,51 +167,13 @@ export default function SignIn({
                                 disabled={waiting}
                                 data-test="server"
                             />
-                            <div className="flex flex-wrap gap-2">
-                                {SERVER_CHOICES.map((choice) => (
-                                    <Button
-                                        key={choice.value}
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => setServer(choice.value)}
-                                        disabled={waiting}
-                                        data-test={`server-${choice.id}`}
-                                    >
-                                        {choice.label}
-                                    </Button>
-                                ))}
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                                Your team’s OneDrop, or the one you installed on
-                                this computer.
-                            </p>
-                            <InputError message={error ?? undefined} />
-                        </div>
-                    ) : (
-                        <div className="grid gap-2 text-center">
-                            <p
-                                className="text-sm text-muted-foreground"
-                                data-test="current-server"
-                            >
-                                On{' '}
-                                <span className="font-medium text-foreground">
-                                    {displayServer(server)}
-                                </span>
-                                {' · '}
-                                <button
-                                    type="button"
-                                    onClick={() => setChanging(true)}
-                                    disabled={waiting}
-                                    className="underline underline-offset-4 hover:text-foreground"
-                                    data-test="change-server"
-                                >
-                                    Change
-                                </button>
-                            </p>
-                            <InputError message={error ?? undefined} />
                         </div>
                     )}
+
+                    <InputError
+                        message={error ?? undefined}
+                        className="text-center"
+                    />
 
                     {waiting ? (
                         <div className="space-y-2">
@@ -235,6 +199,56 @@ export default function SignIn({
                         >
                             Sign in with your browser
                         </Button>
+                    )}
+
+                    {!waiting && (
+                        <p
+                            className="text-center text-xs text-muted-foreground"
+                            data-test="current-server"
+                        >
+                            {changing ? (
+                                SERVER_CHOICES.map((choice, index) => (
+                                    <span key={choice.id}>
+                                        {index > 0 && ' · '}
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setServer(choice.value);
+                                                setChanging(
+                                                    choice.value !==
+                                                        HOSTED_SERVER,
+                                                );
+                                            }}
+                                            className={LINK}
+                                            data-test={`server-${choice.id}`}
+                                        >
+                                            {choice.label}
+                                        </button>
+                                    </span>
+                                ))
+                            ) : server === HOSTED_SERVER ? (
+                                <button
+                                    type="button"
+                                    onClick={() => setChanging(true)}
+                                    className={LINK}
+                                    data-test="change-server"
+                                >
+                                    Use another server
+                                </button>
+                            ) : (
+                                <>
+                                    On {displayServer(server)} ·{' '}
+                                    <button
+                                        type="button"
+                                        onClick={() => setChanging(true)}
+                                        className={LINK}
+                                        data-test="change-server"
+                                    >
+                                        Change
+                                    </button>
+                                </>
+                            )}
+                        </p>
                     )}
                 </form>
             </div>
