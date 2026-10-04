@@ -23,6 +23,7 @@ import {
     IMPACT_DELAY_MS,
     ParticleUniverse,
 } from '@/components/home/particle-universe';
+import { DesktopSection } from '@/components/home/desktop-section';
 import { DemoVideo } from '@/components/home/demo-video';
 import { DropMark } from '@/components/home/drop-mark';
 import { Droppy } from '@/components/home/droppy';
@@ -1155,6 +1156,8 @@ export default function Welcome({
                     </section>
 
                     <InstallSection />
+
+                    <DesktopSection />
 
                     <section
                         id="faq"

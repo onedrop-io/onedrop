@@ -814,6 +814,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Visitor should find a Docs link in the top bar and footer that opens the docs site (docs.onedrop.io).
 - Visitor should see an Install section with the one-line install command, and be able to switch it between their laptop, a server (an automatic sslip.io address), and their own domain, with a button to copy it and a note on what each does.
 - Visitor should see the three steps after installing (run the command, create the admin account, connect an AI), what it needs (macOS or Linux, Docker, 5 GB of disk, an AI plan or key), how to update, and links to the install guide and the source on GitHub.
+- Visitor should see a section for the desktop app (DESK-004) after Install, with a download button for their system (Mac, Windows or Linux), links to every download (Mac Apple Silicon and Intel, Windows, Linux AppImage and .deb), what it does, that it connects to a OneDrop they run, and a link to its guide; they should be able to jump there with "Download" in the top bar.
 - Visitor should be able to jump to the Install section from the top bar, the hero's "Free to self-host", and the self-hosting comparison.
 - Visitor should see a GitHub logo in the top bar and footer that opens the repository (github.com/onedrop-io/onedrop).
 - Logged-out visitor should be able to go to sign up or log in; logged-in user should see a button to open their dashboard instead.

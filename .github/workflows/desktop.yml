@@ -4,7 +4,8 @@ name: desktop
 # installed apps update to: once a day when main changed since the last release, or by hand (any time). What's released
 # is the newest commit on main whose tests passed.
 #   desktop-v1.0.<n>   the release, with its installers and the updater's signed bundles
-#   desktop-latest     where installed apps look for updates (latest.json), moved to each new release
+#   desktop-latest     where installed apps look for updates (latest.json) and the home page's download links point
+#                      (the installers, under names that don't change), moved to each new release
 #
 # Secrets: TAURI_SIGNING_PRIVATE_KEY signs updates (the app only installs ones signed with it). With APPLE_CERTIFICATE,
 # APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD and APPLE_TEAM_ID, macOS builds are
@@ -203,8 +204,19 @@ jobs:
 
           if ! gh release view desktop-latest --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
             gh release create desktop-latest --repo "$GITHUB_REPOSITORY" --title "OneDrop desktop (updates)" \
-              --notes "Where installed OneDrop desktop apps look for updates. Download the app from the newest desktop-v release." \
+              --notes "Where installed OneDrop desktop apps look for updates. Download the app from onedrop.io or the newest desktop-v release." \
               --latest=false
           fi
 
-          gh release upload desktop-latest latest.json --repo "$GITHUB_REPOSITORY" --clobber
+          # The installers too, under names that don't change, for the home page's download links (DESK-004).
+          mkdir installers
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir installers \
+            --pattern '*.dmg' --pattern '*-setup.exe' --pattern '*.AppImage' --pattern '*.deb'
+          mv installers/*_aarch64.dmg OneDrop-mac-apple-silicon.dmg
+          mv installers/*_x64.dmg OneDrop-mac-intel.dmg
+          mv installers/*_x64-setup.exe OneDrop-windows-setup.exe
+          mv installers/*_amd64.AppImage OneDrop-linux.AppImage
+          mv installers/*_amd64.deb OneDrop-linux.deb
+
+          gh release upload desktop-latest latest.json OneDrop-mac-apple-silicon.dmg OneDrop-mac-intel.dmg \
+            OneDrop-windows-setup.exe OneDrop-linux.AppImage OneDrop-linux.deb --repo "$GITHUB_REPOSITORY" --clobber

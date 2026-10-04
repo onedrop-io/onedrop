@@ -149,3 +149,17 @@ test('Droppy offers hints, points at an easter egg, and cheers when one is found
     expect($page->script("localStorage.getItem('onedrop.droppy-dismissed')"))->toBe('1')
         ->and($page->script("localStorage.getItem('onedrop.easter-eggs')"))->toBe('["logo"]');
 })->group('HOME-003');
+
+test('a visitor downloads the desktop app for their system or any other', function () {
+    visit('/')
+        ->assertSee('Or use it from your desktop')
+        ->assertSeeIn('@desktop-download', 'Download for Mac')
+        ->assertAttribute('@desktop-download', 'href', 'https://github.com/onedrop-io/onedrop/releases/download/desktop-latest/OneDrop-mac-apple-silicon.dmg')
+        ->assertAttribute('@desktop-download-mac-intel', 'href', 'https://github.com/onedrop-io/onedrop/releases/download/desktop-latest/OneDrop-mac-intel.dmg')
+        ->assertAttribute('@desktop-download-windows', 'href', 'https://github.com/onedrop-io/onedrop/releases/download/desktop-latest/OneDrop-windows-setup.exe')
+        ->assertAttribute('@desktop-download-linux-appimage', 'href', 'https://github.com/onedrop-io/onedrop/releases/download/desktop-latest/OneDrop-linux.AppImage')
+        ->assertAttribute('@desktop-download-linux-deb', 'href', 'https://github.com/onedrop-io/onedrop/releases/download/desktop-latest/OneDrop-linux.deb')
+        ->assertPresent('#desktop a[href="https://docs.onedrop.io/guides/desktop-app"]')
+        ->assertPresent('header a[href="/#desktop"]')
+        ->assertNoJavaScriptErrors();
+})->group('HOME-001', 'DESK-004');

@@ -32,6 +32,9 @@ export function SiteHeader({ isLoggedIn }: { isLoggedIn: boolean }) {
                     <a href="/#install" className="hover:text-white">
                         Install
                     </a>
+                    <a href="/#desktop" className="hover:text-white">
+                        Download
+                    </a>
                     <a href="/#faq" className="hover:text-white">
                         FAQ
                     </a>
