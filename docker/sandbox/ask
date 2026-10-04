@@ -70,9 +70,10 @@ fi
 
 case "$harness" in
     claude_code)
-        # Claude Code's own sign-in (AI-005), read-only tools; any key is left out so it can't bill an API account.
-        printf %s "$prompt" | exec env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u CLAUDE_CODE_OAUTH_TOKEN DISABLE_AUTOUPDATER=1 \
-            claude -p --no-session-persistence --tools Read,Grep,Glob --model "$model"
+        # Claude Code's own sign-in (AI-005), read-only tools; any key is left out so it can't bill an API account. No MCP
+        # servers, not even the account's claude.ai connectors, which would add notes about connecting them to the answer.
+        printf %s "$prompt" | exec env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u CLAUDE_CODE_OAUTH_TOKEN DISABLE_AUTOUPDATER=1 ENABLE_CLAUDEAI_MCP_SERVERS=false \
+            claude -p --no-session-persistence --strict-mcp-config --tools Read,Grep,Glob --model "$model"
         ;;
     opencode)
         exec opencode run -m "$model" -- "$prompt" </dev/null

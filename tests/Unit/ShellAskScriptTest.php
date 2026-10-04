@@ -87,7 +87,7 @@ test('on a Claude subscription ask runs Claude Code read-only, with the question
     ]);
 
     expect($result->successful())->toBeTrue()
-        ->and(explode("\n", trim(File::get("{$this->bin}/claude-args"))))->toBe(['-p', '--no-session-persistence', '--tools', 'Read,Grep,Glob', '--model', 'opus'])
+        ->and(explode("\n", trim(File::get("{$this->bin}/claude-args"))))->toBe(['-p', '--no-session-persistence', '--strict-mcp-config', '--tools', 'Read,Grep,Glob', '--model', 'opus'])
         ->and(File::get("{$this->bin}/claude-key"))->toBe('none')
         ->and(File::get("{$this->bin}/claude-stdin"))->toContain('what does this app do');
 })->group('SBX-012');
