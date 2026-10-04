@@ -285,7 +285,7 @@ export default function WorldMap({
                 )}
                 {hover && (
                     <div
-                        className="pointer-events-none absolute z-10 rounded-md border surface-floating px-2.5 py-1.5 text-xs whitespace-nowrap "
+                        className="pointer-events-none absolute z-10 rounded-md border surface-floating px-2.5 py-1.5 text-xs whitespace-nowrap"
                         style={{
                             top: Math.max(4, hover.y - 12),
                             ...(hover.x > width / 2
