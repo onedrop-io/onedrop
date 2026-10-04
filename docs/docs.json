@@ -156,9 +156,7 @@
                         "group": "Internal",
                         "icon": "lock",
                         "public": false,
-                        "pages": [
-                            "internal/competitors"
-                        ]
+                        "pages": ["internal/competitors"]
                     }
                 ]
             }
