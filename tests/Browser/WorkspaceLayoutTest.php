@@ -321,3 +321,30 @@ test('the preview back and forward buttons move the app page through its history
         ->assertAttribute('@preview-forward', 'disabled', '')
         ->assertNoJavaScriptErrors();
 })->group('PRJ-002');
+
+test('the preview bar shows the path over a dimmed host and a line while the page loads', function () {
+    $user = User::factory()->has(AgentConnection::factory())->create();
+    $project = Project::factory()->for($user)->create();
+    Sandbox::factory()->for($project)->create(['preview_url' => 'http://127.0.0.1:9']);
+    $this->actingAs($user);
+
+    // What the sandbox's preview script posts when the app's page changes.
+    $navigate = 'window.dispatchEvent(new MessageEvent("message", {data: {onedrop: "location", page: "/orders/12", back: false, forward: false}, source: document.querySelector(\'[data-test="preview-frame"]\').contentWindow}))';
+
+    $page = visit("/projects/{$project->id}")->resize(1600, 900)
+        ->assertMissing('@preview-loading');
+
+    $page->script($navigate);
+
+    $page->assertSeeIn('@preview-address-bar', '127.0.0.1:9')
+        ->assertSeeIn('@preview-address-bar', '/orders/12')
+        ->assertVisible('a[aria-label="Open preview in a new tab"]');
+
+    // Nothing listens on port 9, so the page fails to load at once: record that the line showed at all.
+    $page->script('new MutationObserver(() => { if (document.querySelector(\'[data-test="preview-loading"]\')) { window.sawLoading = true; } }).observe(document.body, {childList: true, subtree: true})');
+
+    $page->click('@preview-reload')
+        ->assertScript('window.sawLoading', true)
+        ->assertMissing('@preview-loading')
+        ->assertNoJavaScriptErrors();
+})->group('PRJ-002');

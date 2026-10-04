@@ -124,7 +124,7 @@ export default function BrowserView({
 
     return (
         <div className="flex min-h-0 flex-1 flex-col" data-test="browser-view">
-            <div className="flex items-center gap-3 border-b border-sidebar-border/70 px-4 py-1.5 text-xs text-muted-foreground dark:border-sidebar-border">
+            <div className="flex items-center gap-3 border-b border-sidebar-border/70 bg-toolbar px-4 py-1.5 text-xs text-muted-foreground dark:border-sidebar-border">
                 <p
                     className="min-w-0 flex-1 truncate"
                     data-test="browser-where"

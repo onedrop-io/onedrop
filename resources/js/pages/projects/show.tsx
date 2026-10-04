@@ -921,6 +921,8 @@ function WorkspacePanel({
                 ? publication.url
                 : null;
     const [reloadKey, setReloadKey] = useState(0);
+    /** Whether the preview's page is loading, for the bar under the address, as a browser shows it. */
+    const [previewLoading, setPreviewLoading] = useState(true);
     const [wasWorking, setWasWorking] = useState(working);
     const previewFrame = useRef<HTMLIFrameElement>(null);
     const previewErrors = usePreviewErrors(previewFrame);
@@ -1122,6 +1124,7 @@ function WorkspacePanel({
     const openPreviewPage = (page: string | null) => {
         previewErrors.clear();
         setPreviewStart(page);
+        setPreviewLoading(true);
         setReloadKey((key) => key + 1);
     };
 
@@ -2016,7 +2019,7 @@ function WorkspacePanel({
                             }
                             {...tabBarDrop(pane.id)}
                             className={cn(
-                                'flex min-w-0 [scrollbar-width:none] items-center gap-1 overflow-x-auto border-b border-sidebar-border/70 px-2 py-1.5 text-sm dark:border-sidebar-border',
+                                'flex min-w-0 [scrollbar-width:none] items-center gap-1 overflow-x-auto border-b border-sidebar-border/70 bg-toolbar px-2 py-1.5 text-sm dark:border-sidebar-border',
                                 !rowLayout && index > 0 && 'border-t-0',
                             )}
                         >
@@ -2255,7 +2258,7 @@ function WorkspacePanel({
                     url && restored ? (
                         <>
                             <div
-                                className="flex min-w-0 items-center gap-1 border-b border-sidebar-border/70 px-2 py-1 text-sm dark:border-sidebar-border"
+                                className="relative flex min-w-0 items-center gap-1 border-b border-sidebar-border/70 bg-toolbar px-2 py-1.5 text-sm dark:border-sidebar-border"
                                 data-test="preview-address-bar"
                             >
                                 <IconButton
@@ -2281,7 +2284,7 @@ function WorkspacePanel({
                                 >
                                     <RotateCw className="size-4" />
                                 </IconButton>
-                                <div className="ml-1 min-w-0 flex-1 max-md:invisible">
+                                <div className="mx-1 min-w-0 flex-1 max-md:invisible">
                                     {statusIsUrl && (
                                         <PreviewAddress
                                             address={previewAddress(
@@ -2309,6 +2312,10 @@ function WorkspacePanel({
                                         />
                                     )}
                                 </div>
+                                <div
+                                    aria-hidden
+                                    className="mx-1 h-4 w-px bg-border max-md:hidden"
+                                />
                                 <DropdownMenu modal={false}>
                                     <DropdownMenuTrigger asChild>
                                         <button
@@ -2380,19 +2387,15 @@ function WorkspacePanel({
                                         <Brush className="size-4" />
                                     )}
                                 </IconButton>
-                                <a
-                                    href={previewUrlAt(
-                                        url,
-                                        previewPage,
-                                        sandbox?.shell_via_gateway ?? false,
-                                    )}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    aria-label="Open preview in a new tab"
-                                    className="rounded p-1 hover:bg-muted max-md:hidden"
-                                >
-                                    <ExternalLink className="size-4" />
-                                </a>
+                                {previewLoading && (
+                                    <div
+                                        aria-hidden
+                                        className="absolute inset-x-0 -bottom-px h-0.5 overflow-hidden"
+                                        data-test="preview-loading"
+                                    >
+                                        <div className="h-full w-1/3 animate-preview-loading bg-primary/70" />
+                                    </div>
+                                )}
                             </div>
                             <div
                                 className={cn(
@@ -2405,7 +2408,10 @@ function WorkspacePanel({
                                     ref={previewFrame}
                                     key={reloadKey}
                                     // A page that (re)loads has lost the inspector and what was picked (AGT-014).
-                                    onLoad={() => setInspecting(false)}
+                                    onLoad={() => {
+                                        setInspecting(false);
+                                        setPreviewLoading(false);
+                                    }}
                                     src={previewUrlAt(
                                         url,
                                         previewStart,
@@ -2655,7 +2661,7 @@ function WorkspacePanel({
                     style={{ width: filesWidth }}
                     data-test="files-panel"
                 >
-                    <div className="flex items-center gap-1 border-b border-sidebar-border/70 px-2 py-2 text-sm dark:border-sidebar-border">
+                    <div className="flex items-center gap-1 border-b border-sidebar-border/70 bg-toolbar px-2 py-2 text-sm dark:border-sidebar-border">
                         <div className="flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-md border border-input bg-transparent px-2 focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
                             <Search className="size-3.5 shrink-0 text-muted-foreground" />
                             {fileSearch.folder && (
@@ -2807,12 +2813,7 @@ function shellUrlWith(
 
 /** Tabs the "+" menu adds. */
 type ToolTab =
-    | 'console'
-    | 'services'
-    | 'shell'
-    | 'requirements'
-    | 'tests'
-    | 'browser';
+    'console' | 'services' | 'shell' | 'requirements' | 'tests' | 'browser';
 
 /** Tabs the URL can ask for. */
 const ACTIVE_TABS: PaneTab[] = [
@@ -3554,7 +3555,8 @@ function TaskEmptyState({
 /**
  * The address of the preview's page, in the bar above it. It follows the page as the app moves around, and typing
  * one of the app's paths (or its full address) then Enter goes there; Esc puts it back. The copy button that shows
- * on hover copies a link that opens the same page; clicking or selecting the address never touches the clipboard.
+ * on hover copies a link that opens the same page, and the arrow opens it in a new tab; clicking or selecting the
+ * address never touches the clipboard. Until it is focused, the path stands out and the host is dimmed.
  */
 function PreviewAddress({
     address,
@@ -3580,37 +3582,66 @@ function PreviewAddress({
         return () => clearTimeout(timer);
     }, [copied]);
 
+    const [focused, setFocused] = useState(false);
+    const [, host, path] = address.match(/^(?:\w+:\/\/)?([^/?#]*)(.*)$/) ?? [
+        '',
+        address,
+        '',
+    ];
+
     return (
-        <div className="group flex min-w-0 items-center gap-1">
-            <input
-                value={draft ?? address}
-                onChange={(event) => setDraft(event.target.value)}
-                onFocus={(event) => event.target.select()}
-                onBlur={() => setDraft(null)}
-                onKeyDown={(event) => {
-                    if (event.key === 'Enter' && draft !== null) {
-                        if (onGo(draft)) {
+        <div className="group flex h-7 min-w-0 items-center gap-1.5 rounded-full border border-transparent bg-black/[0.04] pr-1 pl-2.5 focus-within:border-ring focus-within:bg-background dark:bg-black/30 dark:focus-within:bg-black/40">
+            <Globe className="size-3.5 shrink-0 text-muted-foreground" />
+            <div className="relative flex min-w-0 flex-1">
+                <input
+                    value={draft ?? address}
+                    onChange={(event) => setDraft(event.target.value)}
+                    onFocus={(event) => {
+                        setFocused(true);
+                        event.target.select();
+                    }}
+                    onBlur={() => {
+                        setFocused(false);
+                        setDraft(null);
+                    }}
+                    onKeyDown={(event) => {
+                        if (event.key === 'Enter' && draft !== null) {
+                            if (onGo(draft)) {
+                                setDraft(null);
+                                event.currentTarget.blur();
+                            }
+                        } else if (event.key === 'Escape') {
                             setDraft(null);
                             event.currentTarget.blur();
                         }
-                    } else if (event.key === 'Escape') {
-                        setDraft(null);
-                        event.currentTarget.blur();
-                    }
-                }}
-                aria-label="Preview address"
-                spellCheck={false}
-                autoComplete="off"
-                className="h-6 min-w-0 flex-1 truncate rounded bg-transparent px-1.5 text-xs text-muted-foreground outline-none hover:bg-muted/60 focus:bg-muted focus:text-foreground"
-                data-test="preview-address"
-            />
+                    }}
+                    aria-label="Preview address"
+                    spellCheck={false}
+                    autoComplete="off"
+                    className={cn(
+                        'h-6 min-w-0 flex-1 truncate bg-transparent text-xs outline-none',
+                        !focused && 'text-transparent caret-transparent',
+                    )}
+                    data-test="preview-address"
+                />
+                {!focused && (
+                    // Like a browser's address bar: the page's path stands out, the host behind it is dimmed.
+                    <span
+                        aria-hidden
+                        className="pointer-events-none absolute inset-0 flex items-center truncate text-xs"
+                    >
+                        <span className="text-muted-foreground">{host}</span>
+                        <span className="truncate text-foreground">{path}</span>
+                    </span>
+                )}
+            </div>
             <button
                 type="button"
                 onClick={() => void copy(link).then(setCopied)}
                 aria-label={copied ? 'Copied' : 'Copy address'}
                 title={copied ? 'Copied' : 'Copy address'}
                 className={cn(
-                    'shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:opacity-100',
+                    'shrink-0 rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:opacity-100',
                     copied
                         ? 'opacity-100'
                         : 'opacity-0 transition-opacity group-hover:opacity-100',
@@ -3623,6 +3654,16 @@ function PreviewAddress({
                     <Copy className="size-3" />
                 )}
             </button>
+            <a
+                href={link}
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Open preview in a new tab"
+                title="Open preview in a new tab"
+                className="shrink-0 rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+                <ExternalLink className="size-3.5" />
+            </a>
         </div>
     );
 }

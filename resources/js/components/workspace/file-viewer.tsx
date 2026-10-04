@@ -201,7 +201,7 @@ function FileEditor({
 
     return (
         <div className="flex min-h-0 flex-1 flex-col" data-test="file-viewer">
-            <div className="flex items-center gap-2 border-b border-sidebar-border/70 px-3 py-1 text-xs text-muted-foreground dark:border-sidebar-border">
+            <div className="flex items-center gap-2 border-b border-sidebar-border/70 bg-toolbar px-3 py-1 text-xs text-muted-foreground dark:border-sidebar-border">
                 <FileIcon name={path.split('/').pop() ?? path} />
                 <span className="min-w-0 flex-1 truncate">
                     {path.split('/').join(' › ')}

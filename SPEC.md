@@ -221,7 +221,9 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see the agent's replies appear while it works, without reloading.
 - User should be able to send follow-up messages to the agent.
 - User should see the live app in the preview once it has a preview URL, and a placeholder until then.
-- User should see a bar between the tab bar and the preview, like a browser's toolbar: back, forward and reload on the left, then the address of the app's page the preview is on (not on a phone), then size, inspect, annotate and open in a new tab.
+- User should see a bar between the tab bar and the preview, like a browser's toolbar: back, forward and reload on the left, then the address of the app's page the preview is on in a rounded address field (not on a phone), with copy and open-in-a-new-tab inside it, then size, inspect and annotate.
+- User should see the page's path stand out in the address and its host dimmed, like a browser, until they click into it to type.
+- User should see a thin moving line under the bar while the preview's page loads, which goes away once it has loaded.
 - User should be able to go back and forward through the pages they visited in the preview; each button is greyed out when there's nowhere to go.
 - User should be able to type one of the app's paths (or its full address) in the address and press Enter to go there; Esc puts the address back. An address on another site is refused and stays to fix.
 - User should be able to copy the preview's address with the copy button that shows when they hover it (a check shows briefly after). Clicking or selecting the address itself shouldn't copy it.
