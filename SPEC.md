@@ -1758,7 +1758,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## DESK-001: Sign in to the desktop app
 
-- User should be able to install the OneDrop desktop app on macOS, Windows or Linux and sign in to any OneDrop install by its address (`http://localhost:8000` for one on their own computer).
+- User should be able to install the OneDrop desktop app on macOS, Windows or Linux and sign in to OneDrop's hosted server (onedrop.io) with one click, or change the server to any other OneDrop install by its address, with a shortcut for the one on their own computer (`http://localhost:8000`); the app should remember the server they last used.
 - User should finish signing in in their browser, with whatever they normally sign in with there (password, two-factor, passkey, Google, single sign-on), and click "Allow" on a page that names their computer.
 - User should be taken back to the app, signed in, and stay signed in until they sign out; the app should keep its sign-in in the system keychain.
 - User should see a sign-in link that didn't come from the app (anything not going back to this computer, or without PKCE) refused, never redirected.

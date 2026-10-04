@@ -16,6 +16,22 @@ import Logo from './logo';
 
 const LAST_SERVER_KEY = 'onedrop.server';
 
+/** Where new users sign in: OneDrop's own hosted server. */
+export const HOSTED_SERVER = 'https://onedrop.io';
+
+/** OneDrop installed on this computer (`drop` serves it here). */
+const LOCAL_SERVER = 'http://localhost:8000';
+
+const SERVER_CHOICES = [
+    { id: 'hosted', label: 'onedrop.io', value: HOSTED_SERVER },
+    { id: 'local', label: 'This computer', value: LOCAL_SERVER },
+];
+
+/** `https://onedrop.io` → `onedrop.io`; `http://localhost:8000` stays as is, so it's clear it's not HTTPS. */
+function displayServer(server: string): string {
+    return server.replace(/^https:\/\//, '');
+}
+
 /** `localhost:8000` → `http://localhost:8000`; `onedrop.example.com/x` → `https://onedrop.example.com`. */
 export function normalizeServer(input: string): string {
     const trimmed = input.trim();
@@ -61,8 +77,8 @@ async function signIn(input: string): Promise<void> {
 }
 
 /**
- * Sign in (DESK-001): the user names their OneDrop (a team's server, or the one on this computer), and finishes
- * signing in in their browser, where their passkeys, single sign-on and saved passwords already are.
+ * Sign in (DESK-001): to OneDrop's hosted server unless the user changes it (to a team's server, or the one on this
+ * computer), finishing in their browser, where their passkeys, single sign-on and saved passwords already are.
  */
 export default function SignIn({
     lastServer,
@@ -75,8 +91,9 @@ export default function SignIn({
         () =>
             lastServer ??
             localStorage.getItem(LAST_SERVER_KEY) ??
-            'http://localhost:8000',
+            HOSTED_SERVER,
     );
+    const [changing, setChanging] = useState(false);
     const [waiting, setWaiting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -84,10 +101,23 @@ export default function SignIn({
         event.preventDefault();
         setError(null);
         setWaiting(true);
-        localStorage.setItem(LAST_SERVER_KEY, server);
+        let origin: string;
 
         try {
-            await signIn(server);
+            origin = normalizeServer(server);
+        } catch {
+            setError('That doesn’t look like an address.');
+            setWaiting(false);
+
+            return;
+        }
+
+        localStorage.setItem(LAST_SERVER_KEY, origin);
+        setServer(origin);
+        setChanging(false);
+
+        try {
+            await signIn(origin);
             onSignedIn();
         } catch (failure) {
             const message =
@@ -114,30 +144,72 @@ export default function SignIn({
                             Sign in to OneDrop
                         </h1>
                         <p className="text-sm text-muted-foreground">
-                            You'll finish signing in in your browser.
+                            You’ll sign in or create an account in your browser.
                         </p>
                     </div>
 
-                    <div className="grid gap-2">
-                        <Label htmlFor="server">Your OneDrop's address</Label>
-                        <Input
-                            id="server"
-                            value={server}
-                            onChange={(event) => setServer(event.target.value)}
-                            placeholder="onedrop.example.com"
-                            autoFocus
-                            autoCapitalize="off"
-                            autoCorrect="off"
-                            spellCheck={false}
-                            disabled={waiting}
-                            data-test="server"
-                        />
-                        <p className="text-xs text-muted-foreground">
-                            Installed on this computer? It's
-                            http://localhost:8000.
-                        </p>
-                        <InputError message={error ?? undefined} />
-                    </div>
+                    {changing ? (
+                        <div className="grid gap-2">
+                            <Label htmlFor="server">Server</Label>
+                            <Input
+                                id="server"
+                                value={server}
+                                onChange={(event) =>
+                                    setServer(event.target.value)
+                                }
+                                placeholder="onedrop.example.com"
+                                autoFocus
+                                autoCapitalize="off"
+                                autoCorrect="off"
+                                spellCheck={false}
+                                disabled={waiting}
+                                data-test="server"
+                            />
+                            <div className="flex flex-wrap gap-2">
+                                {SERVER_CHOICES.map((choice) => (
+                                    <Button
+                                        key={choice.value}
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setServer(choice.value)}
+                                        disabled={waiting}
+                                        data-test={`server-${choice.id}`}
+                                    >
+                                        {choice.label}
+                                    </Button>
+                                ))}
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                                Your team’s OneDrop, or the one you installed on
+                                this computer.
+                            </p>
+                            <InputError message={error ?? undefined} />
+                        </div>
+                    ) : (
+                        <div className="grid gap-2 text-center">
+                            <p
+                                className="text-sm text-muted-foreground"
+                                data-test="current-server"
+                            >
+                                On{' '}
+                                <span className="font-medium text-foreground">
+                                    {displayServer(server)}
+                                </span>
+                                {' · '}
+                                <button
+                                    type="button"
+                                    onClick={() => setChanging(true)}
+                                    disabled={waiting}
+                                    className="underline underline-offset-4 hover:text-foreground"
+                                    data-test="change-server"
+                                >
+                                    Change
+                                </button>
+                            </p>
+                            <InputError message={error ?? undefined} />
+                        </div>
+                    )}
 
                     {waiting ? (
                         <div className="space-y-2">
