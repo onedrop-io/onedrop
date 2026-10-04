@@ -1,5 +1,4 @@
 # SPEC
-- User should see an app in the preview even when its own code refuses to run in a frame (e.g. NocoDB's "Not allowed" page); the proxy rewrites those checks (`self !== top` and the like) in preview pages and scripts only, so the app runs as it does in its own tab.
 
 What users should be able to do. Each entry has an ID; tests reference it with `->group('ID')`. See `AGENTS.md` for format.
 
@@ -368,6 +367,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - The user's default AI credential should be injected into the sandbox as an environment variable, not stored in the image.
 - User should see the app's styles and scripts in the preview and at its published address even when the app writes its own links as `localhost` (e.g. a Laravel app that doesn't trust proxies); the sandbox's proxy points those links, redirects included, at the address the visitor used.
 - User should see an app in the preview even when it refuses to be shown in frames (e.g. Rails' or Django's `X-Frame-Options: SAMEORIGIN`, a CSP `frame-ancestors`); the sandbox's proxy drops those for the preview only, so the published address keeps the app's own protection.
+- User should see an app in the preview even when its own code refuses to run in a frame (e.g. NocoDB's "Not allowed" page); the proxy rewrites those checks (`self !== top` and the like) in preview pages and scripts only, so the app runs as it does in its own tab.
 
 ## SBX-002: Sandboxes stay up to date
 
