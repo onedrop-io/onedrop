@@ -16,6 +16,12 @@ return [
     'name' => env('APP_NAME', 'OneDrop'),
 
     /*
+     * When this release's commit was made (a Unix time), from the image (APP_RELEASED_AT); null for a checkout. The
+     * desktop app compares it with its own (DESK-004).
+     */
+    'released_at' => env('APP_RELEASED_AT') ? (int) env('APP_RELEASED_AT') : null,
+
+    /*
     |--------------------------------------------------------------------------
     | Application Environment
     |--------------------------------------------------------------------------

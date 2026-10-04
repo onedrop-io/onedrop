@@ -1776,3 +1776,9 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should get downloads (a project's files, a database copy, a demo video) in their Downloads folder, shown in the file manager.
 - User should see links to other sites (GitHub, a published app, Claude's sign-in in the Shell) open in their browser, and the server's own pages open in the app.
 - User should get system notifications for "ready for review" (NOTIF-001).
+
+## DESK-004: The desktop app keeps itself up to date
+
+- User should get new versions of the app without reinstalling: the app downloads one in the background and offers "Restart" when it's ready.
+- User should only ever get versions OneDrop signed; the app should refuse any other.
+- User should be told when the server they're signed in to is older than the app, with how to update it (`drop update`), since some pages may not work until it is.

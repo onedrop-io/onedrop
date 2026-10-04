@@ -8,6 +8,7 @@ import Unreachable from './components/unreachable';
 import { clearSession, loadSession, provideNotifications } from './lib/native';
 import { connectToServer, firstPage, serverHeaders } from './lib/transport';
 import type { Session } from './lib/types';
+import { keepUpdated, warnIfServerIsOlder } from './lib/updates';
 import './app.css';
 
 const root = document.getElementById('root')!;
@@ -81,6 +82,8 @@ async function boot(): Promise<void> {
     root.remove();
     await provideNotifications().catch(() => {});
     startApp({ page });
+    keepUpdated();
+    warnIfServerIsOlder();
 }
 
 void boot();

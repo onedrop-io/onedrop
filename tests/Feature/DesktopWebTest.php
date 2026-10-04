@@ -126,3 +126,19 @@ test('only the desktop app\'s origins may call the server from another origin, a
         ->options(route('projects.show', $this->project))
         ->assertHeaderMissing('Access-Control-Allow-Origin');
 })->group('DESK-001');
+
+test('the app is told when the server\'s release was made, and browsers aren\'t', function () {
+    config(['app.released_at' => 1791072000]);
+
+    desktopVisit($this->token, 'GET', route('projects.show', $this->project))
+        ->assertHeader('X-Onedrop-Released', '1791072000');
+
+    $this->flushHeaders()->actingAs($this->user)->get(route('projects.show', $this->project))
+        ->assertHeaderMissing('X-Onedrop-Released');
+
+    // A server built from source has no release.
+    config(['app.released_at' => null]);
+
+    desktopVisit($this->token, 'GET', route('projects.show', $this->project))
+        ->assertHeaderMissing('X-Onedrop-Released');
+})->group('DESK-004');

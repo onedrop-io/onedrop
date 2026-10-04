@@ -22,8 +22,8 @@ return [
 
     'allowed_headers' => ['*'],
 
-    // What Inertia reads from its responses, and a download's file name.
-    'exposed_headers' => ['X-Inertia', 'X-Inertia-Location', 'X-Inertia-Redirect', 'X-Inertia-Version', 'Content-Disposition'],
+    // What Inertia reads from its responses, a download's file name, and when the server's release was made.
+    'exposed_headers' => ['X-Inertia', 'X-Inertia-Location', 'X-Inertia-Redirect', 'X-Inertia-Version', 'Content-Disposition', 'X-Onedrop-Released'],
 
     'max_age' => 600,
 

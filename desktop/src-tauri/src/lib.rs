@@ -69,6 +69,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(server::Server::default())
         .setup(|app| {
             // The main window, from tauri.conf.json, built here so links that ask for a new window open in the

@@ -459,6 +459,9 @@ export function connectToServer(next: Session, onSignedOut: () => void): void {
     watchSignOut(onSignedOut);
 }
 
+/** When the server's release was made (a Unix time), or null when it doesn't say (a checkout, not an image). */
+export let serverReleasedAt: number | null = null;
+
 /**
  * The first page to show: the one at the app's address (after a reload), else the user's home. Null when the
  * server no longer takes the token (it sends the sign-in page).
@@ -487,6 +490,9 @@ export async function firstPage(): Promise<Page | null> {
     if (response.status === 409) {
         response = await visit(response.headers.get('X-Inertia-Version') ?? '');
     }
+
+    serverReleasedAt =
+        Number(response.headers.get('X-Onedrop-Released')) || null;
 
     if (!response.headers.has('X-Inertia')) {
         throw new Error(`The server sent no page (${response.status}).`);

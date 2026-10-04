@@ -42,7 +42,14 @@ class UseDesktopToken
             $token->forceFill(['last_used_at' => now()])->save();
         }
 
-        return $next($request);
+        $response = $next($request);
+
+        // When this server's release was made, for the app to tell whether the server is older than it (DESK-004).
+        if (self::from($request) && config('app.released_at') !== null) {
+            $response->headers->set('X-Onedrop-Released', (string) config('app.released_at'));
+        }
+
+        return $response;
     }
 
     /**

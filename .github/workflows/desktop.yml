@@ -1,0 +1,210 @@
+name: desktop
+
+# Builds the desktop app (DESK-004) for macOS, Windows and Linux and publishes it as a GitHub release, which the
+# installed apps update to: once a day when main changed since the last release, or by hand (any time). What's released
+# is the newest commit on main whose tests passed.
+#   desktop-v1.0.<n>   the release, with its installers and the updater's signed bundles
+#   desktop-latest     where installed apps look for updates (latest.json), moved to each new release
+#
+# Secrets: TAURI_SIGNING_PRIVATE_KEY signs updates (the app only installs ones signed with it). With APPLE_CERTIFICATE,
+# APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD and APPLE_TEAM_ID, macOS builds are
+# also signed and notarized; without them they're unsigned (macOS asks before the first launch).
+
+on:
+  schedule:
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: desktop-release
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      release: ${{ steps.plan.outputs.release }}
+      sha: ${{ steps.plan.outputs.sha }}
+      version: ${{ steps.plan.outputs.version }}
+      tag: ${{ steps.plan.outputs.tag }}
+      released_at: ${{ steps.plan.outputs.released_at }}
+      release_id: ${{ steps.draft.outputs.id }}
+    steps:
+      - id: plan
+        name: Anything new since the last release?
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          last=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/desktop-latest" -q .object.sha 2>/dev/null || true)
+
+          # Installed apps update to whatever is released, so it's main, tested.
+          sha=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow tests.yml --branch main --event push \
+            --status success --limit 1 --json headSha -q '.[0].headSha')
+
+          if [ -z "$sha" ]; then
+            echo "No commit on main has passed its tests yet."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "$EVENT" = "schedule" ] && [ "$last" = "$sha" ]; then
+            echo "main hasn't changed since the last release."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          version="1.0.$GITHUB_RUN_NUMBER"
+          {
+            echo "release=true"
+            echo "version=$version"
+            echo "tag=desktop-v$version"
+            echo "sha=$sha"
+            echo "released_at=$(date -d "$(gh api "repos/$GITHUB_REPOSITORY/commits/$sha" -q .commit.committer.date)" +%s)"
+          } >> "$GITHUB_OUTPUT"
+
+      # A draft first, so every platform's build uploads to the same release.
+      - id: draft
+        if: steps.plan.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.plan.outputs.tag }}
+          VERSION: ${{ steps.plan.outputs.version }}
+          SHA: ${{ steps.plan.outputs.sha }}
+        run: |
+          id=$(gh api -X POST "repos/$GITHUB_REPOSITORY/releases" \
+            -f tag_name="$TAG" -f target_commitish="$SHA" -f name="OneDrop desktop $VERSION" \
+            -f body="The OneDrop desktop app, built from $SHA. Installed apps update to it by themselves." \
+            -F draft=true -q .id)
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: plan
+    if: needs.plan.outputs.release == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: macos-latest, target: aarch64-apple-darwin }
+          - { runner: macos-latest, target: x86_64-apple-darwin }
+          - { runner: windows-latest, target: '' }
+          - { runner: ubuntu-22.04, target: '' }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          persist-credentials: false
+
+      - name: Linux libraries (webview, keychain)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libdbus-1-dev
+
+      - name: Rust target
+        if: matrix.target != ''
+        run: rustup target add ${{ matrix.target }}
+
+      # The app's pages import the web app's typed routes, which Wayfinder generates from Laravel's.
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          composer install --no-interaction --prefer-dist
+          cp .env.example .env
+          php artisan key:generate
+          npm ci
+
+      - name: Set the version
+        shell: bash
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          node -e "const f='desktop/src-tauri/tauri.conf.json',c=require('./'+f);c.version=process.env.VERSION;require('fs').writeFileSync(f,JSON.stringify(c,null,4)+'\n')"
+
+      # Only when the Apple secrets exist: empty ones would make the build try (and fail) to sign.
+      - name: macOS signing
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -z "$APPLE_CERTIFICATE" ]; then
+            echo "No Apple secrets: this macOS build is unsigned."
+            exit 0
+          fi
+
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            {
+              echo "$name<<APPLE_EOF"
+              printenv "$name"
+              echo "APPLE_EOF"
+            } >> "$GITHUB_ENV"
+          done
+
+      - name: Build and upload
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # action-v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
+          # The app compares it with the server's to tell an older server (DESK-004).
+          VITE_DESKTOP_RELEASED_AT: ${{ needs.plan.outputs.released_at }}
+        with:
+          projectPath: desktop
+          tauriScript: npx tauri
+          args: ${{ matrix.target != '' && format('--target {0}', matrix.target) || '' }}
+          releaseId: ${{ needs.plan.outputs.release_id }}
+          uploadUpdaterJson: true
+
+  publish:
+    needs: [plan, build]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Publish the release and point desktop-latest at it
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.plan.outputs.tag }}
+          RELEASE_ID: ${{ needs.plan.outputs.release_id }}
+          SHA: ${{ needs.plan.outputs.sha }}
+        run: |
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" -F draft=false -F make_latest=false > /dev/null
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern latest.json --dir .
+
+          # desktop-latest: a tag on the released commit (how the next run knows what's new) and a release holding
+          # latest.json, where installed apps look.
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/desktop-latest" > /dev/null 2>&1; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/desktop-latest" -f sha="$SHA" -F force=true > /dev/null
+          else
+            gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref=refs/tags/desktop-latest -f sha="$SHA" > /dev/null
+          fi
+
+          if ! gh release view desktop-latest --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release create desktop-latest --repo "$GITHUB_REPOSITORY" --title "OneDrop desktop (updates)" \
+              --notes "Where installed OneDrop desktop apps look for updates. Download the app from the newest desktop-v release." \
+              --latest=false
+          fi
+
+          gh release upload desktop-latest latest.json --repo "$GITHUB_REPOSITORY" --clobber

@@ -30,6 +30,11 @@ COPY docker/app/entrypoint.sh /usr/local/bin/drop-entrypoint
 # Server mode only (APP_DOMAIN set): HTTPS, and previews/shells through the gateway.
 COPY docker/app/Caddyfile /etc/drop/Caddyfile
 
+# When this release's commit was made (a Unix time), set by the images workflow: the desktop app compares it with its
+# own to tell whether the server is older (DESK-004).
+ARG APP_RELEASED_AT=
+ENV APP_RELEASED_AT=${APP_RELEASED_AT}
+
 ENV APP_ENV=production \
     APP_DEBUG=false \
     APP_URL=http://localhost:8000 \

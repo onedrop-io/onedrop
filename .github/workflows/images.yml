@@ -42,6 +42,10 @@ jobs:
           ref: ${{ env.SHA }}
           persist-credentials: false
 
+      # When the commit was made, for the desktop app to tell an older server from a newer one (DESK-004).
+      - id: released
+        run: echo "at=$(git log -1 --format=%ct)" >> "$GITHUB_OUTPUT"
+
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -62,6 +66,7 @@ jobs:
           context: ${{ matrix.image.context }}
           platforms: ${{ matrix.platform.name }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: APP_RELEASED_AT=${{ steps.released.outputs.at }}
           outputs: type=image,name=ghcr.io/${{ github.repository_owner }}/${{ matrix.image.name }},push-by-digest=true,name-canonical=true,push=true
           cache-from: type=gha,scope=${{ matrix.image.name }}-${{ matrix.platform.arch }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image.name }}-${{ matrix.platform.arch }}
