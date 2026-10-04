@@ -645,6 +645,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 - User should see the same panes, tabs, pane sizes and showing tab after reloading a project's page, including Shells, the open file, the Tools section and the Tests tab's requirement.
 - User's Shells should come back with the same session after a reload: what was on screen and anything still running in them are still there.
+- User should be able to scroll back through a Shell's last 10,000 lines of output, also after a reload.
 - User should see the preview on the page of the app it was on before the reload.
 - User should find a half-typed chat message, the files panel's search and recently opened files (for "Go to file") still there after a reload, and the chat scrolled where it was.
 - A new browser tab on the same project should start with the default layout and new Shells, not share the other tab's.

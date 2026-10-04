@@ -27,6 +27,8 @@ Open a project whose sandbox is running.
 2. Reload the page.
 
 - [ ] The Shell comes back with what was on screen, and the loop is still printing.
+- [ ] Scrolling up shows the loop's earlier output from before the reload, in color (LAYOUT-005).
+- [ ] `seq 1 20000`: scrolling up reaches about line 10,000.
 - [ ] Moving the Shell to another pane keeps it running too.
 - [ ] A new browser tab on the same project gets its own new Shells.
 - [ ] A Shell whose tab you close ends a few minutes later (`ps` in another Shell no longer shows it).
@@ -62,6 +64,15 @@ These install on first use through `onedrop-tool`.
 - [ ] `onedrop-tool install az doctl` installs both ahead of time.
 - [ ] An app with its own copy (`wrangler` in its `node_modules`) uses that copy.
 - [ ] Installed tools are still there after the sandbox [updates](/testing/sandboxes#updates).
+
+## Ask and coding agents (SBX-012)
+
+- [ ] The banner mentions `ask` and the agents.
+- [ ] `ask how do I list files by size` streams a short answer with a command, on the project's AI (try a Claude subscription, an API key and AI credits).
+- [ ] `git log -5 | ask summarize this` answers about the piped log; `ask what does this app do` reads the project's files.
+- [ ] Asking it to change a file explains how instead of changing it; `git status` stays clean.
+- [ ] With no AI connected, `ask hi` says so in one line.
+- [ ] `pi --version`, `fx --version` and `gemini --version` install on first use, then run.
 
 ## Claude sign-in from the Shell
 

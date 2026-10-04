@@ -39,6 +39,24 @@ test('a Shell coming back to its session reattaches instead of starting another'
         ->and(($this->tmux)('display-message', '-p', '-t', "={$this->session}:", '#{pane_start_command}'))->not->toContain('elsewhere');
 })->group('LAYOUT-005');
 
+test('a Shell coming back to its session gets the earlier output for its scrollback first', function () {
+    ($this->shellEntry)('session', $this->session);
+    ($this->tmux)('send-keys', '-t', "={$this->session}:", 'seq -f line-%g 1 200', 'Enter');
+
+    $deadline = microtime(true) + 10;
+    while (! str_contains(($this->tmux)('capture-pane', '-p', '-t', "={$this->session}:"), 'line-200') && microtime(true) < $deadline) {
+        usleep(100_000);
+    }
+
+    expect(($this->shellEntry)('session', $this->session)->output())
+        ->toContain("line-1\nline-2\nline-3\n")
+        ->not->toContain('line-200');
+})->group('LAYOUT-005');
+
+test('a new session has no earlier output to give back', function () {
+    expect(($this->shellEntry)('session', $this->session)->output())->toBe('');
+})->group('LAYOUT-005');
+
 test('a session name that is not plain letters, digits and dashes is ignored', function () {
     ($this->shellEntry)('session', '../x;rm');
 

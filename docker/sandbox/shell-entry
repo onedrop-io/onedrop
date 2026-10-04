@@ -5,7 +5,8 @@
 #
 # "session <name>" after those (LAYOUT-005) runs it all in a tmux session of that name, or reattaches to the
 # session if it's still there, so a reloaded page gets its Shells back. A session no tab comes back to ends
-# a few minutes later (see tmux.conf and shell-reap). Older pages send no session and get a plain shell.
+# a few minutes later (see tmux.conf and shell-reap). Older pages send no session and get a plain shell. A reattached
+# session's earlier output goes back into the page's scrollback first.
 action=()
 session=""
 
@@ -21,7 +22,18 @@ done
 
 if [ -n "$session" ] && command -v tmux >/dev/null 2>&1; then
     tmux=(tmux -L onedrop -f "$(dirname "$0")/tmux.conf")
-    "${tmux[@]}" has-session -t "=$session" 2>/dev/null || "${tmux[@]}" new-session -d -s "$session" "$0" "${action[@]}"
+    if "${tmux[@]}" has-session -t "=$session" 2>/dev/null; then
+        # A reloaded page's terminal starts empty and tmux only redraws the screen, so first print the session's
+        # earlier output (with its colors), then push it all above the screen for tmux to draw over.
+        if [ "$("${tmux[@]}" display-message -p -t "=$session:" '#{history_size}')" -gt 0 ] 2>/dev/null; then
+            "${tmux[@]}" capture-pane -p -e -J -S - -E -1 -t "=$session:"
+            printf '\e[0m'
+            rows=$(stty size 2>/dev/null | cut -d' ' -f1)
+            for ((i = 0; i < ${rows:-50}; i++)); do echo; done
+        fi
+    else
+        "${tmux[@]}" new-session -d -s "$session" "$0" "${action[@]}"
+    fi
     exec "${tmux[@]}" attach-session -t "=$session"
 fi
 

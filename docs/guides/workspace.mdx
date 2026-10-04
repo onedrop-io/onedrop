@@ -114,6 +114,22 @@ OneDrop keeps all of them up to date. A new version of a tool installs the next 
 
 <Note>To use a tool with your own account, sign in to it in your Shell (`gh auth login`, `aws configure`, `gcloud auth login`). The sign-in stays in the sandbox, where the agent could read it too. The agent won't sign in or deploy for you.</Note>
 
+### Ask the AI and coding agents
+
+Type `ask` and a question to get a short answer from your project's AI, right in the Shell. It uses the same AI as the chat, so there's nothing to set up:
+
+```bash
+ask how do I see what's using port 8000
+cat storage/logs/laravel.log | ask why is this failing
+git diff | ask write a commit message
+```
+
+`ask` can read your project's files to answer, but it doesn't change anything or run commands: it tells you what to run. Anything you pipe in goes with the question.
+
+The Shell also has coding agents you can run yourself: `claude` (Claude Code), `codex`, `opencode`, and `pi`, `fx` and `gemini`, which install the first time you run them. Sign in to each with its own login (`claude`, `codex login`, `fx login`, `/login` in pi, `gemini`). A Gemini key you connected in **Settings → AI** works in `gemini` and `pi` straight away.
+
+The Shell keeps your last 10,000 lines of output to scroll back through, also after you reload the page.
+
 ## When the app hits an error
 
 The agent sees your app's errors, whatever it's built with. The sandbox records three kinds in `/workspace/.onedrop/errors.log`:
