@@ -61,6 +61,6 @@ The **Tools → Publishing** section shows the same status, URL, and who publish
 
 Published URLs reach your app as `localhost`, so frameworks that block unknown hostnames (such as Vite and Next.js dev servers) work without extra configuration.
 
-Apps that refuse to be shown in frames (Rails and Django send `X-Frame-Options: SAMEORIGIN` by default) still show in the preview: OneDrop drops that header, and a `frame-ancestors` policy, for the preview only. Your published URL keeps them.
+Apps that refuse to be shown in frames (Rails and Django send `X-Frame-Options: SAMEORIGIN` by default) still show in the preview: OneDrop drops that header, and a `frame-ancestors` policy, for the preview only. Apps whose own code refuses to run in a frame (NocoDB, for one) work too: the preview rewrites those checks, so the app behaves as it does in its own tab. Your published URL keeps all of them.
 
 Setting up Tailscale for your server is covered in [Tailscale publishing](/self-hosting/tailscale).

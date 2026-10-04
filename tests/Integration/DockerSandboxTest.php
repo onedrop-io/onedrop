@@ -277,7 +277,7 @@ test('the host proxy points localhost links in pages and redirects at the visito
     }
 })->group('SBX-001');
 
-test('the host proxy lets the preview frame an app that refuses frames, but not its published address', function () {
+test('the host proxy lets the preview frame an app that refuses frames, by header or in its code, but not its published address', function () {
     $docker = new DockerSandboxProvider(config('sandbox.providers.docker'));
     $id = $docker->create(new SandboxSpec('onedrop-test-'.bin2hex(random_bytes(3))));
     $headers = fn (string $host) => strtolower($docker->exec($id, ['curl', '-sI', '-H', "Host: {$host}", 'http://127.0.0.1:8081/'])->output);
@@ -285,6 +285,7 @@ test('the host proxy lets the preview frame an app that refuses frames, but not 
     try {
         $script = 'mkdir -p /workspace/.onedrop /workspace/public'
             .' && echo \'<?php header("X-Frame-Options: SAMEORIGIN"); header("Content-Security-Policy: default-src \\x27self\\x27; frame-ancestors \\x27none\\x27"); echo "ok";\' > /workspace/public/index.php'
+            .' && echo \'if(self!==top){document.title="Not allowed"}\' > /workspace/public/app.js'
             .' && printf "#!/usr/bin/env bash\nexec php -S 0.0.0.0:\$PORT -t /workspace/public\n" > /workspace/.onedrop/dev'
             .' && chmod +x /workspace/.onedrop/dev && /opt/onedrop/restart';
         expect($docker->exec($id, ['bash', '-c', $script])->successful())->toBeTrue();
@@ -300,6 +301,14 @@ test('the host proxy lets the preview frame an app that refuses frames, but not 
             ->and($headers('preview-7.example.com'))->not->toContain('x-frame-options')
             ->and($headers('my-app.tail1.ts.net'))->toContain('x-frame-options: sameorigin')
             ->toContain("frame-ancestors 'none'");
+
+        // Frame checks in the app's own code (NocoDB's "Not allowed") are rewritten for the preview only.
+        $script = fn (string $host) => trim($docker->exec($id, ['curl', '-s', '-H', "Host: {$host}", 'http://127.0.0.1:8081/app.js'])->output);
+
+        expect($script('127.0.0.1:32800'))->toBe('if(false){document.title="Not allowed"}')
+            ->and($script('my-app.tail1.ts.net'))->toBe('if(self!==top){document.title="Not allowed"}')
+            // Checked every time, so a copy the browser kept can't outlive a change to the rewriting.
+            ->and($headers('127.0.0.1:32800'))->toContain('cache-control: no-cache');
     } finally {
         $docker->destroy($id);
     }

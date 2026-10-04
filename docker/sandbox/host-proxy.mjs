@@ -23,6 +23,7 @@ import {
 import http from 'node:http';
 import net from 'node:net';
 import { createInterface } from 'node:readline';
+import { withoutFrameChecks } from './preview-frame.mjs';
 
 const appPort = Number(process.env.PORT || 8000);
 const listenPort = Number(process.env.PROXY_PORT || 8081);
@@ -163,7 +164,59 @@ function rewrite(req, port = appPort) {
         headers.referer = localize(headers.referer, originalHost);
     }
 
+    if (isPreview(String(req.headers.host ?? ''))) {
+        revalidateRewritten(req, headers);
+    }
+
     return headers;
+}
+
+// Preview pages and scripts are rewritten (frame checks, the error reporter), so a copy a browser kept mustn't
+// outlive a change to the rewriting: apps mark built scripts `immutable` for a year, and NocoDB's kept its "Not
+// allowed" check after the rewrite came in. They're sent with `no-cache` and an ETag that names this proxy's
+// version; a conditional request for one that doesn't name it gets the whole answer again.
+const PREVIEW_VERSION = createHash('sha256')
+    .update(readFileSync(new URL(import.meta.url)))
+    .update(readFileSync(new URL('./preview-frame.mjs', import.meta.url)))
+    .digest('hex')
+    .slice(0, 12);
+const PREVIEW_TAG = `-onedrop-${PREVIEW_VERSION}`;
+const REWRITTEN_DESTINATIONS = new Set([
+    'document',
+    'iframe',
+    'frame',
+    'script',
+    'worker',
+    'sharedworker',
+]);
+
+function isRewrittenType(type) {
+    return /^text\/html|javascript/i.test(type);
+}
+
+/** A page or script's conditional request: the app's own ETag when the kept copy is this version's, else none. */
+function revalidateRewritten(req, headers) {
+    const tags = String(headers['if-none-match'] ?? '');
+
+    if (tags.includes(PREVIEW_TAG)) {
+        headers['if-none-match'] = tags.split(PREVIEW_TAG).join('');
+        req.onedropRevalidating = true;
+    } else if (
+        REWRITTEN_DESTINATIONS.has(String(req.headers['sec-fetch-dest'] ?? ''))
+    ) {
+        delete headers['if-none-match'];
+        delete headers['if-modified-since'];
+    }
+}
+
+/** Mark a rewritten preview answer (or the go-ahead to keep one) as this version's, to be checked every time. */
+function tagRewritten(headers) {
+    headers['cache-control'] = 'no-cache';
+    delete headers.expires;
+
+    if (headers.etag) {
+        headers.etag = String(headers.etag).replace(/"$/, `${PREVIEW_TAG}"`);
+    }
 }
 
 // Text answers whose localhost links are rewritten. Event streams stay streamed.
@@ -250,6 +303,14 @@ function relay(req, res, response) {
 
     if (isPreview(host)) {
         allowFraming(headers);
+
+        if (
+            response.statusCode === 304
+                ? req.onedropRevalidating
+                : isRewrittenType(String(headers['content-type'] ?? ''))
+        ) {
+            tagRewritten(headers);
+        }
     }
 
     if ((response.statusCode ?? 502) >= 500) {
@@ -282,11 +343,15 @@ function relay(req, res, response) {
         if (size <= MAX_REWRITE_BYTES) {
             let text = toVisitor(body.toString('utf8'), req);
 
-            if (
-                isPreview(host) &&
-                /^text\/html/i.test(String(headers['content-type']))
-            ) {
-                text = withErrorReporter(text, response.statusCode ?? 502);
+            const type = String(headers['content-type']);
+
+            if (isPreview(host) && /^text\/html/i.test(type)) {
+                text = withErrorReporter(
+                    withoutFrameChecks(text),
+                    response.statusCode ?? 502,
+                );
+            } else if (isPreview(host) && /javascript/i.test(type)) {
+                text = withoutFrameChecks(text);
             }
 
             body = Buffer.from(text, 'utf8');

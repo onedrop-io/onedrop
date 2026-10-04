@@ -39,6 +39,7 @@ class SandboxTools
     public const RESTARTS = [
         'host-proxy.mjs' => 'node /opt/onedrop/host-proxy.mjs',
         'inspector.js' => 'node /opt/onedrop/host-proxy.mjs',
+        'preview-frame.mjs' => 'node /opt/onedrop/host-proxy.mjs',
         'file-watcher.mjs' => 'node /opt/onedrop/file-watcher.mjs',
         'sshd_config' => 'sshd -D -e -f /opt/onedrop/sshd_config',
     ];

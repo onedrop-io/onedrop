@@ -1,4 +1,5 @@
 # SPEC
+- User should see an app in the preview even when its own code refuses to run in a frame (e.g. NocoDB's "Not allowed" page); the proxy rewrites those checks (`self !== top` and the like) in preview pages and scripts only, so the app runs as it does in its own tab.
 
 What users should be able to do. Each entry has an ID; tests reference it with `->group('ID')`. See `AGENTS.md` for format.
 

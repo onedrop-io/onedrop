@@ -11,6 +11,14 @@ Run these against the provider you changed. Locally that's Docker; for Runtime C
 - [ ] A new project gets a sandbox, and the preview shows the placeholder within seconds (Docker) or a minute (remote providers).
 - [ ] The Shell, Console and Services tabs connect.
 
+## Apps that refuse frames (SBX-001)
+
+1. Ask the agent for an app that sends `X-Frame-Options: SAMEORIGIN` (a Rails app), and another that checks for a frame in its own code (NocoDB).
+
+- [ ] Both show in the preview, not a blank page or NocoDB's **Not allowed** page.
+- [ ] NocoDB's sign-up and sign-in work in the preview.
+- [ ] At the published URL, `curl -I` still shows the Rails app's `X-Frame-Options`.
+
 ## Suspend and wake
 
 1. Leave a project's workspace closed for over a minute.
