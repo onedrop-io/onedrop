@@ -285,8 +285,7 @@ export default function CreateProject({
                                     ...agentFields,
                                 }}
                                 footer={
-                                    // Simple mode uses their saved or default agent (PRJ-013).
-                                    simple ? null : selection ? (
+                                    selection ? (
                                         <AgentModelPicker
                                             selection={selection}
                                             onChange={setSelection}

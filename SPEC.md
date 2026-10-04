@@ -350,10 +350,10 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 - The first time user opens the new-project page, they should be asked "How do you like to build?" with two choices: "Simple" (describe it, the AI handles the technical side) and "Advanced" (models, files, the shell and git). Until they choose, everything shows, as in Advanced.
 - User should be able to switch modes at any time from a "Simple / Advanced" switch on the new-project page and from the account menu. The choice is remembered on their account, across devices.
-- In Simple mode, user should not see the agent, model and reasoning picker (on the new-project page or in the chat; their saved or default choice is used), or the repository import.
-- In Simple mode, user should not see the workspace's Commit button.
-- In Simple mode, a project's workspace should open with just Tools and Preview (no Shell, Services or Console tabs) and the files panel closed, but user should still be able to add any tab from "+" and open the files panel; tabs they already have open stay open. Opening the files panel in Simple mode isn't remembered.
-- In Simple mode, user should always see the chat when a project opens (and when they switch to Simple), even if they hid it before; hiding it still works, but isn't remembered.
+- Simple mode only simplifies how things start; it should never hide the workspace's tools for good. User should see the agent, model and reasoning picker (on the new-project page and in the chat) and the workspace's git menu (Commit, push, pull request) in both modes. The repository import is offered only in Advanced mode.
+- In Simple mode, a new project's workspace should open with just Tools and Preview (no Shell, Services or Console tabs) and the files panel closed, but user should still be able to add any tab from "+" and open the files panel; tabs they already have open stay open.
+- What user opens or hides (the chat, the files panel, tabs) should be remembered in both modes, so it's the same after a reload.
+- Switching to Simple should show the chat and close the files panel, once; after that their choices are remembered again.
 - In Simple mode, user should see the agent's steps in the chat in plain words, like the sidebar's ("Building the orders page", not "Editing resources/js/pages/orders/index.tsx"), with a step repeated in a row shown once.
 - Advanced mode should show everything, as before.
 - The dev user should be seeded in Advanced mode.

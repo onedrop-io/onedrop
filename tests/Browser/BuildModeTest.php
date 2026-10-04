@@ -17,7 +17,7 @@ beforeEach(function () {
     app()->instance(AgentRunner::class, new FakeAgentRunner);
 });
 
-test('a first-time user picks Simple and sees only what they need, then switches to Advanced', function () {
+test('a first-time user picks Simple and starts with less, but nothing is out of reach, then switches to Advanced', function () {
     $user = User::factory()->has(AgentConnection::factory())->create();
     $project = Project::factory()->for($user)->create(['name' => 'Orders']);
     Sandbox::factory()->for($project)->create();
@@ -32,7 +32,7 @@ test('a first-time user picks Simple and sees only what they need, then switches
         ->click('@mode-simple')
         ->assertMissing('@mode-chooser')
         ->assertAttribute('@mode-switch-simple', 'aria-pressed', 'true')
-        ->assertMissing('@agent-pickers')
+        ->assertVisible('@agent-pickers')
         ->assertDontSee('Sales CRM')
         ->click('@way-template')
         ->assertSee('Sales CRM')
@@ -47,16 +47,20 @@ test('a first-time user picks Simple and sees only what they need, then switches
     $page = visit("/projects/{$project->id}")
         ->assertSee('Building the orders page')
         ->assertDontSee('resources/js/pages/orders')
-        ->assertMissing('@git-actions')
-        ->assertMissing('@agent-pickers')
+        ->assertVisible('@git-actions')
+        ->assertVisible('@agent-pickers')
         ->assertDontSee('Shell')
         ->assertMissing('@files-panel');
 
-    // Not open to begin with, but never out of reach (PRJ-013).
+    // Not open to begin with, but never out of reach, and remembered (PRJ-013).
     $page->click('@add-tab')
         ->click('@add-tab-shell')
         ->assertSee('Shell')
         ->click('@toggle-files')
+        ->assertVisible('@files-panel');
+
+    $page->navigate("/projects/{$project->id}")
+        ->assertSee('Shell')
         ->assertVisible('@files-panel');
 
     // Both steps are "Building the orders page", so it shows once.
@@ -90,19 +94,27 @@ test('in Advanced mode, "Something that exists" offers their own repository abov
         ->assertNoJavaScriptErrors();
 })->group('PRJ-013', 'PRJ-009');
 
-test('in Simple mode the chat shows when a project opens, even if it was hidden before', function () {
-    $user = User::factory()->has(AgentConnection::factory())->create(['build_mode' => BuildMode::Simple]);
+test('switching to Simple shows the chat once, then hiding it is remembered', function () {
+    $user = User::factory()->has(AgentConnection::factory())->create(['build_mode' => BuildMode::Advanced]);
     $project = Project::factory()->for($user)->create();
     Sandbox::factory()->for($project)->create();
     $this->actingAs($user);
 
-    $page = visit("/projects/{$project->id}");
-    $page->script("localStorage.setItem('onedrop.chat-open', 'false')");
-
-    visit("/projects/{$project->id}")
-        ->assertVisible('#composer-content')
-        ->assertAttribute('@toggle-chat', 'aria-label', 'Hide chat')
+    $page = visit("/projects/{$project->id}")
         ->click('@toggle-chat')
         ->assertMissing('#composer-content')
+        ->click('@sidebar-menu-button')
+        ->click('@mode-menu')
+        ->click('@mode-menu-simple')
+        ->assertVisible('#composer-content');
+
+    expect($user->fresh()->build_mode)->toBe(BuildMode::Simple);
+
+    $page->click('@toggle-chat')
+        ->assertMissing('#composer-content');
+
+    $page->navigate("/projects/{$project->id}")
+        ->assertMissing('#composer-content')
+        ->assertAttribute('@toggle-chat', 'aria-label', 'Show chat')
         ->assertNoJavaScriptErrors();
 })->group('PRJ-013', 'LAYOUT-001');

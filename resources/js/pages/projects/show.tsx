@@ -118,7 +118,11 @@ import ToolsPanel from '@/components/workspace/tools-panel';
 import FileViewer from '@/components/workspace/file-viewer';
 import ResizeHandle from '@/components/workspace/resize-handle';
 import { isLocalHostname, useIsRemote } from '@/hooks/use-is-remote';
-import { useBuildMode } from '@/hooks/use-build-mode';
+import {
+    CHAT_OPEN_KEY,
+    FILES_OPEN_KEY,
+    useBuildMode,
+} from '@/hooks/use-build-mode';
 import { useClipboard } from '@/hooks/use-clipboard';
 import { useResizableWidth } from '@/hooks/use-resizable-width';
 import { useSandboxActivity } from '@/hooks/use-sandbox-activity';
@@ -269,19 +273,16 @@ export default function ShowProject({
         CHAT_WIDTH_KEY,
         CHAT_WIDTH,
     );
-    // Hidden or shown, as last left in this browser (LAYOUT-001); read after mount so server and client HTML match.
-    // Simple mode always starts with it showing, since the chat is how it's used (PRJ-013).
+    // Hidden or shown, as last left in this browser (LAYOUT-001), in either mode; read after mount so server and
+    // client HTML match. Switching to Simple shows it again (PRJ-013).
     const [chatOpen, setChatOpen] = useState(true);
 
     useEffect(() => {
-        setChatOpen(simple || localStorage.getItem(CHAT_OPEN_KEY) !== 'false');
+        setChatOpen(localStorage.getItem(CHAT_OPEN_KEY) !== 'false');
     }, [simple]);
 
     const toggleChat = () => {
-        if (!simple) {
-            localStorage.setItem(CHAT_OPEN_KEY, String(!chatOpen));
-        }
-
+        localStorage.setItem(CHAT_OPEN_KEY, String(!chatOpen));
         setChatOpen(!chatOpen);
     };
 
@@ -365,13 +366,11 @@ export default function ShowProject({
         <>
             <Head title={title ? `${title} · ${project.name}` : project.name} />
             <HeaderActions>
-                {!simple && (
-                    <GitActionsMenu
-                        projectId={project.id}
-                        running={sandbox?.status === 'running'}
-                        working={working}
-                    />
-                )}
+                <GitActionsMenu
+                    projectId={project.id}
+                    running={sandbox?.status === 'running'}
+                    working={working}
+                />
                 <ShareMenu
                     projectId={project.id}
                     projectName={project.name}
@@ -749,7 +748,7 @@ function ChatPanel({
                     }
                     footer={
                         <>
-                            {agent && !simple && (
+                            {agent && (
                                 <AgentModelPicker
                                     selection={agent}
                                     allowAuto
@@ -1044,35 +1043,33 @@ function WorkspacePanel({
         FILES_WIDTH,
     );
 
-    // Use the last choice saved in this browser; otherwise open by default
-    // only where there's room for chat, preview and files. On a phone the
-    // panel covers the workspace, so it always starts closed there. Decided
-    // after mount so server-rendered and client HTML match.
+    // Use the last choice saved in this browser, in either mode; otherwise open by default only where there's room
+    // for chat, preview and files, and not in Simple mode (PRJ-013), whose switch closes it again. On a phone the
+    // panel covers the workspace, so it always starts closed there. Decided after mount so server-rendered and
+    // client HTML match.
     useEffect(() => {
         setHideHidden(localStorage.getItem(HIDE_HIDDEN_KEY) === 'true');
+    }, []);
 
+    useEffect(() => {
         const saved = localStorage.getItem(FILES_OPEN_KEY);
 
-        if (isPhone() || simple) {
+        if (isPhone()) {
             return;
         }
 
         if (saved !== null) {
             setFilesOpen(saved === 'true');
-        } else if (window.matchMedia('(min-width: 1440px)').matches) {
+        } else if (
+            !simple &&
+            window.matchMedia('(min-width: 1440px)').matches
+        ) {
             setFilesOpen(true);
-        }
-    }, []);
-
-    // Simple mode starts with the files panel closed, and doesn't remember opening it (PRJ-013).
-    useEffect(() => {
-        if (simple) {
-            setFilesOpen(false);
         }
     }, [simple]);
 
     const toggleFiles = () => {
-        if (!isPhone() && !simple) {
+        if (!isPhone()) {
             localStorage.setItem(FILES_OPEN_KEY, String(!filesOpen));
         }
 
@@ -2833,7 +2830,6 @@ const ACTIVE_TABS: PaneTab[] = [
     'file',
 ];
 
-/** localStorage key for whether the files panel was last left open. */
 /** What the page reloads when the project changes (LIVE-001). */
 const LIVE_PROPS = [
     'project',
@@ -2846,15 +2842,10 @@ const LIVE_PROPS = [
     'sharing',
 ];
 
-const FILES_OPEN_KEY = 'onedrop.files-open';
-
 /** Below `md`, where the files panel covers the workspace instead of sitting beside it. */
 function isPhone(): boolean {
     return !window.matchMedia('(min-width: 768px)').matches;
 }
-
-/** localStorage key for whether the chat was last left showing (LAYOUT-001). */
-const CHAT_OPEN_KEY = 'onedrop.chat-open';
 
 /** localStorage keys and limits for the chat and files panel widths, in px. */
 const CHAT_WIDTH_KEY = 'onedrop.chat-width';
