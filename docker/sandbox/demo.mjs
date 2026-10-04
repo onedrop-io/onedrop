@@ -802,10 +802,9 @@ async function render(url) {
             imageFormat: 'jpeg',
             jpegQuality: 90,
             outputLocation: `${WORK}/demo.mp4`,
-            concurrency: Math.max(
-                1,
-                Math.min(4, Math.floor(os.cpus().length / 2)),
-            ),
+            // Left to Remotion: half the CPUs it can use, which counts the sandbox's own limit (os.cpus() counts
+            // the host's, and asking for more than the limit fails the render).
+            concurrency: null,
             onProgress: ({ progress }) => {
                 if (progress - reported >= 0.01 || progress === 1) {
                     reported = progress;
