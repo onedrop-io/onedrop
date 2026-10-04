@@ -105,7 +105,8 @@ test('opening a preview hands the browser to that address, which sets its own co
 
     $enter->assertRedirect("https://preview-{$this->sandbox->id}.onedrop.example.com/contacts?page=2")->assertCookie(Gateway::COOKIE)->assertCookieMissing(config('session.cookie'));
     $cookie = collect($enter->headers->getCookies())->first(fn ($cookie) => $cookie->getName() === Gateway::COOKIE);
-    expect($cookie->getDomain())->toBeNull()->and($cookie->isHttpOnly())->toBeTrue();
+    expect($cookie->getDomain())->toBeNull()->and($cookie->isHttpOnly())->toBeTrue()
+        ->and($cookie->getSameSite())->toBe('lax')->and($cookie->isPartitioned())->toBeFalse();
 
     // The browser sends back exactly what the address set.
     $this->withUnencryptedCookie(Gateway::COOKIE, $cookie->getValue())

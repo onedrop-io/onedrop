@@ -92,6 +92,13 @@ test('on a server the app opens previews through the sandbox\'s own sign-in addr
     parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
     expect(app(Gateway::class)->userFromToken($query['token'], ['kind' => 'preview', 'sandbox_id' => $sandbox->id]))->toBe($this->user->id);
 
+    // The preview is a frame on another site in the app, where WebKit keeps only partitioned cookies.
+    $cookie = collect($this->flushHeaders()->get($url)->assertRedirect()->headers->getCookies())
+        ->first(fn ($cookie) => $cookie->getName() === Gateway::COOKIE);
+    expect($cookie->isPartitioned())->toBeTrue()
+        ->and($cookie->getSameSite())->toBe('none')
+        ->and($cookie->isSecure())->toBeTrue();
+
     // The browser keeps going through the app's own address, which its session signs in.
     $this->flushHeaders()->actingAs($this->user)->get(route('projects.show', $this->project))
         ->assertInertia(fn ($page) => $page->where('sandbox.preview_url', route('projects.gateway.open', [$this->project, 'preview'])));

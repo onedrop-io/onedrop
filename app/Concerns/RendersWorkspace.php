@@ -61,9 +61,9 @@ trait RendersWorkspace
         $sandbox = $task && Task::getsCopies() ? $task->sandbox()->first() : $project->sandbox;
         $sandbox?->wake(app(SandboxProvider::class));
         // The desktop app (DESK-001) has no session for that address to sign in with: it gets the sandbox address's own
-        // sign-in, good for a minute, which every load of the workspace renews.
+        // sign-in, good for a minute, which every load of the workspace renews, for a partitioned cookie.
         $open = fn (string $kind, string $path = '/') => $sandbox && UseDesktopToken::from($request)
-            ? $gateway->enterUrl($sandbox, $kind, $request->user(), $path)
+            ? $gateway->enterUrl($sandbox, $kind, $request->user(), $path, partitioned: true)
             : route('projects.gateway.open', [$project, $kind, ...($sandbox?->task_id ? ['task' => $sandbox->task_id] : []), ...($path !== '/' ? ['path' => $path] : [])]);
         $messages = $newTask ? collect() : $conversation->messages()->with('attachments')->get();
         $queued = $newTask ? collect() : $conversation->queuedMessages()->with('attachments')->get();

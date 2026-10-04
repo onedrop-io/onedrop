@@ -224,16 +224,18 @@ class Gateway
     }
 
     /**
-     * Where the browser trades a hand-off token for the address's own cookie, then lands on $path.
+     * Where the browser trades a hand-off token for the address's own cookie, then lands on $path. A partitioned
+     * cookie is for a frame on another site (the desktop app, DESK-002), where WebKit stores no other.
      */
-    public function enterUrl(Sandbox $sandbox, string $kind, User $user, string $path = '/'): string
+    public function enterUrl(Sandbox $sandbox, string $kind, User $user, string $path = '/', bool $partitioned = false): string
     {
-        $token = Crypt::encryptString(json_encode([
+        $token = Crypt::encryptString(json_encode(array_filter([
             'user' => $user->id,
             'sandbox' => $sandbox->id,
             'kind' => $kind,
             'expires' => now()->addSeconds(self::TOKEN_SECONDS)->getTimestamp(),
-        ], JSON_THROW_ON_ERROR));
+            'partitioned' => $partitioned,
+        ]), JSON_THROW_ON_ERROR));
 
         return $this->url($sandbox, $kind).'/__onedrop/enter?'.http_build_query(['token' => $token, 'path' => $path]);
     }
@@ -245,13 +247,28 @@ class Gateway
      */
     public function userFromToken(string $token, array $target): ?int
     {
+        $data = $this->handOff($token);
+
+        return $this->matches($data, $target) ? (int) $data['user'] : null;
+    }
+
+    /**
+     * Whether a hand-off token asks for a partitioned cookie (see enterUrl()).
+     */
+    public function wantsPartitionedPass(string $token): bool
+    {
+        $data = $this->handOff($token);
+
+        return is_array($data) && ($data['partitioned'] ?? false) === true;
+    }
+
+    protected function handOff(string $token): mixed
+    {
         try {
-            $data = json_decode(Crypt::decryptString($token), true);
+            return json_decode(Crypt::decryptString($token), true);
         } catch (DecryptException) {
             return null;
         }
-
-        return $this->matches($data, $target) ? (int) $data['user'] : null;
     }
 
     /**

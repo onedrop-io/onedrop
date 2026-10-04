@@ -55,7 +55,8 @@ class SandboxGatewayController extends Controller
     public function enter(Request $request, Gateway $gateway): Response|RedirectResponse
     {
         $target = $gateway->parse((string) $gateway->requestedHost($request, $request->getHost()));
-        $userId = $target ? $gateway->userFromToken((string) $request->query('token'), $target) : null;
+        $token = (string) $request->query('token');
+        $userId = $target ? $gateway->userFromToken($token, $target) : null;
 
         if (! $userId) {
             return $this->loginRequired($target, 'expired');
@@ -64,6 +65,10 @@ class SandboxGatewayController extends Controller
         // Absolute and HTTPS: behind Caddy's internal hop this request looks like plain HTTP.
         $sandbox = Sandbox::findOrFail($target['sandbox_id']);
         $destination = $gateway->url($sandbox, $target['kind']).self::safePath((string) $request->query('path', '/'));
+
+        // In the desktop app the address is a frame on another site, where WebKit keeps only partitioned cookies,
+        // and only cross-site (SameSite=None) ones are sent to a frame there.
+        $partitioned = $gateway->wantsPartitionedPass($token);
 
         return redirect()->away($destination)->withCookie(new Cookie(
             Gateway::COOKIE,
@@ -74,7 +79,8 @@ class SandboxGatewayController extends Controller
             true, // Gateway addresses are always HTTPS.
             true,
             false,
-            Cookie::SAMESITE_LAX,
+            $partitioned ? Cookie::SAMESITE_NONE : Cookie::SAMESITE_LAX,
+            $partitioned,
         ));
     }
 
