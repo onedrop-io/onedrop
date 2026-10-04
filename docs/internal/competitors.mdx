@@ -1,0 +1,73 @@
+---
+title: 'Competitors'
+description: 'Who OneDrop competes with, what they build on, how they do mobile, and where OneDrop differs.'
+noindex: true
+---
+
+<Warning>
+  Internal. This page is hidden from the docs navigation and search. The facts about other products are from memory as of October 2026: re-check them before quoting them anywhere public. The decisions behind it are in `REQ.md` under **Competitors**.
+</Warning>
+
+## Prompt-to-app builders
+
+The main fight: someone describes an app and gets a running one.
+
+| Product | Web app | Backend | Mobile |
+| --- | --- | --- | --- |
+| **Lovable** | React + Vite single-page app | Supabase | None, or a PWA |
+| **Bolt.new** (StackBlitz) | React/Vite and others, run in the browser (WebContainers) | Supabase, Bolt Cloud | Expo (React Native) |
+| **Base44** (owned by Wix) | React + Vite single-page app | Its own: data, auth and Deno functions behind an SDK | Probably the web app in a native shell; unconfirmed |
+| **Replit Agent** | Any stack, in a real sandbox | Its own database and hosting | Expo, published with EAS |
+| **v0** (Vercel) | Next.js | Vercel and its integrations | None |
+| **Google AI Studio "Build"**, **Firebase Studio** | React, from Gemini | Cloud Run, Firebase | Firebase Studio can do Flutter |
+
+Smaller ones: Create.xyz/Anything, Same.new, Tempo, Softgen, Mocha, Rocket.new, Emergent, Macaly, Figma Make.
+
+**Pattern:** nearly all of them generate a client-only React app that talks to a hosted backend through an SDK. Mobile then comes almost free, because the same SDK runs in an Expo app or a wrapped web app.
+
+## Mobile-first builders
+
+Rork, a0.dev, Vibecode and Bolt's mobile mode. **All of them build Expo apps**: models write React Native well, and EAS handles signing and store submission.
+
+## Cloud coding agents
+
+Claude Code on the web, OpenAI Codex, Cursor background agents, Devin, GitHub Copilot coding agent, Jules. They're aimed at developers, run in sandboxes you can't reach, and hand back a pull request or a screenshot, never a live app you can use while it's being built.
+
+## Open-source and self-hostable builders
+
+The closest threat to the self-hosting pitch:
+
+- **bolt.diy:** a fork of Bolt that runs in the browser, with no real sandbox.
+- **Dyad:** a local desktop "open Lovable", using your own AI key.
+- **OpenHands, Open Lovable, Onlook:** an agent platform, a Firecrawl demo, and a visual editor.
+
+Most are tied to one stack, run only on your own machine, or have stalled.
+
+## Hosting and PaaS
+
+Dokploy, Coolify, CapRover, Railway templates, Render, Fly. They compete with hosting and remixing open-source apps, but assume you know DevOps. OneDrop adds the agent on top.
+
+## Where OneDrop differs
+
+- **Self-hostable.** Of the polished builders, only Dyad and bolt.diy come close.
+- **Any stack, Docker, your own repository.** Lovable, Bolt and v0 each tie you to one stack.
+- **Your own AI, and a choice of agent:** OpenCode, Claude Code or Codex, on your own Claude, ChatGPT or API account. Replit, Lovable and Base44 use only their own models.
+- **Organizations and groups** for companies' internal tools. Base44 and Retool AI go after that too.
+- **A backend with nothing to set up, in the app's own code.** Base44, Firebase Studio, Replit, Lovable Cloud and Bolt Cloud need no setup either, but through their own SDK or services, so the app can't leave the platform. OneDrop apps get the same with no vendor: their own database and the [table kit](/guides/tables), sign-in built in through [Users & Auth](/guides/users-and-auth), [App Storage](/guides/app-storage) buckets, and databases created when the app is [hosted](/guides/hosting).
+
+## Gaps
+
+- **Mobile publishing.** Replit and Bolt do it through Expo.
+- **Price.** Google gives its builder away free.
+
+## Our stack and mobile
+
+The default app is Inertia + Laravel: one app to deploy, no API layer, and server routing gives the agent fewer places to break things. The cost is that Inertia pages have no JSON API for a native app to call.
+
+Ways to add mobile publishing (not decided yet):
+
+| Route | How it works | Trade-off |
+| --- | --- | --- |
+| **Expo + a Laravel API** (preferred) | The agent adds an Expo app and `routes/api.php` with Sanctum beside the Inertia pages | Real native apps, as Replit and Bolt make; one codebase and one deploy |
+| Capacitor shell | A native app that loads the deployed web app | Least work, works with Inertia as it is, but Apple rejects apps that are only a website (guideline 4.2) |
+| NativePHP for Mobile | Bundles the Laravel app and PHP onto the device | Best fit for Laravel, but new and hard to run in a sandbox |

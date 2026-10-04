@@ -145,6 +145,21 @@
                         ]
                     }
                 ]
+            },
+            {
+                "tab": "Internal",
+                "icon": "lock",
+                "hidden": true,
+                "groups": [
+                    {
+                        "group": "Internal",
+                        "icon": "lock",
+                        "public": false,
+                        "pages": [
+                            "internal/competitors"
+                        ]
+                    }
+                ]
             }
         ]
     },
