@@ -39,7 +39,7 @@ class ViewsTest extends TablesTestCase
 
         $this->assertSame('Won', $view['name']);
         $this->assertSame(['conjunction' => 'and', 'conditions' => [['id' => 'x', 'field' => 'stage', 'operator' => 'is', 'value' => 'Won']]], $view['config']['filters']);
-        $this->assertSame(['filters', 'sorts', 'groups', 'hidden', 'order', 'widths', 'rowHeight', 'summaries', 'stackBy', 'dateField', 'coverField'], array_keys($view['config']));
+        $this->assertSame(['filters', 'sorts', 'groups', 'hidden', 'order', 'widths', 'rowHeight', 'summaries', 'stackBy', 'dateField', 'coverField', 'endField', 'timelineScale', 'form'], array_keys($view['config']));
 
         $renamed = $this->actingAs($this->user)->patchJson("/tables/deals/views/{$view['id']}", ['name' => 'Won deals', 'config' => ['rowHeight' => 'tall']])->assertOk()->json('view');
         $this->assertSame('Won deals', $renamed['name']);
@@ -66,7 +66,7 @@ class ViewsTest extends TablesTestCase
             ->assertUnprocessable()->assertJsonPath('errors', ['config.groups' => ['Views can be grouped by up to three fields.']]);
         $this->actingAs($this->user)->patchJson("/tables/deals/views/{$view->id}", ['config' => ['summaries' => ['value' => 'median']]])
             ->assertUnprocessable()->assertJsonValidationErrors('config.summaries.value');
-        $this->actingAs($this->user)->postJson('/tables/deals/views', ['name' => 'X', 'type' => 'timeline'])
+        $this->actingAs($this->user)->postJson('/tables/deals/views', ['name' => 'X', 'type' => 'kanban'])
             ->assertUnprocessable()->assertJsonValidationErrors('type');
 
         $config = $this->actingAs($this->user)->patchJson("/tables/deals/views/{$view->id}", ['config' => ['hidden' => ['nope', 'stage'], 'widths' => ['nope' => 100]]])
@@ -132,5 +132,16 @@ class ViewsTest extends TablesTestCase
         $companyView = TableView::query()->where('table', 'companies')->first();
 
         $this->actingAs($this->user)->patchJson("/tables/deals/views/{$companyView->id}", ['name' => 'X'])->assertNotFound();
+    }
+
+    #[Test]
+    public function a_view_added_before_the_table_is_opened_comes_after_its_starting_views(): void
+    {
+        $this->actingAs($this->user)->postJson('/tables/deals/views', ['name' => 'Mine', 'type' => 'grid'])->assertCreated();
+
+        $names = array_column($this->actingAs($this->user)->getJson('/tables/deals')->json('views'), 'name');
+
+        $this->assertSame('Mine', end($names));
+        $this->assertGreaterThan(1, count($names));
     }
 }

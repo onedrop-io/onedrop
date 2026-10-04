@@ -5,6 +5,7 @@ namespace App\Sandbox;
 use App\Enums\PublishStatus;
 use App\Enums\PublishTarget;
 use App\Models\Project;
+use App\Models\ProjectDomain;
 use App\Models\Sandbox;
 use App\Models\User;
 use Illuminate\Contracts\Encryption\DecryptException;
@@ -53,6 +54,11 @@ class Gateway
     public function enabled(): bool
     {
         return filled($this->domain);
+    }
+
+    public function domain(): ?string
+    {
+        return $this->domain;
     }
 
     /**
@@ -140,7 +146,7 @@ class Gateway
 
     /**
      * Parse a gateway hostname into its kind and sandbox id: a preview or shell, or a project published to the domain
-     * (kind "app", its main sandbox), while it's live there.
+     * (kind "app", its main sandbox) while it's live there, at its own address or a custom domain (DOM-001).
      *
      * @return array{kind: string, sandbox_id: int}|null
      */
@@ -157,19 +163,53 @@ class Gateway
             return ['kind' => $matches[1], 'sandbox_id' => (int) $matches[2]];
         }
 
-        if (! preg_match('/^[a-z0-9-]+-(\d+)\.'.$domain.'$/', $host, $matches)) {
+        $project = $this->publishedProject($host);
+
+        return $project ? ['kind' => self::APP, 'sandbox_id' => $project->sandbox->id] : null;
+    }
+
+    /**
+     * The project live on the domain at this host: its own address (<name>-<id>.<domain>) or a custom domain
+     * connected through the gateway.
+     */
+    public function publishedProject(string $host): ?Project
+    {
+        $host = strtolower(explode(':', $host)[0]);
+        $domain = preg_quote(strtolower((string) $this->domain), '/');
+
+        if (preg_match('/^[a-z0-9-]+-(\d+)\.'.$domain.'$/', $host, $matches)) {
+            $project = Project::with('sandbox')->find((int) $matches[1]);
+            $ours = $project && $project->published_default_url === "https://{$host}";
+        } else {
+            $project = ProjectDomain::with('project.sandbox')
+                ->where('hostname', $host)
+                ->whereIn('via', ['caddy', 'cloudflare-saas'])
+                ->first()?->project;
+            $ours = $project !== null;
+        }
+
+        $live = $ours
+            && $project->publish_target === PublishTarget::Domain
+            && $project->publish_status === PublishStatus::Live
+            && $project->sandbox;
+
+        return $live ? $project : null;
+    }
+
+    /**
+     * Where a request to a published app on this host should go instead: its primary custom domain, once that's what
+     * the project is published at (DOM-002). Null when the host is the one to use.
+     */
+    public function canonicalRedirect(Project $project, string $host, string $path): ?string
+    {
+        $host = strtolower(explode(':', $host)[0]);
+        $primary = $project->published_url;
+
+        if ($primary === null || $primary === $project->published_default_url || parse_url($primary, PHP_URL_HOST) === $host) {
             return null;
         }
 
-        $project = Project::with('sandbox')->find((int) $matches[1]);
-
-        $live = $project
-            && $project->publish_target === PublishTarget::Domain
-            && $project->publish_status === PublishStatus::Live
-            && $project->published_url === "https://{$host}"
-            && $project->sandbox;
-
-        return $live ? ['kind' => self::APP, 'sandbox_id' => $project->sandbox->id] : null;
+        return $primary.$path;
     }
 
     /**

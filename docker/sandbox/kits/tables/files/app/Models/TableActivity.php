@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * A change to a table's record: created, or a field updated from one value to another.
+ * A change to a table's record: created (through a form, when via is set), or a field updated from one value to another.
  * Values are kept as display text, so the history survives the field being deleted.
  *
  * @property int $id
@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string|null $field_name
  * @property string|null $from
  * @property string|null $to
+ * @property string|null $via The form view a created record was sent through
  */
 class TableActivity extends Model
 {
@@ -33,7 +34,7 @@ class TableActivity extends Model
     /**
      * @var list<string>
      */
-    protected $fillable = ['table', 'record_id', 'user_id', 'kind', 'field', 'field_name', 'from', 'to'];
+    protected $fillable = ['table', 'record_id', 'user_id', 'kind', 'field', 'field_name', 'from', 'to', 'via'];
 
     /**
      * @return array<string, string>

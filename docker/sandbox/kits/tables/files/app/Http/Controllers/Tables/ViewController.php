@@ -29,7 +29,7 @@ class ViewController extends Controller
         $view = Views::create($table, $request->user(), array_filter($input, fn (mixed $value) => $value !== null));
         $this->changed($view->isPersonal(), $table);
 
-        return response()->json(['view' => Views::data($table, $view)], 201);
+        return response()->json(['view' => Views::data($table, $view, $request->user())], 201);
     }
 
     public function update(Request $request, string $table, int $view): JsonResponse
@@ -45,7 +45,7 @@ class ViewController extends Controller
         $view = Views::update($table, $request->user(), $view, $input);
         $this->changed($view->isPersonal(), $table);
 
-        return response()->json(['view' => Views::data($table, $view)]);
+        return response()->json(['view' => Views::data($table, $view, $request->user())]);
     }
 
     public function destroy(Request $request, string $table, int $view): Response

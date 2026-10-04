@@ -8,6 +8,9 @@
 //                   header, so the browser only ever deals with onedrop.io addresses and cookies. A public app
 //                   needs no cookie; a private one answers with a redirect to sign in, passed on to the browser.
 //
+// Custom domains (DOM-001) reach it too, as Cloudflare for SaaS custom hostnames on the zone's catch-all route: the
+// app says whether one belongs to a project published to the domain, and it's served the same way.
+//
 // Only this Worker can ask the app where a sandbox lives: it proves itself with GATEWAY_SECRET.
 
 const GATEWAY_HOST = /^(preview|shell)-\d+\./;
@@ -29,12 +32,12 @@ export default {
         const url = new URL(request.url);
 
         const preview = GATEWAY_HOST.test(url.hostname);
+        const ours =
+            url.hostname === env.GATEWAY_DOMAIN ||
+            url.hostname.endsWith(`.${env.GATEWAY_DOMAIN}`);
 
-        // Other names under the wildcard go on to their own origin.
-        if (
-            !(preview || APP_HOST.test(url.hostname)) ||
-            !url.hostname.endsWith(`.${env.GATEWAY_DOMAIN}`)
-        ) {
+        // The app itself, and other names under the wildcard, go on to their own origin.
+        if (ours && !(preview || APP_HOST.test(url.hostname))) {
             return fetch(request);
         }
 
@@ -48,11 +51,12 @@ export default {
             );
         }
 
-        const auth = await authorize(request, env, ctx, url.hostname);
+        const auth = await authorize(request, env, ctx, url);
 
-        // Looked like a published app, but isn't one: some other name under the wildcard.
+        // Looked like a published app, but isn't one: some other name under the wildcard, or a custom domain that
+        // isn't (or is no longer) connected.
         if (!preview && auth.status === 404) {
-            return fetch(request);
+            return ours ? fetch(request) : notConnected();
         }
 
         if (auth.status !== 200) {
@@ -70,12 +74,14 @@ export default {
 /**
  * Ask the app about a gateway address, as the Worker (with the shared secret and the address it serves).
  */
-function askApp(env, path, host, cookie = '') {
+function askApp(env, path, host, cookie = '', uri = '') {
     return fetch(new URL(path, env.APP_URL), {
         headers: {
             'X-OneDrop-Gateway-Secret': env.GATEWAY_SECRET,
             'X-OneDrop-Gateway-Host': host,
             Accept: 'text/html',
+            // The page asked for, so a sign-in or a move to the primary domain comes back to it.
+            ...(uri ? { 'X-Forwarded-Uri': uri } : {}),
             ...(cookie ? { Cookie: `${COOKIE}=${cookie}` } : {}),
         },
         redirect: 'manual',
@@ -83,10 +89,27 @@ function askApp(env, path, host, cookie = '') {
 }
 
 /**
+ * A custom domain pointed here that no published app has.
+ */
+export function notConnected() {
+    return new Response(
+        '<!doctype html><title>Not connected</title><p>This domain isn’t connected to a published app.</p>',
+        {
+            status: 404,
+            headers: {
+                'Content-Type': 'text/html; charset=utf-8',
+                'Cache-Control': 'no-store',
+            },
+        },
+    );
+}
+
+/**
  * The app's answer for this browser on this address, reused for a minute so assets don't each cost a request.
  * Without a cookie only a public app is let through, so that answer is shared by everyone on the address.
  */
-async function authorize(request, env, ctx, host) {
+async function authorize(request, env, ctx, url) {
+    const host = url.hostname;
     const cookie = readCookie(request.headers.get('Cookie'), COOKIE);
     const key = new Request(
         `https://gateway-auth.internal/${host}/${cookie ? await sha256(cookie) : 'public'}`,
@@ -102,6 +125,7 @@ async function authorize(request, env, ctx, host) {
         '/sandbox-gateway/authorize',
         host,
         cookie ?? '',
+        url.pathname + url.search,
     );
 
     if (answer.status === 200) {

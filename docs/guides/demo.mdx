@@ -1,0 +1,81 @@
+---
+title: 'Demo video'
+description: "Make a demo video of your app from its tests: pick the scenes, caption them, and render a 1080p MP4."
+---
+
+**Tools → Demo** turns your app's [browser tests](/guides/tests) into a demo video. Each scene is one test, run again slowly so every click can be followed, shown in a browser window with a caption. The video opens on a title card with your app's icon, name and tagline, and closes on its address once it's [published](/guides/publish).
+
+Because the tests are the script, the demo stays true to the app: when the app changes, render it again.
+
+<Note>
+  The video is landscape 1920×1080 with no sound. A render takes a minute or two.
+</Note>
+
+## Make a demo
+
+<Steps>
+    <Step title="Make sure the app has tests">
+        The agent writes a test for each requirement as it builds the app. If
+        the **Tests** tab is empty, ask the agent to write them first.
+    </Step>
+    <Step title="Pick the scenes">
+        Open **Tools → Demo** and click **Start from tests**: you get one scene
+        per requirement, captioned with what it lets people do. Or click
+        **Write it with agent** and the agent picks the scenes that tell your
+        app's story, writes the captions, and renders it.
+    </Step>
+    <Step title="Edit the storyboard">
+        Give the demo a title, a tagline and a color. Reorder scenes with the
+        arrows, remove the ones you don't need, add others with **Add scene**,
+        and rewrite captions in your own words.
+    </Step>
+    <Step title="Render">
+        Click **Render**. The panel shows **Recording the scenes…** while the
+        tests run, then **Rendering** with a percentage. When it's done the
+        video plays in the panel; **Download MP4** saves it.
+    </Step>
+</Steps>
+
+## What's in the video
+
+- A title card with the app's [icon](/guides/app-icon), title and tagline.
+- Each scene in a browser window, with its caption above it and the page's address in the address bar.
+- A cursor that glides to each button and field as the test uses it, with a ripple on each click and a gentle zoom towards it.
+- Long pauses (waiting on a slow page) shortened, so the video doesn't drag. It's kept under 3 minutes.
+- An end card with the title and, when the app is published, its address.
+
+## When a render fails
+
+The panel says why:
+
+- **A scene's test failed**: the demo won't show a broken flow. You see the test's error; fix the app or the test (see [Tests](/guides/tests)), then render again.
+- **A scene's test no longer exists**: it was renamed or removed. Remove the scene or pick the test again.
+- **The tests are running**: wait for them to finish. Only one render goes at a time.
+
+The last video that rendered stays until a new one replaces it.
+
+## Good to know
+
+- Rendering runs the tests on the app's own dev server and database, like the Tests tab does, so whatever they create really happens. It doesn't change the Tests tab's results.
+- The storyboard is saved in your app as `.onedrop/demo.json` and committed with it. The video is kept in the sandbox (`.onedrop/demo/demo.mp4`), never committed; only the latest one is kept.
+
+## For developers
+
+```json .onedrop/demo.json
+{
+    "title": "Todos",
+    "tagline": "Plan your day in seconds",
+    "accent": "#4338ca",
+    "scenes": [
+        {
+            "file": "tests/e2e/todos.spec.ts",
+            "title": "Todos › User should be able to add a todo",
+            "caption": "Add a todo in one click"
+        }
+    ]
+}
+```
+
+A scene names its test by file and title (describe blocks joined with `›`, tags left out), so it still matches when the test moves within its file. The agent can render from the sandbox with `/opt/onedrop/demo render`, following `/opt/onedrop/guides/demo.md`.
+
+The video is made with [Remotion](https://www.remotion.dev): the tests run with the page drawn at 1.5× and are recorded frame by frame over the browser's debugging protocol, along with every mouse move, click and field typed into, and Remotion composes them into the MP4.

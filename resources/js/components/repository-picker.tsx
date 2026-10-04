@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from 'react';
 import GitHubAppController from '@/actions/App/Http/Controllers/GitHubAppController';
 import SocialProviderIcon from '@/components/social-provider-icon';
 import { jsonRequest } from '@/lib/json-request';
-import { cn } from '@/lib/utils';
 
 export type ImportGitHub = {
     configured: boolean;
@@ -119,7 +118,7 @@ export default function RepositoryPicker({
 
                 {open && matches.length > 0 && (
                     <ul
-                        className="absolute top-full right-0 left-0 z-20 mt-2 max-h-72 overflow-y-auto rounded-xl border border-input bg-popover p-1 shadow-md"
+                        className="absolute top-full right-0 left-0 z-20 mt-2 max-h-72 overflow-y-auto rounded-xl border surface-floating p-1"
                         data-test="repository-options"
                     >
                         {matches.map((repository) => (

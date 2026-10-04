@@ -14,11 +14,11 @@ if [ ! -d .git ]; then
     git init -q -b main || exit 0
 fi
 
-# Dependencies, caches, database files (.onedrop/data), test recordings (.onedrop/tests), the platform's logs
+# Dependencies, caches, database files (.onedrop/data), test recordings (.onedrop/tests), demo videos (.onedrop/demo), the platform's logs
 # (.onedrop/*.log) and secrets stay out, whatever the app's .gitignore says. Tailwind also skips what's excluded:
 # scanning access.log made every preview request rebuild the app's assets and reload the preview.
 mkdir -p .git/info
-for pattern in node_modules/ vendor/ .cache/ .onedrop/data/ .onedrop/tests/ '.onedrop/*.log' .env '.env.*' '!.env.example'; do
+for pattern in node_modules/ vendor/ .cache/ .onedrop/data/ .onedrop/tests/ .onedrop/demo/ '.onedrop/*.log' .env '.env.*' '!.env.example'; do
     grep -qxF -- "$pattern" .git/info/exclude 2>/dev/null || echo "$pattern" >> .git/info/exclude
 done
 

@@ -10,7 +10,8 @@ use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
- * Files uploaded to attachment fields, kept on config('tables.disk') as "{table}/{uuid}.{extension}".
+ * Files uploaded to attachment fields, kept on config('tables.disk') as "{table}/{uuid}.{extension}"
+ * ("{table}/form-uploads/{uuid}.{extension}" when sent through a public form).
  */
 final class Attachments
 {
@@ -27,20 +28,26 @@ final class Attachments
     }
 
     /**
-     * Store an upload for the table.
+     * Files sent through public forms are kept apart, as "{table}/form-uploads/{uuid}.{extension}".
+     */
+    public const FORM_UPLOADS = 'form-uploads';
+
+    /**
+     * Store an upload for the table, in $folder under the table's folder when given.
      *
      * @return array{key: string, name: string, size: int, type: string, url: string}
      */
-    public static function upload(Table $table, UploadedFile $file): array
+    public static function upload(Table $table, UploadedFile $file, ?string $folder = null): array
     {
         $extension = strtolower((string) ($file->guessExtension() ?: $file->getClientOriginalExtension()));
         $extension = preg_replace('/[^a-z0-9]/', '', $extension) ?: 'bin';
         $name = Str::uuid().'.'.$extension;
+        $directory = $folder === null ? $table->key() : $table->key().'/'.$folder;
 
-        self::disk()->putFileAs($table->key(), $file, $name);
+        self::disk()->putFileAs($directory, $file, $name);
 
         return self::present($table, [
-            'key' => $table->key().'/'.$name,
+            'key' => $directory.'/'.$name,
             'name' => Str::limit($file->getClientOriginalName() ?: $name, 250, ''),
             'size' => (int) $file->getSize(),
             'type' => (string) ($file->getMimeType() ?: 'application/octet-stream'),

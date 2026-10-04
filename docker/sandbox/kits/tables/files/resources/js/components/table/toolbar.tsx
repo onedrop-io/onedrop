@@ -140,6 +140,8 @@ export function Toolbar() {
     const [importing, setImporting] = useState(false);
     const [notice, setNotice] = useState<string | null>(null);
     const filtered = store.rows.length !== store.records.length;
+    // A form view has its own settings: the toolbar only switches views and offers the "…" menu.
+    const isForm = view.type === 'form';
 
     useEffect(() => {
         if (notice === null) {
@@ -163,12 +165,22 @@ export function Toolbar() {
         <div className="flex flex-wrap items-center gap-x-1 gap-y-1 border-b border-neutral-200 px-2 py-1.5 dark:border-neutral-800">
             <ViewMenu />
             <div className="mx-1 h-4 w-px bg-neutral-200 dark:bg-neutral-800" />
-            <FieldsMenu />
-            <FilterMenu />
-            {view.type === 'grid' && <GroupMenu />}
-            <SortMenu />
-            {view.type === 'grid' ? <RowHeightMenu /> : <CustomizeMenu />}
-            <SearchBox />
+            {!isForm && (
+                <>
+                    <FieldsMenu />
+                    <FilterMenu />
+                    {(view.type === 'grid' || view.type === 'timeline') && (
+                        <GroupMenu />
+                    )}
+                    <SortMenu />
+                    {view.type === 'grid' ? (
+                        <RowHeightMenu />
+                    ) : (
+                        <CustomizeMenu />
+                    )}
+                    <SearchBox />
+                </>
+            )}
 
             <div className="ml-auto flex items-center gap-1">
                 {notice && (
@@ -187,12 +199,14 @@ export function Toolbar() {
                         </button>
                     </span>
                 )}
-                <span className="px-1 text-xs whitespace-nowrap text-neutral-500 tabular-nums">
-                    {filtered
-                        ? `${store.rows.length.toLocaleString()} of ${plural(store.records.length, 'record')}`
-                        : plural(store.records.length, 'record')}
-                </span>
-                {can.create && (
+                {!isForm && (
+                    <span className="px-1 text-xs whitespace-nowrap text-neutral-500 tabular-nums">
+                        {filtered
+                            ? `${store.rows.length.toLocaleString()} of ${plural(store.records.length, 'record')}`
+                            : plural(store.records.length, 'record')}
+                    </span>
+                )}
+                {can.create && !isForm && (
                     <button
                         type="button"
                         onClick={() => void addRecord()}
@@ -336,7 +350,7 @@ function SettingSelect({
     );
 }
 
-/** Board, calendar and gallery settings: what to stack by, the date field, the cover field. */
+/** Board, calendar, gallery and timeline settings: what to stack by, the date fields, the cover field. */
 function CustomizeMenu() {
     const store = useTableStore();
     const { view } = store;
@@ -369,6 +383,31 @@ function CustomizeMenu() {
                         value={view.config.dateField}
                         onChange={(dateField) => set({ dateField })}
                     />
+                )}
+                {view.type === 'timeline' && (
+                    <>
+                        <SettingSelect
+                            label="Start date field"
+                            fields={dates}
+                            value={view.config.dateField}
+                            onChange={(dateField) =>
+                                set(
+                                    dateField === view.config.endField
+                                        ? { dateField, endField: null }
+                                        : { dateField },
+                                )
+                            }
+                        />
+                        <SettingSelect
+                            label="End date field"
+                            fields={dates.filter(
+                                (field) => field.key !== view.config.dateField,
+                            )}
+                            value={view.config.endField}
+                            none
+                            onChange={(endField) => set({ endField })}
+                        />
+                    </>
                 )}
                 {(view.type === 'board' || view.type === 'gallery') && (
                     <SettingSelect

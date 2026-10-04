@@ -258,3 +258,59 @@ test("the app's other names are never sent to the gateway", async () => {
     assert.equal(await response.text(), 'from https://docs.onedrop.io/install');
     assert.equal(sent.length, 1);
 });
+
+test('a custom domain is served like the app it belongs to, and the app hears which page was asked for', async () => {
+    const { response, sent } = await run(
+        'https://shop.example.com/cart?x=1',
+        () =>
+            new Response(null, {
+                status: 200,
+                headers: { 'X-OneDrop-Upstream': 'https://abc.runtime.dev' },
+            }),
+    );
+
+    assert.equal(response.status, 200);
+    assert.equal(
+        sent[0].headers.get('X-OneDrop-Gateway-Host'),
+        'shop.example.com',
+    );
+    assert.equal(sent[0].headers.get('X-Forwarded-Uri'), '/cart?x=1');
+    assert.equal(sent[1].url, 'https://abc.runtime.dev/cart?x=1');
+});
+
+test('a custom domain that no app has gets a not-connected page, not the origin', async () => {
+    const { response, sent } = await run(
+        'https://unknown.example.com/',
+        () => new Response('Not found', { status: 404 }),
+    );
+
+    assert.equal(response.status, 404);
+    assert.match(await response.text(), /isn’t connected/);
+    assert.equal(sent.length, 1);
+});
+
+test('a move to the primary domain is passed on to the browser', async () => {
+    const { response } = await run(
+        'https://time-tracker-4.onedrop.io/invoices',
+        () =>
+            new Response(null, {
+                status: 302,
+                headers: { Location: 'https://shop.example.com/invoices' },
+            }),
+    );
+
+    assert.equal(response.status, 302);
+    assert.equal(
+        response.headers.get('Location'),
+        'https://shop.example.com/invoices',
+    );
+});
+
+test('the app itself passes straight through', async () => {
+    const { response, sent } = await run('https://onedrop.io/dashboard', () => {
+        throw new Error('not asked');
+    });
+
+    assert.equal(sent.length, 1);
+    assert.equal(await response.text(), 'from https://onedrop.io/dashboard');
+});

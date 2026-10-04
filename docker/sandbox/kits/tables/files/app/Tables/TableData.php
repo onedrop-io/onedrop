@@ -57,7 +57,7 @@ final class TableData
     /**
      * @return list<array{id: int, name: string, email: string, avatar: string|null}>
      */
-    private function users(): array
+    public function users(): array
     {
         return $this->computation->users($this->table)->map(fn (Model $user) => [
             'id' => (int) $user->getKey(),
@@ -72,7 +72,7 @@ final class TableData
      *
      * @return array<string, array{name: string, records: list<array{id: int, title: string}>}>
      */
-    private function linked(): array
+    public function linked(): array
     {
         $linked = [];
 

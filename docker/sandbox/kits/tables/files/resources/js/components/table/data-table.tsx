@@ -3,16 +3,18 @@ import { useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { BoardView } from './board-view';
 import { CalendarView } from './calendar-view';
+import { FormView } from './form-view';
 import { GalleryView } from './gallery-view';
 import { Grid } from './grid';
 import { RecordPanel } from './record-panel';
+import { TimelineView } from './timeline-view';
 import { Toolbar } from './toolbar';
 import type { TableData } from './types';
 import { TableContext, useTable } from './use-table';
 
 /**
- * An Airtable-style table: a toolbar with the table's views, the current view (grid, board, calendar or
- * gallery) and the record panel. Give it a height (it fills its parent and scrolls inside), e.g.
+ * An Airtable-style table: a toolbar with the table's views, the current view (grid, board, calendar,
+ * gallery, timeline or form) and the record panel. Give it a height (it fills its parent and scrolls inside), e.g.
  * `<div className="h-[calc(100vh-8rem)]"><DataTable data={table} /></div>`.
  */
 export function DataTable({
@@ -74,6 +76,10 @@ export function DataTable({
                         <CalendarView />
                     ) : store.view?.type === 'gallery' ? (
                         <GalleryView />
+                    ) : store.view?.type === 'timeline' ? (
+                        <TimelineView />
+                    ) : store.view?.type === 'form' ? (
+                        <FormView key={store.view.id} />
                     ) : (
                         <Grid key={store.view?.id} />
                     )}

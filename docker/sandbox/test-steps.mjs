@@ -9,6 +9,9 @@
 //   browser.mjs learns of each pause from ONEDROP_BROWSER_HELD, and resumes the test (TEST-006) by writing how far
 //   to go next to ONEDROP_BROWSER_CONTROL ({"until": <step>, "pace": <ms>}) and waking the worker (SIGCONT).
 //   Resumed steps wait `pace` ms before each, so the user can follow them.
+// - with ONEDROP_DEMO_TIMELINE (demo.mjs, DEMO-002), wait ONEDROP_DEMO_PACE ms before each action (not checks) and
+//   hold the final state a second before the teardown, and note when each step starts and ends and when the test's
+//   own steps are done, one JSON line each, so the demo can cut each test's part out of the recording.
 import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
 
 const stepsFile = process.env.ONEDROP_TESTS_STEPS;
@@ -21,13 +24,34 @@ const heldFile = process.env.ONEDROP_BROWSER_HELD;
 const controlFile = process.env.ONEDROP_BROWSER_CONTROL;
 const USER_STEPS = new Set(['pw:api', 'expect', 'test.step']);
 const MAX_PACE_MS = 5000;
+const timelineFile = process.env.ONEDROP_DEMO_TIMELINE;
+const demoPace = Math.max(
+    0,
+    Math.min(MAX_PACE_MS, Number(process.env.ONEDROP_DEMO_PACE) || 0),
+);
+const DEMO_HOLD_MS = 1000;
 
 /** Block this thread for `ms` (the worker must not reach the browser meanwhile; the browser carries on). */
 function wait(ms) {
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
-if (typeof process.send === 'function' && (stepsFile || after >= 0)) {
+/** A line of the demo's timeline; never fails the test. */
+function note(entry) {
+    try {
+        appendFileSync(
+            timelineFile,
+            `${JSON.stringify({ ...entry, at: Date.now() })}\n`,
+        );
+    } catch {
+        // The demo then says the scene has no recording.
+    }
+}
+
+if (
+    typeof process.send === 'function' &&
+    (stepsFile || after >= 0 || timelineFile)
+) {
     const send = process.send.bind(process);
     const counts = new Map();
     const userSteps = new Set();
@@ -101,6 +125,12 @@ if (typeof process.send === 'function' && (stepsFile || after >= 0)) {
                 );
             } else if (pace > 0) {
                 wait(pace);
+            } else if (timelineFile && params.category === 'pw:api') {
+                wait(demoPace);
+            }
+
+            if (timelineFile) {
+                note({ test: params.testId, kind: 'step', n });
             }
 
             if (stepsFile) {
@@ -121,6 +151,19 @@ if (typeof process.send === 'function' && (stepsFile || after >= 0)) {
                     // Steps are a nicety; a test run never fails over them.
                 }
             }
+        }
+
+        if (
+            timelineFile &&
+            method === 'stepEnd' &&
+            params &&
+            userSteps.has(params.stepId)
+        ) {
+            note({
+                test: params.testId,
+                kind: 'stepEnd',
+                n: counts.get(params.testId) ?? 0,
+            });
         }
 
         // A step of the test's own failed: say which, when the test pauses at its end.
@@ -146,6 +189,11 @@ if (typeof process.send === 'function' && (stepsFile || after >= 0)) {
             !params.parentStepId &&
             params.category === 'hook' &&
             params.title === 'After Hooks';
+
+        if (timelineFile && teardown) {
+            note({ test: params.testId, kind: 'end' });
+            wait(DEMO_HOLD_MS);
+        }
 
         if (
             !frozen &&

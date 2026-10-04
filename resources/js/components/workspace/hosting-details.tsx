@@ -82,7 +82,7 @@ export function DeployLog({
 
     return (
         <details
-            className="rounded-lg border p-2 text-sm"
+            className="rounded-lg border bg-raised p-2 text-sm"
             open={open}
             onToggle={() =>
                 log.current?.scrollTo({ top: log.current.scrollHeight })

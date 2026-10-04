@@ -31,6 +31,26 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Public forms
+    |--------------------------------------------------------------------------
+    |
+    | Form views shared publicly are at "/forms/{token}", for people without
+    | an account. Each visitor can send a form form_submissions_per_minute
+    | times a minute and upload form_uploads_per_minute files a minute, each
+    | up to form_max_upload_kb kilobytes.
+    |
+    */
+
+    'forms_prefix' => 'forms',
+
+    'form_submissions_per_minute' => 10,
+
+    'form_uploads_per_minute' => 20,
+
+    'form_max_upload_kb' => 10240,
+
+    /*
+    |--------------------------------------------------------------------------
     | People
     |--------------------------------------------------------------------------
     */

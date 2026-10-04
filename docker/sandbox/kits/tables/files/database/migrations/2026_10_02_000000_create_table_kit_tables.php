@@ -29,6 +29,7 @@ return new class extends Migration
             $table->string('type');
             $table->json('config')->nullable();
             $table->unsignedInteger('position')->default(0);
+            $table->string('public_token', 40)->nullable()->unique();
             $table->timestamps();
         });
 
@@ -53,6 +54,7 @@ return new class extends Migration
             $table->string('field_name')->nullable();
             $table->text('from')->nullable();
             $table->text('to')->nullable();
+            $table->string('via')->nullable();
             $table->timestamp('created_at', precision: 6)->nullable();
 
             $table->index(['table', 'record_id']);

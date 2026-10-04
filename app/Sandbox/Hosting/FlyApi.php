@@ -198,6 +198,62 @@ class FlyApi
     }
 
     /**
+     * Ask Fly for a Let's Encrypt certificate for a custom domain on an app (DOM-001). Asking again is not an error.
+     *
+     * @throws HostingException
+     */
+    public function addCertificate(string $app, string $hostname): void
+    {
+        $response = $this->send(fn (PendingRequest $http) => $http->post("/apps/{$app}/certificates/acme", ['hostname' => $hostname]));
+
+        if ($response->failed() && ! str_contains(strtolower($response->body()), 'already')) {
+            $this->fail($response, "Couldn't add the domain to the app");
+        }
+    }
+
+    /**
+     * Have Fly check a custom domain's DNS now: whether its certificate is ready, the records it wants (a CNAME, or
+     * A/AAAA for a root domain), and what's wrong; null when the domain isn't on the app.
+     *
+     * @return array{active: bool, a: list<string>, aaaa: list<string>, cname: string|null, problem: string|null}|null
+     *
+     * @throws HostingException
+     */
+    public function checkCertificate(string $app, string $hostname): ?array
+    {
+        $response = $this->send(fn (PendingRequest $http) => $http->post("/apps/{$app}/certificates/{$hostname}/check"));
+
+        if ($response->status() === 404) {
+            return null;
+        }
+
+        $this->check($response, "Couldn't check the domain");
+        $active = $response->json('status') === 'active'
+            || $response->collect('certificates')->contains(fn (array $certificate) => ($certificate['status'] ?? null) === 'active');
+        $error = $response->json('validation_errors.0');
+
+        return [
+            'active' => $active,
+            'a' => array_values((array) $response->json('dns_requirements.a', [])),
+            'aaaa' => array_values((array) $response->json('dns_requirements.aaaa', [])),
+            'cname' => $response->json('dns_requirements.cname'),
+            'problem' => $active ? null : (is_array($error) ? ($error['message'] ?? null) : $error),
+        ];
+    }
+
+    /**
+     * @throws HostingException
+     */
+    public function deleteCertificate(string $app, string $hostname): void
+    {
+        $response = $this->send(fn (PendingRequest $http) => $http->delete("/apps/{$app}/certificates/{$hostname}"));
+
+        if ($response->status() !== 404) {
+            $this->check($response, "Couldn't remove the domain from the app");
+        }
+    }
+
+    /**
      * The token as Fly's registry wants it (user "x").
      */
     public function token(): string

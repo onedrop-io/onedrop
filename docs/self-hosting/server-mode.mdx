@@ -35,7 +35,7 @@ sequenceDiagram
 - The workspace opens previews and shells through `/projects/<id>/open/<kind>`, which hands the browser a short-lived token for that one address. The address trades it for its own `onedrop_gateway` cookie, valid for 12 hours
 - Laravel checks that cookie and only allows users who can see the project
 - Caddy strips any `X-OneDrop-Upstream` header sent by the browser, so a client can't choose where requests go
-- Certificates are only issued for `preview-<id>` and `shell-<id>` hosts of sandboxes that exist
+- Certificates are only issued for `preview-<id>` and `shell-<id>` hosts of sandboxes that exist, published apps, and [custom domains](/guides/domains) a project added. Custom domains point at the server (a CNAME to its domain, or A/AAAA records) and are served like the app's own address
 - The `/sandbox-gateway/*` endpoints are blocked on the public site; only Caddy calls them
 
 ## Settings

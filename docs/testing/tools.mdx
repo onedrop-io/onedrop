@@ -110,3 +110,20 @@ Use a sandbox started from an image built after this change (`php artisan sandbo
 - [ ] Go to a file by name; rename, move, delete and create files and folders.
 - [ ] Editing a file and saving it updates the preview.
 - [ ] The open file goes along with the next chat message.
+
+## Demo (DEMO-001, DEMO-002, DEMO-003)
+
+1. Build an app with a few requirements and their tests ("a todo list where I can add, complete and clear todos"), and check the **Tests** tab shows them passing.
+2. Open **Tools → Demo** and click **Start from tests**.
+
+- [ ] There's one scene per requirement, captioned with what it lets people do ("Add a todo").
+- [ ] Reordering, removing and adding scenes and editing captions sticks after **Save** and a reload; `.onedrop/demo.json` has them.
+- [ ] **Render** shows **Recording the scenes…**, then **Rendering** with a rising percentage, and the video plays in the panel when it's done.
+- [ ] The video opens on the app's icon, title and tagline; each scene has its caption, the page's path in the address bar, a cursor that glides to fields and buttons (arriving as they're used), a ripple on clicks, and a zoom towards them; it ends on the title card.
+- [ ] With the app published, the end card shows its address.
+- [ ] **Download MP4** saves a 1920×1080 H.264 file that plays in QuickTime and a browser.
+- [ ] The **Tests** tab's results and recordings are unchanged by the render.
+- [ ] Break a scene's test (ask the agent to rename a button the test clicks): the render fails naming that scene and the test's error, and the previous video stays.
+- [ ] Rename a scene's test: the render says the test no longer exists.
+- [ ] **Write it with agent** sends a chat request; the agent writes the storyboard with its own captions, renders it with `/opt/onedrop/demo render`, and the new video shows in the panel.
+- [ ] After a sandbox [update](/testing/sandboxes#updates) (new image), rendering still works; the first render after one takes longer (it builds the composition once).

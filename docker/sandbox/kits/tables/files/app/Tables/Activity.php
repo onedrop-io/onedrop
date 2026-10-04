@@ -69,6 +69,10 @@ final class Activity
             'createdAt' => $activity->created_at?->toIso8601String(),
         ];
 
+        if ($activity->kind === 'created' && $activity->via !== null) {
+            $item['via'] = $activity->via;
+        }
+
         if ($activity->kind === 'updated') {
             $item += [
                 'field' => $activity->field,

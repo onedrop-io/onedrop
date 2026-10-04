@@ -74,6 +74,8 @@ export interface TableStore {
     expand: (id: number | null) => void;
     /** Changes the view's settings now, and saves them shortly after (when the user may) */
     updateView: (patch: Partial<ViewConfig>, viewId?: number) => void;
+    /** Takes a view's form links (formUrl, publicFormUrl) from the server's answer */
+    applyViewLinks: (view: TableView) => void;
     createView: (
         name: string,
         type: ViewType,
@@ -109,6 +111,8 @@ export interface TableStore {
     ) => Promise<FormulaPreview>;
     /** Fetches the whole table again */
     reload: () => Promise<void>;
+    /** Where attachment uploads go when not `${endpoint}/attachments` (the form page sets it) */
+    uploadUrl?: string;
 }
 
 export const TableContext = createContext<TableStore | null>(null);
@@ -586,6 +590,20 @@ export function useTable(initial: TableData): TableStore {
         [change],
     );
 
+    const applyViewLinks = useCallback((fresh: TableView) => {
+        setViews((current) =>
+            current.map((candidate) =>
+                candidate.id === fresh.id
+                    ? {
+                          ...candidate,
+                          formUrl: fresh.formUrl,
+                          publicFormUrl: fresh.publicFormUrl,
+                      }
+                    : candidate,
+            ),
+        );
+    }, []);
+
     const persistView = useCallback(
         (id: number, config: ViewConfig) => {
             const timers = viewSaves.current;
@@ -595,15 +613,24 @@ export function useTable(initial: TableData): TableStore {
                 id,
                 setTimeout(() => {
                     timers.delete(id);
-                    request('PATCH', `${data.endpoint}/views/${id}`, {
-                        config,
-                    }).catch((failure: unknown) =>
-                        setError(messageOf(failure)),
-                    );
+                    request<{ view?: TableView } | undefined>(
+                        'PATCH',
+                        `${data.endpoint}/views/${id}`,
+                        { config },
+                    )
+                        .then((result) => {
+                            // A form's public link comes and goes with its "public" setting.
+                            if (result?.view) {
+                                applyViewLinks(result.view);
+                            }
+                        })
+                        .catch((failure: unknown) =>
+                            setError(messageOf(failure)),
+                        );
                 }, 500),
             );
         },
-        [data.endpoint],
+        [data.endpoint, applyViewLinks],
     );
 
     const updateView = useCallback(
@@ -829,6 +856,7 @@ export function useTable(initial: TableData): TableStore {
         expandedId,
         expand: setExpandedId,
         updateView,
+        applyViewLinks,
         createView,
         renameView,
         deleteView,

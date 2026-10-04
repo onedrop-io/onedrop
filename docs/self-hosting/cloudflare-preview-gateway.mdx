@@ -61,4 +61,25 @@ You need your domain's DNS on Cloudflare, with a proxied wildcard record (`*.<do
     Turn on the **Scheduler** for the environment's App cluster, so database backups and old sandbox image clean-up run. On Laravel Cloud, OneDrop leaves out the scheduled tasks that only matter on a server of your own (the Docker idle check and server monitoring), so the app can still sleep when nobody's using it.
 </Note>
 
+## Custom domains
+
+Users can point their own domains at apps published to your domain ([Custom domains](/guides/domains)). Through the Worker, each one is a [Cloudflare for SaaS](https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/) custom hostname on your zone: the user adds a CNAME to a fallback origin of yours, Cloudflare validates it and issues the certificate, and the Worker serves the app. A custom domain no app has gets a "not connected" page.
+
+<Steps>
+  <Step title="Turn on Cloudflare for SaaS">
+    In the Cloudflare dashboard, open your zone, then **SSL/TLS → Custom Hostnames**, and enable it. The first 100 custom hostnames are free; more cost $0.10 a month each.
+  </Step>
+  <Step title="Add a fallback origin">
+    Add a proxied DNS record for the name users will point at, such as `domains.onedrop.io` (an `AAAA` record to `100::` works, since the Worker answers every request), and set it as the **Fallback Origin**.
+  </Step>
+  <Step title="Route every hostname to the Worker">
+    The `*/*` route in `wrangler.toml` sends custom hostnames to the Worker; deploy it again. The app's own host passes straight through.
+  </Step>
+  <Step title="Turn it on in OneDrop">
+    Set `SANDBOX_GATEWAY_CLOUDFLARE_ZONE_ID` (the zone's ID), `SANDBOX_GATEWAY_CLOUDFLARE_TOKEN` (an API token with **SSL and Certificates: Edit** on the zone) and `SANDBOX_GATEWAY_DOMAINS_TARGET` (the fallback origin, e.g. `domains.onedrop.io`), then redeploy.
+  </Step>
+</Steps>
+
+Without these, Tools → Domains says custom domains aren't set up for apps published to your domain. Hosted apps don't need them: they use Fly.io certificates and Workers custom domains in the hosting accounts.
+
 The Worker's own tests run with `node --test infra/cloudflare/preview-gateway/worker.test.mjs`.

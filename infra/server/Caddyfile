@@ -1,6 +1,6 @@
 # OneDrop on a server. APP_DOMAIN is set by bootstrap.sh (systemd drop-in).
 {
-	# Only issue certificates for preview-<id>/shell-<id> hosts of sandboxes that exist.
+	# Only issue certificates for preview-<id>/shell-<id> hosts of sandboxes that exist, published apps, and custom domains.
 	on_demand_tls {
 		ask http://127.0.0.1:8080/sandbox-gateway/certificate
 	}
@@ -44,12 +44,8 @@ http://:8080 {
 	}
 }
 
-# Sandbox previews and shells: preview-<id>.<domain>, shell-<id>.<domain>.
-*.{$APP_DOMAIN} {
-	tls {
-		on_demand
-	}
-
+# Gateway traffic: Laravel authorizes each request and names the sandbox's local address.
+(gateway) {
 	# route keeps these in the written order (Caddy would otherwise reorder them).
 	route {
 		# Never trust a client-supplied upstream.
@@ -78,4 +74,23 @@ http://:8080 {
 			header_up Cookie "(^|;\s*)onedrop_gateway=[^;]*(;\s*)?" "$1"
 		}
 	}
+}
+
+# Sandbox previews and shells: preview-<id>.<domain>, shell-<id>.<domain>, and projects published to the domain.
+*.{$APP_DOMAIN} {
+	tls {
+		on_demand
+	}
+
+	import gateway
+}
+
+# Custom domains of projects published to the domain (DOM-001). The certificate "ask" only approves names a project
+# added, so nobody else's names pointed here get certificates.
+https:// {
+	tls {
+		on_demand
+	}
+
+	import gateway
 }

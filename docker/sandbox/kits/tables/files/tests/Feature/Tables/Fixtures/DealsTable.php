@@ -31,6 +31,13 @@ class DealsTable extends Table
      */
     public static array $saved = [];
 
+    /**
+     * The views the table starts with, when a test sets them.
+     *
+     * @var list<View>|null
+     */
+    public static ?array $startViews = null;
+
     protected string $model = Deal::class;
 
     public function name(): string
@@ -68,7 +75,7 @@ class DealsTable extends Table
 
     public function views(): array
     {
-        return [
+        return self::$startViews ?? [
             View::grid('All deals')->sort('close_date')->hide('notes'),
             View::board('Pipeline')->cover('files'),
             View::calendar('Close dates'),
@@ -106,5 +113,6 @@ class DealsTable extends Table
         self::$denied = [];
         self::$scope = null;
         self::$saved = [];
+        self::$startViews = null;
     }
 }

@@ -1,5 +1,6 @@
 import {
     Activity,
+    Clapperboard,
     CodeXml,
     Database,
     Globe,
@@ -19,6 +20,8 @@ import type { LucideIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import AuthPanel from '@/components/workspace/auth-panel';
 import DatabasePanel from '@/components/workspace/database-panel';
+import DemoPanel from '@/components/workspace/demo-panel';
+import DomainsPanel from '@/components/workspace/domains-panel';
 import HostingManager from '@/components/workspace/hosting-details';
 import DeveloperPanel from '@/components/workspace/developer-panel';
 import FlagsPanel from '@/components/workspace/flags-panel';
@@ -84,6 +87,13 @@ const GROUPS: { label: string; sections: Section[] }[] = [
                 icon: TrendingUp,
                 description:
                     'Review opportunities to grow your app and acquire new users.',
+            },
+            {
+                id: 'demo',
+                label: 'Demo',
+                icon: Clapperboard,
+                description:
+                    'A demo video of your app, made from its tests: pick the scenes, caption them, and render.',
             },
             {
                 id: 'flags',
@@ -246,6 +256,11 @@ export default function ToolsPanel({
                             projectId={projectId}
                             publication={publication}
                         />
+                    ) : section.id === 'domains' ? (
+                        <DomainsPanel
+                            projectId={projectId}
+                            publication={publication}
+                        />
                     ) : section.id === 'monitoring' ? (
                         <MonitoringPanel
                             projectId={projectId}
@@ -265,6 +280,12 @@ export default function ToolsPanel({
                         />
                     ) : section.id === 'secrets' ? (
                         <SecretsPanel
+                            projectId={projectId}
+                            running={running}
+                            working={working}
+                        />
+                    ) : section.id === 'demo' ? (
+                        <DemoPanel
                             projectId={projectId}
                             running={running}
                             working={working}

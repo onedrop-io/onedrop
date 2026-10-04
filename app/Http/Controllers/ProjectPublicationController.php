@@ -56,7 +56,7 @@ class ProjectPublicationController extends Controller
                 throw ValidationException::withMessages(['publish' => $e->getMessage()]);
             }
 
-            $project->update(['published_url' => null]);
+            $project->update(['published_url' => null, 'published_default_url' => null]);
         }
 
         $project->update([
@@ -90,6 +90,7 @@ class ProjectPublicationController extends Controller
         $project->update([
             'publish_status' => null,
             'published_url' => null,
+            'published_default_url' => null,
             'publish_error' => null,
             'publish_login_url' => null,
             'publish_waiting_for' => null,

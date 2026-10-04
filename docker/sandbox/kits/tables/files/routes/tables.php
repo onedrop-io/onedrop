@@ -3,6 +3,7 @@
 use App\Http\Controllers\Tables\ActivityController;
 use App\Http\Controllers\Tables\AttachmentController;
 use App\Http\Controllers\Tables\FieldController;
+use App\Http\Controllers\Tables\FormController;
 use App\Http\Controllers\Tables\FormulaController;
 use App\Http\Controllers\Tables\RecordController;
 use App\Http\Controllers\Tables\TableController;
@@ -11,7 +12,7 @@ use Illuminate\Support\Facades\Route;
 
 /*
 | The table kit's endpoints, loaded by TablesServiceProvider under the web and auth middleware,
-| config('tables.prefix') and the "tables." name prefix.
+| config('tables.prefix') and the "tables." name prefix. Public form links are registered by the provider.
 */
 
 Route::get('files/{table}/{path}', [AttachmentController::class, 'show'])->where('path', '.*')->name('files');
@@ -35,5 +36,9 @@ Route::post('{table}/views', [ViewController::class, 'store'])->name('views.stor
 Route::post('{table}/views/order', [ViewController::class, 'order'])->name('views.order');
 Route::patch('{table}/views/{view}', [ViewController::class, 'update'])->whereNumber('view')->name('views.update');
 Route::delete('{table}/views/{view}', [ViewController::class, 'destroy'])->whereNumber('view')->name('views.destroy');
+Route::post('{table}/views/{view}/form-link', [FormController::class, 'replaceLink'])->whereNumber('view')->name('views.form-link');
+
+Route::get('{table}/forms/{view}', [FormController::class, 'show'])->whereNumber('view')->name('forms.show');
+Route::post('{table}/forms/{view}', [FormController::class, 'submit'])->whereNumber('view')->name('forms.submit');
 
 Route::post('{table}/attachments', [AttachmentController::class, 'store'])->name('attachments.store');

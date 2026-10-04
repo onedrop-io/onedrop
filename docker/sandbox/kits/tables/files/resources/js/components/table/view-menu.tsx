@@ -1,7 +1,9 @@
 import {
     CalendarDays,
+    ChartGantt,
     Check,
     ChevronDown,
+    ClipboardList,
     Copy,
     Ellipsis,
     LayoutGrid,
@@ -42,6 +44,8 @@ export const VIEW_ICONS: Record<ViewType, LucideIcon> = {
     board: SquareKanban,
     calendar: CalendarDays,
     gallery: LayoutGrid,
+    timeline: ChartGantt,
+    form: ClipboardList,
 };
 
 export const VIEW_LABELS: Record<ViewType, string> = {
@@ -49,6 +53,8 @@ export const VIEW_LABELS: Record<ViewType, string> = {
     board: 'Board',
     calendar: 'Calendar',
     gallery: 'Gallery',
+    timeline: 'Timeline',
+    form: 'Form',
 };
 
 const VIEW_COLORS: Record<ViewType, string> = {
@@ -56,6 +62,8 @@ const VIEW_COLORS: Record<ViewType, string> = {
     board: 'text-green-600 dark:text-green-400',
     calendar: 'text-red-600 dark:text-red-400',
     gallery: 'text-violet-600 dark:text-violet-400',
+    timeline: 'text-amber-600 dark:text-amber-400',
+    form: 'text-pink-600 dark:text-pink-400',
 };
 
 /** "Grid view", or "Grid view 2" when that's taken. */

@@ -18,7 +18,12 @@ final class Views
     /**
      * @var list<string>
      */
-    public const TYPES = ['grid', 'board', 'calendar', 'gallery'];
+    public const TYPES = ['grid', 'board', 'calendar', 'gallery', 'timeline', 'form'];
+
+    /**
+     * @var list<string>
+     */
+    public const TIMELINE_SCALES = ['day', 'week', 'month', 'quarter'];
 
     /**
      * @var list<string>
@@ -52,7 +57,7 @@ final class Views
         self::ensureDefaults($table);
 
         return TableView::query()->visibleTo($table->key(), $user?->getKey())->get()
-            ->map(fn (TableView $view) => self::data($table, $view))
+            ->map(fn (TableView $view) => self::data($table, $view, $user))
             ->all();
     }
 
@@ -69,12 +74,15 @@ final class Views
             $views = $table->views() ?: [View::grid('Grid view')];
 
             foreach (array_values($views) as $position => $view) {
+                $config = self::withDefaultFields($table, $view->type, self::normalize($table, $view->config(), $view->type, $view->name));
+
                 TableView::query()->create([
                     'table' => $table->key(),
                     'name' => $view->name,
                     'type' => $view->type,
-                    'config' => self::withDefaultFields($table, $view->type, self::normalize($table, $view->config())),
+                    'config' => $config,
                     'position' => $position,
+                    'public_token' => ($config['form']['public'] ?? false) ? self::newToken() : null,
                 ]);
             }
         });
@@ -87,6 +95,8 @@ final class Views
     {
         $personal = (bool) ($input['personal'] ?? false);
         $table->authorize($user, $personal ? 'view' : 'manageViews');
+        // A table's starting views come first, even when a view is added before the table was ever opened.
+        self::ensureDefaults($table);
 
         $config = $input['config'] ?? [];
 
@@ -97,14 +107,20 @@ final class Views
         }
 
         $type = (string) ($input['type'] ?? 'grid');
+        $config = self::withDefaultFields($table, $type, self::validated($table, $config, $type, (string) $input['name']));
+
+        if ($config['form']['public'] ?? false) {
+            $table->authorize($user, 'create');
+        }
 
         return TableView::query()->create([
             'table' => $table->key(),
             'user_id' => $personal ? $user?->getKey() : null,
             'name' => $input['name'],
             'type' => $type,
-            'config' => self::withDefaultFields($table, $type, self::validated($table, $config)),
+            'config' => $config,
             'position' => (int) TableView::query()->where('table', $table->key())->max('position') + 1,
+            'public_token' => ($config['form']['public'] ?? false) ? self::newToken() : null,
         ]);
     }
 
@@ -120,7 +136,20 @@ final class Views
         }
 
         if (array_key_exists('config', $input)) {
-            $view->config = self::validated($table, [...$view->config ?? [], ...$input['config'] ?? []]);
+            $old = $view->config ?? [];
+            $new = $input['config'] ?? [];
+
+            if (is_array($new['form'] ?? null) && is_array($old['form'] ?? null)) {
+                $new['form'] = [...$old['form'], ...$new['form']];
+            }
+
+            $wasPublic = (bool) ($old['form']['public'] ?? false);
+            $view->config = self::validated($table, [...$old, ...$new], $view->type, $view->name);
+
+            if (! $wasPublic && ($view->config['form']['public'] ?? false)) {
+                $table->authorize($user, 'create');
+                $view->public_token ??= self::newToken();
+            }
         }
 
         $view->save();
@@ -137,6 +166,24 @@ final class Views
         }
 
         $view->delete();
+    }
+
+    /**
+     * Give a form view a new public link; the old one stops working.
+     */
+    public static function replaceFormLink(Table $table, ?User $user, TableView $view): TableView
+    {
+        self::authorizeChange($table, $user, $view);
+        abort_unless($view->type === 'form', 404);
+
+        $view->update(['public_token' => self::newToken()]);
+
+        return $view;
+    }
+
+    private static function newToken(): string
+    {
+        return Str::random(40);
     }
 
     /**
@@ -193,34 +240,57 @@ final class Views
                 fn (array $condition) => ($condition['field'] ?? null) !== $key,
             ));
 
-            foreach (['stackBy', 'dateField', 'coverField'] as $single) {
+            if (is_array($config['form']['fields'] ?? null)) {
+                $config['form']['fields'] = array_values(array_filter(
+                    $config['form']['fields'],
+                    fn (mixed $formField) => ! is_array($formField) || ($formField['key'] ?? null) !== $key,
+                ));
+            }
+
+            foreach (['stackBy', 'dateField', 'coverField', 'endField'] as $single) {
                 if (($config[$single] ?? null) === $key) {
                     $config[$single] = null;
                 }
             }
 
-            $view->update(['config' => self::normalize($table, $config)]);
+            $view->update(['config' => self::normalize($table, $config, $view->type, $view->name)]);
         });
     }
 
     /**
      * The view as the browser gets it.
      *
-     * @return array{id: int, name: string, type: string, personal: bool, config: array<string, mixed>}
+     * Form views also get their page's path (formUrl) and, while public, for people who may change the view,
+     * the public link's path (publicFormUrl).
+     *
+     * @return array{id: int, name: string, type: string, personal: bool, config: array<string, mixed>, formUrl?: string, publicFormUrl?: string|null}
      */
-    public static function data(Table $table, TableView $view): array
+    public static function data(Table $table, TableView $view, ?User $user = null): array
     {
-        $config = self::normalize($table, $view->config ?? []);
+        $config = self::normalize($table, $view->config ?? [], $view->type, $view->name);
         $config['widths'] = (object) $config['widths'];
         $config['summaries'] = (object) $config['summaries'];
 
-        return [
+        $data = [
             'id' => $view->id,
             'name' => $view->name,
             'type' => $view->type,
             'personal' => $view->isPersonal(),
             'config' => $config,
         ];
+
+        if ($view->type === 'form') {
+            $mayShare = $view->isPersonal()
+                ? $user !== null && (int) $view->user_id === (int) $user->getKey()
+                : $table->can($user, 'manageViews');
+
+            $data['formUrl'] = route('tables.forms.show', ['table' => $table->key(), 'view' => $view->id], absolute: false);
+            $data['publicFormUrl'] = $mayShare && $config['form']['public'] && $view->public_token !== null
+                ? route('tables.public-forms.show', ['token' => $view->public_token], absolute: false)
+                : null;
+        }
+
+        return $data;
     }
 
     /**
@@ -228,7 +298,7 @@ final class Views
      *
      * @return array<string, mixed>
      */
-    public static function validated(Table $table, mixed $config): array
+    public static function validated(Table $table, mixed $config, string $type = 'grid', string $name = ''): array
     {
         $validator = Validator::make(['config' => $config], [
             'config' => ['array'],
@@ -256,22 +326,37 @@ final class Views
             'config.stackBy' => ['sometimes', 'nullable', 'string'],
             'config.dateField' => ['sometimes', 'nullable', 'string'],
             'config.coverField' => ['sometimes', 'nullable', 'string'],
+            'config.endField' => ['sometimes', 'nullable', 'string'],
+            'config.timelineScale' => ['sometimes', Rule::in(self::TIMELINE_SCALES)],
+            'config.form' => ['sometimes', 'nullable', 'array'],
+            'config.form.title' => ['sometimes', 'nullable', 'string', 'max:200'],
+            'config.form.description' => ['sometimes', 'nullable', 'string', 'max:5000'],
+            'config.form.fields' => ['sometimes', 'array'],
+            'config.form.fields.*' => ['array'],
+            'config.form.fields.*.key' => ['required', 'string'],
+            'config.form.fields.*.required' => ['sometimes', 'boolean'],
+            'config.form.fields.*.help' => ['sometimes', 'nullable', 'string', 'max:500'],
+            'config.form.submitLabel' => ['sometimes', 'nullable', 'string', 'max:100'],
+            'config.form.thankYou' => ['sometimes', 'nullable', 'string', 'max:2000'],
+            'config.form.allowAnother' => ['sometimes', 'boolean'],
+            'config.form.public' => ['sometimes', 'boolean'],
         ], [
             'config.groups.max' => 'Views can be grouped by up to three fields.',
         ]);
 
         $validator->validate();
 
-        return self::normalize($table, $config);
+        return self::normalize($table, $config, $type, $name);
     }
 
     /**
      * Fill in every ViewConfig key, drop unknown keys and fields that don't exist.
+     * $type and $name (the view's) fill in a form view's form; other views' form is null.
      *
      * @param  array<string, mixed>  $config
      * @return array<string, mixed>
      */
-    public static function normalize(Table $table, array $config): array
+    public static function normalize(Table $table, array $config, string $type = 'grid', string $name = ''): array
     {
         $exists = fn (mixed $key) => is_string($key) && $table->field($key) !== null;
         $rules = fn (mixed $rules) => array_values(array_map(
@@ -311,11 +396,85 @@ final class Views
             'stackBy' => $single('stackBy'),
             'dateField' => $single('dateField'),
             'coverField' => $single('coverField'),
+            'endField' => self::isDateField($table, $config['endField'] ?? null) ? $config['endField'] : null,
+            'timelineScale' => in_array($config['timelineScale'] ?? null, self::TIMELINE_SCALES, true) ? $config['timelineScale'] : 'week',
+            'form' => $type === 'form' ? self::form($table, is_array($config['form'] ?? null) ? $config['form'] : [], $name) : null,
         ];
     }
 
     /**
-     * Boards stack by the first select field and calendars use the first date field, unless they say.
+     * A form view's FormConfig, filled in. Only fields people can enter values in are kept, once each;
+     * without a list of fields the form asks for all of them, the primary one required.
+     *
+     * @param  array<string, mixed>  $form
+     * @return array{title: string, description: string, fields: list<array{key: string, required: bool, help: string}>, submitLabel: string, thankYou: string, allowAnother: bool, public: bool}
+     */
+    private static function form(Table $table, array $form, string $name): array
+    {
+        $text = fn (string $key, string $default) => is_string($form[$key] ?? null) && trim($form[$key]) !== '' ? trim($form[$key]) : $default;
+        $primary = $table->primaryField()?->key;
+
+        if (is_array($form['fields'] ?? null)) {
+            $fields = [];
+
+            foreach ($form['fields'] as $formField) {
+                $key = is_array($formField) ? ($formField['key'] ?? null) : null;
+
+                if (! is_string($key) || isset($fields[$key]) || ! self::isFormField($table, $key)) {
+                    continue;
+                }
+
+                $fields[$key] = [
+                    'key' => $key,
+                    'required' => (bool) ($formField['required'] ?? false),
+                    'help' => is_string($formField['help'] ?? null) ? trim($formField['help']) : '',
+                ];
+            }
+
+            $fields = array_values($fields);
+        } else {
+            $fields = array_values(array_map(
+                fn (Field $field) => ['key' => $field->key, 'required' => $field->key === $primary, 'help' => ''],
+                array_filter($table->allFields(), fn (Field $field) => self::isFormField($table, $field->key)),
+            ));
+        }
+
+        return [
+            'title' => $text('title', $name),
+            'description' => is_string($form['description'] ?? null) ? trim($form['description']) : '',
+            'fields' => $fields,
+            'submitLabel' => $text('submitLabel', 'Send'),
+            'thankYou' => $text('thankYou', 'Thanks! Your response was sent.'),
+            'allowAnother' => (bool) ($form['allowAnother'] ?? true),
+            'public' => (bool) ($form['public'] ?? false),
+        ];
+    }
+
+    /**
+     * Whether a form can ask for the field: people can enter its values (not worked out or locked).
+     */
+    public static function isFormField(Table $table, string $key): bool
+    {
+        $field = $table->field($key);
+
+        return $field !== null && $field->readOnlyReason() === null;
+    }
+
+    /**
+     * Whether the field holds dates: a date, created or modified time, or a formula or rollup shown as a date.
+     */
+    private static function isDateField(Table $table, mixed $key): bool
+    {
+        $field = is_string($key) ? $table->field($key) : null;
+
+        return $field !== null && (
+            in_array($field->type, ['date', 'createdAt', 'updatedAt'], true)
+            || (in_array($field->type, ['formula', 'rollup'], true) && $field->option('format') === 'date')
+        );
+    }
+
+    /**
+     * Boards stack by the first select field and calendars and timelines use the first date field, unless they say.
      *
      * @param  array<string, mixed>  $config
      * @return array<string, mixed>
@@ -336,7 +495,7 @@ final class Views
             $config['stackBy'] = $first(['select']);
         }
 
-        if ($type === 'calendar' && $config['dateField'] === null) {
+        if (in_array($type, ['calendar', 'timeline'], true) && $config['dateField'] === null) {
             $config['dateField'] = $first(['date']);
         }
 

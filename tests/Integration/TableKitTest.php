@@ -30,17 +30,13 @@ test('the table kit installs into a fresh starter kit and its tests and types pa
     $app = sys_get_temp_dir().'/onedrop-table-kit-'.bin2hex(random_bytes(4));
 
     try {
-        kitStep(['composer', 'create-project', 'laravel/react-starter-kit', $app, '--no-interaction', '--prefer-dist'], sys_get_temp_dir());
+        kitStep(['composer', 'create-project', 'laravel/react-starter-kit:dev-main', $app, '--no-interaction', '--prefer-dist'], sys_get_temp_dir());
         kitStep(['npm', 'install', '--no-audit', '--no-fund'], $app);
         kitStep([$sandbox.'/kit', 'tables'], $app, ['KIT_DIR' => $sandbox.'/kits', 'KIT_APP_DIR' => $app]);
 
         expect(kitStep(['php', 'artisan', 'test', 'tests/Feature/Tables', 'tests/Unit/Tables'], $app)->getOutput())->not->toContain('FAIL');
 
-        // Only the kit's files: the starter kit release Composer installs has type errors of its own.
-        $types = new Process(['npx', 'tsc', '--noEmit'], $app, null, null, 300);
-        $types->run();
-
-        expect($types->getOutput())->not->toContain('components/table/');
+        kitStep(['npx', 'tsc', '--noEmit'], $app);
     } finally {
         (new Filesystem)->deleteDirectory($app);
     }

@@ -68,6 +68,8 @@ The platform records the app's errors in /workspace/.onedrop/errors.log, whateve
 - Feature flags (putting a feature behind a flag, removing a flag): follow /opt/onedrop/guides/flags.md.
 - Storing files (uploads, photos, avatars, documents): use App Storage and follow /opt/onedrop/guides/storage.md.
 - Getting the app ready for Hosting (deploying, `.onedrop/host.json`, `.onedrop/build`, `.onedrop/start`): follow /opt/onedrop/guides/hosting.md.
+- Serverless functions (Cloudflare Workers, AWS Lambda/SAM, Vercel, Netlify), or a project with `wrangler.toml`, `template.yaml`, `vercel.json`, `netlify.toml` or `serverless.yml`: follow /opt/onedrop/guides/serverless.md.
+- A demo video of the app (a storyboard of its browser tests, rendered to an MP4 in Tools → Demo): follow /opt/onedrop/guides/demo.md.
 - Lists of records people browse and edit (deals, contacts, tasks, inventory, candidates, tickets…) in a Laravel app: use the table kit, an Airtable-style grid with views, fields people add themselves and formulas. Install it with `/opt/onedrop/kit tables` and follow /opt/onedrop/guides/tables.md. Start from the kit for those lists, and still build the app's own pages around them (home page, dashboards, public forms, screens shaped around the work) as a custom app, not more tables.
 
 ## Attachments

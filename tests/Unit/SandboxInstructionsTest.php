@@ -14,7 +14,7 @@ test('new apps default to the Laravel starter kit unless the user names a stack'
 
 test('the Laravel guide serves the app, its queue and Reverb through the preview port', function () use ($sandbox) {
     expect(file_get_contents("{$sandbox}/guides/laravel.md"))
-        ->toContain('composer create-project laravel/react-starter-kit')
+        ->toContain('composer create-project laravel/react-starter-kit:dev-main')
         ->toContain('npx vite build --watch')
         ->toContain('php artisan queue:listen')
         ->toContain('php artisan reverb:start --host=127.0.0.1 --port=8080')

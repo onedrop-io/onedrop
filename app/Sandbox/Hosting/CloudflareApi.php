@@ -155,6 +155,111 @@ class CloudflareApi
     }
 
     /**
+     * Serve a site's Worker at a hostname in a zone of this account (DOM-001); Cloudflare adds the DNS record and the
+     * certificate itself. Returns the Workers domain's id.
+     *
+     * @throws HostingException
+     */
+    public function addWorkerDomain(string $hostname, string $service, string $zoneId): string
+    {
+        $response = $this->check($this->send(fn (PendingRequest $http) => $http->put($this->account('/workers/domains'), [
+            'hostname' => $hostname,
+            'service' => $service,
+            'zone_id' => $zoneId,
+            'environment' => 'production',
+        ])), "Couldn't add the domain to the site");
+
+        return (string) $response->json('result.id');
+    }
+
+    /**
+     * @throws HostingException
+     */
+    public function deleteWorkerDomain(string $id): void
+    {
+        $response = $this->send(fn (PendingRequest $http) => $http->delete($this->account("/workers/domains/{$id}")));
+
+        if ($response->status() !== 404) {
+            $this->check($response, "Couldn't remove the domain from the site");
+        }
+    }
+
+    /**
+     * The id of the zone in this account a hostname belongs to (the longest matching name), or null.
+     *
+     * @throws HostingException
+     */
+    public function zoneFor(string $hostname): ?string
+    {
+        $labels = explode('.', $hostname);
+
+        while (count($labels) >= 2) {
+            $name = implode('.', $labels);
+            $response = $this->check($this->send(fn (PendingRequest $http) => $http->get('/zones', ['name' => $name, 'account.id' => $this->accountId()])), "Couldn't look up the domain in Cloudflare");
+            $id = $response->json('result.0.id');
+
+            if (filled($id)) {
+                return (string) $id;
+            }
+
+            array_shift($labels);
+        }
+
+        return null;
+    }
+
+    /**
+     * Add a custom hostname to a Cloudflare for SaaS zone (the gateway Worker's, DOM-001), with a certificate
+     * validated over HTTP once its CNAME points at the zone. Returns its id.
+     *
+     * @throws HostingException
+     */
+    public function createCustomHostname(string $zoneId, string $hostname): string
+    {
+        $response = $this->check($this->send(fn (PendingRequest $http) => $http->post("/zones/{$zoneId}/custom_hostnames", [
+            'hostname' => $hostname,
+            'ssl' => ['method' => 'http', 'type' => 'dv', 'settings' => ['min_tls_version' => '1.2']],
+        ])), "Couldn't add the domain");
+
+        return (string) $response->json('result.id');
+    }
+
+    /**
+     * Whether a custom hostname and its certificate are active, and if not, why; null when it's gone.
+     *
+     * @return array{active: bool, problem: string|null}|null
+     *
+     * @throws HostingException
+     */
+    public function customHostname(string $zoneId, string $id): ?array
+    {
+        $response = $this->send(fn (PendingRequest $http) => $http->get("/zones/{$zoneId}/custom_hostnames/{$id}"));
+
+        if ($response->status() === 404) {
+            return null;
+        }
+
+        $this->check($response, "Couldn't check the domain");
+        $result = $response->json('result');
+        $active = ($result['status'] ?? null) === 'active' && ($result['ssl']['status'] ?? null) === 'active';
+        $problem = $result['verification_errors'][0] ?? $result['ssl']['validation_errors'][0]['message'] ?? null;
+
+        return ['active' => $active, 'problem' => $active ? null : $problem];
+    }
+
+    /**
+     * @throws HostingException
+     */
+    public function deleteCustomHostname(string $zoneId, string $id): void
+    {
+        $response = $this->send(fn (PendingRequest $http) => $http->delete("/zones/{$zoneId}/custom_hostnames/{$id}"));
+
+        if ($response->status() !== 404) {
+            $this->check($response, "Couldn't remove the domain");
+        }
+    }
+
+    /**
      * Every file under a folder, keyed by its path from there ("/index.html"), with a hash of its contents.
      *
      * @return array<string, array{path: string, hash: string, size: int, mime: string}>

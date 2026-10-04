@@ -146,7 +146,7 @@ export function Tooltip({
 
     return (
         <div
-            className="pointer-events-none absolute top-2 z-10 rounded-md border bg-popover px-2.5 py-1.5 text-xs text-popover-foreground shadow-md"
+            className="pointer-events-none absolute top-2 z-10 rounded-md border surface-floating px-2.5 py-1.5 text-xs "
             style={left ? { right: width - x + 12 } : { left: x + 12 }}
             role="status"
         >

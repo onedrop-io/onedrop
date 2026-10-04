@@ -16,13 +16,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string $type
  * @property array<string, mixed>|null $config
  * @property int $position
+ * @property string|null $public_token
  */
 class TableView extends Model
 {
     /**
      * @var list<string>
      */
-    protected $fillable = ['table', 'user_id', 'name', 'type', 'config', 'position'];
+    protected $fillable = ['table', 'user_id', 'name', 'type', 'config', 'position', 'public_token'];
 
     /**
      * @return array<string, string>

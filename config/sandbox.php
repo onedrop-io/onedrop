@@ -101,6 +101,15 @@ return [
     // the Worker proves itself with this secret, and gets each sandbox's provider address and token to forward to.
     'gateway_secret' => env('SANDBOX_GATEWAY_SECRET'),
 
+    // Custom domains through the Worker (DOM-001): Cloudflare for SaaS on the gateway domain's zone. Users CNAME their
+    // domain to the target (the zone's fallback origin, e.g. domains.onedrop.io); the token needs SSL and
+    // Certificates edit on the zone.
+    'gateway_domains' => [
+        'zone_id' => env('SANDBOX_GATEWAY_CLOUDFLARE_ZONE_ID'),
+        'api_token' => env('SANDBOX_GATEWAY_CLOUDFLARE_TOKEN'),
+        'target' => env('SANDBOX_GATEWAY_DOMAINS_TARGET'),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | App Port

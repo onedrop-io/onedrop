@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Render the demo video from the storyboard in .onedrop/demo.json (DEMO-003). See guides/demo.md.
+#   demo render     record the scenes' tests and make the video, printing progress
+#   demo status     the storyboard, the latest video, and any render going (JSON)
+exec node /opt/onedrop/demo.mjs "$@"

@@ -177,7 +177,37 @@ export interface TableSummary {
     fields: { key: string; name: string; type: FieldType }[];
 }
 
-export type ViewType = 'grid' | 'board' | 'calendar' | 'gallery';
+export type ViewType =
+    | 'grid'
+    | 'board'
+    | 'calendar'
+    | 'gallery'
+    | 'timeline'
+    | 'form';
+
+export type TimelineScale = 'day' | 'week' | 'month' | 'quarter';
+
+export interface FormField {
+    key: string;
+    required: boolean;
+    /** A help line shown under the field */
+    help: string;
+}
+
+/** What a form view asks for (TABLE-009). */
+export interface FormConfig {
+    title: string;
+    description: string;
+    /** The fields the form asks for, in order */
+    fields: FormField[];
+    submitLabel: string;
+    /** Shown after sending */
+    thankYou: string;
+    /** Offer "Send another" after sending */
+    allowAnother: boolean;
+    /** Anyone with the public link can send it */
+    public: boolean;
+}
 
 export type Conjunction = 'and' | 'or';
 
@@ -263,6 +293,12 @@ export interface ViewConfig {
     dateField: string | null;
     /** gallery, board: the attachment field shown as each card's cover */
     coverField: string | null;
+    /** timeline: the date field bars end on (dateField is where they start); null for one-day bars */
+    endField: string | null;
+    /** timeline */
+    timelineScale: TimelineScale;
+    /** form views only */
+    form: FormConfig | null;
 }
 
 export interface TableView {
@@ -272,6 +308,34 @@ export interface TableView {
     /** Only its creator sees it */
     personal: boolean;
     config: ViewConfig;
+    /** form: the form's page for signed-in people */
+    formUrl?: string | null;
+    /** form: the public link, while form.public is on */
+    publicFormUrl?: string | null;
+}
+
+/**
+ * The props of the form page (resources/js/pages/tables/form.tsx): a form view to fill in, signed in or
+ * through its public link.
+ */
+export interface FormPageData {
+    tableName: string;
+    title: string;
+    description: string;
+    /** The form's fields, in order, as the table defines them */
+    fields: (Field & { required: boolean; help: string })[];
+    submitLabel: string;
+    thankYou: string;
+    allowAnother: boolean;
+    /** POST { values } here; 422 errors are keyed by field key */
+    submitUrl: string;
+    /** POST a file here (multipart "file") for attachment fields */
+    uploadUrl: string;
+    /** For person fields (signed-in forms only) */
+    users: TableUser[];
+    /** Titles for link fields (signed-in forms only) */
+    linked: Record<string, LinkedTable>;
+    public: boolean;
 }
 
 export interface TablePermissions {
@@ -343,6 +407,8 @@ export interface ActivityItem {
     /** comment */
     commentId?: number;
     body?: string;
+    /** created: the name of the form view the record was sent through ("created through the form <via>"); user is null for public forms */
+    via?: string;
     /** updated */
     field?: string;
     fieldName?: string;

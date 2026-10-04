@@ -109,6 +109,14 @@ ARG MODERN_SCREENSHOT_VERSION=4.7.0
 RUN npm install --prefix /opt/onedrop/capture --no-save --no-audit --no-fund "modern-screenshot@${MODERN_SCREENSHOT_VERSION}" \
     && rm -rf /root/.npm
 
+# Remotion composes the demo video from the app's tests (DEMO-002): demo.mjs renders demo-video/ (copied below, a
+# tool file, bundled on first use) with these packages and the Chromium above.
+# renovate: datasource=npm depName=remotion
+ARG REMOTION_VERSION=4.0.532
+# renovate: datasource=npm depName=react
+ARG REACT_VERSION=19.3.0
+RUN npm install --prefix /opt/onedrop/remotion --no-save --no-audit --no-fund "remotion@${REMOTION_VERSION}" "@remotion/bundler@${REMOTION_VERSION}" "@remotion/renderer@${REMOTION_VERSION}" "react@${REACT_VERSION}" "react-dom@${REACT_VERSION}" \
+    && rm -rf /root/.npm
 
 # /data/storage holds App Storage buckets: on the sandbox's disk but outside the app's code and git.
 RUN useradd --create-home --shell /bin/bash sandbox \
@@ -137,8 +145,10 @@ COPY compose dockerd forward.mjs /opt/onedrop/
 # tests.mjs runs the app's Playwright tests with playwright.config.mjs, recording each, for the Tests tab; run-tests
 # is the agent's way in (TEST-001..003). test-steps.mjs, loaded into the test workers, records each test's steps and
 # stops one at a step for browser.mjs, the browser the user takes over (with browser-viewer.html, and `browser` for
-# the agent; TEST-005).
-COPY tests.mjs playwright.config.mjs run-tests test-steps.mjs browser.mjs browser-viewer.html browser /opt/onedrop/
+# the agent; TEST-005). demo.mjs re-runs tests slowly and records them for the demo video, composed by demo-video/
+# (`demo` for the agent; DEMO-002, DEMO-003).
+COPY tests.mjs playwright.config.mjs run-tests test-steps.mjs browser.mjs browser-viewer.html browser demo.mjs demo /opt/onedrop/
+COPY demo-video /opt/onedrop/demo-video
 RUN mkdir -p /opt/onedrop/playwright && chown sandbox:sandbox /opt/onedrop/playwright
 # The Shell tab's page: ttyd's own, with shell-keys.js added so workspace shortcuts typed in the terminal
 # (Cmd/Ctrl+P, FILE-006) reach the workspace. start.sh serves it with ttyd --index.

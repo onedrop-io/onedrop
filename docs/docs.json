@@ -59,6 +59,7 @@
                             "guides/tasks",
                             "guides/requirements",
                             "guides/tests",
+                            "guides/demo",
                             "guides/workspace",
                             "guides/tables",
                             "guides/users-and-auth",
@@ -68,9 +69,11 @@
                             "guides/app-icon",
                             "guides/developer-tools",
                             "guides/docker-compose",
+                            "guides/serverless",
                             "guides/git",
                             "guides/agent-skills",
                             "guides/publish",
+                            "guides/domains",
                             "guides/hosting",
                             "guides/share"
                         ]
@@ -137,7 +140,8 @@
                             "testing/shell",
                             "testing/tools",
                             "testing/sandboxes",
-                            "testing/publishing"
+                            "testing/publishing",
+                            "testing/domains"
                         ]
                     }
                 ]

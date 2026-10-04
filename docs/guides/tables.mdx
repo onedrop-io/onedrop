@@ -48,10 +48,25 @@ Every [template](/guides/build-a-project#start-from-a-template) asks for these t
     </Accordion>
     <Accordion title="Views">
         Each table has saved views: grid, board (cards in columns, dragged
-        between them), calendar and gallery. Each keeps its own filters, sorts,
+        between them), calendar, gallery, timeline and form. Each keeps its own filters, sorts,
         groups (up to three levels), hidden fields, field order and column
         summaries. Views are shared by default; personal views are only seen by
         the person who made them.
+    </Accordion>
+    <Accordion title="Timelines">
+        A timeline view shows each record as a bar from a start date to an end
+        date, by day, week, month or quarter, with lanes for a grouped field
+        and a line for today. Drag a bar to move its dates, or drag its ends to
+        change the start or end. Records without dates wait in a tray and can
+        be dragged onto the timeline.
+    </Accordion>
+    <Accordion title="Forms">
+        A form view turns a table into a form: pick its fields, their order,
+        which are required and a help line for each, plus the title, button
+        text and thank-you message. Open it on its own page, or share it with
+        a public link so people without an account can send it. Public forms
+        leave out person and link fields, and the link can be turned off or
+        replaced. Records from a form say so in their history.
     </Accordion>
     <Accordion title="Records, comments and history">
         Expand any record to edit all of its fields, step to the previous and
@@ -68,7 +83,7 @@ Every [template](/guides/build-a-project#start-from-a-template) asks for these t
 
 - A table shows up to 5,000 records. Filtering, sorting and grouping happen in the browser, so views change instantly. The agent can give larger tables their own paged pages.
 - Attachments are kept in the `table-attachments` bucket in [App Storage](/guides/app-storage), up to 20 MB each.
-- There are no form, timeline or Gantt views, and no automations or API in the kit. Ask the agent for those: it builds them into your app as code.
+- There are no automations or API in the kit. Ask the agent for those: it builds them into your app as code.
 
 ## For developers
 

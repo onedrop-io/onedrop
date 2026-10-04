@@ -3,8 +3,13 @@ name = "onedrop-preview-gateway"
 main = "worker.js"
 compatibility_date = "2026-09-01"
 
-# Every name under the wildcard reaches the Worker; it only handles preview-<id> and shell-<id>.
-routes = [{ pattern = "*.onedrop.io/*", zone_name = "onedrop.io" }]
+# Every name under the wildcard reaches the Worker; it only handles preview-<id>, shell-<id> and published apps.
+# The catch-all route also brings it custom domains (Cloudflare for SaaS custom hostnames, DOM-001); the app's own
+# host passes straight through.
+routes = [
+    { pattern = "*.onedrop.io/*", zone_name = "onedrop.io" },
+    { pattern = "*/*", zone_name = "onedrop.io" },
+]
 
 [vars]
 APP_URL = "https://onedrop.io"

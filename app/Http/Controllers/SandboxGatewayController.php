@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\PublishVisibility;
 use App\Enums\SandboxStatus;
 use App\Models\Project;
+use App\Models\ProjectDomain;
 use App\Models\Sandbox;
 use App\Models\User;
 use App\Sandbox\Gateway;
@@ -82,11 +83,21 @@ class SandboxGatewayController extends Controller
      */
     public function authorize(Request $request, Gateway $gateway, SandboxProvider $provider): Response|RedirectResponse
     {
-        $target = $gateway->parse((string) $gateway->requestedHost($request, $request->header('X-Forwarded-Host')));
+        $host = (string) $gateway->requestedHost($request, $request->header('X-Forwarded-Host'));
+        $target = $gateway->parse($host);
         $sandbox = $target ? Sandbox::with('project')->find($target['sandbox_id']) : null;
 
         if (! $sandbox || $sandbox->status !== SandboxStatus::Running) {
             return response('Not found', 404);
+        }
+
+        // The project's own address and its other domains send visitors on to its primary domain (DOM-002).
+        $redirect = $target['kind'] === Gateway::APP
+            ? $gateway->canonicalRedirect($sandbox->project, $host, self::safePath((string) $request->header('X-Forwarded-Uri', '/')))
+            : null;
+
+        if ($redirect) {
+            return redirect()->away($redirect);
         }
 
         // A project published publicly to the domain: anyone may open it.
@@ -143,15 +154,18 @@ class SandboxGatewayController extends Controller
     }
 
     /**
-     * Called by Caddy (on_demand_tls "ask"): only issue certificates for addresses of existing sandboxes.
+     * Called by Caddy (on_demand_tls "ask"): only issue certificates for addresses of existing sandboxes, and for
+     * custom domains a project added (DOM-001), so names pointed at the server by anyone else get none.
      */
     public function certificate(Request $request, Gateway $gateway): Response
     {
-        $target = $gateway->parse((string) $request->query('domain'));
+        $host = strtolower((string) $request->query('domain'));
+        $target = $gateway->parse($host);
 
-        return $target && Sandbox::whereKey($target['sandbox_id'])->exists()
-            ? response('ok')
-            : response('unknown', 404);
+        $known = ($target && Sandbox::whereKey($target['sandbox_id'])->exists())
+            || ProjectDomain::where('hostname', $host)->where('via', 'caddy')->exists();
+
+        return $known ? response('ok') : response('unknown', 404);
     }
 
     /**

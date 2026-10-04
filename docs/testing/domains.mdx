@@ -1,0 +1,50 @@
+---
+title: 'Custom domains'
+description: 'Manual tests for custom domains on your domain (Caddy and the Cloudflare Worker) and on Hosting.'
+noindex: true
+---
+
+The Pest suite fakes DNS, Fly.io and Cloudflare. These checks need a real domain you can change DNS for (a spare one, or subdomains of one), plus the target's setup: a server install for Caddy, the Worker with Cloudflare for SaaS (`SANDBOX_GATEWAY_CLOUDFLARE_*`), or **Settings → Hosting** for Fly.io and Cloudflare.
+
+## DOM-001: Your domain on a server (Caddy)
+
+- [ ] Publish a project to **Your domain**, then add `app.<your domain>` in **Tools → Domains**: it's **Primary**, **Waiting for DNS**, with a CNAME to the server's domain.
+- [ ] Before adding the record, **Check now** says it doesn't point anywhere yet.
+- [ ] Add the CNAME: within a minute or two the domain goes **Active** by itself, with the panel open.
+- [ ] `https://app.<your domain>` opens the app with a valid certificate (the first visit may take a few seconds).
+- [ ] A root domain shows A (and AAAA) records with the server's addresses, and works once added.
+- [ ] A name pointed at the server that no project added gets no certificate (`curl -v https://other.<your domain>` fails the TLS handshake).
+
+## DOM-001: Your domain through the Worker (Cloudflare for SaaS)
+
+- [ ] Adding a domain shows a CNAME to `SANDBOX_GATEWAY_DOMAINS_TARGET`, and it appears under **SSL/TLS → Custom Hostnames** in Cloudflare.
+- [ ] After adding the CNAME, it goes **Active** once Cloudflare issues the certificate, and the app opens on it.
+- [ ] A custom hostname whose project is unpublished shows "This domain isn't connected to a published app."
+- [ ] Removing the domain removes it from Custom Hostnames.
+
+## DOM-001: Hosting
+
+- [ ] An app with a server: adding a domain shows a CNAME to its `fly.dev` address; after adding it, it goes **Active** and `fly certs list -a <app>` lists it.
+- [ ] A root domain shows Fly's A and AAAA records.
+- [ ] A front end whose domain is in the same Cloudflare account: no records to add; Cloudflare adds the DNS record, and the site opens on the domain within a few minutes.
+- [ ] A front end whose domain is elsewhere: the panel says to add the domain to that Cloudflare account.
+- [ ] Before the first deploy, the domain says it connects after the first deploy, then connects by itself once the deploy is live.
+
+## DOM-002: Primary domain
+
+- [ ] Once the primary is active, the Publish menu, Tools → Publishing and the share page show it as the URL.
+- [ ] On Your domain, the app's own address and a second domain redirect to the primary, keeping the path (`/menu?day=2`).
+- [ ] **Make primary** on the second domain moves the URL and the redirects.
+- [ ] Removing the primary falls back to the next active domain, or the app's own address.
+- [ ] On Hosting, every domain and the `fly.dev` address serve the app without redirecting.
+
+## DOM-003: Private apps
+
+- [ ] Published privately to Your domain, opening the custom domain signed out asks you to sign in to OneDrop, then lands on the page you asked for, on the custom domain.
+- [ ] Someone outside the organization is refused.
+
+## DOM-004: Moving and deleting
+
+- [ ] Unpublishing keeps the domains; publishing again serves them again without re-adding.
+- [ ] Moving from Hosting to Your domain shows new records, and removes the domain from Fly.io (`fly certs list`).
+- [ ] Deleting the project removes its domains from Fly.io and Cloudflare.

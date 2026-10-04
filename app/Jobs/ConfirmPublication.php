@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Enums\PublishStatus;
 use App\Models\Project;
+use App\Sandbox\Domains\ProjectDomains;
 use App\Sandbox\Publishing\HostingPublisher;
 use App\Sandbox\Publishing\Publishers;
 use App\Sandbox\Publishing\PublishException;
@@ -68,11 +69,15 @@ class ConfirmPublication implements ShouldQueue
             $project->update([
                 'publish_status' => PublishStatus::Live,
                 'published_url' => $url,
+                'published_default_url' => $url,
                 'published_at' => now(),
                 'publish_error' => null,
                 'publish_login_url' => null,
                 'publish_waiting_for' => null,
             ]);
+
+            // Its custom domains follow it here, and an active primary one becomes its URL (DOM-002, DOM-004).
+            app(ProjectDomains::class)->sync($project);
 
             return;
         }

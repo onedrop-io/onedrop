@@ -297,7 +297,7 @@ export default function PublishMenu({
                                             className={cn(
                                                 'cursor-pointer rounded-lg border p-2 text-center text-sm font-medium',
                                                 target === option.target
-                                                    ? 'border-primary'
+                                                    ? 'border-primary bg-raised'
                                                     : 'border-input hover:bg-muted/50',
                                             )}
                                         >
@@ -345,7 +345,7 @@ export default function PublishMenu({
                                             className={cn(
                                                 'flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm',
                                                 chosenVisibility === key
-                                                    ? 'border-primary'
+                                                    ? 'border-primary bg-raised'
                                                     : 'border-input hover:bg-muted/50',
                                             )}
                                         >

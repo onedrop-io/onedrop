@@ -2,13 +2,17 @@
 
 namespace App\Providers;
 
+use App\Http\Controllers\Tables\FormController;
 use App\Tables\Tables;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Broadcast;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 
 /**
- * The table kit: its endpoints, broadcast channel and attachments disk.
+ * The table kit: its endpoints, public form links, broadcast channel and attachments disk.
  */
 class TablesServiceProvider extends ServiceProvider
 {
@@ -49,6 +53,26 @@ class TablesServiceProvider extends ServiceProvider
             ->prefix(config('tables.prefix', 'tables'))
             ->name('tables.')
             ->group(base_path('routes/tables.php'));
+
+        $this->registerPublicFormRoutes();
+    }
+
+    /**
+     * Public form links (TABLE-009), for people without an account: no auth, and sends and uploads throttled per visitor.
+     */
+    private function registerPublicFormRoutes(): void
+    {
+        RateLimiter::for('table-forms', fn (Request $request) => Limit::perMinute((int) config('tables.form_submissions_per_minute', 10))->by($request->ip()));
+        RateLimiter::for('table-form-uploads', fn (Request $request) => Limit::perMinute((int) config('tables.form_uploads_per_minute', 20))->by($request->ip()));
+
+        Route::middleware('web')
+            ->prefix(config('tables.forms_prefix', 'forms'))
+            ->name('tables.public-forms.')
+            ->group(function () {
+                Route::get('{token}', [FormController::class, 'showPublic'])->name('show');
+                Route::post('{token}', [FormController::class, 'submitPublic'])->middleware('throttle:table-forms')->name('submit');
+                Route::post('{token}/attachments', [FormController::class, 'uploadPublic'])->middleware('throttle:table-form-uploads')->name('attachments');
+            });
     }
 
     /**

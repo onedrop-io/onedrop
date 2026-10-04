@@ -466,6 +466,14 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Sandboxes made from older images should be snapshotted too: the snapshot tool only needs what every image has and is copied into them when missing (SBX-002).
 - Deleting a project should delete its snapshots.
 
+## SBX-010: Serverless apps run in the sandbox
+
+- User should be able to ask for an app built as serverless functions (Cloudflare Workers or Pages, AWS Lambda with SAM, Vercel, Netlify and others) and see it in the preview, served by the platform's local emulator from `.onedrop/dev`.
+- The agent should never need the user's cloud account to run the app: no `wrangler login`, `vercel login` or AWS keys. A tool that can't run without one (`vercel dev` for a bare `api/` folder) should be explained, and only used if the user adds its token in Tools → Secrets.
+- AWS services the functions use (DynamoDB, S3, SQS) should run as local stand-ins in the sandbox's Docker, reached through the AWS SDK's `AWS_ENDPOINT_URL_*` settings, with no code that only works locally.
+- Lambda apps with SAM should say they need Docker inside sandboxes (SBX-008) when it's off.
+- The agent shouldn't deploy to the user's cloud; Publish serves what the preview runs.
+
 ## SBX-011: Cloud and service CLIs in the shell
 
 - User should be able to run the common cloud, hosting, database and infrastructure CLIs in the Shell tab and over SSH without installing them: `aws`, `sam`, `gcloud` (with `gsutil`, `bq`), `az`, `wrangler`, `vercel`, `netlify`, `fly`, `railway`, `render`, `doctl`, `cloud` (Laravel Cloud), `supabase`, `firebase`, `neonctl`, `turso`, `pscale`, `mongosh`, `gh`, `glab`, `stripe`, `terraform`, `tofu`, `pulumi`, `kubectl`, `helm`, `k9s`, `cloudflared`, `eas`, `bun`, `deno` and `go`. The agent can run them too.
@@ -718,7 +726,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 ## TOOL-001: Tools tab
 
 - User should see a Tools tab next to Preview; neither can be closed.
-- User should see a menu of tool sections: Publishing, Domains, Monitoring, Database, Users & Auth, Growth, Feature Flags, Security, App Storage, App Icon, Secrets, Integrations, Git, Agent Skills.
+- User should see a menu of tool sections: Publishing, Domains, Monitoring, Database, Users & Auth, Growth, Demo, Feature Flags, Security, App Storage, App Icon, Secrets, Integrations, Git, Agent Skills.
 - User should be able to switch between sections; each shows what it's for.
 - The Publishing section should show the project's current publish status, who can open it, and its URL.
 - Sections not built yet should say they're coming soon.
@@ -1439,6 +1447,33 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Changing it on a hosted app with a server should ask first, then restart the live version on the new size within seconds, without building again; chosen before the app is hosted, the first deploy uses it.
 - The panel should say that larger machines wake a little slower after sleeping.
 
+## DOM-001: Connect your own domain
+
+- User should be able to add a domain they own (e.g. `example.com` or `app.example.com`) to a project in Tools → Domains, and remove it.
+- User should see the DNS records to add for each domain, each with a button to copy it. Which records depends on where the project is published: on Your domain, a CNAME to the server's domain (an A/AAAA record for a root domain); on Laravel Cloud, a CNAME to the install's custom-domain target (CNAME flattening or ALIAS for a root domain); on Hosting with a server, a CNAME to the app's fly.dev address (A/AAAA for a root domain); on Hosting as a front end, none, since Cloudflare adds the record when the domain's DNS is in the same Cloudflare account.
+- User should see each domain's status: Waiting for DNS (with what's wrong, e.g. which address it points at now), Active, or Not connected (the project isn't published somewhere that can use it, with why).
+- OneDrop should check a waiting domain by itself (often for the first 10 minutes, then less often for two days), and the user should be able to check again now.
+- Once the DNS is right, the domain should get its own HTTPS certificate automatically and serve the published app.
+- A domain should only belong to one project on the install; adding one that's taken, the app builder's own domain, a name under the server's domain, or something that isn't a domain name should explain why.
+- Tailscale can't use a custom domain: the panel should say to publish to Your domain or Hosting.
+
+## DOM-002: A primary domain
+
+- The first domain added should be the primary; the user should be able to make another one primary.
+- Once the primary domain is active, it should be the project's URL everywhere OneDrop shows it (Publish menu, Tools → Publishing, share page, sign-in callbacks).
+- Published to Your domain, the project's own address (`<name>-<id>.<domain>`) and the other domains should redirect to the primary, keeping the path. On Hosting every domain serves the app, and the fly.dev or workers.dev address keeps working.
+- Removing the primary domain should make the next active one primary, or go back to the project's own address.
+
+## DOM-003: Private apps on a custom domain
+
+- A project published privately to Your domain should ask visitors to its custom domain to sign in to OneDrop, then bring them back to the page they asked for, the same as on its own address (PUB-002).
+- Hosted apps stay public (HOST-001), on any domain.
+
+## DOM-004: Domains follow the project
+
+- Moving the project to another target should move its domains there (new DNS records shown, checked again); unpublishing should keep them for the next publish.
+- Deleting a project should remove its domains from Fly.io and Cloudflare.
+
 ## ADMIN-001: Name and logo
 
 - Admin should be able to change the app's name from Settings → General, and see it in the header, sign-in pages, browser tab title and emails. (The sidebar shows the organization's name, ORG-002.)
@@ -1610,6 +1645,29 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - The guess should come from the test's title, error, steps and source and the user's recent requests and the agent's recent actions, be worked out once per run of each test in the background (the tab never waits on it), and appear shortly after the run ends.
 - User should see no guess when Jev isn't at least 50% sure, can't be reached or doesn't answer, or when there's no OpenRouter key (the owner's connection, else the platform's).
 
+## DEMO-001: Demo storyboard in Tools
+
+- User should see a Demo section in Tools, which makes a demo video of the app from its browser tests (TEST-002).
+- User should be able to give the demo a title and a tagline, and pick its scenes: each scene is one of the app's tests with a caption, in the order the user chooses. User should be able to add, remove and reorder scenes and edit captions, then save.
+- User should be able to click "Start from tests" to fill the scenes with each requirement's first passing test, captioned with the requirement ("Add a todo" for "User should be able to add a todo").
+- User should be able to click "Write it with agent" to have the agent write the storyboard in the chat (queued if it's working).
+- The storyboard is kept in `.onedrop/demo.json`, committed with the app; a scene names its test by file and title, so it survives the test moving within its file.
+- User should see a short explanation when the app has no tests yet, and a notice when the sandbox isn't running.
+
+## DEMO-002: Render the demo video
+
+- User should be able to click Render: the platform saves the storyboard, then re-runs the scenes' tests in the sandbox in demo mode (each action slowed down so it can be followed, recorded sharp at 1920×1080) and turns the recording into a landscape MP4 with Remotion. No audio.
+- The video should open on a title card (the app's icon, title and tagline), show each scene in a browser window with its caption and the page's address, a cursor that glides to each click with a ripple, and a zoom towards what's being clicked, and close on an end card with the title and, when it's published, the app's address.
+- Long pauses in a scene (nothing moving on the page) should be shortened, and the video kept under 3 minutes.
+- User should see the render's progress ("Recording the scenes…", then "Rendering 43%"), and why when it fails: a scene's test failed (which, and its error), a scene's test no longer exists, there are no scenes, or Playwright is missing. Only one render goes at a time.
+- Rendering shouldn't change the Tests tab's results or recordings.
+- User should be able to watch the latest demo in the panel and download it as an MP4. Only the latest is kept, in the sandbox, never committed.
+
+## DEMO-003: The agent writes and renders the demo
+
+- The agent should be able to write `.onedrop/demo.json` following /opt/onedrop/guides/demo.md: a short title and tagline, and the scenes that tell the app's story in order, using tests that pass, with captions in the user's words, not test titles.
+- The agent should be able to render it with `/opt/onedrop/demo render` and see why it failed.
+
 ## TABLE-001: Spreadsheet-style tables in apps
 
 - The agent should give an app's lists of records that people edit (deals, tasks, items, candidates…) the table kit: it runs `/opt/onedrop/kit tables`, which copies the kit into the app (code the app owns and can change) and sets it up, and follows /opt/onedrop/guides/tables.md to describe each table's fields.
@@ -1678,3 +1736,18 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should not be able to spend more than the organization has left, even from the sandbox's shell: the organization's key is limited to its balance before every run.
 - When the credits run out, the run should stop with a message saying when they refill and that connecting their own AI in Settings → AI keeps building going.
 - User who connects their own AI should keep "AI credits" as one more choice in the model picker.
+
+## TABLE-009: Form views
+
+- App user should be able to add a form view to a table, and in it choose which fields the form asks for, in what order, which are required, with a help line for each, plus the form's title, description, button text and the message shown after sending.
+- App user should be able to open the form on its own page and send it, adding a record to the table; required fields left empty, and values that don't fit their field, are shown next to the field and nothing is added.
+- App user should be able to share a form publicly with a link (when they may manage views), so people without an account can send it, and turn the link off or get a new one.
+- A public form should not offer person or link fields (they would show the app's people and records), should accept attachments, and should be limited to a few sends a minute from one visitor.
+- Records sent through a form should show "created through the form <name>" in their history.
+
+## TABLE-010: Timeline views
+
+- App user should be able to add a timeline view that shows each record as a bar from a start date to an end date (or one day without an end date), against days, weeks, months or quarters.
+- App user should be able to group the timeline's rows by a field, scroll through time, jump to today, and see today marked.
+- App user should be able to drag a bar to move its dates, drag its ends to change the start or end, and click it to open the record.
+- Records without a start date should be listed apart, and can be dragged onto the timeline to give them dates.

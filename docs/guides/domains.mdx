@@ -1,0 +1,63 @@
+---
+title: 'Custom domains'
+description: 'Serve a published app at a domain you own, like example.com or app.example.com, with HTTPS.'
+---
+
+A published app gets its own address, such as `https://bake-sale-4.onedrop.example.com` or `https://onedrop-bake-sale.fly.dev`. You can also point a domain you already own at it. OneDrop gets the HTTPS certificate for you.
+
+Custom domains work when the project is published to **Your domain** or to [Hosting](/guides/hosting). Tailscale addresses can't have one. You can't buy a domain in OneDrop; use one from any registrar.
+
+## Add a domain
+
+<Steps>
+    <Step title="Open Tools → Domains">
+        In the workspace, open the **Tools** tab, then **Domains**.
+    </Step>
+    <Step title="Add the domain">
+        Type the domain, such as `example.com` or `app.example.com`, and click **Add**. The first domain you add is the **primary** one.
+    </Step>
+    <Step title="Add the DNS records">
+        The panel shows the records to add where your domain's DNS is managed (your registrar, Cloudflare, Route 53…). Each value has a copy button.
+    </Step>
+    <Step title="Wait for it to go active">
+        OneDrop checks the domain by itself: every 30 seconds for the first 10 minutes, then every 5 minutes for two days. Click **Check now** to check right away. Once the DNS is right and the certificate is issued, the domain shows **Active**.
+    </Step>
+</Steps>
+
+## Which records
+
+The records depend on where the project is published:
+
+| Published to                      | Subdomain (`app.example.com`)           | Root domain (`example.com`)                                |
+| --------------------------------- | --------------------------------------- | ---------------------------------------------------------- |
+| Your domain, on a server          | CNAME to the server's domain            | A (and AAAA) records with the server's addresses          |
+| Your domain, on OneDrop's cloud   | CNAME to the address the panel shows    | CNAME flattening, ALIAS or ANAME to the same address       |
+| Hosting, an app with a server     | CNAME to the app's `fly.dev` address    | A and AAAA records with the app's addresses                |
+| Hosting, a front end              | None                                    | None                                                       |
+
+A front end on Hosting is served by Cloudflare, which adds the DNS record itself. For that, the domain's DNS has to be in the same Cloudflare account the app is hosted in. If your [organization connected its own Cloudflare account](/guides/hosting), add the domain to that account first.
+
+<Info>
+    DNS changes can take a while to show up, from a minute to a few hours. While a domain is waiting, the panel says what's wrong, for example which address it points at now.
+</Info>
+
+## The primary domain
+
+Once the primary domain is active, it's the app's URL everywhere in OneDrop: the Publish menu, Tools → Publishing, the share page and "Sign in with OneDrop" callbacks.
+
+- **Published to Your domain:** the app's own address and your other domains redirect to the primary one, keeping the path. Add both `example.com` and `www.example.com` and either one works.
+- **Published to Hosting:** every domain serves the app, and the `fly.dev` or `workers.dev` address keeps working.
+
+To change it, open a domain's **⋮** menu and choose **Make primary**. Removing the primary domain makes the next active one primary, or goes back to the app's own address.
+
+## Private apps
+
+A project published privately to Your domain stays private on its custom domains: visitors sign in to OneDrop first, then come back to the page they asked for, the same as on the app's own address. Hosted apps are public on every domain.
+
+## Moving or unpublishing
+
+- **Unpublishing** keeps the domains. They serve the app again when you publish.
+- **Publishing somewhere else** moves the domains there. The DNS records may change, so check the panel and update them.
+- **Deleting the project** removes its domains from Fly.io and Cloudflare.
+
+A domain can only be added to one project on the install.

@@ -31,7 +31,9 @@ use App\Http\Controllers\ProjectAuthController;
 use App\Http\Controllers\ProjectBrowserController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectDatabaseController;
+use App\Http\Controllers\ProjectDemoController;
 use App\Http\Controllers\ProjectDeveloperController;
+use App\Http\Controllers\ProjectDomainController;
 use App\Http\Controllers\ProjectFileController;
 use App\Http\Controllers\ProjectFlagController;
 use App\Http\Controllers\ProjectGitController;
@@ -198,6 +200,11 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
         Route::post('projects/{project}/browser', [ProjectBrowserController::class, 'store'])->name('projects.browser.store');
         Route::delete('projects/{project}/browser', [ProjectBrowserController::class, 'destroy'])->name('projects.browser.destroy');
         Route::get('projects/{project}/tests/recording', [ProjectTestController::class, 'recording'])->name('projects.tests.recording');
+        Route::get('projects/{project}/demo', [ProjectDemoController::class, 'show'])->name('projects.demo.show');
+        Route::put('projects/{project}/demo', [ProjectDemoController::class, 'update'])->name('projects.demo.update');
+        Route::post('projects/{project}/demo/render', [ProjectDemoController::class, 'render'])->name('projects.demo.render');
+        Route::post('projects/{project}/demo/write', [ProjectDemoController::class, 'write'])->name('projects.demo.write');
+        Route::get('projects/{project}/demo/video', [ProjectDemoController::class, 'video'])->name('projects.demo.video');
         Route::get('projects/{project}/monitoring', [ProjectMonitoringController::class, 'show'])->name('projects.monitoring.show');
         Route::get('projects/{project}/database/connections', [ProjectDatabaseController::class, 'connections'])->name('projects.database.connections');
         Route::get('projects/{project}/database/tables', [ProjectDatabaseController::class, 'tables'])->name('projects.database.tables');
@@ -226,6 +233,13 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
         Route::get('projects/{project}/icon', [ProjectIconController::class, 'show'])->name('projects.icon.show');
         Route::post('projects/{project}/icon', [ProjectIconController::class, 'update'])->name('projects.icon.update');
         Route::post('projects/{project}/icon/draw', [ProjectIconController::class, 'draw'])->name('projects.icon.draw');
+        Route::get('projects/{project}/domains', [ProjectDomainController::class, 'index'])->name('projects.domains.index');
+        Route::post('projects/{project}/domains', [ProjectDomainController::class, 'store'])->name('projects.domains.store');
+        Route::scopeBindings()->group(function () {
+            Route::patch('projects/{project}/domains/{domain}', [ProjectDomainController::class, 'update'])->name('projects.domains.update');
+            Route::post('projects/{project}/domains/{domain}/check', [ProjectDomainController::class, 'check'])->name('projects.domains.check');
+            Route::delete('projects/{project}/domains/{domain}', [ProjectDomainController::class, 'destroy'])->name('projects.domains.destroy');
+        });
         Route::get('projects/{project}/flags', [ProjectFlagController::class, 'index'])->name('projects.flags.index');
         Route::post('projects/{project}/flags', [ProjectFlagController::class, 'store'])->name('projects.flags.store');
         Route::patch('projects/{project}/flags/{flag}', [ProjectFlagController::class, 'update'])->name('projects.flags.update');

@@ -200,7 +200,7 @@ class SandboxUpdater
             // The publish sidecar shares the old sandbox's network, so it goes too; republished below.
             if ($project->publish_status && ! $hosted) {
                 $this->publishers->forProject($project)->stop($project);
-                $project->update(['publish_status' => null, 'published_url' => null]);
+                $project->update(['publish_status' => null, 'published_url' => null, 'published_default_url' => null]);
             }
 
             $project->sandbox()->updateOrCreate([], [

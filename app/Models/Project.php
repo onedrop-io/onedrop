@@ -45,7 +45,8 @@ use Illuminate\Support\Str;
  * @property PublishStatus|null $publish_status
  * @property PublishVisibility|null $publish_visibility
  * @property PublishTarget|null $publish_target
- * @property string|null $published_url
+ * @property string|null $published_url the address to use: its primary custom domain when that's active (DOM-002)
+ * @property string|null $published_default_url the publish target's own address
  * @property Carbon|null $published_at
  * @property int|null $published_by
  * @property string|null $publish_error
@@ -82,7 +83,7 @@ use Illuminate\Support\Str;
  * @property string|null $hosting_sqlite_import The hosted SQLite file a Move to Postgres copies into the app's new Postgres, until it has (HOST-009)
  * @property string|null $hosting_size The hosted app's machine size; null is the install's default (HOST-010)
  */
-#[Fillable(['organization_id', 'name', 'prompt', 'status', 'agent_session_id', 'sign_in_retry_message_id', 'agent_harness', 'agent_provider', 'agent_model', 'agent_variant', 'agent_auto', 'publish_status', 'publish_visibility', 'publish_target', 'published_url', 'published_at', 'published_by', 'publish_error', 'publish_login_url', 'publish_waiting_for', 'onedrop_enabled', 'onedrop_client_id', 'onedrop_client_secret', 'onedrop_callback_path', 'onedrop_group_ids', 'pinned_at', 'read_at', 'archived_at', 'sidebar_position', 'backup_commit', 'backed_up_at', 'icon_path', 'icon_mime', 'icon_hash', 'git_remote_url', 'git_remote_username', 'git_remote_token', 'git_sync_status', 'git_sync_error', 'git_synced_at', 'github_installation_id', 'autofix', 'track_requirements', 'turn_outcome', 'hosting_changes', 'auto_deploy', 'hosting_sqlite_import', 'hosting_size'])]
+#[Fillable(['organization_id', 'name', 'prompt', 'status', 'agent_session_id', 'sign_in_retry_message_id', 'agent_harness', 'agent_provider', 'agent_model', 'agent_variant', 'agent_auto', 'publish_status', 'publish_visibility', 'publish_target', 'published_url', 'published_at', 'published_by', 'publish_error', 'publish_login_url', 'publish_waiting_for', 'onedrop_enabled', 'onedrop_client_id', 'onedrop_client_secret', 'onedrop_callback_path', 'onedrop_group_ids', 'pinned_at', 'read_at', 'archived_at', 'sidebar_position', 'backup_commit', 'backed_up_at', 'icon_path', 'icon_mime', 'icon_hash', 'git_remote_url', 'git_remote_username', 'git_remote_token', 'git_sync_status', 'git_sync_error', 'git_synced_at', 'github_installation_id', 'autofix', 'track_requirements', 'turn_outcome', 'hosting_changes', 'auto_deploy', 'hosting_sqlite_import', 'hosting_size', 'published_default_url'])]
 #[Hidden(['onedrop_client_secret', 'git_remote_token'])]
 class Project extends Model implements Conversation
 {
@@ -365,6 +366,16 @@ class Project extends Model implements Conversation
     public function hostedServices(): HasMany
     {
         return $this->hasMany(HostedService::class);
+    }
+
+    /**
+     * Domains its owner has, pointed at the published app (DOM-001).
+     *
+     * @return HasMany<ProjectDomain, $this>
+     */
+    public function domains(): HasMany
+    {
+        return $this->hasMany(ProjectDomain::class);
     }
 
     /**

@@ -10,7 +10,8 @@ rewritten.
 /workspace may already hold `.onedrop/` (attachments), so create the app next door and copy it in:
 
 ```bash
-composer create-project laravel/react-starter-kit /tmp/app --no-interaction --prefer-dist
+# dev-main: the kit Laravel's installer uses. Its last tagged release (v1.0.1, Feb 2025) is Laravel 12 and Inertia 2.
+composer create-project laravel/react-starter-kit:dev-main /tmp/app --no-interaction --prefer-dist
 cp -a /tmp/app/. /workspace/ && rm -rf /tmp/app
 cd /workspace && npm install --no-audit --no-fund && php artisan migrate --force
 php artisan install:broadcasting --reverb --without-node --no-interaction

@@ -679,7 +679,14 @@ function HistoryLine({ item }: { item: ActivityItem }) {
     );
     let text: ReactNode;
 
-    if (item.kind === 'created') {
+    if (item.kind === 'created' && item.via) {
+        text = (
+            <>
+                {strong(who)} created this record through the form{' '}
+                {strong(item.via)}
+            </>
+        );
+    } else if (item.kind === 'created') {
         text = <>{strong(who)} created this record</>;
     } else if (item.kind === 'deleted') {
         text = <>{strong(who)} deleted this record</>;

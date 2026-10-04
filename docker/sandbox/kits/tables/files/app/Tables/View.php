@@ -42,6 +42,25 @@ class View
         return new static($name, 'gallery');
     }
 
+    /**
+     * Records as bars on a time line, from dateField() to endField() (the first date field unless dateField() says;
+     * one-day bars without endField()), by scale(): day, week (default), month or quarter.
+     */
+    public static function timeline(string $name): static
+    {
+        return new static($name, 'timeline');
+    }
+
+    /**
+     * A form that adds a record. Asks for every field people can fill in (the primary one required) unless fields() says;
+     * its title is the view's name unless title() says. Signed-in people who may create records can send it; public()
+     * also gives it a link anyone can send it from.
+     */
+    public static function form(string $name): static
+    {
+        return new static($name, 'form');
+    }
+
     public function sort(string $field, string $direction = 'asc'): static
     {
         $this->config['sorts'][] = ['field' => $field, 'direction' => $direction];
@@ -142,6 +161,112 @@ class View
     public function cover(string $field): static
     {
         $this->config['coverField'] = $field;
+
+        return $this;
+    }
+
+    /**
+     * timeline: the date field bars end on.
+     */
+    public function endField(string $field): static
+    {
+        $this->config['endField'] = $field;
+
+        return $this;
+    }
+
+    /**
+     * timeline: day, week, month or quarter.
+     */
+    public function scale(string $scale): static
+    {
+        $this->config['timelineScale'] = $scale;
+
+        return $this;
+    }
+
+    /**
+     * form: the fields it asks for, in order. Keys with true are required: fields(['name' => true, 'email' => true, 'notes']).
+     *
+     * @param  array<int|string, string|bool>  $fields
+     */
+    public function fields(array $fields): static
+    {
+        $this->config['form']['fields'] = [];
+
+        foreach ($fields as $key => $value) {
+            $this->config['form']['fields'][] = is_int($key)
+                ? ['key' => (string) $value, 'required' => false]
+                : ['key' => $key, 'required' => (bool) $value];
+        }
+
+        return $this;
+    }
+
+    /**
+     * form: a help line shown under one of its fields.
+     */
+    public function help(string $field, string $help): static
+    {
+        foreach ($this->config['form']['fields'] ?? [] as $index => $formField) {
+            if ($formField['key'] === $field) {
+                $this->config['form']['fields'][$index]['help'] = $help;
+            }
+        }
+
+        return $this;
+    }
+
+    public function title(string $title): static
+    {
+        $this->config['form']['title'] = $title;
+
+        return $this;
+    }
+
+    public function description(string $description): static
+    {
+        $this->config['form']['description'] = $description;
+
+        return $this;
+    }
+
+    /**
+     * form: the send button's text ("Send").
+     */
+    public function submitLabel(string $label): static
+    {
+        $this->config['form']['submitLabel'] = $label;
+
+        return $this;
+    }
+
+    /**
+     * form: the message shown after sending.
+     */
+    public function thankYou(string $message): static
+    {
+        $this->config['form']['thankYou'] = $message;
+
+        return $this;
+    }
+
+    /**
+     * form: whether "Send another" is offered after sending (it is by default).
+     */
+    public function allowAnother(bool $allow = true): static
+    {
+        $this->config['form']['allowAnother'] = $allow;
+
+        return $this;
+    }
+
+    /**
+     * form: anyone with its link can send it, without signing in. Leaves out person and link fields.
+     */
+    public function public(bool $public = true): static
+    {
+        $this->config['form']['public'] = $public;
 
         return $this;
     }

@@ -19,10 +19,27 @@ final class RecordChanges
 {
     private Computation $computation;
 
+    /** The form view the records are sent through, for their history. */
+    private ?string $via = null;
+
+    private bool $publicForm = false;
+
     public function __construct(private Table $table, private ?User $user)
     {
         $this->computation = new Computation($user);
         $this->computation->register($table);
+    }
+
+    /**
+     * The records come through the form view $name. A public form's link is what lets its visitors
+     * create records, so they aren't checked against can('create'). Forms never add select options.
+     */
+    public function throughForm(string $name, bool $public = false): static
+    {
+        $this->via = $name;
+        $this->publicForm = $public;
+
+        return $this;
     }
 
     /**
@@ -37,7 +54,7 @@ final class RecordChanges
         $creates = array_values($changes['creates'] ?? []);
         $updates = array_values($changes['updates'] ?? []);
 
-        if ($creates !== []) {
+        if ($creates !== [] && ! $this->publicForm) {
             $table->authorize($this->user, 'create');
         }
 
@@ -47,7 +64,7 @@ final class RecordChanges
         $normalizer = new Normalizer(
             $table,
             $this->computation,
-            $table->supportsCustomFields() && $table->can($this->user, 'manageFields'),
+            $this->via === null && $table->supportsCustomFields() && $table->can($this->user, 'manageFields'),
         );
 
         $errors = [];
@@ -213,6 +230,7 @@ final class RecordChanges
             'record_id' => $record->getKey(),
             'user_id' => $this->user?->getKey(),
             'kind' => 'created',
+            'via' => $this->via,
         ]);
 
         return (int) $record->getKey();

@@ -144,12 +144,35 @@ their own fields of every type (stored in `custom_fields` with keys like `cf_12`
 
 The views a table starts with, created the first time it's opened: `View::grid()`, `View::board()`
 (`->stackBy('stage')`: a select or person field), `View::calendar()` (`->dateField('close_date')`),
-`View::gallery()` (`->cover('files')`). Each takes `->sort($field, 'asc'|'desc')`, `->group($field)` (up to
+`View::gallery()` (`->cover('files')`), `View::timeline()` (`->dateField('start')->endField('end')->scale('day'|'week'|'month'|'quarter')`)
+and `View::form()` (below). Each takes `->sort($field, 'asc'|'desc')`, `->group($field)` (up to
 three), `->filter($field, $operator, $value)` (`->any()` to match any condition), `->hide(...$fields)`,
 `->order(...$fields)`, `->width($field, $pixels)`, `->rowHeight('short'|'medium'|'tall'|'extraTall')` and
 `->summary($field, 'sum'|'average'|'min'|'max'|'filled'|'empty'|'unique'|…)`. Filter operators include
 `is`, `isNot`, `contains`, `isEmpty`, `isNotEmpty`, `lt`, `gt`, `isAnyOf`, `isBefore`, `isAfter` and `isMe`.
 After that, people manage views themselves.
+
+### Forms
+
+A form view is a form that adds records: people pick its fields in the grid's view switcher, or you start
+one:
+
+```php
+View::form('Request a feature')
+    ->fields(['name' => true, 'email' => true, 'details']) // key => required; a bare key is optional
+    ->help('details', 'What should it do?')
+    ->description('We read every request.')
+    ->submitLabel('Send request')->thankYou('Thanks! We will be in touch.')
+    ->public(), // anyone with its link can send it
+```
+
+Signed-in people open it at `/tables/<table>/forms/<view id>`; a public form also has a link
+`/forms/<token>` (shown in the form view's Share menu, which can turn it off or replace it). Public forms
+leave out person and link fields, take attachments, and are limited to 10 sends a minute per visitor. Fields
+left unanswered get `defaults()`. The kit's form page (`resources/js/pages/tables/form.tsx`) has no app
+layout, so visitors without accounts see only the form. When the app has its own public pages (a careers
+page, a support page), link to the form from there, or build that page yourself if it needs more than a
+form.
 
 ### Who can do what
 

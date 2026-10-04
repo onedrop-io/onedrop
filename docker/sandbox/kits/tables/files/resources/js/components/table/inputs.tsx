@@ -1029,7 +1029,7 @@ function AttachmentInput({ field, value, onChange }: ValueInputProps) {
 
             request<{ attachment: Attachment }>(
                 'POST',
-                `${store.endpoint}/attachments`,
+                store.uploadUrl ?? `${store.endpoint}/attachments`,
                 body,
             )
                 .then((result) => {

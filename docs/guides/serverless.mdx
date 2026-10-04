@@ -1,0 +1,38 @@
+---
+title: "Build serverless apps"
+sidebarTitle: "Serverless"
+description: "Build Cloudflare Workers, AWS Lambda, Vercel and Netlify functions in a project and see them working in the preview."
+---
+
+Ask the agent for an app built as serverless functions, or import a project that already is one (it has a `wrangler.toml`, `template.yaml`, `vercel.json`, `netlify.toml` or `serverless.yml`). The agent runs the platform's local emulator in the project's sandbox, so the functions answer in the preview like any other app.
+
+Nothing uses your cloud account. The agent doesn't sign in to Cloudflare, AWS or Vercel, and doesn't deploy there. **Publish** puts what the preview runs on a OneDrop address, as for any project. See [Publish](/guides/publish).
+
+## What runs where
+
+| Platform | What the preview runs |
+|---|---|
+| Cloudflare Workers and Pages | `wrangler dev`, with Cloudflare's own runtime. D1, KV, R2, Durable Objects and Queues are emulated. |
+| AWS Lambda (SAM) | `sam local start-api`, each function in a Lambda container. Needs Docker inside sandboxes. |
+| Vercel | The framework's own dev server (`next dev` for Next.js), whose routes are the functions. |
+| Netlify | `netlify dev --offline` |
+| Serverless Framework | Version 3 with `serverless-offline`. Version 4 needs a sign-in for every command. |
+| Google Cloud and Azure Functions | The Functions Framework and Azure Functions Core Tools. |
+
+SST isn't supported, because `sst dev` needs a real AWS account. Firebase's emulators need Java, which sandboxes don't have.
+
+## AWS Lambda
+
+<Info>
+An admin turns on **Docker inside sandboxes** in **Settings → Sandboxes** first. See [Docker inside sandboxes](/self-hosting/sandboxes#docker-inside-sandboxes).
+</Info>
+
+AWS services the functions use run as local stand-ins in the sandbox's Docker: DynamoDB Local, S3Mock for S3, and ElasticMQ for SQS. The code reaches them through the AWS SDK's standard endpoint settings (`AWS_ENDPOINT_URL_DYNAMODB` and the like), so it has nothing that only works locally. A setup script creates the app's tables, buckets and queues, and adds sample data.
+
+LocalStack emulates more of AWS, but needs a LocalStack account. To use it, add your `LOCALSTACK_AUTH_TOKEN` in **Tools → Secrets**. Its free plan is for non-commercial use.
+
+## Vercel
+
+The agent runs the framework's dev server instead of `vercel dev`, which needs a Vercel sign-in. Rewrites and headers from `vercel.json` move into the framework's config.
+
+A bare `api/` folder with no framework has no dev server of its own. The agent suggests moving its functions into the app's framework. To keep the folder as it is, add a `VERCEL_TOKEN` in **Tools → Secrets**. The first run then links the folder to a project in your Vercel account.

@@ -1,9 +1,11 @@
 // The platform's Playwright config for the app's tests (see tests.mjs): the app's own config, if any, isn't used,
 // so every app's tests run the same way, against the preview's dev server, with a video and a trace of each.
 // With ONEDROP_BROWSER_CDP_PORT (browser.mjs, TEST-005) the browser opens that debugging port so the browser can
-// attach to it once the test is stopped at a step, and nothing is recorded.
+// attach to it once the test is stopped at a step, and nothing is recorded. demo.mjs (DEMO-002) also uses that port, to
+// record the screen itself, and adds ONEDROP_DEMO for pages drawn at 1.5× (1920×1080 frames of the same layout).
 const workspace = process.env.ONEDROP_WORKSPACE || '/workspace';
 const browserPort = process.env.ONEDROP_BROWSER_CDP_PORT;
+const demo = !!process.env.ONEDROP_DEMO;
 
 export default {
     testDir: `${workspace}/tests/e2e`,
@@ -22,6 +24,7 @@ export default {
     use: {
         baseURL: `http://127.0.0.1:${process.env.PORT || 8000}`,
         viewport: { width: 1280, height: 720 },
+        ...(demo ? { deviceScaleFactor: 1.5 } : {}),
         video: browserPort
             ? 'off'
             : { mode: 'on', size: { width: 1280, height: 720 } },
