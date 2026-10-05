@@ -2,6 +2,7 @@
 
 namespace App\Sandbox\Providers;
 
+use App\Sandbox\AppProcesses;
 use App\Sandbox\ExecResult;
 use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxProvider;
@@ -131,7 +132,8 @@ class RuntimeSandboxProvider implements SandboxProvider
      */
     public function start(string $id): void
     {
-        $this->exec($id, ['bash', '-c', 'pkill -CONT -u "$(id -u)"; pkill -f "[z]ap-thaw-watchdog"; exit 0']);
+        // Everything the user has too, for a sandbox frozen before only the app was (they were all left stopped).
+        $this->exec($id, ['bash', '-c', 'pkill -CONT -u "$(id -u)"; pkill -f "[o]nedrop-thaw-watchdog"; exit 0']);
     }
 
     /**
@@ -140,7 +142,7 @@ class RuntimeSandboxProvider implements SandboxProvider
      */
     public function pause(string $id): void
     {
-        $frozen = $this->exec($id, ['bash', '-c', 'for pid in $(pgrep -u "$(id -u)"); do [ "$pid" = $$ ] || [ "$pid" = "$PPID" ] || kill -STOP "$pid" 2>/dev/null; done; exit 0']);
+        $frozen = $this->exec($id, ['bash', '-c', AppProcesses::FREEZE]);
 
         if (! $frozen->successful()) {
             throw new SandboxException("Couldn't pause the sandbox's processes: ".(strtok(trim($frozen->errorOutput), "\n") ?: 'unknown error'));
@@ -148,7 +150,7 @@ class RuntimeSandboxProvider implements SandboxProvider
 
         // If whoever paused it dies before calling start() (e.g. a deploy replaced the worker), the app still
         // carries on by itself once an update could no longer be running.
-        $this->exec($id, ['bash', '-c', 'sleep '.self::THAW_AFTER_SECONDS.'; pkill -CONT -u "$(id -u)"', 'onedrop-thaw-watchdog'], detach: true);
+        $this->exec($id, ['bash', '-c', 'sleep '.self::THAW_AFTER_SECONDS.'; '.AppProcesses::THAW, 'onedrop-thaw-watchdog'], detach: true);
     }
 
     /**

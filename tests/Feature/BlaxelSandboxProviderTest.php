@@ -1,5 +1,6 @@
 <?php
 
+use App\Sandbox\AppProcesses;
 use App\Sandbox\Providers\BlaxelSandboxProvider;
 use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxSpec;
@@ -195,8 +196,8 @@ test('pausing freezes the app\'s processes, with a watchdog that thaws them if n
         ->map(fn (Request $request) => $request['command'])->values();
 
     expect($commands)->toHaveCount(3)
-        ->and($commands[0])->toContain('kill -STOP')->toContain('pgrep -u sandbox')
-        ->and($commands[1])->toBe('sleep '.BlaxelSandboxProvider::THAW_AFTER_SECONDS.'; pkill -CONT -u sandbox')
+        ->and($commands[0])->toContain(AppProcesses::FREEZE)
+        ->and($commands[1])->toBe('sleep '.BlaxelSandboxProvider::THAW_AFTER_SECONDS.'; '.AppProcesses::THAW)
         ->and($commands[2])->toBe("'pkill' '-CONT' '-u' 'sandbox'");
 })->group('SBX-004');
 

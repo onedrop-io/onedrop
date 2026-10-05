@@ -2,6 +2,7 @@
 
 namespace App\Sandbox\Providers;
 
+use App\Sandbox\AppProcesses;
 use App\Sandbox\ExecResult;
 use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxProvider;
@@ -124,7 +125,7 @@ class BlaxelSandboxProvider implements SandboxProvider
      */
     public function pause(string $id): void
     {
-        $frozen = $this->exec($id, ['bash', '-c', 'for pid in $(pgrep -u sandbox); do [ "$pid" = $$ ] || [ "$pid" = "$PPID" ] || kill -STOP "$pid" 2>/dev/null; done; exit 0']);
+        $frozen = $this->exec($id, ['bash', '-c', AppProcesses::FREEZE]);
 
         if (! $frozen->successful()) {
             throw new SandboxException("Couldn't pause the sandbox's processes: ".(strtok(trim($frozen->errorOutput), "\n") ?: 'unknown error'));
@@ -133,7 +134,7 @@ class BlaxelSandboxProvider implements SandboxProvider
         // If whoever paused it dies before calling start() (e.g. a deploy replaced the worker), the app still
         // carries on by itself once an update could no longer be running.
         $this->sandboxSend($id, 'post', 'process', [
-            'command' => 'sleep '.self::THAW_AFTER_SECONDS.'; pkill -CONT -u sandbox',
+            'command' => 'sleep '.self::THAW_AFTER_SECONDS.'; '.AppProcesses::THAW,
             'workingDir' => '/workspace',
             'waitForCompletion' => false,
         ]);

@@ -1,5 +1,6 @@
 <?php
 
+use App\Sandbox\AppProcesses;
 use App\Sandbox\Providers\RuntimeSandboxProvider;
 use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxSpec;
@@ -213,7 +214,7 @@ test('pausing freezes the app\'s processes, with a watchdog that thaws them if n
 
     // Not Runtime's own pause: copying the files out would wake the sandbox, and its processes with it.
     Http::assertNotSent(fn (Request $request) => str_ends_with($request->url(), ':pause'));
-    Http::assertSent(fn (Request $request) => str_ends_with($request->url(), ':exec') && str_contains($request['argv'][2], 'kill -STOP'));
+    Http::assertSent(fn (Request $request) => str_ends_with($request->url(), ':exec') && $request['argv'][2] === AppProcesses::FREEZE);
     Http::assertSent(fn (Request $request) => str_ends_with($request->url(), '/processes')
         && str_contains($request['argv'][2], 'sleep '.RuntimeSandboxProvider::THAW_AFTER_SECONDS)
         && end($request->data()['argv']) === 'onedrop-thaw-watchdog');
@@ -230,7 +231,7 @@ test('starting lets frozen processes carry on and calls off the watchdog', funct
 
     $this->runtime->start(RT_ID);
 
-    Http::assertSent(fn (Request $request) => str_contains($request['argv'][2], 'pkill -CONT') && str_contains($request['argv'][2], '[z]ap-thaw-watchdog'));
+    Http::assertSent(fn (Request $request) => str_contains($request['argv'][2], 'pkill -CONT') && str_contains($request['argv'][2], '[o]nedrop-thaw-watchdog'));
 })->group('SBX-003');
 
 test('suspending uses runtime\'s own pause, and one already paused is fine', function (int $status) {
