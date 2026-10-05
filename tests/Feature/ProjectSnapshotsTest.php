@@ -48,7 +48,7 @@ function snapshotProvider(): FakeSandboxProvider
 
             return match (true) {
                 // Every tool current, on the current base.
-                ($command[3] ?? null) === 'hash' => new ExecResult(0, collect(app(SandboxTools::class)->expected())->map(fn ($hash, $path) => "{$hash}  {$path}")->implode("\n")),
+                str_contains($command[2] ?? '', 'ONEDROP_TOOL_PATHS') => new ExecResult(0, collect(app(SandboxTools::class)->expected())->map(fn ($hash, $path) => "{$hash}  {$path}")->implode("\n")),
                 $command === [$tool, 'fingerprint'] => new ExecResult(0, collect($this->fingerprints)->map(fn ($hash, $layer) => "{$layer} {$hash}")->implode("\n")),
                 ($command[0] ?? null) === $tool && $command[1] === 'pack' => $this->pack(array_slice($command, 2, -1)),
                 ($command[0] ?? null) === $tool && $command[1] === 'restore' => $this->restore($command[2], $command[3]),

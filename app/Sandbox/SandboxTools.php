@@ -167,7 +167,10 @@ class SandboxTools
         }
 
         $expected = $this->expected();
-        $result = $provider->exec($id, ['sh', '-c', 'sha256sum -- "$@" 2>/dev/null; exit 0', 'hash', ...array_keys($expected)]);
+        // The paths go in the environment, one per line: as arguments they're more than Runtime's exec takes (128).
+        $result = $provider->exec($id, ['sh', '-c', 'printf "%s\n" "$ONEDROP_TOOL_PATHS" | tr "\n" "\000" | xargs -0 sha256sum -- 2>/dev/null; exit 0'], [
+            'ONEDROP_TOOL_PATHS' => implode("\n", array_keys($expected)),
+        ]);
 
         if (! $result->successful()) {
             throw new SandboxException("Couldn't read the sandbox's tools: ".(strtok(trim($result->errorOutput), "\n") ?: 'unknown error'));

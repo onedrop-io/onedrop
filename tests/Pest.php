@@ -354,7 +354,7 @@ function hostingSandbox(): FakeSandboxProvider
 
             return match (true) {
                 // Every tool current, on the current base.
-                ($command[3] ?? null) === 'hash' => new ExecResult(0, collect(app(SandboxTools::class)->expected())->map(fn ($hash, $path) => "{$hash}  {$path}")->implode("\n")),
+                isset($env['ONEDROP_TOOL_PATHS']) => new ExecResult(0, collect(app(SandboxTools::class)->expected())->map(fn ($hash, $path) => "{$hash}  {$path}")->implode("\n")),
                 $command === [$tool, 'inspect'] => new ExecResult(0, json_encode($this->manifest)),
                 str_contains($command[2] ?? '', 'rev-parse --verify') => new ExecResult(0, $this->head."\n"),
                 isset($env['ONEDROP_FROM']) => new ExecResult(0, $this->changes),

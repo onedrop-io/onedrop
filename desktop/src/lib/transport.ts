@@ -443,19 +443,25 @@ function saveMadeFiles(): void {
 
 /**
  * A redirect Inertia would follow by leaving the page (an external site, or a full reload of one of the server's):
- * the server's pages open in the app instead, and other sites in the browser.
+ * the server's pages open in the app instead, and other sites in the browser. When the server was deployed since
+ * the page loaded (a new asset version), the app loads again at that page, as a browser would: starting up asks the
+ * server for its current version (firstPage()), where a visit from this page would keep sending the old one.
  */
 function keepRedirectsInApp(): void {
     document.addEventListener('inertia:location', (event) => {
-        const { url } = (event as CustomEvent<{ url: URL }>).detail;
+        const { url, versionChange } = (
+            event as CustomEvent<{ url: URL; versionChange: boolean }>
+        ).detail;
         const target = toServer(url);
 
         event.preventDefault();
 
-        if (target) {
-            router.visit(appPath(target));
-        } else {
+        if (!target) {
             void openInBrowser(url.toString());
+        } else if (versionChange) {
+            window.location.assign(appPath(target));
+        } else {
+            router.visit(appPath(target));
         }
     });
 }

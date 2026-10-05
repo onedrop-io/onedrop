@@ -206,7 +206,7 @@ test('an up-to-date or stopped sandbox is left alone', function () {
 function sandboxToolHashes(array $missing = [], bool $oldBase = false): Closure
 {
     return function (array $command) use ($missing, $oldBase): ExecResult {
-        if (($command[3] ?? null) !== 'hash') {
+        if (! str_contains($command[2] ?? '', 'ONEDROP_TOOL_PATHS')) {
             return new ExecResult(0, '');
         }
 

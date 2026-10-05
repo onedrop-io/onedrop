@@ -268,6 +268,7 @@ One sandbox per project, on Docker locally and Runtime Cloud (or Blaxel) in prod
 - **2026-10-01: On Blaxel, tool files can't be copied in,** because its sandbox API runs everything as the sandbox user and `/opt/onedrop` is root's (making it the sandbox user's would let it rewrite `dockerd`, its sudo rule). A rebuilt image gives Blaxel sandboxes a new one, as before.
 - **2026-10-01: No forced update when a project is opened, for now.** Every image change so far works with older sandboxes until they're next idle. If one ever has to reach a sandbox before that (a protocol change between the app and the forwarder), add a minimum version then.
 - **2026-10-01: The one-container install's app image keeps `docker/sandbox`** (no longer in `.dockerignore`), so it can copy tool files into its sandboxes; without it, only a new image updates them.
+- **2026-10-05: Checking a sandbox's tools sends their paths in an environment variable, one per line, not as arguments.** Runtime's exec takes at most 128 arguments, and the image now has more tool and base files than that, so every update of a Runtime sandbox failed before copying anything in.
 - **`RUNTIME_FUNDING=trial` until the owner says to use paid credit.**
 - **Code backups (git bundles) live on a disk outside every sandbox provider,** so a lost sandbox can get its code back.
 - **2026-09-30: A queued project backup whose project was deleted is dropped (`DeleteWhenMissingModels`), not failed,** since there's nothing left to back up; it had shown up on Laravel Cloud as a failed job.
