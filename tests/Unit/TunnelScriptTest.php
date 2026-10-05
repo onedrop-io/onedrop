@@ -70,6 +70,8 @@ function tunnelScenario(string $url, array $args, string $script): array
                 };
                 ws.closed = new Promise((closed) => {
                     ws.onclose = (event) => { closed({ code: event.code, reason: event.reason }); resolve(null); };
+                    // Node 22 fires no close after a refused handshake, only an error.
+                    ws.onerror = () => { if (ws.readyState !== WebSocket.OPEN) { closed({ code: 1006, reason: '' }); resolve(null); } };
                 });
                 ws.onopen = () => resolve(ws);
             });
