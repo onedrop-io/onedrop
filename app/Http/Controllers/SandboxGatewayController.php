@@ -4,12 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Enums\PublishVisibility;
 use App\Enums\SandboxStatus;
+use App\Http\Middleware\UseDesktopToken;
 use App\Models\Project;
 use App\Models\ProjectDomain;
 use App\Models\Sandbox;
 use App\Models\User;
 use App\Sandbox\Gateway;
 use App\Sandbox\SandboxProvider;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -47,6 +49,32 @@ class SandboxGatewayController extends Controller
         $path = (string) $request->query('path', '/');
 
         return redirect()->away($gateway->enterUrl($sandbox, $kind, $request->user(), self::safePath($path)));
+    }
+
+    /**
+     * From the desktop app (DESK-002): a fresh hand-off for a preview or shell link on the page (whose own token may
+     * have expired), for the app to open in a window of its own, where the address gets an ordinary cookie.
+     */
+    public function desktop(Request $request, Gateway $gateway): JsonResponse
+    {
+        abort_unless(UseDesktopToken::from($request), 404);
+
+        $link = (string) $request->query('url');
+        $target = $gateway->parse((string) parse_url($link, PHP_URL_HOST));
+        $sandbox = $target && $target['kind'] !== Gateway::APP ? Sandbox::with('project')->find($target['sandbox_id']) : null;
+
+        abort_unless($sandbox !== null, 404);
+        Gate::authorize('view', $sandbox->project);
+
+        // A hand-off link names its page in `path`; any other link to the address is the page itself.
+        $page = (string) parse_url($link, PHP_URL_PATH);
+        $search = (string) parse_url($link, PHP_URL_QUERY);
+        parse_str($search, $query);
+        $path = $page === '/__onedrop/enter'
+            ? (is_string($query['path'] ?? null) ? $query['path'] : '/')
+            : $page.($search !== '' ? "?{$search}" : '');
+
+        return response()->json(['url' => $gateway->enterUrl($sandbox, $target['kind'], $request->user(), self::safePath($path))]);
     }
 
     /**

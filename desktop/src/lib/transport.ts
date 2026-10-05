@@ -1,6 +1,11 @@
 import { http, router } from '@inertiajs/react';
 import type { Page } from '@inertiajs/core';
-import { openInBrowser, saveDownload, setServerOrigin } from './native';
+import {
+    openInBrowser,
+    openWindow,
+    saveDownload,
+    setServerOrigin,
+} from './native';
 import type { Session } from './types';
 
 /**
@@ -305,9 +310,38 @@ export async function download(url: URL): Promise<void> {
     );
 }
 
+/** Where a preview or shell link signs in (Gateway::enterUrl() on the server). */
+const HAND_OFF_PATH = '/__onedrop/enter';
+
 /**
- * Links the page doesn't handle itself: the server's pages open in the app, its files download, and other sites
- * open in the browser. Inertia's own links handle their clicks first (and say so).
+ * A preview or shell opened in a new tab: in a window of the app's own instead, since the browser may not be signed
+ * in to OneDrop, at a hand-off the server makes now (the page's lasts a minute) (DESK-002).
+ */
+async function openGatewayWindow(link: URL): Promise<void> {
+    const response = await window.fetch(
+        new URL(
+            `/desktop/gateway?${new URLSearchParams({ url: link.href })}`,
+            session().server,
+        ),
+        {
+            headers: { ...serverHeaders(), Accept: 'application/json' },
+            credentials: 'omit',
+        },
+    );
+
+    if (!response.ok) {
+        throw new Error(`Opening the window failed (${response.status})`);
+    }
+
+    const { url } = (await response.json()) as { url: string };
+
+    await openWindow(url, link.hostname);
+}
+
+/**
+ * Links the page doesn't handle itself: the server's pages open in the app, its files download, previews and shells
+ * open in a window of their own, and other sites open in the browser. Inertia's own links handle their clicks first
+ * (and say so).
  */
 function followLinks(): void {
     document.addEventListener('click', (event) => {
@@ -338,7 +372,15 @@ function followLinks(): void {
         event.preventDefault();
         const target = toServer(resolved);
 
-        if (!target) {
+        if (
+            !target &&
+            link.target === '_blank' &&
+            resolved.pathname === HAND_OFF_PATH
+        ) {
+            void openGatewayWindow(resolved).catch(() =>
+                openInBrowser(resolved.toString()),
+            );
+        } else if (!target) {
             void openInBrowser(resolved.toString());
         } else if (link.hasAttribute('download')) {
             void download(target).catch(() => openInBrowser(target.toString()));

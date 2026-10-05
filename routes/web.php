@@ -158,6 +158,8 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
 
     // Previews and shells (the project's people), and privately published apps (anyone signed in, AI set up or not).
     Route::get('projects/{project}/open/{kind}', [SandboxGatewayController::class, 'open'])->name('projects.gateway.open');
+    // The desktop app opening a preview or shell in a window of its own (DESK-002): a fresh hand-off for it.
+    Route::get('desktop/gateway', [SandboxGatewayController::class, 'desktop'])->name('desktop.gateway');
 
     Route::middleware('agent.connected')->group(function () {
         // Where signing in lands: the new-project page of the organization the user used last (ORG-002).

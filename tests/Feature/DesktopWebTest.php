@@ -104,6 +104,28 @@ test('on a server the app opens previews through the sandbox\'s own sign-in addr
         ->assertInertia(fn ($page) => $page->where('sandbox.preview_url', route('projects.gateway.open', [$this->project, 'preview'])));
 })->group('DESK-002');
 
+test('the app opens a preview in a window of its own with a fresh sign-in for it', function () {
+    config(['sandbox.gateway_domain' => 'onedrop.example.com']);
+    $sandbox = Sandbox::factory()->for($this->project)->create(['preview_url' => 'http://127.0.0.1:41000']);
+    $gateway = app(Gateway::class);
+    $link = $gateway->enterUrl($sandbox, 'preview', $this->user, '/contacts?page=2', partitioned: true);
+
+    $this->travel(Gateway::TOKEN_SECONDS + 1)->seconds();
+    $url = $this->withToken($this->token)->getJson(route('desktop.gateway', ['url' => $link]))->assertOk()->json('url');
+
+    // A window's own site: an ordinary cookie, for the page the link was on.
+    parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
+    expect($url)->toStartWith("https://preview-{$sandbox->id}.onedrop.example.com/__onedrop/enter?")
+        ->and($query['path'])->toBe('/contacts?page=2')
+        ->and($gateway->userFromToken($query['token'], ['kind' => 'preview', 'sandbox_id' => $sandbox->id]))->toBe($this->user->id)
+        ->and($gateway->wantsPartitionedPass($query['token']))->toBeFalse();
+
+    // Only for the project's people, and only from the app.
+    $stranger = User::factory()->has(AgentConnection::factory())->create()->createToken('Laptop')->plainTextToken;
+    $this->withToken($stranger)->getJson(route('desktop.gateway', ['url' => $link]))->assertForbidden();
+    $this->flushHeaders()->actingAs($this->user)->getJson(route('desktop.gateway', ['url' => $link]))->assertNotFound();
+})->group('DESK-002');
+
 test('the app connects for live updates to the server it signed in to', function () {
     config([
         'broadcasting.default' => 'reverb',

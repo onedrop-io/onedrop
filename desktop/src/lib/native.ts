@@ -42,6 +42,11 @@ export function openInBrowser(url: string): Promise<void> {
     return openUrl(url);
 }
 
+/** Open a web address (a preview or shell, DESK-002) in a window of the app's own. */
+export function openWindow(url: string, title: string): Promise<void> {
+    return invoke('open_window', { url, title });
+}
+
 /** Save a downloaded file in the Downloads folder and show it there. */
 export function saveDownload(name: string, bytes: Uint8Array): Promise<void> {
     return invoke('save_download', { name, bytes: Array.from(bytes) });

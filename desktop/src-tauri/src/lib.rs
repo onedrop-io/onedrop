@@ -64,6 +64,33 @@ fn open_in_browser(
     }
 }
 
+/// Numbers the windows previews and shells open in.
+static WINDOWS: AtomicU64 = AtomicU64::new(0);
+
+/// A preview or shell in a window of its own (DESK-002), at a sign-in link the server just made for it: there the
+/// address is the window's own site, so it keeps its cookie.
+#[tauri::command]
+async fn open_window(app: AppHandle, url: String, title: String) -> Result<(), String> {
+    let url: Url = url.parse().map_err(|error| format!("{error}"))?;
+
+    if !matches!(url.scheme(), "http" | "https") {
+        return Err("only web addresses open in a window".into());
+    }
+
+    let label = format!("window-{}", WINDOWS.fetch_add(1, Ordering::SeqCst));
+    let handle = app.clone();
+
+    WebviewWindowBuilder::new(&app, &label, WebviewUrl::External(url))
+        .title(title)
+        .inner_size(1280.0, 860.0)
+        .initialization_script_for_all_frames(include_str!("../scripts/frames.js"))
+        .on_new_window(move |url, features| open_in_browser(&handle, url, features))
+        .build()
+        .map_err(|error| format!("{error}"))?;
+
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -112,6 +139,7 @@ pub fn run() {
             sign_in::cancel_sign_in,
             download::save_download,
             server::use_server,
+            open_window,
         ])
         .run(tauri::generate_context!())
         .expect("error while running OneDrop");
