@@ -47,6 +47,12 @@ class RuntimeSandboxProvider implements SandboxProvider
     /** Refusals that clear by themselves (e.g. waking a paused sandbox while the trial's running limit is reached). */
     public const TEMPORARY_REFUSALS = ['trial_busy', 'no_capacity', 'sandbox_not_ready'];
 
+    /** The sandbox is running as many commands as it can at once; nothing ran, so the same request goes again. */
+    public const BUSY = 'guest_busy';
+
+    /** Longest wait between tries of a refused request, in milliseconds, whatever Retry-After asks. */
+    public const MAX_RETRY_WAIT_MS = 10000;
+
     /** Longest a preview token lasts (7 days); ProjectController renews the links daily. */
     public const PREVIEW_TTL_SECONDS = 604800;
 
@@ -505,8 +511,9 @@ class RuntimeSandboxProvider implements SandboxProvider
         // create() waits for room itself, for longer than a request should.
         $retriesRefusals = $path !== 'sandboxes';
 
+        // A busy sandbox says when to try again (Retry-After); it gets a few more tries than other refusals.
         $client = $this->client()->timeout($timeout + ($wait ?? 0))
-            ->retry(4, fn (int $attempt) => min(8000, 500 * 2 ** $attempt), fn (Throwable $e) => $e instanceof ConnectionException
+            ->retry(7, fn (int $attempt, Throwable $e) => self::retryWait($attempt, $e), fn (Throwable $e) => $e instanceof ConnectionException
                 || ($e instanceof RequestException && (in_array($e->response->status(), [429, 502, 503, 504], true)
                     || ($retriesRefusals && self::isTemporaryRefusal($e->response)))), throw: false);
 
@@ -557,7 +564,26 @@ class RuntimeSandboxProvider implements SandboxProvider
             throw new SandboxException(trim("Runtime has no room for the sandbox right now ({$message}). Try again in a moment."));
         }
 
+        if (($error['code'] ?? null) === self::BUSY) {
+            throw new SandboxException(__('The sandbox is busy running other commands. Try again in a moment.'));
+        }
+
         throw new SandboxException(trim("Runtime: {$message} ".($error['hint'] ?? '').(isset($error['requestId']) ? " ({$error['requestId']})" : '')));
+    }
+
+    /**
+     * How long to wait before trying a refused request again: what a busy sandbox's Retry-After asks (up to a limit),
+     * else twice as long each time.
+     */
+    protected static function retryWait(int $attempt, Throwable $e): int
+    {
+        $retryAfter = $e instanceof RequestException ? $e->response->header('Retry-After') : '';
+
+        if (is_numeric($retryAfter)) {
+            return (int) min(self::MAX_RETRY_WAIT_MS, max(250, (float) $retryAfter * 1000));
+        }
+
+        return min(8000, 500 * 2 ** $attempt);
     }
 
     /**

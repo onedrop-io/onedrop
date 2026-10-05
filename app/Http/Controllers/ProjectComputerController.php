@@ -13,6 +13,7 @@ use App\Sandbox\SandboxUpdater;
 use App\Sandbox\WorkspaceSsh;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 
@@ -44,6 +45,7 @@ class ProjectComputerController extends Controller
         $sandbox = $project->sandbox;
         $running = $sandbox?->status === SandboxStatus::Running && $sandbox->external_id !== null;
         $token = UseDesktopToken::from($request) ? $user->currentAccessToken() : null;
+        $moving = SandboxUpdater::isUpdating($project) || $sandbox?->status === SandboxStatus::Creating;
 
         return response()->json([
             'can_update' => $user->can('update', $project),
@@ -51,7 +53,8 @@ class ProjectComputerController extends Controller
             'owner_name' => $project->user->name,
             'host_alias' => WorkspaceSsh::hostAlias($project),
             'running' => $running,
-            'ports' => $running ? $this->ports($inspector, $project) : [],
+            // Not while it moves: the move's own commands come first, and the panel asks every few seconds then.
+            'ports' => $running && ! $moving ? $this->ports($inspector, $project) : [],
             'network_hosts' => array_values($project->network_hosts ?? []),
             'device' => $project->device_id ? [
                 'id' => $project->device_id,
@@ -59,7 +62,7 @@ class ProjectComputerController extends Controller
                 'this' => $token !== null && $token->getKey() === $project->device_id,
             ] : null,
             'devices_available' => DeviceSandboxProvider::available(),
-            'moving' => SandboxUpdater::isUpdating($project) || $sandbox?->status === SandboxStatus::Creating,
+            'moving' => $moving,
             'move_error' => MoveSandbox::error($project),
         ]);
     }
@@ -124,9 +127,11 @@ class ProjectComputerController extends Controller
     protected function ports(SandboxInspector $inspector, Project $project): array
     {
         $ports = [['port' => (int) config('sandbox.proxy_port'), 'label' => __('The app')]];
+        $sandbox = $project->sandbox;
 
         try {
-            $listening = $inspector->ports($project->sandbox);
+            // Looked at once a minute at most: each look is a command in the sandbox.
+            $listening = Cache::remember("computer-ports:{$sandbox->id}:{$sandbox->external_id}", 60, fn () => $inspector->ports($sandbox));
         } catch (SandboxException) {
             return $ports;
         }

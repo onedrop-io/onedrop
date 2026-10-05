@@ -76,16 +76,16 @@ export default function ComputerPanel({
         void load();
     }, [load, running]);
 
-    // While it moves to or from a computer, check on it every few seconds.
+    // While it moves to or from a computer, check on it every few seconds, one check at a time.
     useEffect(() => {
         if (!data?.moving) {
             return;
         }
 
-        const timer = window.setInterval(() => void load(), 3000);
+        const timer = window.setTimeout(() => void load(), 3000);
 
-        return () => window.clearInterval(timer);
-    }, [data?.moving, load]);
+        return () => window.clearTimeout(timer);
+    }, [data, load]);
 
     if (!desktop) {
         return <DesktopPitch projectId={projectId} />;

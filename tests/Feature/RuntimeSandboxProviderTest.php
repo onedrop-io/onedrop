@@ -315,7 +315,7 @@ test('a sandbox runtime still has no room to wake says to try again, and is logg
     expect(fn () => $this->runtime->exec(RT_ID, ['true']))
         ->toThrow(SandboxException::class, 'Runtime has no room for the sandbox right now (trial already running: at most 8 trial sandboxes run at once). Try again in a moment.');
 
-    Http::assertSentCount(4);
+    Http::assertSentCount(7);
     Log::shouldHaveReceived('warning')->withArgs(fn (string $message, array $context) => $context['code'] === 'trial_busy' && $context['request_id'] === 'req_123');
 })->group('SBX-003');
 
@@ -490,4 +490,29 @@ test('pruning does nothing before the image is built', function () {
 
     expect($this->runtime->pruneImages())->toBe([]);
     Http::assertSentCount(1);
+})->group('SBX-003');
+
+test('a command a busy sandbox refused goes again when Runtime says, with the same idempotency key', function () {
+    Sleep::fake();
+    Http::fake([RT_API.'/sandboxes/'.RT_ID.':exec' => Http::sequence()
+        ->push(runtimeError('guest_busy', 503, 'The sandbox is running as many commands as it can at once. Nothing ran.'), 503, ['Retry-After' => '2'])
+        ->push(runtimeError('guest_busy', 503), 503, ['Retry-After' => '600'])
+        ->push(['exitCode' => 0, 'stdout' => 'ok', 'stderr' => '', 'timedOut' => false])]);
+
+    expect($this->runtime->exec(RT_ID, ['true'])->output)->toBe('ok');
+
+    $keys = Http::recorded()->map(fn (array $pair) => $pair[0]->header('Idempotency-Key')[0]);
+    expect($keys)->toHaveCount(3)->and($keys->unique())->toHaveCount(1);
+    // Retry-After, but never longer than the limit.
+    Sleep::assertSequence([Sleep::for(2000)->milliseconds(), Sleep::for(RuntimeSandboxProvider::MAX_RETRY_WAIT_MS)->milliseconds()]);
+})->group('SBX-003');
+
+test('a sandbox that stays busy says so in plain words', function () {
+    Sleep::fake();
+    Http::fake([RT_API.'/sandboxes/'.RT_ID.':exec' => Http::response(runtimeError('guest_busy', 503, 'The sandbox is running as many commands as it can at once. Nothing ran.'), 503, ['Retry-After' => '1'])]);
+
+    expect(fn () => $this->runtime->exec(RT_ID, ['true']))
+        ->toThrow(SandboxException::class, 'The sandbox is busy running other commands. Try again in a moment.');
+
+    Http::assertSentCount(7);
 })->group('SBX-003');
