@@ -57,7 +57,9 @@ class AppServiceProvider extends ServiceProvider
                 'runtime' => fn () => new RuntimeSandboxProvider(config('sandbox.providers.runtime')),
                 // Only for projects moved to a computer (DESK-010); never an install's provider for new projects.
                 'device' => fn () => new DeviceSandboxProvider([
-                    ...config('sandbox.providers.device'),
+                    'image' => config('sandbox.providers.device.image'),
+                    'relay_url' => config('sandbox.providers.device.relay_url'),
+                    'timeout' => config('sandbox.providers.device.timeout'),
                     'gateway_domain' => config('sandbox.gateway_domain'),
                     'gateway_secret' => config('sandbox.gateway_secret'),
                 ]),

@@ -75,7 +75,7 @@ class DesktopTunnelController extends Controller
         return response()->json([
             'url' => $device ? null : $tunnel->url($sandbox, $ticket),
             'ticket' => $ticket,
-            'hosts' => $purpose === 'network' ? array_values($project->network_hosts ?? []) : null,
+            'hosts' => $purpose === 'network' ? $project->network_hosts ?? [] : null,
             'device' => $device ? ['id' => $device['device'], 'container' => $device['container']] : null,
         ])->header('Cache-Control', 'no-store');
     }

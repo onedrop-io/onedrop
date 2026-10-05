@@ -55,7 +55,7 @@ class ProjectComputerController extends Controller
             'running' => $running,
             // Not while it moves: the move's own commands come first, and the panel asks every few seconds then.
             'ports' => $running && ! $moving ? $this->ports($inspector, $project) : [],
-            'network_hosts' => array_values($project->network_hosts ?? []),
+            'network_hosts' => $project->network_hosts ?? [],
             'device' => $project->device_id ? [
                 'id' => $project->device_id,
                 'name' => DeviceSandboxProvider::name($project->device_id),
@@ -74,7 +74,7 @@ class ProjectComputerController extends Controller
     {
         Gate::authorize('update', $project);
 
-        $validated = $request->validate([
+        $request->validate([
             'hosts' => ['present', 'array', 'max:'.self::MAX_HOSTS],
             // A name or address, without a scheme or path: "db.internal", "10.0.0.5", "[fd00::1]".
             'hosts.*.host' => ['required', 'string', 'max:253', 'regex:/^(\[[0-9a-fA-F:]+\]|[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?)$/'],
@@ -83,7 +83,7 @@ class ProjectComputerController extends Controller
             'hosts.*.host.regex' => __('Use a name or address, like db.internal or 10.0.0.5, without http:// or a path.'),
         ]);
 
-        $hosts = collect($validated['hosts'])
+        $hosts = $request->collect('hosts')
             ->map(fn (array $host): array => ['host' => strtolower($host['host']), 'port' => (int) $host['port']])
             ->unique(fn (array $host): string => "{$host['host']}:{$host['port']}")
             ->values()
