@@ -117,6 +117,8 @@ jobs:
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: '8.4'
+          # Windows' PHP leaves out extensions the lock file needs.
+          extensions: fileinfo, sockets
           tools: composer:v2
           coverage: none
 
