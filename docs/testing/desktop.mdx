@@ -6,6 +6,11 @@ noindex: true
 
 The Pest suite checks the server's side (tickets, the gateway, the device provider against a fake relay), `tests/Unit/TunnelScriptTest.php` the sandbox's tunnel, `device-relay.test.mjs` the Worker's relay and `cargo test` the app's pure parts. Nothing there runs them together. Use a build of the app (`npm run desktop:dev`) signed in to the install you're testing; projects on a computer need an install whose gateway is the Cloudflare Worker (staging or onedrop.io), with the Worker deployed with `DEVICE_RELAY`.
 
+## Installing a release (DESK-004)
+
+- [ ] On an Apple Silicon Mac, download `OneDrop-mac-apple-silicon.dmg` from onedrop.io in a browser and drag OneDrop to Applications. Opening it asks once (System Settings → Privacy & Security → **Open Anyway**), and never says it's "damaged". Until the Apple secrets exist, `codesign --verify --deep --strict /Applications/OneDrop.app` passes and shows `Signature=adhoc`.
+- [ ] The Intel `.dmg`, the Windows installer and the Linux `.AppImage` / `.deb` install and open.
+
 ## This computer panel (DESK-006)
 
 - [ ] In a browser, **Tools → This computer** explains what the app does and offers the download for your system and **Open in the desktop app**.
