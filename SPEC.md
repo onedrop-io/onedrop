@@ -1402,6 +1402,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Organization owners and admins should be able to connect the organization's own account for each hosting provider (Fly.io, Cloudflare, Neon, Upstash) in Settings → Organization, under Hosting, with its keys stored encrypted and never shown again (blank keeps the saved key).
 - When the organization connected its own account for a provider, new things for its apps should be made there and billed to it by the provider; otherwise they use the install's account (ADMIN-007), if it's turned on. Things already made stay in the account they were made in.
 - User should see for each provider whether it's connected, uses OneDrop's account, or isn't set up, and how many things of its apps are in its own account.
+- User should see each provider's logo beside its name, here and in Admin → Hosting.
 - Disconnecting an account should never delete anything in it, and isn't allowed while its apps still have something there (delete their hosted data first).
 
 ## HOST-004: See what the hosted app is missing

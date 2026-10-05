@@ -13,6 +13,7 @@ import OrganizationController from '@/actions/App/Http/Controllers/OrganizationC
 import OrganizationHostingController from '@/actions/App/Http/Controllers/OrganizationHostingController';
 import OrganizationMemberController from '@/actions/App/Http/Controllers/OrganizationMemberController';
 import Heading from '@/components/heading';
+import HostingProviderLogo from '@/components/hosting-provider-logo';
 import InputError from '@/components/input-error';
 import { OrganizationMark } from '@/components/organization-mark';
 import { Badge } from '@/components/ui/badge';
@@ -393,38 +394,44 @@ function HostingAccountRow({
             data-test={`organization-hosting-${account.name}`}
         >
             <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0 space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-medium">{account.label}</p>
-                        {account.connected ? (
-                            <Badge>Connected</Badge>
-                        ) : (
-                            <span className="text-sm text-muted-foreground">
-                                {account.platform
-                                    ? "Using OneDrop's account"
-                                    : 'Not set up'}
-                            </span>
+                <div className="flex min-w-0 items-start gap-3">
+                    <HostingProviderLogo provider={account.name} />
+                    <div className="min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-medium">{account.label}</p>
+                            {account.connected ? (
+                                <Badge>Connected</Badge>
+                            ) : (
+                                <span className="text-sm text-muted-foreground">
+                                    {account.platform
+                                        ? "Using OneDrop's account"
+                                        : 'Not set up'}
+                                </span>
+                            )}
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                            {account.description}
+                            {account.services > 0 &&
+                                ` · ${account.services} ${account.services === 1 ? 'thing' : 'things'} in this account`}
+                        </p>
+                        {account.connected && account.missing.length > 0 && (
+                            <p className="text-sm text-amber-600 dark:text-amber-400">
+                                Needs{' '}
+                                {account.missing
+                                    .map(
+                                        (key) =>
+                                            account.fields
+                                                .find(
+                                                    (field) =>
+                                                        field.key === key,
+                                                )
+                                                ?.label.toLowerCase() ?? key,
+                                    )
+                                    .join(' and ')}
+                                .
+                            </p>
                         )}
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                        {account.description}
-                        {account.services > 0 &&
-                            ` · ${account.services} ${account.services === 1 ? 'thing' : 'things'} in this account`}
-                    </p>
-                    {account.connected && account.missing.length > 0 && (
-                        <p className="text-sm text-amber-600 dark:text-amber-400">
-                            Needs{' '}
-                            {account.missing
-                                .map(
-                                    (key) =>
-                                        account.fields
-                                            .find((field) => field.key === key)
-                                            ?.label.toLowerCase() ?? key,
-                                )
-                                .join(' and ')}
-                            .
-                        </p>
-                    )}
                 </div>
                 <div className="flex items-center gap-2">
                     {!open && (

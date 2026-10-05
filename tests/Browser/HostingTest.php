@@ -43,6 +43,7 @@ test('an admin sets up Fly.io, then publishes an app to hosting and sees it live
         ->click('@settings-link')
         ->click('[data-test="settings-modal"] a:has-text("Hosting")')
         ->assertPathIs('/admin/hosting')
+        ->assertPresent('[data-test="hosting-fly-item"] [data-test="hosting-logo-fly"]')
         ->click('@hosting-fly-select')
         ->assertSeeIn('@hosting-fly', 'Apps with a server')
         ->fill('#fly-api_token', 'fly-token')

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import HostingProviderController from '@/actions/App/Http/Controllers/Admin/HostingProviderController';
 import Heading from '@/components/heading';
+import HostingProviderLogo from '@/components/hosting-provider-logo';
 import InputError from '@/components/input-error';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -92,6 +93,10 @@ export default function Hosting({ providers }: { providers: Provider[] }) {
                                 )}
                                 data-test={`hosting-${item.name}-item`}
                             >
+                                <HostingProviderLogo
+                                    provider={item.name}
+                                    className="mr-2 size-8"
+                                />
                                 <button
                                     type="button"
                                     onClick={() => setSelected(item.name)}
