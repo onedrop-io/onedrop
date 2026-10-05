@@ -326,3 +326,32 @@ test("a preview whose computer is away says so in words, with the computer's nam
         /runs on Ada’s &lt;MacBook&gt;\. It’s back as soon as the OneDrop app is open there\./,
     );
 });
+
+test("a tunnel's answer is never cached, so it can't let in someone without a cookie", async () => {
+    const allowed = () =>
+        new Response(null, {
+            status: 200,
+            headers: { 'X-OneDrop-Upstream': 'https://abc.preview.bl.run' },
+        });
+
+    const { store, sent } = await run(
+        'https://preview-12.onedrop.io/__onedrop/tunnel?ticket=abc',
+        allowed,
+    );
+
+    assert.equal(store.size, 0);
+    assert.ok(
+        sent.some((request) =>
+            request.url.startsWith(
+                'https://onedrop.io/sandbox-gateway/authorize',
+            ),
+        ),
+    );
+
+    // An ordinary request with a cookie is still cached.
+    const page = await run('https://preview-12.onedrop.io/', allowed, {
+        cookie: 'pass',
+    });
+
+    assert.equal(page.store.size, 1);
+});

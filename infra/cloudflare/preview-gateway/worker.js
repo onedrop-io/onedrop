@@ -152,10 +152,13 @@ export function waitingForComputer(computer) {
 async function authorize(request, env, ctx, url) {
     const host = url.hostname;
     const cookie = readCookie(request.headers.get('Cookie'), COOKIE);
+    // The desktop app's tunnel (DESK-007..009) is let in by a ticket in its address, not a cookie: its answer is for
+    // that one request, and must never stand for everyone without a cookie.
+    const tunnel = url.pathname === '/__onedrop/tunnel';
     const key = new Request(
         `https://gateway-auth.internal/${host}/${cookie ? await sha256(cookie) : 'public'}`,
     );
-    const cached = await caches.default.match(key);
+    const cached = tunnel ? null : await caches.default.match(key);
 
     if (cached) {
         return cached;
@@ -169,7 +172,7 @@ async function authorize(request, env, ctx, url) {
         url.pathname + url.search,
     );
 
-    if (answer.status === 200) {
+    if (answer.status === 200 && !tunnel) {
         const keep = new Response(null, {
             status: 200,
             headers: answer.headers,
