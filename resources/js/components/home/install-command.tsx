@@ -2,8 +2,14 @@ import { Check, Copy } from 'lucide-react';
 import { useState } from 'react';
 import { useClipboard } from '@/hooks/use-clipboard';
 
-/** A shell command in a terminal-style box, with a copy button. */
-export function InstallCommand({ command }: { command: string }) {
+/** A shell command in a terminal-style box, with a copy button; `name` tells one box from another for tests. */
+export function InstallCommand({
+    command,
+    name = 'install-command',
+}: {
+    command: string;
+    name?: string;
+}) {
     const [, copyText] = useClipboard();
     const [copied, setCopied] = useState(false);
 
@@ -20,7 +26,7 @@ export function InstallCommand({ command }: { command: string }) {
         <div className="flex items-start gap-3 rounded-xl bg-black/40 py-2 pr-2 pl-4 ring-1 ring-white/10">
             <code
                 className="min-w-0 flex-1 py-2 font-mono text-sm leading-relaxed text-[#F5EFEA]"
-                data-test="install-command"
+                data-test={name}
             >
                 <span aria-hidden="true" className="text-[#7D7068]">
                     ${' '}
@@ -37,7 +43,7 @@ export function InstallCommand({ command }: { command: string }) {
                 type="button"
                 onClick={copy}
                 className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-[#B3A69C] transition-colors hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-[#FF9A5C] focus-visible:outline-none"
-                data-test="copy-install-command"
+                data-test={`copy-${name}`}
             >
                 {copied ? (
                     <Check aria-hidden="true" className="size-4" />

@@ -78,6 +78,12 @@ class HandleInertiaRequests extends Middleware
             'realtime' => $this->realtime(),
             // What they picked on the home page, shown beside signing up and on the AI onboarding until the new-project page takes it (HOME-004).
             'pendingStart' => fn () => $this->pendingStart($request),
+            // The sidebar offers the desktop app (DESK-005) once they've built something, until it's signed in anywhere (so never inside it).
+            'offerDesktopApp' => fn () => $request->user() !== null
+                && ! $request->user()->tokens()->exists()
+                && $request->user()->projects()->exists(),
+            // Projects offer "Open in the desktop app" once it's signed in somewhere (DESK-011).
+            'desktopAppSignedIn' => fn () => $request->user()?->tokens()->exists() ?? false,
         ];
     }
 

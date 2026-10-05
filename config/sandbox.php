@@ -68,6 +68,16 @@ return [
             'preview_visibility' => env('RUNTIME_PREVIEW_VISIBILITY', 'private'),
         ],
 
+        // A user's own computer (DESK-010): the desktop app runs the sandbox in its Docker, reached through the preview
+        // gateway Worker's device relay. Only offered when the gateway runs on Cloudflare (SANDBOX_GATEWAY_SECRET).
+        'device' => [
+            'image' => env('SANDBOX_DEVICE_IMAGE', 'ghcr.io/onedrop-io/onedrop-sandbox:latest'),
+            // Where the Worker serves the relay; relay.<gateway domain> unless set.
+            'relay_url' => env('SANDBOX_DEVICE_RELAY_URL'),
+            // How long the app waits on the computer for one call (exec runs up to the same limit as elsewhere).
+            'timeout' => (int) env('SANDBOX_DEVICE_TIMEOUT', 130),
+        ],
+
         // Blaxel (blaxel.ai). The image is docker/sandbox plus docker/sandbox/blaxel, pushed by `php artisan sandbox:build-image`.
         'blaxel' => [
             'api_key' => env('BL_API_KEY'),
@@ -129,6 +139,9 @@ return [
 
     // SSH server for Tools → Developer → SSH (key-only logins as the sandbox user).
     'ssh_port' => (int) env('SANDBOX_SSH_PORT', 2222),
+
+    // The desktop app's tunnel into the sandbox (docker/sandbox/tunnel.mjs, DESK-007..009), reached through the proxy.
+    'tunnel_port' => (int) env('SANDBOX_TUNNEL_PORT', 7682),
 
     /*
     |--------------------------------------------------------------------------

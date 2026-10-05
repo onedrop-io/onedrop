@@ -16,6 +16,7 @@ final readonly class SandboxSpec
      * @param  int|null  $sshPort  the port the SSH server listens on, if any
      * @param  string|null  $storageKey  stable per-project key for files kept outside the sandbox (App Storage), if any
      * @param  string|null  $claudeLoginKey  stable per-user key for Claude Code's sign-in, shared by that user's sandboxes, if any
+     * @param  int|null  $deviceId  the computer (desktop app sign-in) to run it on, for the device provider (DESK-010)
      */
     public function __construct(
         public string $name,
@@ -26,5 +27,6 @@ final readonly class SandboxSpec
         public ?int $sshPort = null,
         public ?string $storageKey = null,
         public ?string $claudeLoginKey = null,
+        public ?int $deviceId = null,
     ) {}
 }

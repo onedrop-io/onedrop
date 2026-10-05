@@ -11,6 +11,8 @@ class ExampleTest extends TestCase
 
     public function test_returns_a_successful_response()
     {
+        config(['app.multi_tenant' => true]);
+
         $response = $this->get(route('home'));
 
         $response->assertOk();

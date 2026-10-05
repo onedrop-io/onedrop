@@ -16,7 +16,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["image-png", "tray-icon"] }
 tauri-plugin-opener = "2"
 tauri-plugin-notification = "2"
 tauri-plugin-process = "2"
@@ -34,6 +34,40 @@ base64 = "0.22"
 rand = "0.8"
 url = "2"
 whoami = "1"
+# Tunnels, the device relay and the menu bar (DESK-007..011).
+tauri-plugin-dialog = "2"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-deep-link = "2"
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
+tokio = { version = "1", features = [
+    "net",
+    "io-util",
+    "io-std",
+    "process",
+    "sync",
+    "time",
+    "macros",
+    "rt-multi-thread",
+] }
+tokio-tungstenite = { version = "0.30", features = ["rustls-tls-native-roots"] }
+futures-util = { version = "0.3", default-features = false, features = [
+    "sink",
+    "std",
+] }
+bytes = "1"
+reqwest = { version = "0.13", default-features = false, features = [
+    "rustls-no-provider",
+    "json",
+    "stream",
+] }
+rustls = { version = "0.23", default-features = false, features = [
+    "ring",
+    "std",
+    "tls12",
+] }
+rustls-platform-verifier = "0.7"
+ssh-key = { version = "0.6", features = ["ed25519", "rand_core", "std"] }
+dirs = "7"
 
 [profile.release]
 codegen-units = 1

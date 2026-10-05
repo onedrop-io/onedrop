@@ -204,7 +204,7 @@ class AgentQueue
 
         // A task's first run (or its first since it was applied) makes its own copy of the app first (TASK-003).
         if ($conversation instanceof Task && $conversation->needsCopy()) {
-            $conversation->sandbox()->updateOrCreate([], ['provider' => config('sandbox.provider'), 'status' => SandboxStatus::Creating, 'external_id' => null, 'error' => null]);
+            $conversation->sandbox()->updateOrCreate([], ['provider' => $conversation->project->sandboxProvider(), 'status' => SandboxStatus::Creating, 'external_id' => null, 'error' => null]);
 
             Bus::chain([
                 new ForkTaskSandbox($conversation),

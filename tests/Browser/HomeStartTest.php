@@ -6,6 +6,7 @@ use Database\Seeders\DatabaseSeeder;
 use Illuminate\Support\Facades\Http;
 
 beforeEach(function () {
+    config(['app.multi_tenant' => true]);
     $this->seed(DatabaseSeeder::class);
     AgentConnection::factory()->for(User::where('email', 'dev@example.com')->sole())->create();
 });

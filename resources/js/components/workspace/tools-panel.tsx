@@ -8,6 +8,7 @@ import {
     HardDrive,
     Image as ImageIcon,
     KeyRound,
+    Laptop,
     TrendingUp,
     Plug,
     Rocket,
@@ -19,6 +20,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import AuthPanel from '@/components/workspace/auth-panel';
+import ComputerPanel from '@/components/workspace/computer-panel';
 import DatabasePanel from '@/components/workspace/database-panel';
 import DemoPanel from '@/components/workspace/demo-panel';
 import DomainsPanel from '@/components/workspace/domains-panel';
@@ -159,6 +161,13 @@ const GROUPS: { label: string; sections: Section[] }[] = [
                 icon: CodeXml,
                 description:
                     "Networking, resources and SSH access for your app's sandbox.",
+            },
+            {
+                id: 'computer',
+                label: 'This computer',
+                icon: Laptop,
+                description:
+                    'Its ports on your computer, your editor, your network, and running it on your computer, in the desktop app.',
             },
         ],
     },
@@ -312,6 +321,11 @@ export default function ToolsPanel({
                         <IconPanel projectId={projectId} running={running} />
                     ) : section.id === 'developer' ? (
                         <DeveloperPanel
+                            projectId={projectId}
+                            running={running}
+                        />
+                    ) : section.id === 'computer' ? (
+                        <ComputerPanel
                             projectId={projectId}
                             running={running}
                         />

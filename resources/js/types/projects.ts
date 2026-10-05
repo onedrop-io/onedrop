@@ -10,6 +10,8 @@ export type Project = {
     track_requirements: boolean;
     /** A message that failed because Claude Code wasn't signed in waits to run again (AI-005); workspace only. */
     waiting_for_sign_in?: boolean;
+    /** Its SSH name for opening it in an editor from the desktop app (DESK-008); null unless the user owns it. Workspace only. */
+    editor_alias?: string | null;
 };
 
 export type ProjectSummary = Pick<Project, 'id' | 'name'>;

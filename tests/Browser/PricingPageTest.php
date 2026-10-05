@@ -3,6 +3,11 @@
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 
+// Only the hosted install has the home page (HOME-005).
+beforeEach(function () {
+    config(['app.multi_tenant' => true]);
+});
+
 test('a visitor compares plans and switches between yearly and monthly prices', function () {
     visit('/')
         ->click('Pricing')

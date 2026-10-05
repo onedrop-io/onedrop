@@ -40,6 +40,8 @@ const RESERVED_PORTS = new Set(
         listenPort,
         process.env.SHELL_PORT || 7681,
         process.env.SSH_PORT || 2222,
+        process.env.TUNNEL_PORT || 7682,
+        process.env.TUNNEL_PROXY_PORT || 7690,
         process.env.ONEDROP_TESTS_UI_PORT || 9323,
         process.env.ONEDROP_BROWSER_PORT || 9331,
         // The debugging ports browser.mjs gives the test's browser.
@@ -1498,6 +1500,11 @@ function upgradeTestsUi(req, socket, head) {
     socket.on('close', () => clearInterval(keepAlive));
 }
 
+// The desktop app's tunnel (tunnel.mjs, DESK-007..009): WebSockets only, passed on as they came; the tunnel checks
+// their tickets itself.
+const TUNNEL_PATH = '/__onedrop/tunnel';
+const TUNNEL_PORT = Number(process.env.TUNNEL_PORT || 7682);
+
 // The browser's viewer (browser.mjs, TEST-005) under /__onedrop/browser/, on the preview's address only. It's shown
 // in an iframe in the workspace, where a cookie from this address wouldn't be sent, so every request (the page and
 // its socket) carries the browser's token in the query instead, and is checked each time.
@@ -1593,6 +1600,13 @@ function serveBrowser(req, res) {
 
 const server = http.createServer((req, res) => {
     const path = String(req.url ?? '').split('?')[0];
+
+    if (path === TUNNEL_PATH) {
+        res.writeHead(404);
+        res.end();
+
+        return;
+    }
 
     if (isTestsUi(path)) {
         serveTestsUi(req, res);
@@ -1699,6 +1713,12 @@ function connectUpgrade(req, socket, head, port, path, headers) {
 }
 
 server.on('upgrade', (req, socket, head) => {
+    if (String(req.url ?? '').split('?')[0] === TUNNEL_PATH) {
+        connectUpgrade(req, socket, head, TUNNEL_PORT, req.url, req.headers);
+
+        return;
+    }
+
     if (isTestsUi(String(req.url ?? '').split('?')[0])) {
         upgradeTestsUi(req, socket, head);
 

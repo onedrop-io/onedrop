@@ -41,7 +41,7 @@ jobs:
         run: composer ci:check
 
       - name: Cloudflare preview gateway (Worker) tests
-        run: node --test infra/cloudflare/preview-gateway/worker.test.mjs
+        run: node --test infra/cloudflare/preview-gateway/worker.test.mjs infra/cloudflare/preview-gateway/device-relay.test.mjs
 
       - name: Upload browser test screenshots
         if: failure()

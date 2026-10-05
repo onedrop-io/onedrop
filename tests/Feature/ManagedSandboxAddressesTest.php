@@ -60,7 +60,7 @@ test('docker projects keep their published addresses', function () {
 test('the ssh panel explains that runtime sandboxes have no ssh address', function () {
     $this->actingAs($this->user)->getJson(route('projects.developer.ssh', $this->project))
         ->assertOk()
-        ->assertJsonPath('unavailable', "SSH isn't available on this server yet. Use the Shell tab to run commands in the sandbox.");
+        ->assertJsonPath('unavailable', 'To open it in VS Code or Cursor, use the desktop app: Tools → This computer. Or use the Shell tab to run commands in the sandbox.');
 })->group('SBX-003');
 
 test('the image is built on runtime with the key in the environment, not the command line', function () {
@@ -100,7 +100,7 @@ test('the ssh panel explains that blaxel sandboxes have no ssh address', functio
 
     $this->actingAs($this->user)->getJson(route('projects.developer.ssh', $this->project))
         ->assertOk()
-        ->assertJsonPath('unavailable', "SSH isn't available on this server yet. Use the Shell tab to run commands in the sandbox.");
+        ->assertJsonPath('unavailable', 'To open it in VS Code or Cursor, use the desktop app: Tools → This computer. Or use the Shell tab to run commands in the sandbox.');
 })->group('SBX-004');
 
 test('the blaxel image is docker/sandbox plus the blaxel steps, pushed with the key in the environment', function () {

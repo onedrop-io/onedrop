@@ -5,11 +5,20 @@ compatibility_date = "2026-09-01"
 
 # Every name under the wildcard reaches the Worker; it only handles preview-<id>, shell-<id> and published apps.
 # The catch-all route also brings it custom domains (Cloudflare for SaaS custom hostnames, DOM-001); the app's own
-# host passes straight through.
+# host passes straight through. relay.onedrop.io (the device relay, DESK-010) is under the wildcard too.
 routes = [
     { pattern = "*.onedrop.io/*", zone_name = "onedrop.io" },
     { pattern = "*/*", zone_name = "onedrop.io" },
 ]
+
+# The device relay: one Durable Object per computer that the desktop app keeps a WebSocket open to (DESK-010).
+[[durable_objects.bindings]]
+name = "DEVICE_RELAY"
+class_name = "DeviceRelay"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["DeviceRelay"]
 
 [vars]
 APP_URL = "https://onedrop.io"

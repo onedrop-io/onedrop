@@ -33,6 +33,7 @@ import { SiteFooter } from '@/components/home/site-footer';
 import { SiteHeader } from '@/components/home/site-header';
 import { SparklesText } from '@/components/home/sparkles-text';
 import { StartSection } from '@/components/home/start-section';
+import { WaysToUseSection } from '@/components/home/ways-to-use-section';
 import { dashboard, register } from '@/routes';
 import type { AppTemplate, CatalogTemplate, FeaturedApp } from '@/types';
 
@@ -196,8 +197,8 @@ const INTEGRATIONS = [
 
 const STEPS = [
     {
-        title: 'Connect your AI',
-        body: 'Use your Claude Pro or Max plan or your ChatGPT Plus or Pro plan, or paste a key from Anthropic, OpenAI, Google, OpenRouter, or Ollama. It takes a minute, and you only do it once.',
+        title: 'Sign up free',
+        body: 'Start building on free AI credits, no AI account needed. Connect your Claude Pro or Max or ChatGPT Plus or Pro plan, or a key from Anthropic, OpenAI, Google, OpenRouter, or Ollama, whenever you like.',
     },
     {
         title: 'Say what you need',
@@ -209,19 +210,19 @@ const STEPS = [
     },
     {
         title: 'Share it',
-        body: 'Click Publish for an instant link on your team’s private Tailscale network. Flip it public when you’re ready.',
+        body: 'Click Publish for a live link: public on our hosting or your own domain, or private on your team’s Tailscale network.',
     },
 ];
 
 const COMPARISON = [
     {
         topic: 'Where your apps and data live',
-        us: 'Your laptop or your servers',
+        us: 'Our hosting, your cloud accounts, or your own servers',
         them: 'Their cloud',
     },
     {
         topic: 'How you pay for AI',
-        us: 'Your own plan or key, at cost',
+        us: 'Free credits to start, then your own plan or key, at cost',
         them: 'Their credits, with a markup',
     },
     {
@@ -231,7 +232,7 @@ const COMPARISON = [
     },
     {
         topic: 'What it costs',
-        us: 'Free to self-host',
+        us: 'Free to start. Free to self-host.',
         them: 'Another monthly plan',
     },
     {
@@ -247,8 +248,12 @@ const FAQS = [
         answer: 'No. If you can describe what you want to a coworker, you can build it here. Developers can still open the files and terminal whenever they like.',
     },
     {
+        question: 'Do I have to install anything?',
+        answer: `No. ${BRAND} works in your browser: sign up and start building. There’s a desktop app if you’d like it in a window of its own, and you can self-host the whole thing on your laptop or your own server.`,
+    },
+    {
         question: 'Which AI does it use?',
-        answer: 'Yours. Use your Claude Pro or Max plan or your ChatGPT Plus or Pro plan, paste an Anthropic, OpenAI, Gemini, or Ollama API key, or sign in with OpenRouter for hundreds of other models. You pay your provider directly, with no markup.',
+        answer: 'You start on free AI credits, so you don’t need an AI account to try it. Then use yours: your Claude Pro or Max plan or your ChatGPT Plus or Pro plan, an Anthropic, OpenAI, Gemini, or Ollama API key, or OpenRouter for hundreds of other models. You pay your provider directly, with no markup.',
     },
     {
         question: 'Is it really ready for production?',
@@ -256,7 +261,7 @@ const FAQS = [
     },
     {
         question: 'Where do my apps run?',
-        answer: `Wherever you run ${BRAND}: your own computer, or a server you control. One script installs it on any Ubuntu server, and there’s a ready-made setup for AWS.`,
+        answer: `While you build, in a private sandbox of its own. When you publish, on our hosting, your own Fly.io and Cloudflare accounts, your own domain, or your team’s Tailscale network. Self-host ${BRAND} and it all runs on your laptop or your own servers instead.`,
     },
     {
         question: 'Who can see what I build?',
@@ -264,7 +269,7 @@ const FAQS = [
     },
     {
         question: 'What does it cost?',
-        answer: `Self-hosting ${BRAND} is free: the code is source available, so you only pay your AI provider directly and for your own servers. Want us to host it? Cloud plans start at $16 a month, with no markup on your own AI and credits included if you don’t have any. See the pricing page for details.`,
+        answer: `Signing up is free and comes with AI credits to build with. Paid plans start at $16 a month, with no markup on your own AI and more credits included. Self-hosting ${BRAND} is free: the code is source available, so you only pay your AI provider and for your own servers. See the pricing page for details.`,
     },
     {
         question: 'What if the AI gets something wrong?',
@@ -924,14 +929,21 @@ export default function Welcome({
                                     </a>
                                 </div>
                                 <p className="mt-4 text-sm text-[#B3A69C]">
+                                    Free to start, no AI account needed. Or{' '}
+                                    <a
+                                        href="#desktop"
+                                        className="text-[#FF9A5C] underline-offset-4 hover:underline"
+                                    >
+                                        get the desktop app
+                                    </a>
+                                    , or{' '}
                                     <a
                                         href="#install"
                                         className="text-[#FF9A5C] underline-offset-4 hover:underline"
                                     >
-                                        Free to self-host
+                                        self-host it free
                                     </a>
-                                    . Source available. Bring your own
-                                    subscription. Deploy anywhere.
+                                    .
                                 </p>
                             </div>
 
@@ -967,6 +979,8 @@ export default function Welcome({
                         compose={compose}
                     />
 
+                    <WaysToUseSection isLoggedIn={isLoggedIn} />
+
                     <section className="bg-[#151110]">
                         <div className="mx-auto max-w-6xl px-6 py-24">
                             <h2 className="max-w-2xl font-display text-3xl font-bold tracking-[-0.02em] sm:text-4xl">
@@ -984,7 +998,7 @@ export default function Welcome({
                                     },
                                     {
                                         quote: '“The AI prototype looked great. Then IT asked where it would run.”',
-                                        body: `Prototype builders stop at the demo. ${BRAND} writes real, tested code and runs it on your own servers, so there’s no wall between the demo and done.`,
+                                        body: `Prototype builders stop at the demo. ${BRAND} writes real, tested code and runs it on our hosting, your cloud or your own servers, so there’s no wall between the demo and done.`,
                                     },
                                 ].map((pain) => (
                                     <figure
@@ -1091,21 +1105,22 @@ export default function Welcome({
                                     className="size-8 text-[#FF9A5C]"
                                 />
                                 <h2 className="mt-6 font-display text-3xl font-bold tracking-[-0.02em] sm:text-4xl">
-                                    Your apps. Your servers. Your AI.
+                                    Your apps. Your AI. No lock-in.
                                 </h2>
                                 <p className="mt-5 text-lg leading-relaxed text-[#B3A69C]">
-                                    Hosted builders rent you a workspace on
-                                    their cloud and resell you AI credits.{' '}
-                                    {BRAND} runs on your laptop or your own
-                                    server and builds on your own AI plan or
-                                    key, so your apps, your data, and your bill
-                                    stay yours.
+                                    Hosted builders keep your app on their cloud
+                                    and resell you AI credits. {BRAND} starts
+                                    you on free credits, then builds on your own
+                                    AI plan or key at cost, and runs your apps
+                                    on our hosting, your cloud accounts, or your
+                                    own servers. Want it all in-house? Self-host
+                                    it.
                                 </p>
                                 <a
                                     href="#install"
                                     className="mt-8 inline-flex items-center gap-2 rounded-xl px-5 py-3 font-semibold text-[#F5EFEA] ring-1 ring-[#3A302B] hover:bg-[#151110]"
                                 >
-                                    Install it in one command
+                                    Self-host it in one command
                                     <ArrowDown
                                         aria-hidden="true"
                                         className="size-4 text-[#FF9A5C]"
@@ -1155,9 +1170,9 @@ export default function Welcome({
                         </div>
                     </section>
 
-                    <InstallSection />
-
                     <DesktopSection />
+
+                    <InstallSection />
 
                     <section
                         id="faq"
@@ -1220,6 +1235,11 @@ export default function Welcome({
                                         ? 'Open your dashboard'
                                         : 'Build your first app'}
                                 </Link>
+                                {!isLoggedIn && (
+                                    <p className="mt-4 text-sm text-[#FFE1D1]">
+                                        Free to start. No AI account needed.
+                                    </p>
+                                )}
                             </div>
                         </div>
                     </section>

@@ -3,6 +3,11 @@
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 
+// Only the hosted install has the home page (HOME-005).
+beforeEach(function () {
+    config(['app.multi_tenant' => true]);
+});
+
 test('a visitor reads the home page and goes to sign up', function () {
     visit('/')
         ->assertSee('for production.')
@@ -50,7 +55,7 @@ test('a visitor reads the home page and goes to sign up', function () {
 
 test('a visitor picks where to install and copies the command', function () {
     visit('/')
-        ->assertSee('Install it in one command')
+        ->assertSee('Self-host it in one command')
         ->assertSee('Create your account')
         ->assertSee('5 GB of free disk')
         ->click('@install-tab-server')
@@ -152,7 +157,8 @@ test('Droppy offers hints, points at an easter egg, and cheers when one is found
 
 test('a visitor downloads the desktop app for their system or any other', function () {
     visit('/')
-        ->assertSee('Or use it from your desktop')
+        ->assertSee('The desktop app')
+        ->assertSee('or with the address of a OneDrop your team runs')
         // For the browser's own system: the tests run on Macs and on Linux.
         ->assertSeeIn('@desktop-download', PHP_OS_FAMILY === 'Darwin' ? 'Download for Mac' : 'Download for Linux')
         ->assertAttribute('@desktop-download-mac-apple-silicon', 'href', 'https://github.com/onedrop-io/onedrop/releases/download/desktop-latest/OneDrop-mac-apple-silicon.dmg')
@@ -164,3 +170,21 @@ test('a visitor downloads the desktop app for their system or any other', functi
         ->assertPresent('header a[href="/#desktop"]')
         ->assertNoJavaScriptErrors();
 })->group('HOME-001', 'DESK-004');
+
+test('a visitor sees the three ways to use it and starts in the browser', function () {
+    visit('/')
+        ->assertSee('Free to start, no AI account needed.')
+        ->assertSeeIn('@way-browser', 'Start here')
+        ->assertSeeIn('@way-desktop', 'On your desktop')
+        ->assertSeeIn('@way-self-host', 'On your own servers')
+        ->assertSeeIn('@way-desktop-download', PHP_OS_FAMILY === 'Darwin' ? 'Download for Mac' : 'Download for Linux')
+        ->assertSeeIn('@way-install-command', 'curl -fsSL https://onedrop.io/install | sh')
+        ->assertPresent('[data-test="way-desktop"] a[href="#desktop"]')
+        ->assertPresent('[data-test="way-self-host"] a[href="#install"]')
+        ->assertPresent('header a[href="/#install"]')
+        ->click('Do I have to install anything?')
+        ->assertSee('works in your browser')
+        ->click('[data-test="way-browser"] a[href$="/register"]')
+        ->assertPathIs('/register')
+        ->assertNoJavaScriptErrors();
+})->group('HOME-005');

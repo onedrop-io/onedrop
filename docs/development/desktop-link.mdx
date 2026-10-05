@@ -1,0 +1,112 @@
+---
+title: 'Desktop app: tunnels and devices'
+description: 'How the desktop app reaches sandboxes (ports, SSH, your network) and how the hosted app reaches projects running on a computer.'
+---
+
+The desktop app does four things a browser can't (DESK-007..010): forward a sandbox's ports to `localhost`, open a project in an editor over SSH, let a sandbox reach hosts on the user's network, and run a project's sandbox in the computer's own Docker. Two mechanisms carry all of it:
+
+- **The tunnel**: WebSockets from the desktop app into a sandbox, through the preview's gateway address, to `docker/sandbox/tunnel.mjs`. Used for ports, SSH and the network.
+- **The device relay**: a Durable Object in the preview gateway Worker that the desktop app keeps a WebSocket open to, so the hosted app (and the gateway) can reach a sandbox running on that computer. Used for projects on the computer.
+
+## The tunnel
+
+### In the sandbox
+
+`/opt/onedrop/tunnel.mjs` listens on `127.0.0.1:$TUNNEL_PORT` (7682). `host-proxy.mjs` sends WebSocket upgrades for `/__onedrop/tunnel` to it, and answers anything else on that path with 404. `/opt/onedrop/tunnel ensure` (run by the app with `exec`) writes the key it's given in `$ONEDROP_TUNNEL_KEY` to `~/.onedrop/tunnel-key` (mode 600) and starts `tunnel.mjs` in the background unless it's already running.
+
+### Tickets
+
+The app signs tickets with the sandbox's tunnel key, `HMAC-SHA256(APP_KEY, "tunnel:<sandbox id>:<external id>")` (`DesktopTunnel::key()`), which is never stored:
+
+```
+ticket = base64url(json(payload)) + "." + base64url(hmac_sha256(key, base64url(json(payload))))
+payload = { "p": "forward" | "network", "port": 5432, "exp": 1760000000, "u": 7 }
+```
+
+- `p`: what the ticket is for. `port` is only in `forward` tickets: the sandbox port to connect to (not the tunnel's own).
+- `exp`: Unix seconds. Tickets are checked when the WebSocket opens, and live for 60 seconds.
+- `u`: the user it was issued to (for logs).
+
+The gateway checks the ticket too: `SandboxGatewayController::authorize` lets a request for `/__onedrop/tunnel` on a preview address through without a gateway cookie only when its ticket verifies for that sandbox. A local install has no gateway; the tunnel's own check is what guards it there.
+
+### Forward
+
+`wss://<preview address>/__onedrop/tunnel?ticket=<forward ticket>` connects to `127.0.0.1:<port>` in the sandbox. Binary messages carry the TCP bytes both ways. If the connection fails, the tunnel closes with 1011 and the reason. Either side closing closes the other. One WebSocket per TCP connection.
+
+### Network
+
+`wss://<preview address>/__onedrop/tunnel?ticket=<network ticket>` opens the network control connection. Text messages are JSON:
+
+| From | Message | Meaning |
+| --- | --- | --- |
+| app | `{"type":"hosts","through":"Jeff's MacBook","hosts":[{"host":"db.internal","port":5432}]}` | The hosts this computer will dial. Replaces the last list. |
+| tunnel | `{"type":"listening","hosts":[{"host":"db.internal","port":5432,"address":"127.0.0.1:5432"}],"proxy":"http://127.0.0.1:7690"}` | Where each host is reachable in the sandbox. |
+| tunnel | `{"type":"open","id":"<uuid>","host":"db.internal","port":5432,"token":"<random>"}` | A connection to dial. |
+| app | `{"type":"refused","id":"<uuid>","reason":"..."}` | The app couldn't (or wouldn't) dial it; the tunnel closes the client. |
+
+For each `open`, the app connects to the host and opens `wss://<preview address>/__onedrop/tunnel?dial=<id>&token=<token>`, then pipes binary messages both ways. A dial token is used once and expires after 30 seconds. The tunnel sends WebSocket pings every 25 seconds.
+
+The tunnel gives each host a local port: the host's own port when it's free (and not one of the sandbox's own: the app, proxy, Shell, SSH, the tunnel), else the first free one from 15000. The proxy on 7690 takes `CONNECT host:port` and plain `http://host/` requests for listed hosts only (403 otherwise). It writes `~/.onedrop/network.json`:
+
+```json
+{ "connected": true, "through": "Jeff's MacBook", "proxy": "http://127.0.0.1:7690",
+  "hosts": [{ "host": "db.internal", "port": 5432, "address": "127.0.0.1:5432" }] }
+```
+
+When the control connection closes, the listeners close and `connected` turns false. One control connection at a time: a new one replaces the old.
+
+### The app's side
+
+`POST /api/v1/desktop/projects/{project}/tunnel` with `{"purpose": "forward", "port": 5432}`, `{"purpose": "ssh"}` (a forward to the SSH port, owner only) or `{"purpose": "network"}` returns:
+
+```json
+{ "url": "wss://preview-12.onedrop.io/__onedrop/tunnel?ticket=...", "ticket": "...", "hosts": [...], "device": null }
+```
+
+`hosts` comes with `network`. For a project on a computer, `device` is `{"id": 4, "container": "onedrop-project-9-ab12cd"}` and `url` is null: only that computer can open its tunnel, at `ws://127.0.0.1:<the container's published proxy port>/__onedrop/tunnel?ticket=<ticket>`; any other computer gets a 409. The app makes sure the tunnel is running (`tunnel ensure`, at most every 10 minutes per sandbox) and wakes a sleeping sandbox first.
+
+## The device relay
+
+A computer is a desktop app sign-in: its Sanctum token id is the device id. The relay is the `DeviceRelay` Durable Object in the preview gateway Worker, one per device, at `relay.<gateway domain>`.
+
+### The desktop app's connection
+
+`POST /api/v1/desktop/device` returns `{"id": 4, "name": "Jeff's MacBook", "url": "wss://relay.onedrop.io/__onedrop/devices/4/connect?ticket=...", "image": "ghcr.io/onedrop-io/onedrop-sandbox:latest"}`, or 404 with just `id`, `name` and `message` when the install has no Worker gateway. The ticket is signed like the tunnel's, with `GATEWAY_SECRET` as the key and `{"d": 4, "exp": ...}` as the payload; the Worker checks it. A new connection replaces the old one.
+
+### Requests to the computer
+
+The app calls `https://relay.<domain>/__onedrop/devices/<id>/<path>` with `X-OneDrop-Gateway-Secret`. The gateway forwards previews and Shells of device sandboxes there too: the app's authorize answer has `X-OneDrop-Upstream: device:<id>/<container>:<port>`, which the Worker sends to `/port/<container>/<port><original path>` on that device. With no connection the relay answers 503 `{"error":"offline"}`.
+
+Over the WebSocket, text messages are JSON and binary messages are `[u32 big-endian stream id][u8 kind][payload]`, kind 0 a body chunk, 1 a WebSocket text message, 2 a WebSocket binary message. Chunks are at most 512 KiB.
+
+| From | Message | Meaning |
+| --- | --- | --- |
+| relay | `{"t":"req","id":1,"method":"POST","path":"/rpc/exec","headers":[["content-type","application/json"]],"body":true}` | A request. Its body follows as chunks, then `end`. |
+| app | `{"t":"res","id":1,"status":200,"headers":[...]}` | The response's head. Its body follows as chunks, then `end`. |
+| either | `{"t":"end","id":1}` | The body (request or response) is finished. |
+| either | `{"t":"abort","id":1,"reason":"..."}` | Give up on the stream. |
+| relay | `{"t":"ws","id":2,"path":"/port/<container>/7681/ws","headers":[...]}` | A WebSocket to open. |
+| app | `{"t":"ws-ok","id":2,"protocol":"tty"}` | It's open; messages follow as kinds 1 and 2. A refusal is a `res`. |
+| either | `{"t":"ws-close","id":2,"code":1000,"reason":""}` | It closed. |
+| either | `{"t":"ping"}` / `{"t":"pong"}` | Keep-alive, every 25 seconds. |
+
+The relay uses the hibernation API for the desktop app's socket, so an idle computer costs nothing.
+
+### What the computer answers
+
+`DeviceSandboxProvider` calls these; each takes and returns JSON unless it says otherwise. Container names start with `onedrop-project-`, and the app refuses any other.
+
+| Path | Body | Answer |
+| --- | --- | --- |
+| `POST /rpc/create` | `{"name","image","env":{},"ports":{"app":8000,"proxy":8081,"shell":7681,"ssh":2222}}` | `{"id": "<container>"}` |
+| `POST /rpc/start` `/rpc/stop` `/rpc/suspend` `/rpc/destroy` | `{"id"}` | `{}` |
+| `POST /rpc/wake` | `{"id"}` | `{"woke": true}` |
+| `POST /rpc/exec` | `{"id","command":[...],"env":{},"detach":false}` | `{"exit": 0, "stdout": "...", "stderr": "..."}` |
+| `POST /rpc/copy-out?id=&path=` | none | a tar stream of the folder's contents |
+| `POST /rpc/copy-in?id=&path=&root=0` | a tar stream | `{}` (`root=1` writes as root, for `installFiles`) |
+| `POST /rpc/outdated` | `{"id","image"}` | `{"outdated": false}` |
+| `GET /port/<container>/<port>/<path>` | any | the container's port, as HTTP or a WebSocket |
+
+## The bridge to the web pages
+
+The desktop app sets `window.onedropDesktop` before the web pages start; the web code checks for it to show desktop-only controls (the "This computer" panel, "Open in editor"). See `resources/js/types/desktop.d.ts` for the full interface.

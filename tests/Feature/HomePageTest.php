@@ -3,6 +3,10 @@
 use App\Models\User;
 use Inertia\Testing\AssertableInertia as Assert;
 
+beforeEach(function () {
+    config(['app.multi_tenant' => true]);
+});
+
 test('guests see the home page', function () {
     $this->get(route('home'))
         ->assertOk()
@@ -27,3 +31,17 @@ test('pages include link preview tags for social sharing', function () {
 
     expect(public_path('images/og.png'))->toBeFile();
 })->group('HOME-002');
+
+test('a self-hosted install has no home page: guests go to log in', function () {
+    config(['app.multi_tenant' => false]);
+
+    $this->get(route('home'))->assertRedirect(route('login'));
+})->group('HOME-005');
+
+test('a self-hosted install has no home page: signed-in users go to their dashboard', function () {
+    config(['app.multi_tenant' => false]);
+
+    $this->actingAs(User::factory()->create())
+        ->get(route('home'))
+        ->assertRedirect(route('dashboard'));
+})->group('HOME-005');

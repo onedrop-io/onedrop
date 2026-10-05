@@ -17,10 +17,11 @@ use Illuminate\Support\Carbon;
  * @property string $name
  * @property string $public_key
  * @property string $fingerprint
+ * @property int|null $desktop_token_id The desktop app sign-in that made it for its computer (DESK-008)
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['name', 'public_key', 'fingerprint'])]
+#[Fillable(['name', 'public_key', 'fingerprint', 'desktop_token_id'])]
 class SshKey extends Model
 {
     /** @use HasFactory<SshKeyFactory> */

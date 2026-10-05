@@ -1,12 +1,32 @@
+mod activity;
+mod api;
+mod desktop;
+mod docker;
 mod download;
+mod editor;
+mod forwards;
+mod links;
+mod network;
+mod prefs;
+mod relay;
 mod server;
 mod session;
+mod shortcut;
 mod sign_in;
+mod ssh_proxy;
+mod tray;
+mod tunnel;
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use tauri::webview::{NewWindowFeatures, NewWindowResponse};
-use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, RunEvent, Url, WebviewUrl, WebviewWindowBuilder, WindowEvent};
+use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_opener::OpenerExt;
+
+/// `OneDrop ssh-proxy <server> <project>` (DESK-008): SSH's ProxyCommand, run without the app's window.
+pub fn ssh_proxy(args: &[String]) -> i32 {
+    ssh_proxy::main(args)
+}
 
 /// Numbers the hidden windows that catch links opened by pages in the app's frames.
 static POPUPS: AtomicU64 = AtomicU64::new(0);
@@ -94,11 +114,33 @@ async fn open_window(app: AppHandle, url: String, title: String) -> Result<(), S
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // First, so a second launch (an `onedrop://` link on Windows and Linux) goes to this one instead.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            desktop::show(app);
+        }))
+        .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(shortcut::plugin())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(server::Server::default())
+        .manage(prefs::Prefs::default())
+        .manage(desktop::Desktop::default())
+        .manage(forwards::Forwards::default())
+        .manage(network::Networks::default())
+        .manage(relay::Relay::default())
+        .manage(activity::Activity::default())
+        // Closing the window keeps the app running in the menu bar (DESK-011); quitting is in the icon's menu.
+        .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == "main" && !tray::quitting() {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+        })
         .setup(|app| {
             // The main window, from tauri.conf.json, built here so links that ask for a new window open in the
             // user's browser: the webview would drop them.
@@ -129,6 +171,21 @@ pub fn run() {
                 .on_new_window(move |url, features| open_in_browser(&handle, url, features))
                 .build()?;
 
+            tray::create(app.handle())?;
+            shortcut::apply(app.handle());
+
+            // `onedrop://` links (DESK-011): the one the app was started with, and any while it runs.
+            #[cfg(any(target_os = "linux", all(debug_assertions, windows)))]
+            let _ = app.deep_link().register_all();
+
+            let opener = app.handle().clone();
+            app.deep_link()
+                .on_open_url(move |event| links::open(&opener, event.urls()));
+
+            if let Ok(Some(urls)) = app.deep_link().get_current() {
+                links::open(app.handle(), urls);
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -140,7 +197,35 @@ pub fn run() {
             download::save_download,
             server::use_server,
             open_window,
+            desktop::desktop_start,
+            forwards::forwards_list,
+            forwards::forwards_start,
+            forwards::forwards_stop,
+            network::network_status,
+            network::network_set_sharing,
+            editor::editor_configured,
+            editor::editor_open,
+            relay::docker_status,
+            relay::docker_prepare,
+            relay::devices_status,
+            activity::activity_refresh,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running OneDrop");
+        .build(tauri::generate_context!())
+        .expect("error while building OneDrop")
+        .run(|app, event| match event {
+            // Quitting another way than the menu bar's (⌘Q, the Dock) says what stops first, too.
+            RunEvent::ExitRequested {
+                api, code: None, ..
+            } if !tray::quitting() => {
+                api.prevent_exit();
+                tray::quit(app);
+            }
+            // Clicking the Dock icon with the window closed brings it back.
+            #[cfg(target_os = "macos")]
+            RunEvent::Reopen {
+                has_visible_windows: false,
+                ..
+            } => desktop::show(app),
+            _ => {}
+        });
 }

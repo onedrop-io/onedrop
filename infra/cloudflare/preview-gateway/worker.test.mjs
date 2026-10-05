@@ -6,6 +6,7 @@ import worker, {
     readCookie,
     setLocation,
     withoutCookie,
+    waitingForComputer,
     withoutFrameBlock,
 } from './worker.js';
 
@@ -313,4 +314,15 @@ test('the app itself passes straight through', async () => {
 
     assert.equal(sent.length, 1);
     assert.equal(await response.text(), 'from https://onedrop.io/dashboard');
+});
+
+test("a preview whose computer is away says so in words, with the computer's name escaped", async () => {
+    const response = waitingForComputer(encodeURIComponent('Ada’s <MacBook>'));
+
+    assert.equal(response.status, 503);
+    assert.equal(response.headers.get('Retry-After'), '10');
+    assert.match(
+        await response.text(),
+        /runs on Ada’s &lt;MacBook&gt;\. It’s back as soon as the OneDrop app is open there\./,
+    );
 });

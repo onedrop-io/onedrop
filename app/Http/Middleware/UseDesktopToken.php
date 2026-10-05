@@ -37,7 +37,8 @@ class UseDesktopToken
             $request->cookies->set((string) config('session.cookie'), self::sessionId($token));
             $this->useUiCookies($request);
             $request->attributes->set(self::ATTRIBUTE, $token);
-            Auth::guard('web')->setUser($user);
+            // The token stays the user's current one, so pages know which computer this is (DESK-006..010).
+            Auth::guard('web')->setUser($user->withAccessToken($token));
 
             $token->forceFill(['last_used_at' => now()])->save();
         }

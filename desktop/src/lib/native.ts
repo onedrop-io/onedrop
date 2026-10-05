@@ -87,6 +87,9 @@ export async function provideNotifications(): Promise<void> {
             if (granted) {
                 sendNotification({ title, body: options.body });
             }
+
+            // Something may be waiting for the user now: the menu bar and the Dock's count catch up (DESK-011).
+            void invoke('activity_refresh').catch(() => {});
         }
 
         close(): void {}

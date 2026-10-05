@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# Starts the desktop app's tunnel (tunnel.mjs, DESK-007..009) unless it's already running and answering, after
+# saving the key its tickets are signed with. The platform runs `ONEDROP_TUNNEL_KEY=… /opt/onedrop/tunnel ensure`
+# with exec before handing out a ticket. A tunnel from an older tunnel.mjs is replaced. Exits 0 once it's up.
+set -euo pipefail
+
+if [ "${1:-}" != ensure ]; then
+    echo "Usage: tunnel ensure" >&2
+    exit 2
+fi
+
+# The tunnel runs as the sandbox user, like the Shell, whoever the platform's exec runs as.
+if [ "$(id -u)" = 0 ] && id sandbox >/dev/null 2>&1; then
+    exec runuser -u sandbox -- "$0" "$@"
+fi
+
+: "${ONEDROP_TUNNEL_KEY:?ONEDROP_TUNNEL_KEY is not set}"
+
+# The user's real home when the platform started us with none or the workspace (Runtime; see start.sh).
+if [ -z "${HOME:-}" ] || [ "$HOME" = /workspace ]; then
+    HOME="$(getent passwd "$(id -un)" | cut -d: -f6)"
+    export HOME
+fi
+
+dir="$HOME/.onedrop"
+script="$(dirname "$0")/tunnel.mjs"
+health="http://127.0.0.1:${TUNNEL_PORT:-7682}/health"
+log="$dir/tunnel.log"
+
+umask 077
+mkdir -p "$dir"
+key="$(mktemp "$dir/.tunnel-key.XXXXXX")"
+printf '%s' "$ONEDROP_TUNNEL_KEY" > "$key"
+mv -f "$key" "$dir/tunnel-key"
+
+version="$(sha256sum "$script" 2>/dev/null || shasum -a 256 "$script")"
+version="${version%% *}"
+running="$(curl -fsS --max-time 2 "$health" 2>/dev/null || true)"
+
+if [[ "$running" == *"\"version\":\"$version\""* ]]; then
+    exit 0
+fi
+
+# One from an older tunnel.mjs: its forwards and network reconnect to the new one.
+if [[ "$running" =~ \"pid\":([0-9]+) ]]; then
+    kill "${BASH_REMATCH[1]}" 2>/dev/null || true
+
+    for _ in $(seq 1 20); do
+        curl -fsS --max-time 1 "$health" >/dev/null 2>&1 || break
+        sleep 0.1
+    done
+fi
+
+if [ -f "$log" ] && [ "$(wc -c < "$log")" -gt 1000000 ]; then
+    mv -f "$log" "$log.1"
+fi
+
+if command -v setsid >/dev/null; then
+    setsid nohup node "$script" >>"$log" 2>&1 < /dev/null &
+else
+    nohup node "$script" >>"$log" 2>&1 < /dev/null &
+fi
+
+for _ in $(seq 1 50); do
+    if curl -fsS --max-time 1 "$health" >/dev/null 2>&1; then
+        exit 0
+    fi
+
+    sleep 0.1
+done
+
+echo "The tunnel didn't start. Logs: $log" >&2
+tail -n 20 "$log" >&2 || true
+exit 1

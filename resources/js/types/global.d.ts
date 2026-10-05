@@ -40,6 +40,10 @@ declare module '@inertiajs/core' {
             realtime: RealtimeConfig | null;
             /** What they picked on the home page, until the new-project page takes it (HOME-004). */
             pendingStart: PendingStart | null;
+            /** Whether the sidebar offers the desktop app (DESK-005): they've a project, are in a browser, and haven't signed it in anywhere. */
+            offerDesktopApp: boolean;
+            /** Whether the desktop app is signed in on any computer, for "Open in the desktop app" (DESK-011). */
+            desktopAppSignedIn: boolean;
             [key: string]: unknown;
         };
     }

@@ -9,7 +9,9 @@ use App\Models\Project;
 use App\Models\ProjectDomain;
 use App\Models\Sandbox;
 use App\Models\User;
+use App\Sandbox\DesktopTunnel;
 use App\Sandbox\Gateway;
+use App\Sandbox\Providers\DeviceSandboxProvider;
 use App\Sandbox\SandboxProvider;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -115,7 +117,7 @@ class SandboxGatewayController extends Controller
     /**
      * Called by Caddy (forward_auth) or the Cloudflare Worker: may this browser open the preview or shell? If so, where does it live?
      */
-    public function authorize(Request $request, Gateway $gateway, SandboxProvider $provider): Response|RedirectResponse
+    public function authorize(Request $request, Gateway $gateway, SandboxProvider $provider, DesktopTunnel $tunnel): Response|RedirectResponse
     {
         $host = (string) $gateway->requestedHost($request, $request->header('X-Forwarded-Host'));
         $target = $gateway->parse($host);
@@ -134,8 +136,10 @@ class SandboxGatewayController extends Controller
             return redirect()->away($redirect);
         }
 
-        // A project published publicly to the domain: anyone may open it.
-        $public = $target['kind'] === Gateway::APP && $sandbox->project->publish_visibility === PublishVisibility::Public;
+        // A project published publicly to the domain: anyone may open it. The desktop app's tunnel (DESK-007..009)
+        // carries a ticket only the app signs, for people who may change the project, instead of a cookie.
+        $public = ($target['kind'] === Gateway::APP && $sandbox->project->publish_visibility === PublishVisibility::Public)
+            || ($target['kind'] === 'preview' && $tunnel->allows($sandbox, (string) $request->header('X-Forwarded-Uri', '/')));
 
         if (! $public) {
             $pass = $request->cookie(Gateway::COOKIE);
@@ -175,6 +179,8 @@ class SandboxGatewayController extends Controller
                     'X-OneDrop-Upstream' => $upstream['url'],
                     'X-OneDrop-Upstream-Header' => $upstream['header'],
                     'X-OneDrop-Upstream-Token' => $upstream['token'],
+                    // Named on the page shown while a project's computer is away (DESK-010).
+                    'X-OneDrop-Upstream-Computer' => $sandbox->provider === 'device' ? rawurlencode(DeviceSandboxProvider::name(DeviceSandboxProvider::parse((string) $sandbox->external_id)['device'])) : null,
                     'Cache-Control' => 'no-store',
                 ]))
                 : response('Not available', 404);

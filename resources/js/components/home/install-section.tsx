@@ -86,11 +86,11 @@ export function InstallSection() {
             <div className="mx-auto grid max-w-6xl gap-14 px-6 py-24 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
                 <div>
                     <h2 className="font-display text-3xl font-bold tracking-[-0.02em] sm:text-4xl">
-                        Install it in one command
+                        Self-host it in one command
                     </h2>
                     <p className="mt-4 text-lg leading-relaxed text-[#B3A69C]">
-                        Free to self-host, on your laptop or your own server.
-                        Docker is the only thing it needs.
+                        Free and source available, on your laptop or your own
+                        server. Docker is the only thing it needs.
                     </p>
                     <ol className="mt-10 space-y-7">
                         {INSTALL_STEPS.map((step, index) => (

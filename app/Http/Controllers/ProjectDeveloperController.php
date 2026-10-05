@@ -79,7 +79,7 @@ class ProjectDeveloperController extends Controller
             $owner = $project->user;
 
             $unavailable = match (true) {
-                $gateway->enabled(), in_array($sandbox->provider, ['blaxel', 'runtime'], true) => __("SSH isn't available on this server yet. Use the Shell tab to run commands in the sandbox."),
+                $gateway->enabled(), in_array($sandbox->provider, ['blaxel', 'runtime', 'device'], true) => __('To open it in VS Code or Cursor, use the desktop app: Tools → This computer. Or use the Shell tab to run commands in the sandbox.'),
                 $address === null => __('This sandbox was created before SSH was added. Recreate it to connect over SSH.'),
                 ! $ssh->sync($sandbox) => __("This sandbox's image doesn't have SSH yet. Rebuild the image and recreate the sandbox to connect over SSH."),
                 default => null,

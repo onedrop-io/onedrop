@@ -12,11 +12,23 @@
 // app says whether one belongs to a project published to the domain, and it's served the same way.
 //
 // Only this Worker can ask the app where a sandbox lives: it proves itself with GATEWAY_SECRET.
+//
+// relay.<domain> is the device relay (DESK-010, device-relay.js): a Durable Object per computer that the desktop app
+// keeps a WebSocket open to. The app reaches sandboxes on that computer through it, and so do their previews and
+// shells: the app's answer names `device:<id>/<container>:<port>` instead of a provider's address.
+
+import { DeviceRelay } from './device-relay.js';
+
+export { DeviceRelay };
 
 const GATEWAY_HOST = /^(preview|shell)-\d+\./;
 
 /** A project published to the domain. Names like this that the app doesn't know go on to their own origin. */
 const APP_HOST = /^[a-z0-9-]+-\d+\./;
+
+/** A sandbox on someone's computer, reached through the device relay: device:<id>/<container>:<port>. */
+const DEVICE_UPSTREAM = /^device:(\d+)\/([A-Za-z0-9_.-]+):(\d+)$/;
+const DEVICE_PATH = /^\/__onedrop\/devices\/(\d+)\//;
 const COOKIE = 'onedrop_gateway';
 
 /** How long an authorization answer is reused for the same cookie on the same address. */
@@ -30,6 +42,10 @@ const MAX_REWRITE_BYTES = 20_000_000;
 export default {
     async fetch(request, env, ctx) {
         const url = new URL(request.url);
+
+        if (url.hostname === `relay.${env.GATEWAY_DOMAIN}`) {
+            return toRelay(request, env, url);
+        }
 
         const preview = GATEWAY_HOST.test(url.hostname);
         const ours =
@@ -63,10 +79,11 @@ export default {
             return withoutFrameBlock(auth);
         }
 
-        return forward(request, url, {
+        return forward(request, url, env, {
             upstream: auth.headers.get('X-OneDrop-Upstream'),
             header: auth.headers.get('X-OneDrop-Upstream-Header'),
             token: auth.headers.get('X-OneDrop-Upstream-Token'),
+            computer: auth.headers.get('X-OneDrop-Upstream-Computer'),
         });
     },
 };
@@ -99,6 +116,30 @@ export function notConnected() {
             headers: {
                 'Content-Type': 'text/html; charset=utf-8',
                 'Cache-Control': 'no-store',
+            },
+        },
+    );
+}
+
+/**
+ * A preview whose project runs on someone's computer while the OneDrop app isn't open there (DESK-010).
+ */
+export function waitingForComputer(computer) {
+    const name = (computer ? decodeURIComponent(computer) : 'its computer')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+    return new Response(
+        `<!doctype html><meta name="viewport" content="width=device-width"><title>Waiting for ${name}</title>` +
+            '<body style="font:16px/1.5 system-ui,sans-serif;display:grid;place-items:center;min-height:90vh;margin:0;color:#555">' +
+            `<p style="max-width:28rem;text-align:center">This project runs on ${name}. It’s back as soon as the OneDrop app is open there.</p>`,
+        {
+            status: 503,
+            headers: {
+                'Content-Type': 'text/html; charset=utf-8',
+                'Cache-Control': 'no-store',
+                'Retry-After': '10',
             },
         },
     );
@@ -141,10 +182,32 @@ async function authorize(request, env, ctx, url) {
 }
 
 /**
- * Send the request on to the provider with its token, and point its answer back at the gateway address.
+ * relay.<domain>: each computer's requests go to its own Durable Object, which checks the ticket or the secret.
  */
-async function forward(request, url, { upstream, header, token }) {
-    const target = new URL(url.pathname + url.search, upstream);
+function toRelay(request, env, url) {
+    const device = DEVICE_PATH.exec(url.pathname)?.[1];
+
+    if (!device) {
+        return new Response('Not found', { status: 404 });
+    }
+
+    return relayFor(env, device).fetch(request);
+}
+
+function relayFor(env, device) {
+    return env.DEVICE_RELAY.get(env.DEVICE_RELAY.idFromName(String(device)));
+}
+
+/**
+ * Send the request on to the provider with its token, and point its answer back at the gateway address. A sandbox
+ * on someone's computer is reached through its device relay instead.
+ */
+async function forward(
+    request,
+    url,
+    env,
+    { upstream, header, token, computer },
+) {
     const headers = new Headers(request.headers);
 
     // Our cookie is for us; the app in the sandbox never sees it.
@@ -166,6 +229,27 @@ async function forward(request, url, { upstream, header, token }) {
     if (!['GET', 'HEAD'].includes(request.method)) {
         init.body = request.body;
     }
+
+    const device = DEVICE_UPSTREAM.exec(upstream ?? '');
+
+    // The computer gets the browser's request as it is (HTTP or WebSocket): its links are already to this address.
+    if (device) {
+        const [, id, container, port] = device;
+        headers.set('X-OneDrop-Gateway-Secret', env.GATEWAY_SECRET);
+
+        const response = await relayFor(env, id).fetch(
+            `https://relay.${env.GATEWAY_DOMAIN}/__onedrop/devices/${id}/port/${container}/${port}${url.pathname}${url.search}`,
+            init,
+        );
+
+        // The computer isn't connected: say so in words, for a person looking at the preview.
+        return response.status === 503 &&
+            request.headers.get('Accept')?.includes('text/html')
+            ? waitingForComputer(computer)
+            : response;
+    }
+
+    const target = new URL(url.pathname + url.search, upstream);
 
     // WebSockets (the Shell tab, hot reload) pass straight through.
     if (request.headers.get('Upgrade')?.toLowerCase() === 'websocket') {

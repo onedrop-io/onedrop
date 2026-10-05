@@ -10,6 +10,7 @@ On a server, Caddy serves each project's preview and shell at its own address an
 | `preview-<sandbox id>.<domain>` | The project's app, on Blaxel or Runtime       |
 | `shell-<sandbox id>.<domain>`   | The project's web terminal                    |
 | `<name>-<project id>.<domain>`  | A project [published](/guides/publish) to your domain |
+| `relay.<domain>`                | The device relay: projects running on a user's computer, through the [desktop app](/guides/desktop-app) |
 
 ## Why not the provider's own preview links
 
@@ -82,4 +83,15 @@ Users can point their own domains at apps published to your domain ([Custom doma
 
 Without these, Tools → Domains says custom domains aren't set up for apps published to your domain. Hosted apps don't need them: they use Fly.io certificates and Workers custom domains in the hosting accounts.
 
-The Worker's own tests run with `node --test infra/cloudflare/preview-gateway/worker.test.mjs`.
+## Projects on a user's computer
+
+The desktop app can run a project's sandbox in the computer's own Docker. The hosted app can't reach a computer behind a home router, so the Worker carries a **device relay**: a [Durable Object](https://developers.cloudflare.com/durable-objects/) per computer (`DeviceRelay`, bound as `DEVICE_RELAY` in `wrangler.toml`), at `relay.<domain>`, which the wildcard route already covers.
+
+- The desktop app keeps a WebSocket open to its computer's relay, with a ticket OneDrop signs with the shared secret, so the Worker checks it without asking. A new connection replaces the old one. While nothing is happening, the object hibernates and costs nothing.
+- OneDrop reaches the computer through the relay with the shared secret: starting and stopping the project's container, running commands, copying files.
+- A preview or Shell of a project on a computer is checked as usual; OneDrop's answer names the computer instead of a provider, and the Worker sends the request (or WebSocket) through that computer's relay.
+- When the desktop app isn't connected, the relay answers that the computer is offline, and requests under way when it disconnects are cut off.
+
+The first `npx wrangler deploy` with the relay creates the Durable Object class. Durable Objects need the Workers Paid plan, or the free plan's SQLite-backed objects, which is what the relay uses. Without a Worker gateway (an install behind Caddy), OneDrop doesn't offer running projects on a computer. The relay's protocol is described in the [developer notes](/development/desktop-link).
+
+The Worker's own tests run with `node --test infra/cloudflare/preview-gateway/worker.test.mjs infra/cloudflare/preview-gateway/device-relay.test.mjs`.

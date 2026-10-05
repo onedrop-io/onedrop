@@ -44,7 +44,8 @@ class SandboxUpdater
 
     /**
      * Whether the project's running sandbox needs a new sandbox to be current: it lives on another provider than the
-     * configured one, or a newer image changed what its tools can't bring in place (see bringUpToDate()).
+     * project's (the install's, or its computer's: DESK-010), or a newer image changed what its tools can't bring in
+     * place (see bringUpToDate()).
      *
      * @throws SandboxException
      */
@@ -88,7 +89,7 @@ class SandboxUpdater
      */
     protected function plan(Sandbox $sandbox): array|string|null
     {
-        if ($sandbox->provider !== config('sandbox.provider')) {
+        if ($sandbox->provider !== $sandbox->project->sandboxProvider()) {
             return 'rebuild';
         }
 
@@ -204,7 +205,7 @@ class SandboxUpdater
             }
 
             $project->sandbox()->updateOrCreate([], [
-                'provider' => config('sandbox.provider'),
+                'provider' => $project->sandboxProvider(),
                 'external_id' => null,
                 'status' => SandboxStatus::Creating,
                 'preview_url' => null,
@@ -277,7 +278,7 @@ class SandboxUpdater
      */
     protected function snapshotToKeep(Project $project, bool $oldExists): ?ProjectSnapshot
     {
-        if ($this->snapshots->transport(config('sandbox.provider')) === null) {
+        if ($this->snapshots->transport($project->sandboxProvider()) === null) {
             return null;
         }
 

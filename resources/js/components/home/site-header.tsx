@@ -29,11 +29,11 @@ export function SiteHeader({ isLoggedIn }: { isLoggedIn: boolean }) {
                     <Link href={pricing()} className="hover:text-white">
                         Pricing
                     </Link>
-                    <a href="/#install" className="hover:text-white">
-                        Install
-                    </a>
                     <a href="/#desktop" className="hover:text-white">
                         Download
+                    </a>
+                    <a href="/#install" className="hover:text-white">
+                        Self-host
                     </a>
                     <a href="/#faq" className="hover:text-white">
                         FAQ

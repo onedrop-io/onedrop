@@ -776,7 +776,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 ## HOME-001: Marketing home page
 
 - Visitor should see what OneDrop does in one sentence at the top of the home page, with a button to start building.
-- Visitor should see the positioning up top: vibe-code apps for production, bring your own subscription (a Claude or ChatGPT plan, or an API key), deploy anywhere.
+- Visitor should see the positioning up top: vibe-code apps for production, free to start with no AI account needed, with links to the desktop app and to self-hosting it free.
 - Visitor should see a short animated demo of an app being described in chat, appearing in a live preview, and getting an instant Tailscale link with one click on Publish (shown still when reduced motion is on).
 - Visitor should be able to pause and play the demo.
 - Visitor should be able to click Watch the demo by the headline to play the product demo video in a dialog, with playback controls, and close it with the close button or Escape.
@@ -814,10 +814,17 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Visitor should find a Docs link in the top bar and footer that opens the docs site (docs.onedrop.io).
 - Visitor should see an Install section with the one-line install command, and be able to switch it between their laptop, a server (an automatic sslip.io address), and their own domain, with a button to copy it and a note on what each does.
 - Visitor should see the three steps after installing (run the command, create the admin account, connect an AI), what it needs (macOS or Linux, Docker, 5 GB of disk, an AI plan or key), how to update, and links to the install guide and the source on GitHub.
-- Visitor should see a section for the desktop app (DESK-004) after Install, with a download button for their system (Mac, Windows or Linux), links to every download (Mac Apple Silicon and Intel, Windows, Linux AppImage and .deb), what it does, that it connects to a OneDrop they run, and a link to its guide; they should be able to jump there with "Download" in the top bar.
-- Visitor should be able to jump to the Install section from the top bar, the hero's "Free to self-host", and the self-hosting comparison.
+- Visitor should see a section for the desktop app (DESK-004) before Install that sells what only it can do: reach their own network while building (DESK-009), the project's ports on their computer (DESK-007), opening a project in their editor (DESK-008), running projects on their own computer (DESK-010), and living in the menu bar (DESK-011), with a download button for their system (Mac, Windows or Linux), links to every download (Mac Apple Silicon and Intel, Windows, Linux AppImage and .deb), that it signs in with their OneDrop account or to a OneDrop their team runs (with a link to create an account when logged out), and a link to its guide; they should be able to jump there with "Download" in the top bar and the hero's "get the desktop app".
+- Visitor should be able to jump to the Install section ("Self-host it in one command") from "Self-host" in the top bar, the hero's "self-host it free", and the comparison with hosted builders.
 - Visitor should see a GitHub logo in the top bar and footer that opens the repository (github.com/onedrop-io/onedrop).
 - Logged-out visitor should be able to go to sign up or log in; logged-in user should see a button to open their dashboard instead.
+
+## HOME-005: Three ways to use OneDrop
+
+- Visitor should see the three ways to use OneDrop side by side on the home page, right after the ways to start a project: in the browser (marked "Start here", with a button to build their first app, or to open their dashboard when logged in, and a link to pricing), on the desktop (a download for their system, and a link to the desktop app section for the other systems), and on their own servers (the install command with a copy button, and a link to the Install section for a server or their own domain).
+- Visitor should see that starting in the browser is free and needs no AI account, in the hero, the "Start here" card, the four steps (the first is signing up free), the questions (including "Do I have to install anything?") and under the last button.
+- Visitor should see the hosted install's hosting, their own cloud accounts and self-hosting as where apps run, in the comparison and the questions, not only their laptop or servers.
+- Opening a self-hosted install's address should go to logging in, or to the dashboard when signed in; only the hosted install (`APP_MULTI_TENANT`) has the marketing home page.
 
 ## HOME-003: Droppy, the easter-egg helper
 
@@ -1778,6 +1785,64 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should get downloads (a project's files, a database copy, a demo video) in their Downloads folder, shown in the file manager.
 - User should see links to other sites (GitHub, a published app, Claude's sign-in in the Shell) open in their browser, and the server's own pages open in the app.
 - User should get system notifications for "ready for review" (NOTIF-001).
+
+## DESK-005: Offer the desktop app in the web app
+
+- User who has made a project should see "Get the desktop app" in the sidebar, above their name, with a download for their system and a link to the other systems, until the desktop app is signed in anywhere with their account.
+- User should not see it in the desktop app itself, in the collapsed sidebar, or before they've made a project.
+- User should be able to close it, and not see it again in that browser.
+- User whose desktop app isn't signed in anywhere should find a download for their system in Settings → Desktop app.
+
+## DESK-006: This computer, in the desktop app
+
+- User should find a "This computer" panel in Tools in the desktop app, for the project they're in, with its ports on this computer, opening it in an editor, reaching their network, and where it runs.
+- User in a browser should see the same panel explain what it does in the desktop app, with a download for their system.
+- User should see each part say whether it's working right now (connected, connecting, or why not) and fix it from there.
+
+## DESK-007: The project's ports on this computer
+
+- User should be able to forward one of the sandbox's ports to a port on their computer (`localhost`), from the "This computer" panel: the app itself (the preview), the app's database, or any port they type.
+- User should see the panel suggest the app and the database the app uses (Postgres, MySQL or Redis, when the sandbox has one), and pick a free local port, the same number where it can.
+- User should be able to copy the local address, and for a database a connection string for TablePlus, DBeaver or `psql`.
+- User should keep their forwards on this computer: they come back when the app starts, and work whenever the app is open, even with its window closed.
+- User should be able to stop a forward.
+- Only people who can change the project should be able to forward its ports.
+
+## DESK-008: Open the project in your editor
+
+- Project owner should be able to open the project in VS Code or Cursor from the desktop app with one click, from the project's header and the "This computer" panel, wherever the sandbox runs (hosted or this computer), with no SSH setup of their own.
+- The app should make its own SSH key, add it to the owner's keys (named after the computer), and keep an SSH config entry per project (`ssh onedrop-<project>`) in a file of its own that `~/.ssh/config` includes, after asking once.
+- User should be able to use the same entry from a terminal, even with the app closed: the connection goes through the app's own sign-in.
+- Editing in the editor should change the sandbox's files directly, like the agent's changes.
+- Only the project's owner should be able to open it this way, as with SSH today.
+
+## DESK-009: Reach your network while building
+
+- Project editor should be able to list hosts on their network (a name or address and a port, like `db.internal:5432` or `intranet.example.com:443`) that the project may reach through their computer.
+- While the desktop app is open on a computer that shares its network with the project (turned on per project, on that computer), the agent, the Shell and the preview should reach those hosts: each at a local address in the sandbox (`127.0.0.1:<port>`), and HTTP and HTTPS ones also through a proxy, under their own names.
+- The computer should only connect to hosts on the list that its user agreed to there (the list when they turned sharing on, or saved it in the app), and only for projects it shares its network with; hosts someone adds later wait, and the panel says how many, until they turn sharing off and on again.
+- The agent should know which hosts it can reach and how, and that they're there only while the app is open.
+- User should see whether the network is reachable right now, and through which computer.
+- User should be told that published apps on OneDrop's hosting can't reach their network, and that self-hosting or publishing to their tailnet can.
+- A project that runs on the user's own computer (DESK-010) should reach their network directly, without a list.
+
+## DESK-010: Run a project on this computer
+
+- Project owner should be able to move a project to their computer's Docker from the "This computer" panel, and back to OneDrop's cloud, keeping its files, as when a sandbox is updated.
+- The desktop app should check for Docker (Docker Desktop, OrbStack, Colima or Docker Engine), say how to get it when it's missing or not running, and download the sandbox image with progress before the first move.
+- A project on their computer should work like any other: the agent, the preview (for teammates too, through OneDrop's address), the Shell, Files, Tools, publishing and tasks, while the app is open.
+- User should see "Waiting for <computer>" on the project, in the preview and Shell, and in the panel while the app isn't open there, and the agent shouldn't start until it is.
+- User should see the project's sandbox go to sleep when unused, like a hosted one, and wake when opened.
+- A project on their computer should run in its own Docker container, which the app manages; removing the project, or moving it back, should remove the container.
+- Only installs whose gateway runs on Cloudflare (the hosted install) should offer it; on a self-hosted install the panel says it isn't available.
+
+## DESK-011: The desktop app in the menu bar
+
+- User should see the app's icon in the menu bar (system tray on Windows and Linux) while it's running, with the projects working or waiting for them, a new project, opening the app, and quitting.
+- User should keep the app running when they close its window, so forwards, the network and projects on this computer keep working; quitting from the icon stops them, after saying so.
+- User should be able to start a new project from anywhere with a keyboard shortcut (⌘⌥O on Mac, Ctrl+Alt+O elsewhere), which opens the app on the new-project page with the prompt focused, and turn it off from the icon's menu.
+- User should see the number of projects waiting for them on the app's Dock icon (Mac) or taskbar (Windows).
+- User should be able to open `onedrop://` links (a project, the new-project page) in the app, and find "Open in the desktop app" in a project's menu in the browser once the app is signed in on any computer.
 
 ## DESK-004: The desktop app keeps itself up to date
 

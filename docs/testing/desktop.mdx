@@ -1,0 +1,74 @@
+---
+title: 'Desktop app'
+description: 'Manual tests for the desktop app: tunnels, ports, editors, your network, projects on your computer, and the menu bar.'
+noindex: true
+---
+
+The Pest suite checks the server's side (tickets, the gateway, the device provider against a fake relay), `tests/Unit/TunnelScriptTest.php` the sandbox's tunnel, `device-relay.test.mjs` the Worker's relay and `cargo test` the app's pure parts. Nothing there runs them together. Use a build of the app (`npm run desktop:dev`) signed in to the install you're testing; projects on a computer need an install whose gateway is the Cloudflare Worker (staging or onedrop.io), with the Worker deployed with `DEVICE_RELAY`.
+
+## This computer panel (DESK-006)
+
+- [ ] In a browser, **Tools → This computer** explains what the app does and offers the download for your system and **Open in the desktop app**.
+- [ ] In the app, it shows where the project runs, its ports, the editor and your network.
+
+## Ports on localhost (DESK-007)
+
+1. Open a project whose app uses Postgres. In **This computer**, click **The app** and **Postgres**.
+
+- [ ] Both show a green dot and a `localhost` address; **Open** shows the app in your browser at `http://localhost:8081`.
+- [ ] `psql -h localhost -p 5432` (or TablePlus) connects to the app's database.
+- [ ] A big download through the forward (a 50 MB file from the app) arrives whole.
+- [ ] Close the window (not quit): the forwards keep working. Quit and reopen the app: they come back.
+- [ ] A port taken on your computer gets another local port, shown in the list.
+- [ ] Stopping a forward frees the local port.
+- [ ] On Runtime Cloud and Docker (local install) both.
+
+## Open in your editor (DESK-008)
+
+1. As the owner, click **Open in editor → VS Code** with the Remote - SSH extension installed.
+
+- [ ] The app asks once before adding the `Include` line to `~/.ssh/config`; the rest of the file is unchanged.
+- [ ] VS Code opens `/workspace` in the sandbox; saving a file shows the change in the app's Files and the preview.
+- [ ] **Developer → SSH → Keys** lists *OneDrop desktop (your computer)*.
+- [ ] `ssh onedrop-<project>` works in a terminal with the app's window closed, and with the app quit.
+- [ ] Cursor opens the same way.
+- [ ] Another member of the organization (an admin) doesn't see **Open in editor**.
+- [ ] Signing the computer out in **Settings → Desktop app** removes its key; `ssh` then fails.
+
+## Your network (DESK-009)
+
+1. On your computer, run something only it can reach: `python3 -m http.server 9999` and a local Postgres.
+2. In **This computer**, add `localhost:9999` and `localhost:5432` under **Your network** and turn on sharing.
+
+- [ ] The switch says *Connected* within a few seconds.
+- [ ] In the Shell, `cat ~/.onedrop/network.json` lists both hosts with local addresses, `connected: true`.
+- [ ] `curl http://127.0.0.1:<its address>/` in the Shell lists your folder; `psql` reaches your Postgres.
+- [ ] `curl -x http://127.0.0.1:7690 http://localhost:9999/` works; a host not on the list gets 403.
+- [ ] Ask the agent to "read the table list from the database on my network": it uses the listed address.
+- [ ] A host behind your VPN (an intranet page) works the same way.
+- [ ] Turn sharing off, or quit the app: `network.json` says `connected: false` and the addresses stop answering.
+- [ ] Another computer signed in as you, without sharing on, doesn't connect anything.
+
+## Run it on your computer (DESK-010)
+
+1. With Docker running, click **Run it on this computer**.
+
+- [ ] Without Docker (or with it stopped), the panel says so and how to fix it.
+- [ ] The first time, the image downloads with progress.
+- [ ] The project moves with its files; `docker ps` shows its `onedrop-project-…` container.
+- [ ] The agent builds as usual; the preview, Shell, Files, Database and Git tools work.
+- [ ] A teammate opens the preview from their own browser through OneDrop's address.
+- [ ] Publishing to hosting works from it.
+- [ ] Quit the app: the project and its preview say they're waiting for your computer; sending a message says so too. Reopen the app: everything comes back.
+- [ ] Unused for a while, the container pauses; opening the project wakes it.
+- [ ] **Move back to the cloud** moves it back with its files, and removes the container.
+- [ ] A move with Docker stopped halfway leaves the project where it was, with the reason in the panel.
+
+## Menu bar (DESK-011)
+
+- [ ] Closing the window leaves the icon in the menu bar; clicking **Open OneDrop** (or the Dock icon on a Mac) brings it back.
+- [ ] While an agent works, the icon's menu lists the project; when it's waiting for you, it says so and the Dock icon shows a count.
+- [ ] Clicking a project in the menu opens it.
+- [ ] ⌘⌥O (Ctrl+Alt+O) from another app opens the new-project page with the prompt focused; turning the shortcut off in the menu stops it, and stays off after a restart.
+- [ ] **Quit OneDrop** with forwards or a project on the computer warns that they'll stop.
+- [ ] `open onedrop://projects/<id>` (or the browser's **Open in the desktop app**) opens the project in the running app, and starts the app when it isn't running.

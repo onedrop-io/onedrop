@@ -29,6 +29,7 @@ use App\Sandbox\Publishing\Publishers;
 use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxProvider;
 use App\Sandbox\SandboxUpdater;
+use App\Sandbox\WorkspaceSsh;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
@@ -76,6 +77,8 @@ trait RendersWorkspace
                 ...$project->only('id', 'name', 'status', 'autofix', 'track_requirements'),
                 // A message that failed because Claude Code wasn't signed in, waiting to run again (AI-005).
                 'waiting_for_sign_in' => $project->sign_in_retry_message_id !== null,
+                // The desktop app opens the owner's projects in their editor by this name (DESK-008).
+                'editor_alias' => $project->user_id === $request->user()?->id ? WorkspaceSsh::hostAlias($project) : null,
             ],
             'task' => $task ? [
                 ...$task->only('id', 'title', 'description', 'stage', 'status', 'sync_status', 'sync_error'),

@@ -3,11 +3,11 @@ title: 'Desktop app'
 description: 'Use OneDrop from a native app on macOS, Windows or Linux.'
 ---
 
-The OneDrop desktop app is OneDrop in its own window on macOS, Windows or Linux: everything the web app has, from starting projects and chatting with the agent to the preview, Tools, the Shell, Files and Settings. It connects to any OneDrop install, the one on your computer or your team's server.
+The OneDrop desktop app is OneDrop in its own window on macOS, Windows or Linux: everything the web app has, from starting projects and chatting with the agent to the preview, Tools, the Shell, Files and Settings. It signs in to your onedrop.io account, or to any other OneDrop install: the one on your computer or your team's server.
 
 ## Install
 
-Download the app from [onedrop.io](https://onedrop.io/#desktop):
+Download the app from [onedrop.io](https://onedrop.io/#desktop). Once you've built a project, the web app's sidebar also offers a download for your system, above your name, until the app is signed in somewhere; close it with **×** if you don't want it. **Settings → Desktop app** has the download too.
 
 - **Mac**: open the `.dmg` and drag OneDrop to Applications. There are separate downloads for Apple Silicon and Intel Macs. If macOS says it can't check the app, open **System Settings → Privacy & Security** and click **Open Anyway**.
 - **Windows**: run the installer.
@@ -35,6 +35,52 @@ Everything in the web app, on the same pages: the projects in the sidebar, the c
 - **Previews and Shells you open in a new tab** open in a window of the app's own, already signed in.
 - **Links to other sites** (GitHub, your published app, Claude's sign-in) open in your browser.
 - **Notifications** tell you when an agent finishes while you're in another app.
+
+## Your computer and your projects
+
+What a browser can't do lives in **Tools → This computer**, for the project you're in. In a browser, the same panel explains it and offers the download.
+
+### The project on localhost
+
+Forward one of the sandbox's ports to your own computer: **The app** (the preview), the app's database (Postgres, MySQL, Redis when it has one), or any port you type. Each gets a `localhost` address, the same number when it's free:
+
+- Open the app at `http://localhost:8081` in any browser.
+- Point TablePlus, DBeaver or `psql -h localhost -p 5432` at its database.
+
+Forwards come back when the app starts, and keep working while it runs, even with its window closed. Anyone who can change the project can forward its ports.
+
+### Open it in your editor
+
+Click **Open in editor** in the project's header (or in the panel) and pick **VS Code** or **Cursor**. The editor opens the project's files in its sandbox, so what you change there is what the agent and the preview see. You need the editor's **Remote - SSH** extension.
+
+The first time, the app makes an SSH key for this computer and adds it to your account (it shows in **Developer → SSH → Keys** as *OneDrop desktop (your computer)*), and asks before adding one line to `~/.ssh/config` that includes its own file, `~/.ssh/onedrop/config`. It never changes the rest of your config. From a terminal, `ssh onedrop-<project>` works too, even with the app's window closed.
+
+Only a project's owner can open it this way, as with SSH: the sandbox accepts its owner's keys.
+
+### Reach your network
+
+Some apps need things only your computer can reach: an intranet site, a database behind your company's VPN, a service running on your own `localhost`. List them under **Your network** as `host:port` (`db.internal:5432`, `intranet.example.com:443`), then turn on **Share this computer's network with the project**.
+
+While the app is open, the agent, the Shell and the preview reach those hosts through your computer: each at a local address in the sandbox, and web hosts also through a proxy under their own names. The agent knows which ones it can use. Your computer only connects to the hosts on the list, and only for projects you turned sharing on for.
+
+<Note>
+    Apps published to OneDrop's hosting run in the cloud, so they can't reach
+    your network. For an app that needs it after it's published,
+    [self-host OneDrop](/install) or publish it to your tailnet.
+</Note>
+
+### Run it on your computer
+
+Click **Run it on this computer** to move the project into your computer's Docker (Docker Desktop, OrbStack, Colima or Docker Engine). The app checks for Docker, downloads the sandbox image the first time, and moves the project with its files. It's faster, its data stays on your computer, and it costs nothing to run.
+
+Everything works as before while the app is open: the agent, the preview (teammates still open it through OneDrop), the Shell, Files, Tools and publishing. While it's closed, the project shows *Waiting for your computer*. Click **Move back to the cloud** to move it back, files included. It only works with OneDrop at onedrop.io, or an install whose previews go through Cloudflare.
+
+## In your menu bar
+
+The app keeps running in your menu bar (system tray on Windows and Linux) when you close its window, so forwards, your network and projects on your computer keep working. Its icon lists the projects that are working or waiting for you; its Dock icon shows how many are waiting. Quit from the icon's menu.
+
+- **⌘⌥O** (Ctrl+Alt+O on Windows and Linux) starts a new project from anywhere. Turn it off in the icon's menu.
+- `onedrop://` links open in the app: `onedrop://projects/12` opens a project, `onedrop://new` the new-project page. In a browser, a project's **⋮** menu has **Open in the desktop app**.
 
 ## Updates
 

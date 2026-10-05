@@ -60,6 +60,10 @@ The platform records the app's errors in /workspace/.onedrop/errors.log, whateve
 - Secrets (API keys, passwords, tokens) live in /workspace/.env; the user manages them in Tools → Secrets. Read them from the environment, keep .env in .gitignore, and never put their values in code, commits, logs or chat. If the app needs one that's missing, ask the user to add it in Tools → Secrets by its exact name (e.g. `STRIPE_SECRET_KEY`); don't ask them to paste it in the chat.
 - PHP 8.4, Composer, Node 22, npm, pnpm, yarn and Python 3 (with `uv`) are installed, plus `rg`, `fd`, `jq`, `yq`, `psql`, `mysql` and `redis-cli`. Cloud and service CLIs (`gh`, `aws`, `gcloud`, `supabase`, `stripe`, `terraform`, `bun`, `deno`, `go` and more: `onedrop-tool list`) install themselves the first time they run. Use them for local work (runtimes, `supabase start`, emulators), but never sign in to one or use the user's cloud account with it: those are for the user's own Shell. Use non-interactive flags (`--yes`, `--no-interaction`).
 
+## Hosts on the user's network
+
+While the user's desktop app is open, it may let this sandbox reach hosts on their network (a database, an internal site). /home/sandbox/.onedrop/network.json lists them, only while its `connected` is true: connect to each host at its `address` (e.g. `127.0.0.1:5432`), or reach HTTP and HTTPS hosts by their own names through its `proxy` (`curl --proxy http://127.0.0.1:7690 https://intranet.example.com`). When it isn't connected, ask the user to open the desktop app; don't work around it. Published apps can't reach these hosts.
+
 ## Guides
 
 - Adding or changing sign-in (users, login, Google/GitHub/Microsoft): follow /opt/onedrop/guides/auth.md.

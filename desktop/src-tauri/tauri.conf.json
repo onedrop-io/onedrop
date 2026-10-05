@@ -55,6 +55,11 @@
             "endpoints": [
                 "https://github.com/onedrop-io/onedrop/releases/download/desktop-latest/latest.json"
             ]
+        },
+        "deep-link": {
+            "desktop": {
+                "schemes": ["onedrop"]
+            }
         }
     }
 }

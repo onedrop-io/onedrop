@@ -5,6 +5,8 @@ use App\Models\User;
 use Inertia\Testing\AssertableInertia as Assert;
 
 test('the home page has the templates, and the free apps after it shows', function () {
+    config(['app.multi_tenant' => true]);
+
     $this->get(route('home'))
         ->assertInertia(fn (Assert $page) => $page->component('welcome')
             ->where('templates.0.value', 'crm')

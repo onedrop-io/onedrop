@@ -27,8 +27,10 @@ class CreateSandbox implements ShouldQueue
      */
     public function handle(SandboxProvider $provider, WorkspaceSsh $ssh): void
     {
+        // The computer the project runs on (DESK-010), else the install's provider.
+        $providerName = $this->project->sandboxProvider();
         $sandbox = ($this->task?->sandbox() ?? $this->project->sandbox())->firstOrCreate([], [
-            'provider' => config('sandbox.provider'),
+            'provider' => $providerName,
             'status' => SandboxStatus::Creating,
         ]);
 
@@ -53,6 +55,7 @@ class CreateSandbox implements ShouldQueue
             storageKey: "project-{$this->project->id}".($this->task ? "-task-{$this->task->id}" : ''),
             // One Claude sign-in for all of the owner's sandboxes; only they (and site admins) can open a project (AI-005).
             claudeLoginKey: "user-{$this->project->user_id}",
+            deviceId: $this->project->device_id,
         );
 
         try {
@@ -60,7 +63,7 @@ class CreateSandbox implements ShouldQueue
 
             $sandbox->update([
                 // The provider it was made on, even when this reuses a record from another one.
-                'provider' => config('sandbox.provider'),
+                'provider' => $providerName,
                 'external_id' => $id,
                 'status' => SandboxStatus::Running,
                 ...self::addresses($provider, $id),

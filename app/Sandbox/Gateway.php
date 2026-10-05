@@ -8,6 +8,7 @@ use App\Models\Project;
 use App\Models\ProjectDomain;
 use App\Models\Sandbox;
 use App\Models\User;
+use App\Sandbox\Providers\DeviceSandboxProvider;
 use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
@@ -99,6 +100,12 @@ class Gateway
     public function target(Sandbox $sandbox, string $kind): ?array
     {
         $url = $kind === 'shell' ? $sandbox->shell_url : $sandbox->preview_url;
+
+        // A sandbox on someone's computer (DESK-010): the Worker hands the request to that computer's relay.
+        if ($url !== null && str_starts_with($url, DeviceSandboxProvider::SCHEME)) {
+            return ['url' => $url, 'header' => null, 'token' => null];
+        }
+
         $parts = $url ? parse_url($url) : null;
 
         if (! isset($parts['scheme'], $parts['host'])) {

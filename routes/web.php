@@ -30,6 +30,7 @@ use App\Http\Controllers\ProjectAgentController;
 use App\Http\Controllers\ProjectAttachmentController;
 use App\Http\Controllers\ProjectAuthController;
 use App\Http\Controllers\ProjectBrowserController;
+use App\Http\Controllers\ProjectComputerController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectDatabaseController;
 use App\Http\Controllers\ProjectDemoController;
@@ -310,6 +311,10 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
         Route::get('projects/{project}/developer/usage', [ProjectDeveloperController::class, 'usage'])->name('projects.developer.usage');
         Route::get('projects/{project}/developer/storage', [ProjectDeveloperController::class, 'storage'])->name('projects.developer.storage');
         Route::get('projects/{project}/developer/ssh', [ProjectDeveloperController::class, 'ssh'])->name('projects.developer.ssh');
+        // Tools → This computer (DESK-006..010).
+        Route::get('projects/{project}/computer', [ProjectComputerController::class, 'show'])->name('projects.computer.show');
+        Route::put('projects/{project}/network', [ProjectComputerController::class, 'network'])->name('projects.computer.network');
+        Route::put('projects/{project}/device', [ProjectComputerController::class, 'device'])->name('projects.computer.device');
         Route::get('ssh-keys', [SshKeyController::class, 'index'])->name('ssh-keys.index');
         Route::post('ssh-keys', [SshKeyController::class, 'store'])->name('ssh-keys.store');
         Route::delete('ssh-keys/{sshKey}', [SshKeyController::class, 'destroy'])->name('ssh-keys.destroy');

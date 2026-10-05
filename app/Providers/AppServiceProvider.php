@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Sandbox\Agents\AgentRunner;
 use App\Sandbox\Gateway;
 use App\Sandbox\Providers\BlaxelSandboxProvider;
+use App\Sandbox\Providers\DeviceSandboxProvider;
 use App\Sandbox\Providers\DockerSandboxProvider;
 use App\Sandbox\Providers\FakeSandboxProvider;
 use App\Sandbox\Providers\RoutingSandboxProvider;
@@ -54,6 +55,12 @@ class AppServiceProvider extends ServiceProvider
                 'docker' => fn () => new DockerSandboxProvider(config('sandbox.providers.docker')),
                 'blaxel' => fn () => new BlaxelSandboxProvider(config('sandbox.providers.blaxel')),
                 'runtime' => fn () => new RuntimeSandboxProvider(config('sandbox.providers.runtime')),
+                // Only for projects moved to a computer (DESK-010); never an install's provider for new projects.
+                'device' => fn () => new DeviceSandboxProvider([
+                    ...config('sandbox.providers.device'),
+                    'gateway_domain' => config('sandbox.gateway_domain'),
+                    'gateway_secret' => config('sandbox.gateway_secret'),
+                ]),
             ];
             $provider = config('sandbox.provider');
 

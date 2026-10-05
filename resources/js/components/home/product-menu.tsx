@@ -12,7 +12,8 @@ type ProductMenuFeature = {
 const EXPLORE_LINKS = [
     { href: '/#how-it-works', label: 'How it works' },
     { href: '/#integrations', label: 'Integrations' },
-    { href: '/#compare', label: 'Self-hosting' },
+    { href: '/#compare', label: 'Compared with hosted builders' },
+    { href: '/#ways', label: 'Browser, desktop or self-hosted' },
     { href: '/#faq', label: 'FAQ' },
 ];
 

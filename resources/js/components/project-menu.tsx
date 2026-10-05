@@ -1,4 +1,4 @@
-import { Link, router, useForm } from '@inertiajs/react';
+import { Link, router, useForm, usePage } from '@inertiajs/react';
 import {
     Archive,
     ArchiveRestore,
@@ -6,6 +6,7 @@ import {
     CircleCheck,
     EllipsisVertical,
     FolderOpen,
+    Monitor,
     Kanban,
     Link2,
     Pencil,
@@ -75,9 +76,10 @@ const SHORTCUTS: Record<string, Action> = {
 };
 
 /**
- * The "⋮" menu on a project in the sidebar: open it (TASK-001), its board, a new task, pin, mark unread, rename, regenerate the title, share, copy link, archive, delete.
+ * The "⋮" menu on a project in the sidebar: open it (TASK-001), its board, a new task, pin, mark unread, rename, regenerate the title, share, copy link, open in the desktop app, archive, delete.
  */
 export function ProjectMenu({ project }: { project: SidebarProject }) {
+    const { desktopAppSignedIn } = usePage().props;
     const isMobile = useIsMobile();
     const [, copy] = useClipboard();
     const [open, setOpen] = useState(false);
@@ -259,6 +261,18 @@ export function ProjectMenu({ project }: { project: SidebarProject }) {
                         Copy link
                         <DropdownMenuShortcut>C</DropdownMenuShortcut>
                     </DropdownMenuItem>
+                    {/* In a browser, once the desktop app is signed in somewhere (DESK-011). */}
+                    {desktopAppSignedIn && !window.onedropDesktop && (
+                        <DropdownMenuItem asChild>
+                            <a
+                                href={`onedrop://projects/${project.id}`}
+                                data-test="project-menu-desktop"
+                            >
+                                <Monitor />
+                                Open in the desktop app
+                            </a>
+                        </DropdownMenuItem>
+                    )}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                         onSelect={() => run('archive')}

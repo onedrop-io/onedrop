@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SyncSshKeys;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -38,6 +39,9 @@ class DesktopDeviceController extends Controller
         $token = $request->user()->tokens()->findOrFail($device);
 
         $token->delete();
+
+        // Its SSH key (DESK-008) went with it.
+        SyncSshKeys::dispatch($request->user());
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Signed out “:name”.', ['name' => $token->name])]);
 

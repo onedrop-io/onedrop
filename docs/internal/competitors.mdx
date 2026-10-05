@@ -16,7 +16,7 @@ The main fight: someone describes an app and gets a running one.
 | --- | --- | --- | --- |
 | **Lovable** | React + Vite single-page app | Supabase | None, or a PWA |
 | **Bolt.new** (StackBlitz) | React/Vite and others, run in the browser (WebContainers) | Supabase, Bolt Cloud | Expo (React Native) |
-| **Base44** (owned by Wix) | React + Vite single-page app | Its own: data, auth and Deno functions behind an SDK | Probably the web app in a native shell; unconfirmed |
+| **Base44** (owned by Wix) | React + Vite single-page app | Its own: data, auth and Deno functions behind an SDK | Not Expo: its own native web-view shell that opens only the published app's URL. The editor builds the IPA and AAB and you upload them yourself (Builder plan and up). Web changes ship without a store update. No offline mode, HealthKit or in-app purchases ([docs](https://docs.base44.com/documentation/building-your-app/uploading-to-app-stores), checked 2026-10-04) |
 | **Replit Agent** | Any stack, in a real sandbox | Its own database and hosting | Expo, published with EAS |
 | **v0** (Vercel) | Next.js | Vercel and its integrations | None |
 | **Google AI Studio "Build"**, **Firebase Studio** | React, from Gemini | Cloud Run, Firebase | Firebase Studio can do Flutter |
@@ -62,9 +62,11 @@ Dokploy, Coolify, CapRover, Railway templates, Render, Fly. They compete with ho
 
 ## Our stack and mobile
 
-The default app is Inertia + Laravel: one app to deploy, no API layer, and server routing gives the agent fewer places to break things. The cost is that Inertia pages have no JSON API for a native app to call.
+The default app is Inertia + Laravel, chosen as the more responsible stack: one app to deploy and run, no API layer, each page's data in its first HTML response, and server routing gives the agent fewer places to break things. A mobile-first Expo app on a Laravel API was ruled out for that reason. The cost is that Inertia pages have no JSON API for a native app to call.
 
-Ways to add mobile publishing (not decided yet):
+**Decided (not built yet):** every app is an installable web app (PWA) by default, and a native store app is a mode the user turns on, using the preferred route below. See `REQ.md` → Competitors for the details.
+
+Ways to add native mobile:
 
 | Route | How it works | Trade-off |
 | --- | --- | --- |

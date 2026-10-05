@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Actions\Auth\DesktopSignIn;
 use App\Http\Controllers\Controller;
+use App\Jobs\SyncSshKeys;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -36,6 +37,9 @@ class DesktopTokenController extends Controller
     public function destroy(Request $request): Response
     {
         $request->user()->currentAccessToken()->delete();
+
+        // Its SSH key (DESK-008) went with it.
+        SyncSshKeys::dispatch($request->user());
 
         return response()->noContent();
     }

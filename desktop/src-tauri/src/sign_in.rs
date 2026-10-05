@@ -38,7 +38,7 @@ fn random(length: usize) -> String {
 }
 
 /// What this computer is called, e.g. "Jeff's MacBook Pro": the server names the app's token after it.
-fn device_name() -> String {
+pub fn device_name() -> String {
     let name = whoami::devicename();
 
     if name.trim().is_empty() {

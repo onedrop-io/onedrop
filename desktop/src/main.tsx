@@ -5,6 +5,7 @@ import { initializeTheme } from '@/hooks/use-appearance';
 import { startApp } from '@/inertia-app';
 import SignIn from './components/sign-in';
 import Unreachable from './components/unreachable';
+import { provideDesktop } from './lib/bridge';
 import { clearSession, loadSession, provideNotifications } from './lib/native';
 import { connectToServer, firstPage, serverHeaders } from './lib/transport';
 import type { Session } from './lib/types';
@@ -81,7 +82,14 @@ async function boot(): Promise<void> {
 
     root.remove();
     await provideNotifications().catch(() => {});
+    // What only the app can do (DESK-006..011), for the pages to offer; they start without it if it fails.
+    const showPending = await provideDesktop().catch((error: unknown) => {
+        console.error('[onedrop] desktop features unavailable', error);
+
+        return () => {};
+    });
     startApp({ page });
+    showPending();
     keepUpdated();
     warnIfServerIsOlder();
 }

@@ -43,8 +43,10 @@ class RoutingSandboxProvider implements SandboxProvider
 
     public function create(SandboxSpec $spec): string
     {
-        $id = $this->provider($this->default)->create($spec);
-        $this->owners[$id] = $this->default;
+        // A project moved to a computer runs there (DESK-010), whatever the install's provider.
+        $name = $spec->deviceId !== null ? 'device' : $this->default;
+        $id = $this->provider($name)->create($spec);
+        $this->owners[$id] = $name;
 
         return $id;
     }

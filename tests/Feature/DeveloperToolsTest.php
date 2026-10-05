@@ -191,7 +191,7 @@ test('ssh explains when it isn\'t available', function (Closure $setUp, string $
         ->assertOk()
         ->assertJsonPath('unavailable', fn (string $text) => str_contains($text, $message));
 })->with([
-    'on a server' => [fn () => config(['sandbox.gateway_domain' => 'onedrop.example.com']), "isn't available on this server"],
+    'on a server' => [fn () => config(['sandbox.gateway_domain' => 'onedrop.example.com']), 'use the desktop app: Tools → This computer'],
     'sandbox without an ssh port' => [fn () => $this->sandbox->update(['ssh_address' => null]), 'created before SSH was added'],
     'image without sshd' => [fn () => $this->outputs['sync'] = WorkspaceSsh::NO_SERVER, "image doesn't have SSH yet"],
 ])->group('DEVTOOLS-001');

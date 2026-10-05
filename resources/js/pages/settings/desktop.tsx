@@ -3,6 +3,8 @@ import { Monitor } from 'lucide-react';
 import { useState } from 'react';
 import Heading from '@/components/heading';
 import { Button } from '@/components/ui/button';
+import { useDesktopDownload } from '@/hooks/use-desktop-download';
+import { DESKTOP_DOCS_URL } from '@/lib/links';
 import { destroy, index } from '@/routes/desktop-devices';
 
 type Device = {
@@ -24,6 +26,7 @@ function formatDate(value: string | null): string {
 /** Where the desktop app is signed in (DESK-001), each with a way to sign it out. */
 export default function DesktopSettings({ devices }: { devices: Device[] }) {
     const [signingOut, setSigningOut] = useState<number | null>(null);
+    const download = useDesktopDownload();
 
     const signOut = (id: number) => {
         setSigningOut(id);
@@ -51,7 +54,24 @@ export default function DesktopSettings({ devices }: { devices: Device[] }) {
                         className="rounded-lg border p-4 text-sm text-muted-foreground"
                         data-test="desktop-devices-empty"
                     >
-                        The desktop app isn't signed in anywhere.
+                        The desktop app isn't signed in anywhere.{' '}
+                        <a
+                            href={download.href}
+                            className="font-medium text-foreground underline underline-offset-4"
+                            data-test="desktop-devices-download"
+                        >
+                            {download.label}
+                        </a>
+                        , or see the{' '}
+                        <a
+                            href={DESKTOP_DOCS_URL}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="underline underline-offset-4"
+                        >
+                            desktop app guide
+                        </a>{' '}
+                        for other systems.
                     </p>
                 ) : (
                     <div className="overflow-hidden rounded-lg border">

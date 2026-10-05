@@ -111,6 +111,7 @@ import {
     PreviewErrorBar,
     usePreviewErrors,
 } from '@/components/workspace/preview-errors';
+import EditorMenu from '@/components/workspace/editor-menu';
 import GitActionsMenu from '@/components/workspace/git-actions-menu';
 import PublishMenu from '@/components/workspace/publish-menu';
 import ShareMenu from '@/components/workspace/share-menu';
@@ -375,6 +376,11 @@ export default function ShowProject({
                     projectId={project.id}
                     projectName={project.name}
                     sharing={sharing}
+                />
+                <EditorMenu
+                    projectId={project.id}
+                    alias={project.editor_alias ?? null}
+                    running={sandbox?.status === 'running'}
                 />
                 <PublishMenu projectId={project.id} publication={publication} />
             </HeaderActions>

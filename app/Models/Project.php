@@ -27,6 +27,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
+use Laravel\Sanctum\PersonalAccessToken;
 
 /**
  * @property int $id
@@ -82,8 +83,10 @@ use Illuminate\Support\Str;
  * @property bool $auto_deploy Update the hosted app by itself after a turn that went well (HOST-006)
  * @property string|null $hosting_sqlite_import The hosted SQLite file a Move to Postgres copies into the app's new Postgres, until it has (HOST-009)
  * @property string|null $hosting_size The hosted app's machine size; null is the install's default (HOST-010)
+ * @property int|null $device_id The computer (a desktop app sign-in) it runs on, or null for the install's provider (DESK-010)
+ * @property list<array{host: string, port: int}>|null $network_hosts Hosts on its people's network it may reach through their desktop app (DESK-009)
  */
-#[Fillable(['organization_id', 'name', 'prompt', 'status', 'agent_session_id', 'sign_in_retry_message_id', 'agent_harness', 'agent_provider', 'agent_model', 'agent_variant', 'agent_auto', 'publish_status', 'publish_visibility', 'publish_target', 'published_url', 'published_at', 'published_by', 'publish_error', 'publish_login_url', 'publish_waiting_for', 'onedrop_enabled', 'onedrop_client_id', 'onedrop_client_secret', 'onedrop_callback_path', 'onedrop_group_ids', 'pinned_at', 'read_at', 'archived_at', 'sidebar_position', 'backup_commit', 'backed_up_at', 'icon_path', 'icon_mime', 'icon_hash', 'git_remote_url', 'git_remote_username', 'git_remote_token', 'git_sync_status', 'git_sync_error', 'git_synced_at', 'github_installation_id', 'autofix', 'track_requirements', 'turn_outcome', 'hosting_changes', 'auto_deploy', 'hosting_sqlite_import', 'hosting_size', 'published_default_url'])]
+#[Fillable(['organization_id', 'name', 'prompt', 'status', 'agent_session_id', 'sign_in_retry_message_id', 'agent_harness', 'agent_provider', 'agent_model', 'agent_variant', 'agent_auto', 'publish_status', 'publish_visibility', 'publish_target', 'published_url', 'published_at', 'published_by', 'publish_error', 'publish_login_url', 'publish_waiting_for', 'onedrop_enabled', 'onedrop_client_id', 'onedrop_client_secret', 'onedrop_callback_path', 'onedrop_group_ids', 'pinned_at', 'read_at', 'archived_at', 'sidebar_position', 'backup_commit', 'backed_up_at', 'icon_path', 'icon_mime', 'icon_hash', 'git_remote_url', 'git_remote_username', 'git_remote_token', 'git_sync_status', 'git_sync_error', 'git_synced_at', 'github_installation_id', 'autofix', 'track_requirements', 'turn_outcome', 'hosting_changes', 'auto_deploy', 'hosting_sqlite_import', 'hosting_size', 'published_default_url', 'device_id', 'network_hosts'])]
 #[Hidden(['onedrop_client_secret', 'git_remote_token'])]
 class Project extends Model implements Conversation
 {
@@ -149,6 +152,7 @@ class Project extends Model implements Conversation
             'git_sync_status' => GitSyncStatus::class,
             'git_synced_at' => 'datetime',
             'github_installation_id' => 'integer',
+            'network_hosts' => 'array',
         ];
     }
 
@@ -160,6 +164,24 @@ class Project extends Model implements Conversation
         $name = Str::of($prompt)->squish()->words(6, '')->rtrim('.,!?;:')->title()->toString();
 
         return Str::limit($name, 60, '') ?: 'Untitled Project';
+    }
+
+    /**
+     * The sandbox provider its sandboxes run on: the computer it was moved to (DESK-010), else the install's.
+     */
+    public function sandboxProvider(): string
+    {
+        return $this->device_id ? 'device' : (string) config('sandbox.provider');
+    }
+
+    /**
+     * The computer it runs on (DESK-010): a desktop app sign-in.
+     *
+     * @return BelongsTo<PersonalAccessToken, $this>
+     */
+    public function device(): BelongsTo
+    {
+        return $this->belongsTo(PersonalAccessToken::class, 'device_id');
     }
 
     /**

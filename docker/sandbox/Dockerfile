@@ -142,6 +142,9 @@ COPY lazy /opt/onedrop/lazy
 # compose runs a project's own Docker Compose stack; dockerd starts Docker for it, as root through the sandbox
 # user's only sudo rule; the docker group lets the sandbox user (and the agent) use it (SBX-008).
 COPY compose dockerd forward.mjs /opt/onedrop/
+# tunnel.mjs is the desktop app's way in: its ports on the user's computer, SSH for their editor, and hosts on their
+# network (DESK-007..009), through host-proxy.mjs. The platform starts it with `tunnel ensure`.
+COPY tunnel tunnel.mjs /opt/onedrop/
 # tests.mjs runs the app's Playwright tests with playwright.config.mjs, recording each, for the Tests tab; run-tests
 # is the agent's way in (TEST-001..003). test-steps.mjs, loaded into the test workers, records each test's steps and
 # stops one at a step for browser.mjs, the browser the user takes over (with browser-viewer.html, and `browser` for
