@@ -86,7 +86,7 @@ class TaskController extends Controller
         $title = Str::squish($validated['title'] ?? '');
 
         if ($starting && Task::getsCopies() && $project->taskCopyLimitReached()) {
-            throw self::copyLimitError();
+            throw self::copyLimitError($project);
         }
 
         $task = $project->tasks()->create([
@@ -167,10 +167,10 @@ class TaskController extends Controller
     /**
      * An error for a task that would need one copy of the app more than the project may run.
      */
-    public static function copyLimitError(): ValidationException
+    public static function copyLimitError(Project $project): ValidationException
     {
         return ValidationException::withMessages([
-            'content' => __('This project already runs :count task copies of the app. Apply or delete a task first.', ['count' => config('sandbox.max_task_copies')]),
+            'content' => trans_choice('This project already runs :count task copy of the app, as many as it may. Apply or delete a task first.|This project already runs :count task copies of the app, as many as it may. Apply or delete a task first.', (int) $project->taskCopyLimit()),
         ]);
     }
 

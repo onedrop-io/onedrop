@@ -27,7 +27,22 @@ class SandboxProviderController extends Controller
             'providers' => $providers->describe(
                 Sandbox::query()->selectRaw('provider, COUNT(*) as count')->groupBy('provider')->pluck('count', 'provider')->map(fn ($count) => (int) $count)->all(),
             ),
+            'maxTaskCopies' => config('sandbox.max_task_copies'),
         ]);
+    }
+
+    /**
+     * Cap how many task copies one project runs at once, or (left empty) don't (TASK-003).
+     */
+    public function taskCopies(Request $request, SandboxProviders $providers): RedirectResponse
+    {
+        $limit = $request->validate(['max_task_copies' => ['nullable', 'integer', 'min:1', 'max:1000']])['max_task_copies'] ?? null;
+
+        $providers->limitTaskCopies($limit === null ? null : (int) $limit);
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Task copies saved.')]);
+
+        return to_route('admin.sandboxes.index');
     }
 
     /**

@@ -39,6 +39,11 @@ class SystemConfig
             }
         }
 
+        // Most task copies a project runs at once (TASK-003); saved empty means no limit.
+        if (array_key_exists('max_task_copies', $sandboxes)) {
+            config(['sandbox.max_task_copies' => $sandboxes['max_task_copies']]);
+        }
+
         // New projects run on the first provider that's on and set up. Installs saved before providers had an
         // order kept one "active" provider, which goes first. The test suite's fake provider is never swapped out.
         if (config('sandbox.provider') !== 'fake') {

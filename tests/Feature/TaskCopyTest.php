@@ -23,6 +23,7 @@ use App\Sandbox\SandboxProvider;
 use App\Sandbox\TaskCopies;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
     config(['sandbox.task_copies' => true]);
@@ -31,11 +32,13 @@ beforeEach(function () {
     $this->provider = new FakeSandboxProvider;
     $this->mergeResult = new ExecResult(0, '');
     $this->services = '';
+    $this->images = '';
     $this->provider->execUsing = fn (array $command) => match (true) {
         $command[0] === 'bash' && ($command[3] ?? null) === 'check' => new ExecResult(0, "done\n"),
         $command[0] === '/opt/onedrop/fork' && $command[1] === 'branch' => new ExecResult(0, "abc123\n"),
         $command[0] === '/opt/onedrop/fork' && $command[1] === 'merge' => $this->mergeResult,
         $command[0] === '/opt/onedrop/fork' && $command[1] === 'services' => new ExecResult(0, $this->services),
+        $command[0] === '/opt/onedrop/fork' && $command[1] === 'images' => new ExecResult(0, $this->images),
         default => new ExecResult(0, ''),
     };
     app()->instance(SandboxProvider::class, $this->provider);
@@ -81,6 +84,9 @@ test('the copy is Main\'s kept paths at one instant, on its own branch, with its
     expect($snapshot)->toMatchArray([0 => '/opt/onedrop/fork', 1 => 'snapshot'])
         ->and(array_slice($snapshot, 3))->toBe(['/workspace', '/data/storage', '/home/sandbox'])
         ->and(collect($this->provider->executed)->firstWhere('command', $snapshot)['detach'])->toBeTrue()
+        // As root: files a database's container owns as its own user are copied too, and cleared up after.
+        ->and(collect($this->provider->executed)->firstWhere('command', $snapshot)['root'])->toBeTrue()
+        ->and(collect($this->provider->executed)->where('id', 'main-1')->first(fn (array $exec) => $exec['command'][0] === 'rm')['root'])->toBeTrue()
         ->and($copy->status)->toBe(SandboxStatus::Running)
         ->and($copy->project_id)->toBe($this->project->id)
         ->and($this->provider->created[$copy->external_id]->storageKey)->toBe("project-{$this->project->id}-task-{$task->id}")
@@ -100,9 +106,64 @@ test('the chat warns about data services outside the sandbox, which the copy sti
     expect($task->messages()->pluck('content')->last())->toBe("This copy still uses db.example.com and cache.internal from the app's settings, shared with Main");
 })->group('TASK-003');
 
+test('the copy gets the Docker images Main built itself, each stored once and loaded through signed links', function () {
+    config(['filesystems.disks.local.driver' => 's3', 'sandbox.snapshot_disk' => 'local']);
+    Storage::fake('local', ['serve' => true]);
+    Storage::disk('local')->buildTemporaryUploadUrlsUsing(fn (string $path) => ['url' => "https://bucket.test/{$path}?upload", 'headers' => ['Content-Type' => 'application/zstd']]);
+    $folder = "project-snapshots/{$this->project->id}/images";
+    // Stored for an earlier task: loaded without saving it again. An image Main has since built again goes.
+    Storage::disk('local')->put("{$folder}/bbb.tar.zst", 'api');
+    Storage::disk('local')->put("{$folder}/old.tar.zst", 'old');
+    $this->images = "sha256:aaa ghcr.io/acme/app:latest ghcr.io/acme/app:dev\nsha256:bbb ghcr.io/acme/api:latest\n";
+    $task = Task::factory()->for($this->project)->create();
+    $task->sandbox()->create(['provider' => 'fake', 'status' => SandboxStatus::Creating]);
+
+    (new ForkTaskSandbox($task))->handle(app(TaskCopies::class), app(AgentQueue::class));
+
+    $copy = $task->sandbox()->first();
+    $saves = collect($this->provider->executed)->filter(fn (array $exec) => ($exec['command'][1] ?? null) === 'save-image');
+    $loads = collect($this->provider->executed)->filter(fn (array $exec) => ($exec['command'][1] ?? null) === 'load-image');
+    $copyCommands = commandsIn($this->provider, $copy->external_id);
+
+    expect($saves)->toHaveCount(1)
+        ->and($saves->first()['id'])->toBe('main-1')
+        ->and(array_slice($saves->first()['command'], 4))->toBe(['ghcr.io/acme/app:latest', 'ghcr.io/acme/app:dev'])
+        ->and($saves->first()['env'])->toBe(['ONEDROP_IMAGE_URL' => "https://bucket.test/{$folder}/aaa.tar.zst?upload", 'ONEDROP_IMAGE_HEADERS' => 'Content-Type: application/zstd'])
+        ->and($saves->first()['detach'])->toBeTrue()
+        ->and($loads)->toHaveCount(2)
+        ->and($loads->pluck('id')->unique()->all())->toBe([$copy->external_id])
+        ->and($loads->pluck('command')->map(fn (array $command) => $command[3])->all())->toBe(['url', 'url'])
+        ->and($loads->pluck('env')->map(fn (array $env) => str_contains($env['ONEDROP_IMAGE_URL'], 'bbb.tar.zst'))->all())->toBe([false, true])
+        // Loaded before the app starts, so its compose stack finds them.
+        ->and(array_search(['/opt/onedrop/restart'], $copyCommands, true))->toBeGreaterThan(collect($copyCommands)->search(fn (array $command) => ($command[1] ?? null) === 'load-image'))
+        ->and($copy->status)->toBe(SandboxStatus::Running);
+    Storage::disk('local')->assertMissing("{$folder}/old.tar.zst");
+    Storage::disk('local')->assertExists("{$folder}/bbb.tar.zst");
+})->group('TASK-003');
+
+test("a copy whose images can't be carried still starts, and builds them itself", function () {
+    config(['filesystems.disks.local.driver' => 's3', 'sandbox.snapshot_disk' => 'local']);
+    Storage::fake('local', ['serve' => true]);
+    Storage::disk('local')->buildTemporaryUploadUrlsUsing(fn (string $path) => ['url' => "https://bucket.test/{$path}", 'headers' => []]);
+    $this->images = "sha256:aaa ghcr.io/acme/app:latest\n";
+    $this->provider->execUsing = fn (array $command) => match (true) {
+        ($command[3] ?? null) === 'check' && str_contains($command[4], 'onedrop-image') => new ExecResult(3, 'no space left on device'),
+        ($command[3] ?? null) === 'check' => new ExecResult(0, "done\n"),
+        $command[0] === '/opt/onedrop/fork' && $command[1] === 'images' => new ExecResult(0, $this->images),
+        default => new ExecResult(0, ''),
+    };
+    $task = Task::factory()->for($this->project)->create();
+    $task->sandbox()->create(['provider' => 'fake', 'status' => SandboxStatus::Creating]);
+
+    (new ForkTaskSandbox($task))->handle(app(TaskCopies::class), app(AgentQueue::class));
+
+    expect($task->sandbox()->first()->status)->toBe(SandboxStatus::Running)
+        ->and(commandsIn($this->provider, $task->sandbox()->first()->external_id))->toContain(['/opt/onedrop/restart']);
+})->group('TASK-003');
+
 test("a copy that can't be made says why and stops the run", function () {
     $this->provider->execUsing = fn (array $command) => ($command[3] ?? null) === 'check'
-        ? new ExecResult(3, 'No space left on device')
+        ? new ExecResult(3, "No space left on device\nrsync error: some files could not be transferred")
         : new ExecResult(0, '');
     $task = Task::factory()->for($this->project)->working()->create();
     $task->sandbox()->create(['provider' => 'fake', 'status' => SandboxStatus::Creating]);
@@ -203,14 +264,42 @@ test("a task can't be applied while an agent works, or without its own copy", fu
     'no copy' => [fn ($test, Task $task) => $task->sandbox()->delete(), "This task doesn't have its own copy of the app."],
 ])->group('TASK-003');
 
-test('a project runs a limited number of task copies at once', function () {
+test('with no limit set anywhere, a project runs as many task copies as it has tasks', function () {
     Queue::fake();
-    config(['sandbox.max_task_copies' => 1]);
+    config(['sandbox.max_task_copies' => null]);
+
+    foreach (range(1, 5) as $index) {
+        $busy = Task::factory()->for($this->project)->create();
+        $busy->sandbox()->create(['provider' => 'fake', 'external_id' => "copy-{$index}", 'status' => SandboxStatus::Running]);
+    }
+
+    $this->post(route('projects.tasks.store', $this->project), ['content' => 'Another one'])->assertSessionHasNoErrors();
+
+    expect(Task::count())->toBe(6);
+})->group('TASK-003');
+
+test('the lower of the install\'s and the organization\'s task copy limits applies', function (?int $install, ?int $organization, ?int $limit) {
+    config(['sandbox.max_task_copies' => $install]);
+    $this->project->organization->update(['max_task_copies' => $organization]);
+
+    expect($this->project->fresh()->taskCopyLimit())->toBe($limit);
+})->with([
+    'neither' => [null, null, null],
+    'the install only' => [4, null, 4],
+    'the organization only' => [null, 2, 2],
+    'the organization lower' => [5, 2, 2],
+    'the install lower' => [2, 5, 2],
+])->group('TASK-003');
+
+test('a project at its limit can\'t start another task copy', function () {
+    Queue::fake();
+    config(['sandbox.max_task_copies' => null]);
+    $this->project->organization->update(['max_task_copies' => 1]);
     $busy = Task::factory()->for($this->project)->create();
     $busy->sandbox()->create(['provider' => 'fake', 'external_id' => 'copy-1', 'status' => SandboxStatus::Running]);
 
     $this->post(route('projects.tasks.store', $this->project), ['content' => 'Another one'])
-        ->assertSessionHasErrors(['content' => 'This project already runs 1 task copies of the app. Apply or delete a task first.']);
+        ->assertSessionHasErrors(['content' => 'This project already runs 1 task copy of the app, as many as it may. Apply or delete a task first.']);
 
     expect(Task::count())->toBe(1);
 })->group('TASK-003');

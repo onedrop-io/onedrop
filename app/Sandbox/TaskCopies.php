@@ -7,6 +7,7 @@ use App\Jobs\CreateSandbox;
 use App\Models\Project;
 use App\Models\Sandbox;
 use App\Models\Task;
+use Illuminate\Http\File as LocalFile;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use Throwable;
@@ -22,7 +23,15 @@ class TaskCopies
     /** How long to wait for Main's sandbox to finish copying itself, in seconds. */
     public const SNAPSHOT_TIMEOUT = 600;
 
-    public function __construct(protected SandboxProvider $provider, protected SandboxUpdater $updater) {}
+    /** How long to wait for one Docker image to be saved or loaded, in seconds. */
+    public const IMAGE_TIMEOUT = 600;
+
+    public function __construct(
+        protected SandboxProvider $provider,
+        protected SandboxUpdater $updater,
+        protected ProjectSnapshots $snapshots,
+        protected SandboxTools $tools,
+    ) {}
 
     /**
      * Make the task's copy of the app from Main's sandbox, on branch task-<id>. Returns the data services
@@ -54,6 +63,7 @@ class TaskCopies
             }
 
             $this->provider->exec($copy->external_id, ['bash', '-c', SandboxUpdater::USE_IMAGE_SHELL_SETUP]);
+            $this->carryImages($project, $main, $copy);
             $branch = $this->run($copy, ['/opt/onedrop/fork', 'branch', self::branch($task)]);
             // The app's dev server (.onedrop/dev) and its services came with the files; start them.
             $this->provider->exec($copy->external_id, ['/opt/onedrop/restart']);
@@ -128,7 +138,8 @@ class TaskCopies
     {
         $dir = '/tmp/onedrop-fork-'.Str::lower(Str::random(8));
 
-        $this->provider->exec($main->external_id, ['/opt/onedrop/fork', 'snapshot', $dir, ...SandboxUpdater::KEPT_PATHS], detach: true);
+        // As root, like an update's copy: a database in one of the app's containers keeps its files as its own user.
+        $this->provider->exec($main->external_id, ['/opt/onedrop/fork', 'snapshot', $dir, ...SandboxUpdater::KEPT_PATHS], detach: true, root: true);
 
         try {
             $this->waitForSnapshot($main, $dir);
@@ -138,7 +149,7 @@ class TaskCopies
                 $this->provider->copyOut($main->external_id, "{$dir}/{$index}", "{$local}/{$index}");
             }
         } finally {
-            $this->provider->exec($main->external_id, ['rm', '-rf', $dir]);
+            $this->provider->exec($main->external_id, ['rm', '-rf', $dir], root: true);
         }
     }
 
@@ -147,13 +158,24 @@ class TaskCopies
      */
     protected function waitForSnapshot(Sandbox $main, string $dir): void
     {
-        $deadline = now()->addSeconds(self::SNAPSHOT_TIMEOUT);
+        $this->waitFor($main, $dir, self::SNAPSHOT_TIMEOUT, "Couldn't copy the app", 'Copying the app took too long.');
+    }
+
+    /**
+     * Wait for a detached fork command to mark $dir done (or failed, with what it said).
+     *
+     * @throws SandboxException
+     */
+    protected function waitFor(Sandbox $sandbox, string $dir, int $seconds, string $failure, string $tooLong): void
+    {
+        $deadline = now()->addSeconds($seconds);
 
         do {
-            $check = $this->provider->exec($main->external_id, ['bash', '-c', 'if [ -f "$1/.done" ]; then echo done; elif [ -f "$1/.failed" ]; then cat "$1/.failed"; exit 3; fi', 'check', $dir]);
+            $check = $this->provider->exec($sandbox->external_id, ['bash', '-c', 'if [ -f "$1/.done" ]; then echo done; elif [ -f "$1/.failed" ]; then cat "$1/.failed"; exit 3; fi', 'check', $dir]);
 
             if ($check->exitCode === 3) {
-                throw new SandboxException("Couldn't copy the app: ".(trim($check->output) ?: 'unknown error'));
+                // One line: a copy that fails on every file says so for each of them.
+                throw new SandboxException("{$failure}: ".(strtok(trim($check->output), "\n") ?: 'unknown error'));
             }
 
             if (trim($check->output) === 'done') {
@@ -163,7 +185,131 @@ class TaskCopies
             sleep(1);
         } while (now()->lessThan($deadline));
 
-        throw new SandboxException('Copying the app took too long.');
+        throw new SandboxException($tooLong);
+    }
+
+    /**
+     * Give the copy the Docker images Main built itself, which no registry has: without them, its compose stack builds
+     * them all again (minutes), or can't. Each is kept once on the snapshot disk by image id, so later tasks only load
+     * it; the sandboxes upload and download it themselves through signed links when the disk is S3-compatible. Best
+     * effort: a copy without them builds them, as before.
+     */
+    protected function carryImages(Project $project, Sandbox $main, Sandbox $copy): void
+    {
+        $transport = $this->snapshots->transport($main->provider);
+
+        if ($transport === null || $transport !== $this->snapshots->transport($copy->provider)) {
+            return;
+        }
+
+        try {
+            $images = $this->builtImages($main);
+
+            if ($images === [] || ($this->tools->available() && ! $this->tools->ensure($this->provider, $copy->external_id, ['fork']))) {
+                return;
+            }
+
+            $disk = $this->snapshots->disk();
+            $folder = $this->snapshots->path($project->id).'/images';
+            $paths = [];
+
+            foreach ($images as $id => $tags) {
+                $path = $paths[] = "{$folder}/".Str::after($id, 'sha256:').'.tar.zst';
+
+                if (! $disk->exists($path)) {
+                    $this->saveImage($main, $transport, $tags, $path);
+                }
+
+                $this->loadImage($copy, $transport, $path);
+            }
+
+            // Ones Main no longer has (it built them again since) aren't needed.
+            $disk->delete(array_values(array_diff($disk->files($folder), $paths)));
+        } catch (Throwable $e) {
+            report($e);
+        }
+    }
+
+    /**
+     * The images Main's Docker built itself: id => tags.
+     *
+     * @return array<string, list<string>>
+     */
+    protected function builtImages(Sandbox $main): array
+    {
+        $images = [];
+
+        foreach (preg_split('/\R/', trim($this->run($main, ['/opt/onedrop/fork', 'images']))) ?: [] as $line) {
+            $words = preg_split('/\s+/', trim($line)) ?: [];
+
+            if (count($words) > 1 && str_starts_with($words[0], 'sha256:')) {
+                $images[$words[0]] = array_slice($words, 1);
+            }
+        }
+
+        return $images;
+    }
+
+    /**
+     * @param  list<string>  $tags
+     *
+     * @throws SandboxException
+     */
+    protected function saveImage(Sandbox $main, string $transport, array $tags, string $path): void
+    {
+        $dir = '/tmp/onedrop-image-'.Str::lower(Str::random(8));
+        $env = [];
+
+        if ($transport === 'links') {
+            ['url' => $url, 'headers' => $headers] = $this->snapshots->disk()->temporaryUploadUrl($path, now()->addMinutes(30));
+            $env = [
+                'ONEDROP_IMAGE_URL' => $url,
+                'ONEDROP_IMAGE_HEADERS' => $this->snapshots->headerLines($headers),
+            ];
+        }
+
+        $local = storage_path('framework/task-image-'.uniqid());
+
+        try {
+            $this->provider->exec($main->external_id, ['/opt/onedrop/fork', 'save-image', $dir, "{$dir}/image.tar.zst", ...$tags], $env, detach: true);
+            $this->waitFor($main, $dir, self::IMAGE_TIMEOUT, "Couldn't save the app's {$tags[0]} image", "Saving the app's {$tags[0]} image took too long.");
+
+            if ($transport === 'copy') {
+                File::ensureDirectoryExists($local);
+                $this->provider->copyOut($main->external_id, $dir, $local);
+                $this->snapshots->disk()->putFileAs(dirname($path), new LocalFile("{$local}/image.tar.zst"), basename($path));
+            }
+        } finally {
+            File::deleteDirectory($local);
+            $this->provider->exec($main->external_id, ['rm', '-rf', $dir], root: true);
+        }
+    }
+
+    /**
+     * @throws SandboxException
+     */
+    protected function loadImage(Sandbox $copy, string $transport, string $path): void
+    {
+        $dir = '/tmp/onedrop-image-'.Str::lower(Str::random(8));
+        $local = storage_path('framework/task-image-'.uniqid());
+
+        try {
+            if ($transport === 'links') {
+                $this->provider->exec($copy->external_id, ['/opt/onedrop/fork', 'load-image', $dir, 'url'], [
+                    'ONEDROP_IMAGE_URL' => $this->snapshots->disk()->temporaryUrl($path, now()->addMinutes(30)),
+                ], detach: true);
+            } else {
+                File::ensureDirectoryExists($local);
+                $this->download($path, "{$local}/image.tar.zst");
+                $this->provider->copyIn($copy->external_id, $local, $dir);
+                $this->provider->exec($copy->external_id, ['/opt/onedrop/fork', 'load-image', $dir, "{$dir}/image.tar.zst"], detach: true);
+            }
+
+            $this->waitFor($copy, $dir, self::IMAGE_TIMEOUT, "Couldn't load the app's image", "Loading the app's image took too long.");
+        } finally {
+            File::deleteDirectory($local);
+            $this->provider->exec($copy->external_id, ['rm', '-rf', $dir], root: true);
+        }
     }
 
     /**
@@ -241,6 +387,22 @@ class TaskCopies
         }
 
         return $copy;
+    }
+
+    /**
+     * @throws SandboxException
+     */
+    protected function download(string $path, string $file): void
+    {
+        $source = $this->snapshots->disk()->readStream($path) ?? throw new SandboxException("Couldn't read {$path}.");
+        $target = fopen($file, 'wb') ?: throw new SandboxException("Couldn't write {$file}.");
+
+        try {
+            stream_copy_to_stream($source, $target);
+        } finally {
+            fclose($target);
+            fclose($source);
+        }
     }
 
     /**

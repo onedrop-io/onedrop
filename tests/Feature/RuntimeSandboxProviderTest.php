@@ -143,6 +143,17 @@ test('exec passes secrets in the body, never the command line, and maps the resu
         && $request['env'] === ['HOME' => RuntimeSandboxProvider::HOME, 'OPENAI_API_KEY' => 'sk-secret']);
 })->group('SBX-003');
 
+test('exec as root goes through sudo, keeping only the env it was given', function () {
+    Http::fake([RT_API.'/sandboxes/'.RT_ID.':exec' => Http::response(['exitCode' => 0, 'stdout' => '', 'stderr' => '', 'timedOut' => false])]);
+
+    $this->runtime->exec(RT_ID, ['rm', '-rf', '/tmp/x'], root: true);
+    $this->runtime->exec(RT_ID, ['tool'], ['TOKEN' => 'secret'], root: true);
+
+    Http::assertSent(fn (Request $request) => $request['argv'] === ['sudo', 'rm', '-rf', '/tmp/x']);
+    Http::assertSent(fn (Request $request) => $request['argv'] === ['sudo', '--preserve-env=TOKEN', 'tool']
+        && $request['env']['TOKEN'] === 'secret');
+})->group('TASK-003');
+
 test('a detached exec starts a background process', function () {
     Http::fake([RT_API.'/sandboxes/'.RT_ID.'/processes' => Http::response(['id' => 'p1', 'state' => 'running'])]);
 

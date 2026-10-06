@@ -176,11 +176,16 @@ class RuntimeSandboxProvider implements SandboxProvider
         return false;
     }
 
-    public function exec(string $id, array $command, array $env = [], bool $detach = false): ExecResult
+    public function exec(string $id, array $command, array $env = [], bool $detach = false, bool $root = false): ExecResult
     {
         // Env goes in the body, never the command line: Runtime never echoes it back. Runtime runs commands
         // with HOME=/workspace; give them the sandbox user's home so the agent's data stays out of the project.
         $body = ['argv' => $command, 'env' => ['HOME' => self::HOME, ...$env]];
+
+        // Runtime's agent runs commands as a user with sudo (copyOut packs as root the same way); sudo keeps only the env asked for.
+        if ($root) {
+            $body['argv'] = ['sudo', ...($env === [] ? [] : ['--preserve-env='.implode(',', array_keys($env))]), ...$command];
+        }
 
         if ($detach) {
             $this->send('post', "sandboxes/{$id}/processes", $body);

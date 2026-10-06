@@ -318,6 +318,7 @@ test('the device provider calls the computer through the relay', function () {
 
     $id = $provider->create(new SandboxSpec(name: 'onedrop-project-1-abc', env: ['A' => 'b'], port: 8000, shellPort: 7681, proxyPort: 8081, sshPort: 2222, deviceId: 4));
     $result = $provider->exec($id, ['echo', 'hi'], ['X' => '1']);
+    $provider->exec($id, ['rm', '-rf', '/tmp/x'], root: true);
 
     expect($id)->toBe('4:onedrop-project-1-abc')
         ->and($result->output)->toBe("hi\n")
@@ -328,7 +329,9 @@ test('the device provider calls the computer through the relay', function () {
         && $request['image'] === 'ghcr.io/onedrop-io/onedrop-sandbox:latest'
         && $request['ports'] === ['app' => 8000, 'proxy' => 8081, 'shell' => 7681, 'ssh' => 2222]);
     Http::assertSent(fn (HttpRequest $request) => str_ends_with($request->url(), '/rpc/exec')
-        && $request['id'] === 'onedrop-project-1-abc' && $request['command'] === ['echo', 'hi'] && $request['detach'] === false);
+        && $request['id'] === 'onedrop-project-1-abc' && $request['command'] === ['echo', 'hi'] && $request['detach'] === false && ! isset($request['user']));
+    Http::assertSent(fn (HttpRequest $request) => str_ends_with($request->url(), '/rpc/exec')
+        && $request['command'] === ['rm', '-rf', '/tmp/x'] && $request['user'] === 'root');
 })->group('DESK-010');
 
 test('the device provider says which computer to open when it is offline', function () {

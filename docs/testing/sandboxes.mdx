@@ -66,6 +66,16 @@ With **Docker inside sandboxes** on for the provider:
 - [ ] A project with its own `docker-compose.yml` starts its stack, and **Services** shows it.
 - [ ] Turning the setting off and on updates existing sandboxes the next time their projects are opened.
 
+## Task copies (TASK-003)
+
+With **Docker inside sandboxes** on, in a project whose compose stack has a database (Mongo or Postgres) storing its files in the workspace (e.g. `./tmp/mongo:/data/db`):
+
+- [ ] A new task's first message makes its copy without "Permission denied", even though the database's files belong to its container's user.
+- [ ] The task's copy starts the stack, and its database has Main's data.
+- [ ] Main's containers are running again afterwards (`docker ps` in Main's Shell shows none **Paused**).
+- [ ] With a service Main built itself (a `build:` section), the copy's preview comes up without building it again: `docker images` in the copy's Shell lists it, and its Console shows no build steps for it.
+- [ ] A second task loads the same image without Main saving it again (no new file under the project's `images` folder on the snapshot disk).
+
 ## Switch providers
 
 - [ ] Changing the provider in **Settings → Sandboxes** moves each project to the new provider when it's next opened, with its files.

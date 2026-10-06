@@ -106,16 +106,17 @@ class DeviceSandboxProvider implements SandboxProvider
         return (bool) $this->container($id, 'wake')->json('woke');
     }
 
-    public function exec(string $id, array $command, array $env = [], bool $detach = false): ExecResult
+    public function exec(string $id, array $command, array $env = [], bool $detach = false, bool $root = false): ExecResult
     {
         ['device' => $device, 'container' => $container] = self::parse($id);
 
-        $response = $this->call($device, 'exec', [
+        $response = $this->call($device, 'exec', array_filter([
             'id' => $container,
             'command' => $command,
             'env' => (object) $env,
             'detach' => $detach,
-        ]);
+            'user' => $root ? 'root' : null,
+        ], fn (mixed $value) => $value !== null));
 
         return new ExecResult((int) $response->json('exit', 1), (string) $response->json('stdout', ''), (string) $response->json('stderr', ''));
     }

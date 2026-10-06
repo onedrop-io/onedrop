@@ -1332,12 +1332,12 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## TASK-003: Each task gets its own copy of the app
 
-- A task's first message should make it its own copy of the app from Main's sandbox, whatever the app is built with: its files, dependencies and any databases kept in the sandbox, copied as they were at one instant so databases stay consistent. Main keeps running while it's copied (its processes pause for about a second).
+- A task's first message should make it its own copy of the app from Main's sandbox, whatever the app is built with: its files, dependencies and any databases kept in the sandbox, copied as they were at one instant so databases stay consistent, including databases run by the app's own Docker containers whose files belong to the container's user. Main keeps running while it's copied (its processes and containers pause for about a second). Docker images Main built itself come along too, so the copy's stack starts without building them again; images from a registry are downloaded there again.
 - User should see the task's own preview, files, shell and tools on the task's page; changes there don't touch Main until they're applied.
 - User should be warned in the task's chat when the app's settings point at a database or other data service outside the sandbox, which the copy still shares with Main.
 - User should be able to apply a task's work to Main: it's merged with git, Main's agent is asked to do what the app needs (install dependencies, run migrations, restart) and to resolve any conflicts, the task moves to Done, and its copy is removed. A later message to the task makes a fresh copy from Main.
 - User should be able to update a task from Main: Main's newer work is merged into the task's copy and the task's agent brings it up to date.
-- User shouldn't be able to apply while the task's or Main's agent is working, or run more task copies at once than the project allows (3 by default).
+- User shouldn't be able to apply while the task's or Main's agent is working, or run more task copies at once than the project allows. There's no limit unless one is set: an admin can set one for every project in Settings → Sandboxes (it wins over `SANDBOX_MAX_TASK_COPIES`), and an organization's owners and admins can set one for its projects in its settings; the lower one applies. Leaving either empty clears it.
 - Deleting a task, or its project, removes its copy.
 
 ## TASK-004: Switching tasks keeps the workspace view

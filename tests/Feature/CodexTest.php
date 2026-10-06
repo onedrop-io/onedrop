@@ -23,14 +23,14 @@ beforeEach(function () {
         /** @var list<array<string, string>> */
         public array $envs = [];
 
-        public function exec(string $id, array $command, array $env = [], bool $detach = false): ExecResult
+        public function exec(string $id, array $command, array $env = [], bool $detach = false, bool $root = false): ExecResult
         {
             // Only the forwarder's: the skills sync (SandboxSkills) runs first.
             if ($command !== ['php', '/opt/onedrop/skills.php']) {
                 $this->envs[] = $env;
             }
 
-            return parent::exec($id, $command, $env, $detach);
+            return parent::exec($id, $command, $env, $detach, $root);
         }
     };
     app()->instance(SandboxProvider::class, $this->provider);

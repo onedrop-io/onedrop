@@ -38,7 +38,7 @@ class TaskMessageController extends Controller
         ]);
 
         if ($task->needsCopy() && $project->taskCopyLimitReached()) {
-            throw TaskController::copyLimitError();
+            throw TaskController::copyLimitError($project);
         }
 
         $held = $checks->send(

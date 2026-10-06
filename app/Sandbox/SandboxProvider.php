@@ -46,14 +46,16 @@ interface SandboxProvider
     public function wake(string $id): bool;
 
     /**
-     * Run a short command. Use $detach for anything long-running (agents, servers).
+     * Run a short command. Use $detach for anything long-running (agents, servers). Commands run as the sandbox user
+     * unless $root: only the platform's own tools, for files the app's processes own (e.g. a database in a nested
+     * container), never anything the agent or user chose.
      *
      * @param  list<string>  $command
      * @param  array<string, string>  $env
      *
      * @throws SandboxException
      */
-    public function exec(string $id, array $command, array $env = [], bool $detach = false): ExecResult;
+    public function exec(string $id, array $command, array $env = [], bool $detach = false, bool $root = false): ExecResult;
 
     /**
      * The URL where the app on the given port can be reached, if running.

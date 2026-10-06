@@ -199,3 +199,23 @@ test('admins can turn on Docker inside Docker sandboxes', function () {
         ->put(route('admin.sandboxes.update', 'docker'), ['enabled' => true, 'nested_docker' => 'yes-please'])
         ->assertSessionHasErrors('nested_docker');
 })->group('ADMIN-002', 'SBX-008');
+
+test('admins can limit task copies per project, or clear the limit; it wins over .env', function () {
+    config(['sandbox.max_task_copies' => 3]);
+    $admin = User::factory()->admin()->create();
+
+    $this->actingAs($admin)->put(route('admin.sandboxes.task-copies'), ['max_task_copies' => 5])->assertRedirect(route('admin.sandboxes.index'));
+    config(['sandbox.max_task_copies' => 3]);
+    SystemConfig::apply();
+    expect(config('sandbox.max_task_copies'))->toBe(5);
+
+    $this->actingAs($admin)->put(route('admin.sandboxes.task-copies'), ['max_task_copies' => ''])->assertRedirect();
+    config(['sandbox.max_task_copies' => 3]);
+    SystemConfig::apply();
+    expect(config('sandbox.max_task_copies'))->toBeNull();
+
+    $this->actingAs($admin)->get(route('admin.sandboxes.index'))
+        ->assertInertia(fn (AssertableInertia $page) => $page->where('maxTaskCopies', null));
+    $this->actingAs($admin)->put(route('admin.sandboxes.task-copies'), ['max_task_copies' => 0])->assertSessionHasErrors('max_task_copies');
+    $this->actingAs(User::factory()->create())->put(route('admin.sandboxes.task-copies'), ['max_task_copies' => 1])->assertForbidden();
+})->group('TASK-003', 'ADMIN-002');

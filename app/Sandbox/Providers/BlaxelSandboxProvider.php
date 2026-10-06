@@ -153,10 +153,11 @@ class BlaxelSandboxProvider implements SandboxProvider
         return false;
     }
 
-    public function exec(string $id, array $command, array $env = [], bool $detach = false): ExecResult
+    public function exec(string $id, array $command, array $env = [], bool $detach = false, bool $root = false): ExecResult
     {
         // The sandbox API takes one shell command; env goes in the body, never the command line.
         // Blaxel sets PORT=80 in every process, so put the app's port back (agents and scripts read it).
+        // Its API runs everything as the sandbox user, which owns every file there (no Docker inside): $root changes nothing.
         $body = array_filter([
             'command' => implode(' ', array_map('escapeshellarg', $command)),
             'env' => ['PORT' => (string) config('sandbox.port'), ...$env],

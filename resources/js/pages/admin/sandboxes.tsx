@@ -1,4 +1,4 @@
-import { Head, router, useForm, usePage } from '@inertiajs/react';
+import { Form, Head, router, useForm, usePage } from '@inertiajs/react';
 import { GripVertical } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { FormEvent, KeyboardEvent } from 'react';
@@ -35,8 +35,14 @@ type Provider = {
 
 const DRAG_TYPE = 'application/x-onedrop-provider';
 
-/** Turn sandbox providers on and off, put them in order, and configure them (ADMIN-002). */
-export default function Sandboxes({ providers }: { providers: Provider[] }) {
+/** Turn sandbox providers on and off, put them in order, and configure them (ADMIN-002); cap task copies (TASK-003). */
+export default function Sandboxes({
+    providers,
+    maxTaskCopies,
+}: {
+    providers: Provider[];
+    maxTaskCopies: number | null;
+}) {
     const { errors } = usePage().props as { errors: Record<string, string> };
     // Reordering shows at once; the server's order replaces it when the page reloads.
     const [order, setOrder] = useState(() => providers.map((p) => p.name));
@@ -204,6 +210,51 @@ export default function Sandboxes({ providers }: { providers: Provider[] }) {
                         />
                     )}
                 </div>
+            </div>
+
+            <div className="space-y-6">
+                <Heading
+                    variant="small"
+                    title="Task copies"
+                    description="Each task works in its own copy of its project's sandbox, and each copy is a sandbox you pay for. Organizations can set a lower limit for their own projects."
+                />
+
+                <Form
+                    {...SandboxProviderController.taskCopies.form()}
+                    options={{ preserveScroll: true }}
+                    className="max-w-sm space-y-6"
+                >
+                    {({ processing, errors }) => (
+                        <>
+                            <div className="grid gap-2">
+                                <Label htmlFor="max_task_copies">
+                                    Most at once per project
+                                </Label>
+                                <Input
+                                    id="max_task_copies"
+                                    name="max_task_copies"
+                                    type="number"
+                                    min={1}
+                                    max={1000}
+                                    defaultValue={maxTaskCopies ?? ''}
+                                    placeholder="No limit"
+                                    data-test="max-task-copies-input"
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                    Leave empty for no limit.
+                                </p>
+                                <InputError message={errors.max_task_copies} />
+                            </div>
+
+                            <Button
+                                disabled={processing}
+                                data-test="save-task-copies-button"
+                            >
+                                Save
+                            </Button>
+                        </>
+                    )}
+                </Form>
             </div>
         </>
     );

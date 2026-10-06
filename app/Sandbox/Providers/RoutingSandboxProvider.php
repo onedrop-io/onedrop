@@ -71,9 +71,9 @@ class RoutingSandboxProvider implements SandboxProvider
         return $this->for($id)->wake($id);
     }
 
-    public function exec(string $id, array $command, array $env = [], bool $detach = false): ExecResult
+    public function exec(string $id, array $command, array $env = [], bool $detach = false, bool $root = false): ExecResult
     {
-        return $this->for($id)->exec($id, $command, $env, $detach);
+        return $this->for($id)->exec($id, $command, $env, $detach, $root);
     }
 
     public function previewUrl(string $id, int $port): ?string

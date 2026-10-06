@@ -41,7 +41,7 @@ function snapshotProvider(): FakeSandboxProvider
 
         public bool $failRestore = false;
 
-        public function exec(string $id, array $command, array $env = [], bool $detach = false): ExecResult
+        public function exec(string $id, array $command, array $env = [], bool $detach = false, bool $root = false): ExecResult
         {
             $this->executed[] = ['id' => $id, 'command' => $command, 'env' => $env, 'detach' => $detach];
             $tool = SandboxTools::PATH.'/snapshot';

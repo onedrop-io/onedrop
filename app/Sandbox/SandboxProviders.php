@@ -169,6 +169,15 @@ class SandboxProviders
     }
 
     /**
+     * Cap how many task copies one project runs at once (TASK-003), or null for no limit.
+     */
+    public function limitTaskCopies(?int $limit): void
+    {
+        SystemSetting::merge(self::SETTING, ['max_task_copies' => $limit]);
+        SystemConfig::saved();
+    }
+
+    /**
      * Put the providers in this order; new projects run on the first one that's on and set up.
      *
      * @param  list<string>  $order

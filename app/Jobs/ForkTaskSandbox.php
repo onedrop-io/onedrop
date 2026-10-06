@@ -20,8 +20,8 @@ class ForkTaskSandbox implements ShouldQueue
 {
     use Queueable;
 
-    /** Copying a large workspace out and back in takes a while. */
-    public int $timeout = 900;
+    /** Copying a large workspace out and back in, and the app's Docker images, takes a while. */
+    public int $timeout = 1800;
 
     public int $tries = 1;
 

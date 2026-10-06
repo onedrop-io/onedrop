@@ -163,7 +163,7 @@ test('signing out logs Claude Code out in the user\'s running sandboxes and empt
 
     (new SignOutOfClaude($this->user->id))->handle($this->provider);
 
-    expect($this->provider->executed)->toBe([['id' => 'ctr-1', 'command' => ['claude', 'auth', 'logout'], 'env' => [], 'detach' => false]])
+    expect($this->provider->executed)->toBe([['id' => 'ctr-1', 'command' => ['claude', 'auth', 'logout'], 'env' => [], 'detach' => false, 'root' => false]])
         // Kept, so the sandboxes that have it mounted can still save the next sign-in.
         ->and(is_dir("{$root}/user-{$this->user->id}/claude"))->toBeTrue()
         ->and(glob("{$root}/user-{$this->user->id}/claude/{,.}[!.]*", GLOB_BRACE))->toBe([]);

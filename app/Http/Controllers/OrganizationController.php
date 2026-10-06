@@ -80,6 +80,8 @@ class OrganizationController extends Controller
                     ->selectRaw('provider, COUNT(*) as count')->groupBy('provider')
                     ->pluck('count', 'provider')->map(fn ($count) => (int) $count)->all(),
             ) : null,
+            // Most task copies one of its projects runs at once (TASK-003), and the install's own limit, if any.
+            'taskCopies' => ['limit' => $organization->max_task_copies, 'install_limit' => config('sandbox.max_task_copies')],
             'can' => [
                 'update' => $organization->isManagedBy($user),
                 'manage_owners' => $organization->isOwnedBy($user),
@@ -107,6 +109,24 @@ class OrganizationController extends Controller
         ]));
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Organization updated.')]);
+
+        return to_route('organizations.edit', $organization);
+    }
+
+    /**
+     * Cap how many task copies one of its projects runs at once, or (left empty) don't (TASK-003). The install's own
+     * limit still applies when it's lower.
+     */
+    public function updateTaskCopies(Request $request): RedirectResponse
+    {
+        $organization = ResolveOrganization::current($request);
+
+        abort_unless($organization->isManagedBy($request->user()), 403);
+
+        $limit = $request->validate(['max_task_copies' => ['nullable', 'integer', 'min:1', 'max:1000']])['max_task_copies'] ?? null;
+        $organization->update(['max_task_copies' => $limit === null ? null : (int) $limit]);
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Task copies saved.')]);
 
         return to_route('organizations.edit', $organization);
     }

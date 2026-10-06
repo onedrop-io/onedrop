@@ -28,11 +28,12 @@ use Illuminate\Support\Str;
  * @property string|null $ai_credits_key_hash That key's id at OpenRouter
  * @property float $ai_credits_charged What that key had spent (USD) when its usage was last charged to the credits
  * @property array<string, array<string, mixed>>|null $hosting_accounts Its own hosting accounts (HOST-003): provider => settings
+ * @property int|null $max_task_copies Most task copies one of its projects runs at once (TASK-003), or null for no limit of its own
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read OrganizationMember $pivot Set on organizations loaded through a user's organizations
  */
-#[Fillable(['name', 'slug', 'logo_path', 'logo_hash'])]
+#[Fillable(['name', 'slug', 'logo_path', 'logo_hash', 'max_task_copies'])]
 #[Hidden(['ai_credits_key', 'ai_credits_key_hash', 'hosting_accounts'])]
 class Organization extends Model
 {
@@ -50,6 +51,7 @@ class Organization extends Model
             'ai_credits_key' => 'encrypted',
             'ai_credits_charged' => 'float',
             'hosting_accounts' => 'encrypted:array',
+            'max_task_copies' => 'integer',
         ];
     }
 

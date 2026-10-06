@@ -341,7 +341,7 @@ class ProjectSnapshots
      *
      * @param  array<string, string|list<string>>  $headers
      */
-    protected function headerLines(array $headers): string
+    public function headerLines(array $headers): string
     {
         return collect($headers)
             ->map(fn (string|array $value, string $name) => $name.': '.(is_array($value) ? implode(', ', $value) : $value))
@@ -353,7 +353,7 @@ class ProjectSnapshots
         return $sandbox?->status === SandboxStatus::Running && $sandbox->external_id !== null;
     }
 
-    protected function disk(): Filesystem
+    public function disk(): Filesystem
     {
         return Storage::disk($this->diskName());
     }
@@ -363,7 +363,10 @@ class ProjectSnapshots
         return config('sandbox.snapshot_disk') ?: config('sandbox.backup_disk') ?: config('filesystems.default');
     }
 
-    protected function path(int $projectId): string
+    /**
+     * The project's folder on the snapshot disk; deleting the project deletes it.
+     */
+    public function path(int $projectId): string
     {
         return "project-snapshots/{$projectId}";
     }

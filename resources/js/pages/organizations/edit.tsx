@@ -59,16 +59,18 @@ const ROLES: { value: OrganizationRole; label: string }[] = [
     { value: 'owner', label: 'Owner' },
 ];
 
-/** An organization's name, address, members and own hosting accounts (ORG-004, ORG-005, HOST-003). */
+/** An organization's name, address, members, own hosting accounts and task copy limit (ORG-004, ORG-005, HOST-003, TASK-003). */
 export default function OrganizationEdit({
     details,
     members,
     hosting,
+    taskCopies,
     can,
 }: {
     details: { name: string; slug: string; logo_url: string | null };
     members: Member[];
     hosting: HostingAccount[] | null;
+    taskCopies: { limit: number | null; install_limit: number | null };
     can: { update: boolean; manage_owners: boolean; remove: boolean };
 }) {
     const { auth, errors } = usePage<{ errors: Record<string, string> }>()
@@ -317,6 +319,61 @@ export default function OrganizationEdit({
                         ))}
                     </ul>
                 </section>
+
+                {can.update && (
+                    <section className="space-y-4">
+                        <Heading
+                            variant="small"
+                            title="Task copies"
+                            description="Each task works in its own copy of its project's sandbox, and each copy is a sandbox that costs money to run. Limit how many one project runs at once."
+                        />
+                        <Form
+                            {...OrganizationController.updateTaskCopies.form(
+                                organization.slug,
+                            )}
+                            options={{ preserveScroll: true }}
+                            className="grid max-w-sm gap-4"
+                        >
+                            {({ processing, errors }) => (
+                                <>
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="organization-max-task-copies">
+                                            Most at once per project
+                                        </Label>
+                                        <Input
+                                            id="organization-max-task-copies"
+                                            name="max_task_copies"
+                                            type="number"
+                                            min={1}
+                                            max={1000}
+                                            defaultValue={
+                                                taskCopies.limit ?? ''
+                                            }
+                                            placeholder="No limit"
+                                            data-test="organization-max-task-copies"
+                                        />
+                                        <p className="text-sm text-muted-foreground">
+                                            {taskCopies.install_limit === null
+                                                ? 'Leave empty for no limit.'
+                                                : `Leave empty for this install's limit of ${taskCopies.install_limit}, which also caps a higher one.`}
+                                        </p>
+                                        <InputError
+                                            message={errors.max_task_copies}
+                                        />
+                                    </div>
+                                    <div>
+                                        <Button
+                                            disabled={processing}
+                                            data-test="save-organization-task-copies"
+                                        >
+                                            Save
+                                        </Button>
+                                    </div>
+                                </>
+                            )}
+                        </Form>
+                    </section>
+                )}
 
                 {hosting && (
                     <section className="space-y-4">

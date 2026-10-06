@@ -292,6 +292,28 @@ describe('managing an organization', function () {
         'taken' => ['globex', 'Another organization has that address.'],
     ])->group('ORG-005');
 
+    test('owners and admins limit task copies per project for its projects, or clear the limit', function () {
+        config(['sandbox.max_task_copies' => 4]);
+
+        $this->actingAs($this->admin)->get(route('organizations.edit', $this->acme))
+            ->assertInertia(fn ($page) => $page->where('taskCopies', ['limit' => null, 'install_limit' => 4]));
+
+        $this->actingAs($this->admin)
+            ->put(route('organizations.task-copies.update', $this->acme), ['max_task_copies' => 2])
+            ->assertRedirect('/o/acme/settings');
+        expect($this->acme->fresh()->max_task_copies)->toBe(2);
+
+        $this->actingAs($this->owner)->put(route('organizations.task-copies.update', $this->acme), ['max_task_copies' => null]);
+        expect($this->acme->fresh()->max_task_copies)->toBeNull();
+
+        $this->actingAs($this->owner)
+            ->put(route('organizations.task-copies.update', $this->acme), ['max_task_copies' => 'lots'])
+            ->assertSessionHasErrors('max_task_copies');
+        $this->actingAs($this->member)
+            ->put(route('organizations.task-copies.update', $this->acme), ['max_task_copies' => 1])
+            ->assertForbidden();
+    })->group('TASK-003', 'ORG-005');
+
     test('owners and admins see the organization\'s usage by person, deleted projects included', function () {
         $project = Project::factory()->for($this->member)->create(['organization_id' => $this->acme->id]);
         AgentUsage::factory()->for($this->member)->create(['project_id' => $project->id, 'cost' => 2]);

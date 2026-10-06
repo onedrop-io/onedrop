@@ -16,7 +16,7 @@ class FakeSandboxProvider implements SandboxProvider
     /** @var array<string, SandboxSpec> */
     public array $created = [];
 
-    /** @var list<array{id: string, command: list<string>, env: array<string, string>, detach: bool}> */
+    /** @var list<array{id: string, command: list<string>, env: array<string, string>, detach: bool, root: bool}> */
     public array $executed = [];
 
     /**
@@ -77,9 +77,9 @@ class FakeSandboxProvider implements SandboxProvider
         return $this->wakes;
     }
 
-    public function exec(string $id, array $command, array $env = [], bool $detach = false): ExecResult
+    public function exec(string $id, array $command, array $env = [], bool $detach = false, bool $root = false): ExecResult
     {
-        $this->executed[] = ['id' => $id, 'command' => $command, 'env' => $env, 'detach' => $detach];
+        $this->executed[] = ['id' => $id, 'command' => $command, 'env' => $env, 'detach' => $detach, 'root' => $root];
 
         return $this->execUsing ? ($this->execUsing)($command, $env) : new ExecResult(0, '');
     }

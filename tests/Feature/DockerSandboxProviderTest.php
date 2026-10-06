@@ -164,6 +164,16 @@ test('exec can run detached with env vars by name', function () {
     ]);
 })->group('SBX-001');
 
+test('exec can run as root for the platform\'s own tools', function () {
+    Process::fake(['*' => Process::result('')]);
+
+    $this->docker->exec('abc123', ['/opt/onedrop/fork', 'snapshot', '/tmp/x', '/workspace'], detach: true, root: true);
+
+    Process::assertRan(fn (PendingProcess $process) => $process->command === [
+        'docker', 'exec', '--detach', '-u', 'root', 'abc123', '/opt/onedrop/fork', 'snapshot', '/tmp/x', '/workspace',
+    ]);
+})->group('TASK-003');
+
 test('an ssh port is published for developer tools', function () {
     Process::fake(['*' => Process::result('abc123')]);
 

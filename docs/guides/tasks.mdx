@@ -7,7 +7,7 @@ A project's main chat runs one agent at a time. When you want several things don
 
 ## Each task's own copy of the app
 
-When a task starts, OneDrop copies Main's sandbox for it: the code, installed packages, and any databases, caches or uploaded files kept in the sandbox. It works for any stack, since everything is copied as it was at one instant, the way a database expects after a power cut. Main keeps running while it's copied; its processes pause for about a second.
+When a task starts, OneDrop copies Main's sandbox for it: the code, installed packages, and any databases, caches or uploaded files kept in the sandbox. It works for any stack, since everything is copied as it was at one instant, the way a database expects after a power cut. Main keeps running while it's copied; its processes, and any Docker containers it runs, pause for about a second. If your app runs on Docker Compose, the images Main built for it come along too, so the task's copy doesn't build them again. Images from a registry, like `postgres` or `redis`, are downloaded again in the copy.
 
 The task's page shows its copy: its own preview, files, console, shell and tools. Nothing you or its agent change there touches Main until you apply it.
 
@@ -25,7 +25,7 @@ Only code merges. Rows added to a database in a task's copy stay there, while sc
     Agents keep databases inside the sandbox unless you ask for an outside one.
 </Warning>
 
-Each copy is a sandbox of its own, so a project runs up to three at once by default. Apply or delete a task to start another. Self-hosters can change this, or turn copies off so tasks share Main's sandbox, in [configuration](/self-hosting/configuration).
+Each copy is a sandbox of its own, and there's no limit on how many a project runs at once unless one is set. Your organization's owners and admins can set one in [its settings](/guides/organizations#manage-your-organization), and on your own install an admin can set one for every project in [Settings → Sandboxes](/self-hosting/administration#sandbox-providers); the lower one applies. At the limit, apply or delete a task to start another. Self-hosters can also turn copies off so tasks share Main's sandbox, in [configuration](/self-hosting/configuration).
 
 ## Start a task
 

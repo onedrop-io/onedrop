@@ -325,11 +325,24 @@ class Project extends Model implements Conversation
     }
 
     /**
-     * Whether the project already runs as many task copies of the app as it may (config sandbox.max_task_copies).
+     * Most task copies of the app the project may run at once: the lower of the install's limit (Settings → Sandboxes)
+     * and its organization's, or null when neither has one.
+     */
+    public function taskCopyLimit(): ?int
+    {
+        $limits = array_filter([config('sandbox.max_task_copies'), $this->organization->max_task_copies], fn (mixed $limit) => $limit !== null);
+
+        return $limits === [] ? null : (int) min($limits);
+    }
+
+    /**
+     * Whether the project already runs as many task copies of the app as it may.
      */
     public function taskCopyLimitReached(): bool
     {
-        return $this->sandboxes()->whereNotNull('task_id')->count() >= config('sandbox.max_task_copies');
+        $limit = $this->taskCopyLimit();
+
+        return $limit !== null && $this->sandboxes()->whereNotNull('task_id')->count() >= $limit;
     }
 
     /**

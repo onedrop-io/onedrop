@@ -357,6 +357,7 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
     Route::prefix('o/{organization}')->group(function () {
         Route::get('settings', [OrganizationController::class, 'edit'])->name('organizations.edit');
         Route::patch('/', [OrganizationController::class, 'update'])->name('organizations.update');
+        Route::put('task-copies', [OrganizationController::class, 'updateTaskCopies'])->name('organizations.task-copies.update');
         Route::patch('members/{user}', [OrganizationMemberController::class, 'update'])->name('organizations.members.update');
         Route::delete('members/{user}', [OrganizationMemberController::class, 'destroy'])->name('organizations.members.destroy');
         Route::get('usage', [UsageController::class, 'organization'])->name('organizations.usage');
@@ -396,6 +397,7 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
 
         Route::get('sandboxes', [SandboxProviderController::class, 'index'])->name('sandboxes.index');
         Route::put('sandboxes/order', [SandboxProviderController::class, 'reorder'])->name('sandboxes.reorder');
+        Route::put('sandboxes/task-copies', [SandboxProviderController::class, 'taskCopies'])->name('sandboxes.task-copies');
         Route::put('sandboxes/{provider}', [SandboxProviderController::class, 'update'])->name('sandboxes.update');
 
         Route::get('hosting', [HostingProviderController::class, 'index'])->name('hosting.index');

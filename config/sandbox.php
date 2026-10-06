@@ -253,14 +253,16 @@ return [
     | Each task gets its own copy of the project's sandbox (TASK-003): files,
     | dependencies and databases forked from Main's, with its own preview.
     | Its work comes back to Main through git. Each copy is a sandbox you pay
-    | for, so a project runs at most `max_task_copies` at once. Turned off,
+    | for, so an admin can cap how many one project runs at once (Settings →
+    | Sandboxes, which wins over this), and so can each organization for its
+    | own projects; the lower one applies. Unset means no limit. Turned off,
     | tasks share Main's sandbox (TASK-001).
     |
     */
 
     'task_copies' => (bool) env('SANDBOX_TASK_COPIES', true),
 
-    'max_task_copies' => (int) env('SANDBOX_MAX_TASK_COPIES', 3),
+    'max_task_copies' => filled(env('SANDBOX_MAX_TASK_COPIES')) ? (int) env('SANDBOX_MAX_TASK_COPIES') : null,
 
     /*
     |--------------------------------------------------------------------------
