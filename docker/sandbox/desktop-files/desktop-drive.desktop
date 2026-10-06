@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=Drive
+Icon=folder-cloud
+Exec=thunar /workspace/Drive
+Terminal=false

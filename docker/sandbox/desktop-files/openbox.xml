@@ -1,20 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Openbox for the computer's desktop (CMP-001): plain windows, maximized by default, no root menu. -->
+<!-- Openbox for the computer's desktop (CMP-001): the OneDrop theme (openbox-theme), maximized windows, no root menu. -->
 <openbox_config xmlns="http://openbox.org/3.4/rc">
   <resistance><strength>10</strength><screen_edge_strength>20</screen_edge_strength></resistance>
   <focus><focusNew>yes</focusNew><followMouse>no</followMouse></focus>
   <placement><policy>Smart</policy><center>yes</center></placement>
   <theme>
-    <name>Clearlooks</name>
-    <titleLayout>NLIMC</titleLayout>
-    <keepBorder>yes</keepBorder>
-    <animateIconify>yes</animateIconify>
-    <font place="ActiveWindow"><name>Sans</name><size>10</size><weight>Bold</weight></font>
-    <font place="InactiveWindow"><name>Sans</name><size>10</size><weight>Normal</weight></font>
+    <name>OneDrop</name>
+    <titleLayout>CIML</titleLayout>
+    <keepBorder>no</keepBorder>
+    <animateIconify>no</animateIconify>
+    <font place="ActiveWindow"><name>Inter</name><size>10</size><weight>Bold</weight></font>
+    <font place="InactiveWindow"><name>Inter</name><size>10</size><weight>Bold</weight></font>
+    <font place="MenuItem"><name>Inter</name><size>10</size></font>
+    <font place="OnScreenDisplay"><name>Inter</name><size>10</size></font>
   </theme>
   <desktops><number>1</number></desktops>
-  <!-- Room for the dock: maximized windows stop above it. -->
-  <margins><top>0</top><bottom>68</bottom><left>0</left><right>0</right></margins>
   <keyboard>
     <keybind key="A-F4"><action name="Close"/></keybind>
     <keybind key="A-Tab"><action name="NextWindow"/></keybind>

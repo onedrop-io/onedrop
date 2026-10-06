@@ -40,9 +40,13 @@ mkdir -p /workspace/Desktop /workspace/Documents /workspace/Downloads /workspace
     "$XDG_CONFIG_HOME/openbox" "$XDG_CONFIG_HOME/pcmanfm/default" "$XDG_CONFIG_HOME/libfm" \
     "$XDG_CONFIG_HOME/gtk-3.0" "$XDG_CONFIG_HOME/plank/dock1/launchers"
 
-# The desktop's icons: the folders people look for first.
+# The desktop's icons: the folders people look for first, as launchers (links would show a shortcut arrow). Links
+# made by earlier versions go.
 for folder in Drive Documents Downloads; do
-    [ -e "/workspace/Desktop/$folder" ] || ln -s "/workspace/$folder" "/workspace/Desktop/$folder"
+    [ -L "/workspace/Desktop/$folder" ] && rm "/workspace/Desktop/$folder"
+    name=$(echo "$folder" | tr '[:upper:]' '[:lower:]')
+    cp "$FILES/desktop-$name.desktop" "/workspace/Desktop/$folder.desktop"
+    chmod +x "/workspace/Desktop/$folder.desktop"
 done
 
 # Our settings, put back each start so an image update reaches them; the user's own files are never touched.
@@ -50,7 +54,11 @@ cp "$FILES/openbox.xml" "$XDG_CONFIG_HOME/openbox/rc.xml"
 cp "$FILES/pcmanfm-desktop.conf" "$XDG_CONFIG_HOME/pcmanfm/default/desktop-items-0.conf"
 cp -n "$FILES/pcmanfm.conf" "$XDG_CONFIG_HOME/pcmanfm/default/pcmanfm.conf"
 printf '[config]\nquick_exec=1\n' >"$XDG_CONFIG_HOME/libfm/libfm.conf"
-cp -n "$FILES/gtk-settings.ini" "$XDG_CONFIG_HOME/gtk-3.0/settings.ini"
+cp "$FILES/gtk-settings.ini" "$XDG_CONFIG_HOME/gtk-3.0/settings.ini"
+printf 'gtk-theme-name="Adwaita-dark"\ngtk-icon-theme-name="Papirus-Dark"\ngtk-font-name="Inter 10"\n' >"$HOME/.gtkrc-2.0"
+mkdir -p "$HOME/.themes/OneDrop" "$HOME/.local/share/plank/themes/OneDrop"
+ln -sfn "$FILES/openbox-theme" "$HOME/.themes/OneDrop/openbox-3"
+cp "$FILES/plank.theme" "$HOME/.local/share/plank/themes/OneDrop/dock.theme"
 rm -f "$XDG_CONFIG_HOME/plank/dock1/launchers/"*.dockitem
 cp "$FILES/chromium.dockitem" "$XDG_CONFIG_HOME/plank/dock1/launchers/01-chromium.dockitem"
 cp "$FILES/files.dockitem" "$XDG_CONFIG_HOME/plank/dock1/launchers/02-files.dockitem"
@@ -62,10 +70,12 @@ mkdir -p "$XDG_CONFIG_HOME" && cat >"$XDG_CONFIG_HOME/mimeapps.list" <<'MIME'
 text/html=chromium.desktop
 x-scheme-handler/http=chromium.desktop
 x-scheme-handler/https=chromium.desktop
-inode/directory=files.desktop
+inode/directory=thunar.desktop
 MIME
 mkdir -p "$HOME/.local/share/applications"
-ln -sf "$FILES/chromium.desktop" "$FILES/files.desktop" "$FILES/terminal.desktop" "$HOME/.local/share/applications/"
+# Our Chromium (with its flags) under the system entry's name, so the dock knows its windows as the same app.
+rm -f "$HOME/.local/share/applications/files.desktop" "$HOME/.local/share/applications/terminal.desktop"
+ln -sf "$FILES/chromium.desktop" "$HOME/.local/share/applications/chromium.desktop"
 
 # The viewer's page and noVNC beside it, as websockify serves them.
 mkdir -p "$WEB"
@@ -88,7 +98,16 @@ done
 websockify --web "$WEB" 127.0.0.1:6080 127.0.0.1:5901 >>/tmp/onedrop-desktop.log 2>&1 &
 
 dbus-run-session -- bash -c '
+    # The dock: our theme, larger icons that grow under the pointer, always shown, only its own three apps.
+    dock=net.launchpad.plank.dock.settings:/net/launchpad/plank/docks/dock1/
+    gsettings set "$dock" theme OneDrop
+    gsettings set "$dock" icon-size 44
+    gsettings set "$dock" zoom-enabled true
+    gsettings set "$dock" zoom-percent 140
+    gsettings set "$dock" hide-mode none
+    gsettings set "$dock" pinned-only true
     openbox --config-file "$XDG_CONFIG_HOME/openbox/rc.xml" &
+    picom --config /opt/onedrop/desktop-files/picom.conf &
     sleep 0.3
     pcmanfm --desktop --profile default &
     # Plank stays where it was when the screen changes size (the viewer resizes it): start it again each time.

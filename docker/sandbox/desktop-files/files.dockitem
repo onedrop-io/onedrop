@@ -1,2 +1,2 @@
 [PlankDockItemPreferences]
-Launcher=file:///opt/onedrop/desktop-files/files.desktop
+Launcher=file:///usr/share/applications/thunar.desktop

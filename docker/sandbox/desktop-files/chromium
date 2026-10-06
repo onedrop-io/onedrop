@@ -6,4 +6,4 @@ exec /usr/bin/chromium \
     --remote-debugging-address=127.0.0.1 --remote-debugging-port=9222 \
     --no-first-run --no-default-browser-check --password-store=basic \
     --disable-dev-shm-usage --no-sandbox --test-type \
-    --start-maximized "$@"
+    --force-dark-mode --start-maximized "$@"

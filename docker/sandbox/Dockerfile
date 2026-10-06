@@ -94,12 +94,12 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # A person's computer's desktop (CMP-001), started by start.sh only in computers: TigerVNC's Xvnc (screen and VNC in
-# one), Openbox, a Plank dock, PCManFM (desktop and files), a terminal, noVNC with websockify for the viewer, and
-# xdotool and scrot for the AI's `computer` command (CMP-002).
+# one), Openbox, picom (rounded corners and shadows), a Plank dock, PCManFM (the desktop), Thunar (files), a terminal, Papirus
+# icons and Inter, noVNC with websockify for the viewer, and xdotool and scrot for the AI's `computer` command (CMP-002).
 RUN apt-get update \
     && apt-get install -y --no-install-recommends tigervnc-standalone-server openbox plank pcmanfm xfce4-terminal \
         novnc websockify xdotool scrot dbus-x11 x11-xserver-utils xdg-utils adwaita-icon-theme gnome-themes-extra \
-        at-spi2-core fonts-noto-core fonts-wqy-microhei \
+        at-spi2-core fonts-noto-core fonts-wqy-microhei picom papirus-icon-theme fonts-inter thunar libglib2.0-bin librsvg2-common \
     && rm -rf /var/lib/apt/lists/*
 
 # Docker inside the sandbox, for projects that run their own Docker Compose (SBX-008). Only started (see dockerd) when

@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=Documents
+Icon=folder-documents
+Exec=thunar /workspace/Documents
+Terminal=false

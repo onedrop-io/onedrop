@@ -1,0 +1,93 @@
+# OneDrop: flat dark title bars with round close, minimize and zoom buttons on the left (CMP-001).
+border.width: 0
+padding.width: 12
+padding.height: 7
+window.handle.width: 0
+window.client.padding.width: 0
+window.client.padding.height: 0
+window.active.border.color: #3a3a3c
+window.inactive.border.color: #2c2c2e
+window.active.client.color: #2c2c2e
+window.inactive.client.color: #242426
+
+window.active.title.bg: flat solid
+window.active.title.bg.color: #2c2c2e
+window.inactive.title.bg: flat solid
+window.inactive.title.bg.color: #242426
+window.active.title.separator.color: #2c2c2e
+window.inactive.title.separator.color: #242426
+window.active.label.bg: parentrelative
+window.inactive.label.bg: parentrelative
+window.active.label.text.color: #e5e5e7
+window.inactive.label.text.color: #8e8e93
+window.label.text.justify: center
+window.active.handle.bg: flat solid
+window.active.handle.bg.color: #2c2c2e
+window.inactive.handle.bg: flat solid
+window.inactive.handle.bg.color: #242426
+window.active.grip.bg: parentrelative
+window.inactive.grip.bg: parentrelative
+
+window.active.button.unpressed.bg: parentrelative
+window.active.button.hover.bg: parentrelative
+window.active.button.pressed.bg: parentrelative
+window.active.button.disabled.bg: parentrelative
+window.active.button.toggled.unpressed.bg: parentrelative
+window.active.button.toggled.hover.bg: parentrelative
+window.active.button.toggled.pressed.bg: parentrelative
+window.inactive.button.unpressed.bg: parentrelative
+window.inactive.button.hover.bg: parentrelative
+window.inactive.button.pressed.bg: parentrelative
+window.inactive.button.disabled.bg: parentrelative
+window.inactive.button.toggled.unpressed.bg: parentrelative
+window.inactive.button.toggled.hover.bg: parentrelative
+window.inactive.button.toggled.pressed.bg: parentrelative
+
+window.active.button.unpressed.image.color: #8e8e93
+window.active.button.disabled.image.color: #48484a
+window.inactive.button.unpressed.image.color: #48484a
+window.inactive.button.hover.image.color: #8e8e93
+window.inactive.button.pressed.image.color: #8e8e93
+window.inactive.button.disabled.image.color: #3a3a3c
+window.inactive.button.toggled.unpressed.image.color: #48484a
+
+window.active.button.close.unpressed.image.color: #ff5f57
+window.active.button.close.hover.image.color: #ff7b74
+window.active.button.close.pressed.image.color: #d94840
+window.active.button.iconify.unpressed.image.color: #febc2e
+window.active.button.iconify.hover.image.color: #ffcb57
+window.active.button.iconify.pressed.image.color: #d99c1c
+window.active.button.max.unpressed.image.color: #28c840
+window.active.button.max.hover.image.color: #4fd864
+window.active.button.max.pressed.image.color: #1fa333
+window.active.button.max.toggled.unpressed.image.color: #28c840
+window.active.button.max.toggled.hover.image.color: #4fd864
+window.active.button.max.toggled.pressed.image.color: #1fa333
+
+menu.border.width: 0
+menu.overlap.x: 0
+menu.overlap.y: 0
+menu.title.bg: flat solid
+menu.title.bg.color: #2c2c2e
+menu.title.text.color: #e5e5e7
+menu.title.text.justify: center
+menu.items.bg: flat solid
+menu.items.bg.color: #2c2c2e
+menu.items.text.color: #e5e5e7
+menu.items.disabled.text.color: #636366
+menu.items.active.bg: flat solid
+menu.items.active.bg.color: #0a84ff
+menu.items.active.text.color: #ffffff
+menu.separator.color: #3a3a3c
+menu.separator.width: 1
+menu.separator.padding.width: 6
+menu.separator.padding.height: 3
+
+osd.border.width: 0
+osd.bg: flat solid
+osd.bg.color: #2c2c2e
+osd.label.text.color: #e5e5e7
+osd.hilight.bg: flat solid
+osd.hilight.bg.color: #0a84ff
+osd.unhilight.bg: flat solid
+osd.unhilight.bg.color: #48484a

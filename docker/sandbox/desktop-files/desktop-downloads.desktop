@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=Downloads
+Icon=folder-download
+Exec=thunar /workspace/Downloads
+Terminal=false
