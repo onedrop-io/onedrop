@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Enums\SandboxStatus;
 use App\Models\Project;
 use App\Models\Task;
+use App\Sandbox\Drive\DriveSync;
 use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxProvider;
 use App\Sandbox\SandboxSpec;
@@ -38,7 +39,7 @@ class CreateSandbox implements ShouldQueue
         $connection = $this->project->user->agentConnections()->firstWhere('is_default', true);
 
         $spec = new SandboxSpec(
-            name: "onedrop-project-{$this->project->id}-".($this->task ? "task-{$this->task->id}-" : '').strtolower(str()->random(6)),
+            name: ($this->project->isComputer() ? 'onedrop-computer-' : 'onedrop-project-')."{$this->project->id}-".($this->task ? "task-{$this->task->id}-" : '').strtolower(str()->random(6)),
             env: [
                 'APP_PROJECT_NAME' => $this->project->name,
                 // Where the file watcher reports added, removed or renamed files (FILE-004).
@@ -46,6 +47,10 @@ class CreateSandbox implements ShouldQueue
                 // Where `ask` in the shell gets the project's AI for each question (SBX-012).
                 'ONEDROP_AI_URL' => rtrim(config('sandbox.callback_url'), '/').URL::signedRoute('sandbox-ai.show', $sandbox, absolute: false),
                 ...($connection?->sandboxEnvironment() ?? []),
+                // Keeps the sandbox's copy of Drive in step (DRIVE-003, DRIVE-004).
+                ...DriveSync::environment($sandbox, $this->project),
+                // A computer runs a desktop (CMP-001).
+                ...($this->project->isComputer() ? ['ONEDROP_DESKTOP' => '1'] : []),
             ],
             port: $port,
             shellPort: config('sandbox.shell_port'),

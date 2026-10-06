@@ -160,9 +160,13 @@ class ProjectController extends Controller
     /**
      * Show the chat + preview workspace, on the project's main chat.
      */
-    public function show(Request $request, Project $project): Response
+    public function show(Request $request, Project $project): Response|RedirectResponse
     {
         Gate::authorize('view', $project);
+
+        if ($project->isComputer()) {
+            return to_route('computers.show', $project->organization);
+        }
 
         return $this->renderWorkspace($request, $project, $project);
     }

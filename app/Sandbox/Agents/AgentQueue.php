@@ -152,14 +152,18 @@ class AgentQueue
 
         $this->runner->stop($conversation);
         $project = $conversation->ownerProject();
-        // The forwarder commits the stopped turn's changes as it exits.
-        BackupProject::dispatch($project)->delay(now()->addSeconds(15));
 
-        // A stopped run sends no exit event, so pick up the app's icon (or draw one) here too (PRJ-007).
-        if ($project->icon_path === null) {
-            ProjectIcons::markDrawing($project);
+        // A computer has no code to back up and no icon (CMP-001).
+        if (! $project->isComputer()) {
+            // The forwarder commits the stopped turn's changes as it exits.
+            BackupProject::dispatch($project)->delay(now()->addSeconds(15));
+
+            // A stopped run sends no exit event, so pick up the app's icon (or draw one) here too (PRJ-007).
+            if ($project->icon_path === null) {
+                ProjectIcons::markDrawing($project);
+            }
+            UpdateProjectIcon::dispatch($project)->delay(now()->addSeconds(15));
         }
-        UpdateProjectIcon::dispatch($project)->delay(now()->addSeconds(15));
 
         $conversation->messages()->create(['role' => MessageRole::Activity, 'content' => 'Stopped']);
         $conversation->update(['status' => ProjectStatus::Idle]);

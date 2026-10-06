@@ -1,0 +1,224 @@
+<!doctype html>
+<!--
+    A computer's desktop (CMP-001), shown in the workspace's frame: noVNC's RFB client on the screen websockify serves
+    beside this page (see desktop and host-proxy.mjs). The screen resizes to the frame, the clipboard follows the page's
+    while it has focus, ⌘ works as Ctrl on a Mac, and it reconnects by itself (after the sandbox wakes, or a restart).
+    Tells the workspace how it's doing with postMessage({ type: 'onedrop-desktop', state }).
+-->
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Computer</title>
+        <style>
+            html,
+            body {
+                margin: 0;
+                height: 100%;
+                overflow: hidden;
+                background: #3a3a3a;
+                font:
+                    13px/1.4 system-ui,
+                    -apple-system,
+                    sans-serif;
+            }
+
+            #screen {
+                position: absolute;
+                inset: 0;
+            }
+
+            #status {
+                position: absolute;
+                inset: 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 10px;
+                color: #e5e5e5;
+                pointer-events: none;
+                background: #3a3a3a;
+                transition: opacity 0.2s;
+            }
+
+            #status.hidden {
+                opacity: 0;
+            }
+
+            .spinner {
+                width: 14px;
+                height: 14px;
+                border: 2px solid #9a9a9a;
+                border-top-color: transparent;
+                border-radius: 50%;
+                animation: spin 0.8s linear infinite;
+            }
+
+            @keyframes spin {
+                to {
+                    transform: rotate(360deg);
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div id="screen"></div>
+        <div id="status">
+            <span class="spinner"></span
+            ><span id="status-text">Connecting to your computer…</span>
+        </div>
+        <script type="module">
+            import RFB from './core/rfb.js';
+            import KeyTable from './core/input/keysym.js';
+
+            const screen = document.getElementById('screen');
+            const status = document.getElementById('status');
+            const statusText = document.getElementById('status-text');
+            const isMac = /Mac|iPhone|iPad/.test(
+                navigator.platform || navigator.userAgent,
+            );
+            let rfb = null;
+            let retry = null;
+
+            function tell(state) {
+                window.parent?.postMessage(
+                    { type: 'onedrop-desktop', state },
+                    '*',
+                );
+            }
+
+            function show(text) {
+                statusText.textContent = text;
+                status.classList.remove('hidden');
+            }
+
+            function socketUrl() {
+                const base = location.pathname.replace(/[^/]*$/, '');
+
+                return `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}${base}websockify`;
+            }
+
+            function connect() {
+                clearTimeout(retry);
+
+                rfb = new RFB(screen, socketUrl(), { shared: true });
+                rfb.resizeSession = true;
+                rfb.scaleViewport = false;
+                rfb.clipViewport = false;
+                rfb.focusOnClick = true;
+                rfb.background = '#3a3a3a';
+                rfb.qualityLevel = 7;
+                rfb.compressionLevel = 2;
+
+                rfb.addEventListener('connect', () => {
+                    status.classList.add('hidden');
+                    tell('connected');
+                    rfb.focus();
+                });
+
+                rfb.addEventListener('disconnect', () => {
+                    rfb = null;
+                    show('Reconnecting to your computer…');
+                    tell('disconnected');
+                    retry = setTimeout(connect, 2000);
+                });
+
+                // Copied on the computer: onto the page's clipboard, while the page has focus.
+                rfb.addEventListener('clipboard', (event) => {
+                    navigator.clipboard
+                        ?.writeText(event.detail.text)
+                        .catch(() => {});
+                });
+            }
+
+            function sendKey(keysym, code, down) {
+                rfb?.sendKey(keysym, code, down);
+            }
+
+            // Paste: the page's clipboard goes to the computer first, then the shortcut, so the computer pastes it.
+            async function paste() {
+                try {
+                    const text = await navigator.clipboard.readText();
+
+                    if (text) {
+                        rfb?.clipboardPasteFrom(text);
+                    }
+                } catch {
+                    // Not allowed: the computer pastes what it last copied.
+                }
+
+                sendKey(KeyTable.XK_v, 'KeyV', true);
+                sendKey(KeyTable.XK_v, 'KeyV', false);
+            }
+
+            window.addEventListener(
+                'keydown',
+                (event) => {
+                    if (!rfb) {
+                        return;
+                    }
+
+                    // ⌘ is Ctrl on the computer, so ⌘C, ⌘V, ⌘L and the rest work as on a Mac.
+                    if (
+                        isMac &&
+                        (event.code === 'MetaLeft' ||
+                            event.code === 'MetaRight')
+                    ) {
+                        event.preventDefault();
+                        event.stopImmediatePropagation();
+                        sendKey(KeyTable.XK_Control_L, 'ControlLeft', true);
+
+                        return;
+                    }
+
+                    if (
+                        event.code === 'KeyV' &&
+                        (isMac ? event.metaKey : event.ctrlKey) &&
+                        !event.altKey &&
+                        navigator.clipboard?.readText
+                    ) {
+                        event.preventDefault();
+                        event.stopImmediatePropagation();
+                        paste();
+                    }
+                },
+                true,
+            );
+
+            window.addEventListener(
+                'keyup',
+                (event) => {
+                    if (
+                        rfb &&
+                        isMac &&
+                        (event.code === 'MetaLeft' ||
+                            event.code === 'MetaRight')
+                    ) {
+                        event.preventDefault();
+                        event.stopImmediatePropagation();
+                        sendKey(KeyTable.XK_Control_L, 'ControlLeft', false);
+                    }
+                },
+                true,
+            );
+
+            // Leaving the page with a key held would leave it held on the computer.
+            window.addEventListener('blur', () => {
+                if (isMac) {
+                    sendKey(KeyTable.XK_Control_L, 'ControlLeft', false);
+                }
+            });
+
+            window.addEventListener('message', (event) => {
+                if (
+                    event.data?.type === 'onedrop-desktop' &&
+                    event.data.action === 'focus'
+                ) {
+                    rfb?.focus();
+                }
+            });
+
+            connect();
+        </script>
+    </body>
+</html>

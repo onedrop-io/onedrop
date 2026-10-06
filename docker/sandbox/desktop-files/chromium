@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Chromium on the computer's desktop (CMP-001), with its DevTools port open on localhost for the AI (`computer browser`,
+# CMP-002). Its profile lives in the computer's Home, so sign-ins and bookmarks are kept.
+exec /usr/bin/chromium \
+    --user-data-dir="${HOME:-/workspace}/.config/chromium" \
+    --remote-debugging-address=127.0.0.1 --remote-debugging-port=9222 \
+    --no-first-run --no-default-browser-check --password-store=basic \
+    --disable-dev-shm-usage --no-sandbox --test-type \
+    --start-maximized "$@"

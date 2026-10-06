@@ -59,6 +59,17 @@ export function useProjectChannel(
     projectId: number,
     handlers: Record<string, (payload: never) => void>,
 ): boolean {
+    return usePrivateChannel(`project.${projectId}`, handlers);
+}
+
+/**
+ * Listen to a private channel (a project's, or Drive's, DRIVE-001). Returns whether live updates are flowing; while
+ * false, callers should poll instead. A null name listens to nothing.
+ */
+export function usePrivateChannel(
+    name: string | null,
+    handlers: Record<string, (payload: never) => void>,
+): boolean {
     // By value: every reload brings a new props object, which mustn't resubscribe.
     const config = JSON.stringify(usePage().props.realtime);
     const [live, setLive] = useState(false);
@@ -71,11 +82,13 @@ export function useProjectChannel(
     const events = Object.keys(handlers).sort().join(',');
 
     useEffect(() => {
-        if (!connect(JSON.parse(config) as RealtimeConfig | null)) {
+        if (
+            name === null ||
+            !connect(JSON.parse(config) as RealtimeConfig | null)
+        ) {
             return;
         }
 
-        const name = `project.${projectId}`;
         const channel = echo().private(name);
         let subscribed = false;
         let connected = echo().connectionStatus() === 'connected';
@@ -106,7 +119,7 @@ export function useProjectChannel(
             echo().leave(name);
             setLive(false);
         };
-    }, [config, projectId, events]);
+    }, [config, name, events]);
 
     return live;
 }

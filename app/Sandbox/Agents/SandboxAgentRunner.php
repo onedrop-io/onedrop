@@ -201,9 +201,13 @@ abstract class SandboxAgentRunner implements AgentRunner
      */
     protected function sandboxProblem(?Sandbox $sandbox): ?string
     {
-        return $sandbox?->status !== SandboxStatus::Running || $sandbox->external_id === null
-            ? "Your app's sandbox isn't running, so I can't work on it right now."
-            : null;
+        if ($sandbox?->status === SandboxStatus::Running && $sandbox->external_id !== null) {
+            return null;
+        }
+
+        return $sandbox?->project?->isComputer()
+            ? "Your computer isn't running, so I can't use it right now."
+            : "Your app's sandbox isn't running, so I can't work on it right now.";
     }
 
     /**
@@ -225,7 +229,9 @@ abstract class SandboxAgentRunner implements AgentRunner
             'APP_EVENTS_TOKEN' => $conversation->issueEventsToken(),
             'APP_SESSION_ID' => $conversation->agent_session_id ?? '',
             'APP_RUN' => $conversation->runKey(),
-            'APP_REQUIREMENTS' => $conversation->ownerProject()->track_requirements ? '1' : '',
+            'APP_REQUIREMENTS' => $conversation->ownerProject()->track_requirements && ! $conversation->ownerProject()->isComputer() ? '1' : '',
+            // On a computer the agent works the desktop for its owner, not on an app (CMP-002).
+            'APP_MODE' => $conversation->ownerProject()->isComputer() ? 'computer' : 'app',
         ];
 
         app(SandboxSkills::class)->install($sandbox, $conversation->ownerProject(), $env['APP_AGENT'] ?? AgentHarness::OpenCode->value);

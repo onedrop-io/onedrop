@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Openbox for the computer's desktop (CMP-001): plain windows, maximized by default, no root menu. -->
+<openbox_config xmlns="http://openbox.org/3.4/rc">
+  <resistance><strength>10</strength><screen_edge_strength>20</screen_edge_strength></resistance>
+  <focus><focusNew>yes</focusNew><followMouse>no</followMouse></focus>
+  <placement><policy>Smart</policy><center>yes</center></placement>
+  <theme>
+    <name>Clearlooks</name>
+    <titleLayout>NLIMC</titleLayout>
+    <keepBorder>yes</keepBorder>
+    <animateIconify>yes</animateIconify>
+    <font place="ActiveWindow"><name>Sans</name><size>10</size><weight>Bold</weight></font>
+    <font place="InactiveWindow"><name>Sans</name><size>10</size><weight>Normal</weight></font>
+  </theme>
+  <desktops><number>1</number></desktops>
+  <!-- Room for the dock: maximized windows stop above it. -->
+  <margins><top>0</top><bottom>68</bottom><left>0</left><right>0</right></margins>
+  <keyboard>
+    <keybind key="A-F4"><action name="Close"/></keybind>
+    <keybind key="A-Tab"><action name="NextWindow"/></keybind>
+    <keybind key="A-S-Tab"><action name="PreviousWindow"/></keybind>
+  </keyboard>
+  <mouse>
+    <dragThreshold>3</dragThreshold>
+    <doubleClickTime>400</doubleClickTime>
+    <context name="Frame">
+      <mousebind button="A-Left" action="Drag"><action name="Move"/></mousebind>
+    </context>
+    <context name="Titlebar">
+      <mousebind button="Left" action="Drag"><action name="Move"/></mousebind>
+      <mousebind button="Left" action="DoubleClick"><action name="ToggleMaximize"/></mousebind>
+      <mousebind button="Left" action="Press"><action name="Focus"/><action name="Raise"/></mousebind>
+    </context>
+    <context name="Client">
+      <mousebind button="Left" action="Press"><action name="Focus"/><action name="Raise"/></mousebind>
+      <mousebind button="Right" action="Press"><action name="Focus"/><action name="Raise"/></mousebind>
+    </context>
+    <context name="Close"><mousebind button="Left" action="Click"><action name="Close"/></mousebind></context>
+    <context name="Maximize"><mousebind button="Left" action="Click"><action name="ToggleMaximize"/></mousebind></context>
+    <context name="Iconify"><mousebind button="Left" action="Click"><action name="Iconify"/></mousebind></context>
+    <context name="Top"><mousebind button="Left" action="Drag"><action name="Resize"><edge>top</edge></action></mousebind></context>
+    <context name="Bottom"><mousebind button="Left" action="Drag"><action name="Resize"><edge>bottom</edge></action></mousebind></context>
+    <context name="Left"><mousebind button="Left" action="Drag"><action name="Resize"><edge>left</edge></action></mousebind></context>
+    <context name="Right"><mousebind button="Left" action="Drag"><action name="Resize"><edge>right</edge></action></mousebind></context>
+    <context name="BLCorner"><mousebind button="Left" action="Drag"><action name="Resize"/></mousebind></context>
+    <context name="BRCorner"><mousebind button="Left" action="Drag"><action name="Resize"/></mousebind></context>
+    <context name="TLCorner"><mousebind button="Left" action="Drag"><action name="Resize"/></mousebind></context>
+    <context name="TRCorner"><mousebind button="Left" action="Drag"><action name="Resize"/></mousebind></context>
+  </mouse>
+  <applications>
+    <application class="*"><maximized>yes</maximized></application>
+    <application class="Plank"><decor>no</decor><maximized>no</maximized><focus>no</focus><layer>above</layer><skip_taskbar>yes</skip_taskbar></application>
+    <application class="Pcmanfm" type="desktop"><maximized>no</maximized></application>
+  </applications>
+</openbox_config>

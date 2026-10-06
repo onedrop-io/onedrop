@@ -40,6 +40,9 @@ use Inertia\Response;
  */
 trait RendersWorkspace
 {
+    /** Where a computer's sandbox serves its desktop viewer (docker/sandbox/desktop-viewer.html, CMP-001). */
+    public const DESKTOP_PATH = '/__onedrop/desktop/';
+
     /**
      * @param  bool  $newTask  Show an empty chat whose first message starts a new task.
      */
@@ -75,6 +78,8 @@ trait RendersWorkspace
             'held' => fn () => $newTask ? null : MessageChecks::pullPrompt($request->user(), $conversation),
             'project' => [
                 ...$project->only('id', 'name', 'status', 'autofix', 'track_requirements'),
+                // The owner's computer (CMP-001): a desktop where an app's preview would be, and no app tools.
+                'computer' => $project->isComputer() ? ['organization' => $project->organization->slug] : null,
                 // A message that failed because Claude Code wasn't signed in, waiting to run again (AI-005).
                 'waiting_for_sign_in' => $project->sign_in_retry_message_id !== null,
                 // The desktop app opens the owner's projects in their editor by this name (DESK-008).
@@ -121,6 +126,10 @@ trait RendersWorkspace
                 // On servers the browser goes through the gateway (which signs it in to that address), not the sandbox's local ports.
                 'preview_url' => $sandbox->preview_url ? ($gateway->enabled() ? $open('preview') : $sandbox->preview_url) : null,
                 'shell_url' => $sandbox->shell_url ? ($gateway->enabled() ? $open('shell') : $sandbox->shell_url) : null,
+                // A computer's desktop viewer, served by the sandbox's proxy beside the preview (CMP-001).
+                'desktop_url' => $project->isComputer() && $sandbox->preview_url
+                    ? ($gateway->enabled() ? $open('preview', self::DESKTOP_PATH) : rtrim($sandbox->preview_url, '/').self::DESKTOP_PATH)
+                    : null,
                 // Whether shell_url is the gateway's address, which takes the shell's own address as its `path` (FILE-005).
                 'shell_via_gateway' => $gateway->enabled(),
                 // The Shell tab opened on Claude Code's own sign-in (see docker/sandbox/shell-entry; AI-005).

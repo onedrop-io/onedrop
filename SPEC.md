@@ -608,6 +608,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Saving example env files (`.env.example`, `.env.sample`, …) or any other file should not ask.
 
 ## TAB-001: Workspace tabs
+
 ## FILE-008: Search inside files
 
 - User should see a "Search in files" box below "Search files" in the files panel, and be able to press Cmd+Shift+F (Ctrl+Shift+F on Windows and Linux) anywhere in the workspace to open the panel with the cursor in it.
@@ -618,7 +619,6 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - The search should stop at 1,000 matches (or 10 seconds) and say the results were cut short; long lines are shown around the match.
 - A folder chosen with "Search this folder" should limit this search too; Escape clears the box and shows the tree again.
 - Only the project's owner (or an admin) should be able to search its files, and only inside the project's workspace.
-
 
 - User should see Shell, Services and Console tabs open next to Tools and Preview when opening a project, with Preview showing.
 - User should be able to add tabs next to Preview from a "+" menu, and close them.
@@ -1891,3 +1891,61 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should get new versions of the app without reinstalling: the app downloads one in the background and offers "Restart" when it's ready.
 - User should only ever get versions OneDrop signed; the app should refuse any other.
 - User should be told when the server they're signed in to is older than the app, with how to update it (`drop update`), since some pages may not work until it is.
+
+## CMP-001: Your own computer
+
+- User should see "Computer" in the sidebar, under "New project" and "Search", and open their own computer at `/o/<slug>/computer`.
+- User should get a computer the first time they open it: a Linux desktop in the page with a dock (Chromium, Files, Terminal), a wallpaper, Documents, Downloads and Drive on the desktop, and Chromium saving downloads to Downloads.
+- User should be able to use the desktop with their mouse and keyboard, copy and paste between it and their own computer, and have it fill the space it's shown in (it resizes with the window).
+- User should keep their computer between visits: files in its Home, Chromium's sign-ins, bookmarks and history, and what was open while it slept.
+- User should see "Starting your computer…" while it's made or woken, and an error with "Try again" if it can't start.
+- User should see their computer go to sleep when unused, like a project's sandbox, and wake when they open it again.
+- Only the user should be able to open their computer, its Shell and its files; not other members, not organization admins.
+- User should have one computer in each organization they belong to; leaving an organization, or deleting their account, should delete their computer there.
+- User should be able to restart their computer's desktop (programs close, files stay) and to reset it (a new computer: Home and sign-ins gone, Drive kept) from its menu, after confirming the reset.
+- User should be able to open the computer's Shell and Files tabs beside the desktop, as in a project.
+- User's computer should not show up as a project: not in the sidebar's projects, search, the desktop app's activity, or project counts; its AI usage shows on the Usage page as "Computer".
+
+## CMP-002: Give the AI a task on your computer
+
+- User should see a chat beside their desktop and be able to give the AI a task there ("find three flights to Lisbon under $400 and put them in a spreadsheet in my Drive").
+- User should watch the AI work on the same desktop: it opens and uses Chromium, types, clicks and moves files, and reads the screen.
+- User should be able to use the desktop while the AI works, and stop the AI from the chat as in a project.
+- The AI should use the agent and model the user picks for the computer, with their own AI connection or the organization's AI credits, like a project.
+- The AI should save what it makes in Drive or Home, as the user asks, and say where.
+- The AI should ask the user to take over to sign in to a site (passwords, two-factor codes, captchas), not type secrets itself.
+- User should be able to hide the chat to give the desktop the whole page.
+
+## CMP-003: Turn computers on or off for an organization
+
+- Organization owners and admins should be able to turn computers off for their organization in Settings → Organization (on by default).
+- While they're off, nobody in the organization should see "Computer" in the sidebar or be able to open one, and running computers should be put to sleep; turning them back on should give everyone their computer as it was.
+- On a self-hosted install, platform admins should be able to turn computers off for the whole install with `COMPUTERS_ENABLED=false`.
+
+## DRIVE-001: Drive
+
+- User should see "Drive" in the sidebar and open it at `/o/<slug>/drive`.
+- User should see places on the left: My Drive (only theirs), the organization's shared drive (everyone in it), and a drive for each group they're in (its members); organization owners and admins should also see every group's drive.
+- User should be able to browse folders, with a path they can click back through, and see each item's name, size, who changed it last and when.
+- User should be able to upload files and whole folders (button or drag and drop), with progress, create folders, rename, move (drag onto a folder, or Move to…), download a file, download a folder as a zip, and delete.
+- User should be able to open a file to see it: images, video, audio and PDFs show in the page, text and code open in an editor they can save from, other files offer a download.
+- User should see how much the organization's Drive uses, and be stopped with a clear message when an upload would go over its limit (none on a self-hosted install unless `DRIVE_QUOTA_GB` is set).
+- Changes made anywhere else (another person, their computer, a project's agent) should show up in Drive without reloading.
+
+## DRIVE-002: Trash
+
+- Deleted files and folders should go to Trash for 30 days, from any place: the Drive page, a computer, or a project.
+- User should be able to see what's in each drive's Trash, who deleted it and when, and restore it (to where it was, beside a newer copy if the name was taken again) or delete it for good.
+- Files should be deleted for good after 30 days in Trash, and no longer count towards the limit then.
+
+## DRIVE-003: Drive in your computer
+
+- User should find their drives in their computer's Drive folder (`~/Drive`): `My Drive`, the organization's (named after it), and `Groups/<group name>`.
+- Files they or the AI add, change, rename, move or delete there should reach Drive within seconds, and changes made elsewhere should reach the computer within seconds while it's in use.
+- When a file is changed in two places at once, both should be kept: the other copy as "<name> (conflict <date>)".
+
+## DRIVE-004: Shared drives in projects
+
+- A project's agent and Shell should find the organization's drive and those of the project owner's groups at `/drive` (`/drive/<organization name>`, `/drive/Groups/<group name>`), read and write. The owner's My Drive should not be there.
+- Changes made there should reach Drive, and Drive's changes should reach the project's sandbox, as in a computer.
+- A project's files (`/workspace`) should never include Drive, so it's never committed, backed up with the code, or published.

@@ -93,6 +93,15 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends chromium fonts-liberation2 fonts-noto-color-emoji \
     && rm -rf /var/lib/apt/lists/*
 
+# A person's computer's desktop (CMP-001), started by start.sh only in computers: TigerVNC's Xvnc (screen and VNC in
+# one), Openbox, a Plank dock, PCManFM (desktop and files), a terminal, noVNC with websockify for the viewer, and
+# xdotool and scrot for the AI's `computer` command (CMP-002).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tigervnc-standalone-server openbox plank pcmanfm xfce4-terminal \
+        novnc websockify xdotool scrot dbus-x11 x11-xserver-utils xdg-utils adwaita-icon-theme gnome-themes-extra \
+        at-spi2-core fonts-noto-core fonts-wqy-microhei \
+    && rm -rf /var/lib/apt/lists/*
+
 # Docker inside the sandbox, for projects that run their own Docker Compose (SBX-008). Only started (see dockerd) when
 # the provider gives the sandbox its own volume for Docker's data and sets ONEDROP_DOCKER=1.
 RUN curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc \
@@ -125,6 +134,12 @@ ARG REMOTION_VERSION=4.0.532
 # renovate: datasource=npm depName=react
 ARG REACT_VERSION=19.3.0
 RUN npm install --prefix /opt/onedrop/remotion --no-save --no-audit --no-fund "remotion@${REMOTION_VERSION}" "@remotion/bundler@${REMOTION_VERSION}" "@remotion/renderer@${REMOTION_VERSION}" "react@${REACT_VERSION}" "react-dom@${REACT_VERSION}" \
+    && rm -rf /root/.npm
+
+# Playwright drives the computer's Chromium for the AI (`computer browser`, CMP-002), over its DevTools port.
+# renovate: datasource=npm depName=playwright-core
+ARG PLAYWRIGHT_CORE_VERSION=1.63.0
+RUN npm install --prefix /opt/onedrop/computer-node --no-save --no-audit --no-fund "playwright-core@${PLAYWRIGHT_CORE_VERSION}" \
     && rm -rf /root/.npm
 
 # /data/storage holds App Storage buckets: on the sandbox's disk but outside the app's code and git.
@@ -161,6 +176,11 @@ COPY tunnel tunnel.mjs /opt/onedrop/
 # (`demo` for the agent; DEMO-002, DEMO-003).
 COPY tests.mjs playwright.config.mjs run-tests test-steps.mjs browser.mjs browser-viewer.html browser demo.mjs demo /opt/onedrop/
 COPY demo-video /opt/onedrop/demo-video
+# A person's computer (CMP-001, CMP-002): desktop runs its desktop, desktop-viewer.html shows it in the workspace,
+# desktop-files are its settings, launchers and wallpaper, and `computer` (told about in computer.md) is the AI's way
+# to use it. drive.mjs keeps the sandbox's copy of Drive in step (DRIVE-003, DRIVE-004).
+COPY desktop desktop-viewer.html computer computer.md drive.mjs /opt/onedrop/
+COPY desktop-files /opt/onedrop/desktop-files
 RUN mkdir -p /opt/onedrop/playwright && chown sandbox:sandbox /opt/onedrop/playwright
 # The Shell tab's page: ttyd's own, with shell-keys.js added so workspace shortcuts typed in the terminal
 # (Cmd/Ctrl+P, FILE-006) reach the workspace. start.sh serves it with ttyd --index.
@@ -169,8 +189,13 @@ RUN (ttyd --port 7699 --interface lo true >/dev/null 2>&1 &) \
     && curl -fsS --retry 10 --retry-connrefused --retry-delay 1 -o /tmp/ttyd.html http://127.0.0.1:7699/ \
     && node -e 'const fs = require("fs"); const page = fs.readFileSync("/tmp/ttyd.html", "utf8"); if (!page.includes("</head>")) { process.exit(1); } fs.writeFileSync("/opt/onedrop/shell.html", page.replace("</head>", () => "<script>" + fs.readFileSync("/opt/onedrop/shell-keys.js", "utf8") + "</script></head>"));' \
     && pkill ttyd && rm /tmp/ttyd.html
-# `ask` on PATH, for the Shell tab and SSH (SBX-012).
+# `ask` on PATH, for the Shell tab and SSH (SBX-012); `computer` for the AI on a computer (CMP-002); Chromium's
+# settings for the desktop; projects find the shared drives at /drive (DRIVE-004).
 RUN ln -s /opt/onedrop/ask /usr/local/bin/ask \
+    && ln -s /opt/onedrop/computer /usr/local/bin/computer \
+    && mkdir -p /etc/chromium/policies/managed \
+    && ln -s /opt/onedrop/desktop-files/chromium-policy.json /etc/chromium/policies/managed/onedrop.json \
+    && ln -s /home/sandbox/drive /drive \
     && usermod -aG docker sandbox \
     && echo 'sandbox ALL=(root) NOPASSWD: /opt/onedrop/dockerd' > /etc/sudoers.d/onedrop-dockerd \
     && chmod 0440 /etc/sudoers.d/onedrop-dockerd

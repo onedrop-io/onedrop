@@ -6,6 +6,7 @@ use App\Enums\AgentHarness;
 use App\Enums\AgentProvider;
 use App\Enums\BuildMode;
 use App\Enums\OrganizationRole;
+use App\Enums\ProjectKind;
 use App\Enums\ProjectSort;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
@@ -277,7 +278,25 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
      */
     public function projects(): HasMany
     {
-        return $this->hasMany(Project::class);
+        return $this->hasMany(Project::class)->where('projects.kind', ProjectKind::App);
+    }
+
+    /**
+     * The user's computers, one in each organization they opened theirs in (CMP-001).
+     *
+     * @return HasMany<Project, $this>
+     */
+    public function computers(): HasMany
+    {
+        return $this->hasMany(Project::class)->where('projects.kind', ProjectKind::Computer);
+    }
+
+    /**
+     * The user's computer in the organization, if they've opened it (CMP-001).
+     */
+    public function computerIn(Organization $organization): ?Project
+    {
+        return $this->computers()->where('organization_id', $organization->id)->first();
     }
 
     /**

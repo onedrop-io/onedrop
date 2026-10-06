@@ -1,0 +1,336 @@
+#!/usr/bin/env node
+// The AI's hands on a person's computer (CMP-002): the screen, mouse and keyboard of its desktop (xdotool and scrot on
+// display :1), and the desktop's Chromium by its pages (Playwright over its DevTools port, 9222). The user watches the
+// same screen. See computer.md for how the agent is told to use it.
+import { execFileSync, spawn } from 'node:child_process';
+import { createRequire } from 'node:module';
+import { setTimeout as sleep } from 'node:timers/promises';
+
+const DISPLAY = ':1';
+const CDP = 'http://127.0.0.1:9222';
+const CHROMIUM = '/opt/onedrop/desktop-files/chromium';
+const SCREENSHOT = '/tmp/onedrop-screen.png';
+// Programs started from here run as if from the desktop: Home is the computer's (CMP-001).
+const DESKTOP_ENV = {
+    ...process.env,
+    DISPLAY,
+    HOME: '/workspace',
+    XDG_CONFIG_HOME: '/workspace/.config',
+    XDG_CACHE_HOME: '/tmp/onedrop-cache',
+    XDG_RUNTIME_DIR: '/tmp/onedrop-runtime',
+};
+
+const HELP = `computer: use this computer's desktop and its Chromium.
+
+Screen, mouse and keyboard (coordinates are screen pixels, as in the screenshot):
+  computer screenshot [file]          save the screen as a PNG (default ${SCREENSHOT}); prints its path and size
+  computer click X Y [right|middle|double]
+  computer move X Y
+  computer drag X1 Y1 X2 Y2
+  computer scroll X Y up|down|left|right [clicks]
+  computer type TEXT                  type text where the keyboard focus is
+  computer key KEY...                 press keys, e.g. ctrl+l Return ctrl+shift+t (xdotool names)
+  computer windows                    list open windows
+  computer focus WINDOW               bring a window (its id or part of its title) to the front
+  computer open URL|PATH              open a web page in Chromium, or a file or folder in its app
+  computer wait SECONDS
+
+Chromium, by its pages (starts it if it isn't running):
+  computer browser tabs               list tabs (the first is the one in front)
+  computer browser goto URL [--new]   load a page (in a new tab with --new)
+  computer browser snapshot           the page in front as an accessibility tree: what's on it, to pick targets
+  computer browser text               the page's visible text
+  computer browser click TARGET       e.g. 'text=Sign in', 'role=button[name="Search"]', '#submit'
+  computer browser fill TARGET TEXT   type into a field, replacing what's there
+  computer browser press KEY          e.g. Enter, Tab, Control+a
+  computer browser select TARGET VALUE
+  computer browser eval JAVASCRIPT    run a script in the page and print its result
+  computer browser screenshot [file]  save the page as a PNG
+  computer browser tab N              bring tab N to the front
+  computer browser close [N]          close the tab in front (or tab N)
+`;
+
+function xdotool(...args) {
+    return execFileSync('xdotool', args.map(String), { env: DESKTOP_ENV, encoding: 'utf8' }).trim();
+}
+
+function number(value, name) {
+    const parsed = Number(value);
+
+    if (!Number.isFinite(parsed)) {
+        fail(`${name} must be a number.`);
+    }
+
+    return Math.round(parsed);
+}
+
+function fail(message) {
+    console.error(message);
+    process.exit(1);
+}
+
+function screenSize() {
+    const [width, height] = xdotool('getdisplaygeometry').split(/\s+/).map(Number);
+
+    return { width, height };
+}
+
+function detached(command, args) {
+    spawn(command, args, { env: DESKTOP_ENV, detached: true, stdio: 'ignore', cwd: '/workspace' }).unref();
+}
+
+async function chromium() {
+    const { chromium } = createRequire('/opt/onedrop/computer-node/package.json')('playwright-core');
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+            return await chromium.connectOverCDP(CDP, { timeout: 5000 });
+        } catch {
+            if (attempt === 0) {
+                detached(CHROMIUM, []);
+
+                for (let wait = 0; wait < 40; wait++) {
+                    await sleep(250);
+
+                    try {
+                        await fetch(`${CDP}/json/version`);
+                        break;
+                    } catch {
+                        // Still starting.
+                    }
+                }
+            }
+        }
+    }
+
+    fail("Chromium didn't start. Try `computer open https://example.com`, then again.");
+}
+
+/** Every tab, the one in front first. */
+async function tabs(browser) {
+    const pages = browser.contexts().flatMap((context) => context.pages());
+    const visible = [];
+
+    for (const page of pages) {
+        const state = await page.evaluate(() => document.visibilityState).catch(() => 'hidden');
+        visible.push(state === 'visible');
+    }
+
+    return pages.map((page, index) => ({ page, visible: visible[index] })).sort((a, b) => Number(b.visible) - Number(a.visible)).map(({ page }) => page);
+}
+
+async function front(browser) {
+    const [page] = await tabs(browser);
+
+    if (page) {
+        return page;
+    }
+
+    const context = browser.contexts()[0] ?? (await browser.newContext());
+
+    return context.newPage();
+}
+
+async function browserCommand(command, args) {
+    const browser = await chromium();
+
+    try {
+        switch (command) {
+            case 'tabs': {
+                const pages = await tabs(browser);
+
+                pages.forEach((page, index) => console.log(`${index}\t${page.url()}`));
+
+                if (pages.length === 0) {
+                    console.log('No tabs open.');
+                }
+
+                break;
+            }
+            case 'goto': {
+                const url = args.find((arg) => arg !== '--new') ?? fail('Which address?');
+                const page = args.includes('--new') ? await (browser.contexts()[0] ?? (await browser.newContext())).newPage() : await front(browser);
+
+                await page.goto(/^[a-z]+:/i.test(url) ? url : `https://${url}`, { waitUntil: 'domcontentloaded', timeout: 45000 });
+                await page.bringToFront();
+                console.log(`${await page.title()}\n${page.url()}`);
+                break;
+            }
+            case 'snapshot': {
+                const page = await front(browser);
+
+                console.log(`${await page.title()}\n${page.url()}\n`);
+                console.log(await page.locator('body').ariaSnapshot({ timeout: 15000 }));
+                break;
+            }
+            case 'text': {
+                const page = await front(browser);
+
+                console.log(await page.locator('body').innerText({ timeout: 15000 }));
+                break;
+            }
+            case 'click': {
+                const page = await front(browser);
+
+                await page.locator(args[0] ?? fail('Click what?')).first().click({ timeout: 15000 });
+                await page.waitForLoadState('domcontentloaded').catch(() => {});
+                console.log(`Clicked. Now on ${page.url()}`);
+                break;
+            }
+            case 'fill': {
+                const page = await front(browser);
+
+                await page.locator(args[0] ?? fail('Fill what?')).first().fill(args[1] ?? '', { timeout: 15000 });
+                console.log('Filled.');
+                break;
+            }
+            case 'press': {
+                const page = await front(browser);
+
+                await page.keyboard.press(args[0] ?? fail('Press what?'));
+                console.log('Pressed.');
+                break;
+            }
+            case 'select': {
+                const page = await front(browser);
+
+                await page.locator(args[0] ?? fail('Select in what?')).first().selectOption(args[1] ?? '', { timeout: 15000 });
+                console.log('Selected.');
+                break;
+            }
+            case 'eval': {
+                const page = await front(browser);
+                const result = await page.evaluate(args.join(' ') || fail('Which script?'));
+
+                console.log(typeof result === 'string' ? result : JSON.stringify(result, null, 2));
+                break;
+            }
+            case 'screenshot': {
+                const page = await front(browser);
+                const file = args[0] ?? '/tmp/onedrop-page.png';
+
+                await page.screenshot({ path: file });
+                console.log(file);
+                break;
+            }
+            case 'tab': {
+                const pages = await tabs(browser);
+                const page = pages[number(args[0], 'N')] ?? fail('No such tab.');
+
+                await page.bringToFront();
+                console.log(page.url());
+                break;
+            }
+            case 'close': {
+                const pages = await tabs(browser);
+                const page = (args[0] !== undefined ? pages[number(args[0], 'N')] : pages[0]) ?? fail('No such tab.');
+
+                await page.close();
+                console.log('Closed.');
+                break;
+            }
+            default:
+                fail(HELP);
+        }
+    } finally {
+        // Leaves Chromium running: only this connection ends.
+        await browser.close().catch(() => {});
+    }
+}
+
+const [command, ...args] = process.argv.slice(2);
+
+try {
+    switch (command) {
+        case 'screenshot': {
+            const file = args[0] ?? SCREENSHOT;
+
+            execFileSync('scrot', ['--overwrite', '--silent', file], { env: DESKTOP_ENV });
+            const { width, height } = screenSize();
+            console.log(`${file} (${width}x${height})`);
+            break;
+        }
+        case 'size': {
+            const { width, height } = screenSize();
+            console.log(`${width}x${height}`);
+            break;
+        }
+        case 'click': {
+            const [x, y, how] = args;
+
+            xdotool('mousemove', number(x, 'X'), number(y, 'Y'));
+            xdotool('click', ...(how === 'double' ? ['--repeat', '2', '--delay', '80', '1'] : [{ right: 3, middle: 2 }[how] ?? 1]));
+            console.log('Clicked.');
+            break;
+        }
+        case 'move':
+            xdotool('mousemove', number(args[0], 'X'), number(args[1], 'Y'));
+            break;
+        case 'drag': {
+            const [x1, y1, x2, y2] = args.map((value, index) => number(value, ['X1', 'Y1', 'X2', 'Y2'][index]));
+
+            xdotool('mousemove', x1, y1);
+            xdotool('mousedown', 1);
+            xdotool('mousemove', '--sync', x2, y2);
+            xdotool('mouseup', 1);
+            console.log('Dragged.');
+            break;
+        }
+        case 'scroll': {
+            const [x, y, direction, clicks = 3] = args;
+            const button = { up: 4, down: 5, left: 6, right: 7 }[direction] ?? fail('Scroll up, down, left or right.');
+
+            xdotool('mousemove', number(x, 'X'), number(y, 'Y'));
+            xdotool('click', '--repeat', number(clicks, 'clicks'), '--delay', '40', button);
+            break;
+        }
+        case 'type':
+            xdotool('type', '--delay', '12', '--', args.join(' '));
+            break;
+        case 'key':
+            xdotool('key', '--delay', '40', ...(args.length ? args : fail('Which keys?')));
+            break;
+        case 'windows': {
+            const ids = xdotool('search', '--onlyvisible', '--name', '.').split('\n').filter(Boolean);
+
+            for (const id of ids) {
+                const name = xdotool('getwindowname', id);
+
+                if (name) {
+                    console.log(`${id}\t${name}`);
+                }
+            }
+
+            break;
+        }
+        case 'focus': {
+            const target = args.join(' ') || fail('Which window?');
+            const id = /^\d+$/.test(target) ? target : xdotool('search', '--onlyvisible', '--name', target).split('\n')[0];
+
+            if (!id) {
+                fail('No window like that.');
+            }
+
+            xdotool('windowactivate', '--sync', id);
+            break;
+        }
+        case 'open': {
+            const target = args.join(' ') || fail('Open what?');
+
+            detached(/^(https?:|www\.)/.test(target) ? CHROMIUM : 'xdg-open', [/^www\./.test(target) ? `https://${target}` : target]);
+            console.log('Opening.');
+            break;
+        }
+        case 'wait':
+            await sleep(Math.min(60, Number(args[0]) || 1) * 1000);
+            break;
+        case 'browser':
+            await browserCommand(args[0], args.slice(1));
+            break;
+        default:
+            console.log(HELP);
+            process.exit(command ? 1 : 0);
+    }
+} catch (error) {
+    fail(String(error?.stderr || error?.message || error).trim());
+}

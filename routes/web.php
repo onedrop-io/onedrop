@@ -13,7 +13,10 @@ use App\Http\Controllers\AgentModelController;
 use App\Http\Controllers\AiCreditsController;
 use App\Http\Controllers\ChatGptAuthController;
 use App\Http\Controllers\ClaudeLoginController;
+use App\Http\Controllers\ComputerController;
 use App\Http\Controllers\DesktopSignInController;
+use App\Http\Controllers\DriveController;
+use App\Http\Controllers\DriveSyncController;
 use App\Http\Controllers\GitHubAppController;
 use App\Http\Controllers\GroupController;
 use App\Http\Controllers\GroupMemberController;
@@ -137,6 +140,21 @@ Route::post('sandbox-events/{sandbox}/files', [SandboxEventController::class, 'f
 Route::post('sandbox-events/deployments/{deployment}/log', [ProjectHostingController::class, 'log'])
     ->middleware(['signed', 'throttle:60,1'])
     ->name('hosting.deployments.log');
+
+// Called by the Drive daemon inside a sandbox (DRIVE-003, DRIVE-004); authenticated by the sandbox's own token.
+Route::withoutMiddleware([StartSession::class, ShareErrorsFromSession::class, PreventRequestForgery::class, HandleInertiaRequests::class])
+    ->middleware('throttle:1200,1')
+    ->prefix('drive-sync/{sandbox}')
+    ->group(function () {
+        Route::get('/', [DriveSyncController::class, 'state'])->name('drive-sync.state');
+        Route::post('folders', [DriveSyncController::class, 'folder'])->name('drive-sync.folders');
+        Route::post('uploads', [DriveSyncController::class, 'startUpload'])->name('drive-sync.uploads');
+        Route::put('uploads/parts/{part}', [DriveSyncController::class, 'uploadPart'])->whereNumber('part')->name('drive-sync.uploads.part');
+        Route::post('files', [DriveSyncController::class, 'file'])->name('drive-sync.files');
+        Route::patch('items/{item}', [DriveSyncController::class, 'update'])->whereNumber('item')->name('drive-sync.items.update');
+        Route::delete('items/{item}', [DriveSyncController::class, 'destroy'])->whereNumber('item')->name('drive-sync.items.destroy');
+        Route::get('items/{item}/content', [DriveSyncController::class, 'content'])->whereNumber('item')->name('drive-sync.items.content');
+    });
 
 // Called by `ask` in a sandbox's shell (SBX-012); the sandbox gets this signed address when it's created.
 Route::get('sandbox-ai/{sandbox}', [SandboxAiController::class, 'show'])
@@ -367,6 +385,33 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
         Route::delete('logo', [OrganizationController::class, 'destroyLogo'])->name('organizations.logo.destroy');
         Route::put('hosting/{provider}', [OrganizationHostingController::class, 'update'])->name('organizations.hosting.update');
         Route::delete('hosting/{provider}', [OrganizationHostingController::class, 'destroy'])->name('organizations.hosting.destroy');
+
+        // The user's own computer (CMP-001): only theirs, made the first time they open it.
+        Route::put('computers', [OrganizationController::class, 'updateComputers'])->name('organizations.computers.update');
+        Route::get('computer', [ComputerController::class, 'show'])->name('computers.show');
+        Route::post('computer/retry', [ComputerController::class, 'retry'])->name('computers.retry');
+        Route::post('computer/restart', [ComputerController::class, 'restart'])->name('computers.restart');
+        Route::delete('computer', [ComputerController::class, 'destroy'])->name('computers.destroy');
+
+        // Drive (DRIVE-001, DRIVE-002): My Drive, the organization's and the user's groups' drives.
+        Route::prefix('drive')->group(function () {
+            Route::get('/', [DriveController::class, 'index'])->name('drive.index');
+            Route::post('uploads', [DriveController::class, 'startUpload'])->name('drive.uploads.store');
+            Route::put('uploads/parts/{part}', [DriveController::class, 'uploadPart'])->whereNumber('part')->name('drive.uploads.part');
+            Route::patch('items/{item}', [DriveController::class, 'update'])->name('drive.items.update');
+            Route::delete('items/{item}', [DriveController::class, 'destroy'])->name('drive.items.destroy');
+            Route::post('items/{item}/restore', [DriveController::class, 'restore'])->name('drive.items.restore');
+            Route::delete('items/{item}/purge', [DriveController::class, 'purge'])->name('drive.items.purge');
+            Route::get('items/{item}/download', [DriveController::class, 'download'])->name('drive.items.download');
+            Route::get('items/{item}/view', [DriveController::class, 'view'])->name('drive.items.view');
+            Route::get('items/{item}/text', [DriveController::class, 'text'])->name('drive.items.text');
+            Route::put('items/{item}/text', [DriveController::class, 'saveText'])->name('drive.items.text.update');
+            Route::get('{space}/folders', [DriveController::class, 'folders'])->name('drive.folders');
+            Route::post('{space}/folders', [DriveController::class, 'storeFolder'])->name('drive.folders.store');
+            Route::post('{space}/files', [DriveController::class, 'storeFile'])->name('drive.files.store');
+            Route::delete('{space}/trash', [DriveController::class, 'emptyTrash'])->name('drive.trash.destroy');
+            Route::get('{space}/{folder?}', [DriveController::class, 'show'])->whereNumber('folder')->name('drive.show');
+        });
 
         Route::get('invitations', [InvitationController::class, 'index'])->name('invitations.index');
         Route::post('invitations', [InvitationController::class, 'store'])->name('invitations.store');

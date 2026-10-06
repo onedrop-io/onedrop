@@ -28,6 +28,9 @@ Schedule::command('sandbox:prune-images')->hourly()->withoutOverlapping();
 // snapshots happen as they come; this catches changes made without the agent (the Shell tab, the app itself).
 Schedule::command('sandbox:snapshot')->dailyAt('04:00')->withoutOverlapping();
 
+// Drive's Trash keeps things for 30 days (DRIVE-002).
+Schedule::command('drive:purge')->dailyAt('04:30')->withoutOverlapping();
+
 // Database backups (ADMIN-005), on the schedule an admin chose in Settings → Backups.
 Schedule::job(new BackUpDatabase)
     ->cron(app(DatabaseBackups::class)->settings()['schedule'])

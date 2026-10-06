@@ -1,0 +1,53 @@
+---
+title: 'Drive'
+description: 'Keep files for yourself, share them with your organization and your groups, and use them from your computer and projects.'
+---
+
+Drive holds your files and the files you share. Open it with **Drive** in the sidebar.
+
+## Places
+
+| Place                         | Who sees it                                                                  |
+| ----------------------------- | ---------------------------------------------------------------------------- |
+| **My Drive**                  | Only you.                                                                    |
+| Your organization's drive     | Everyone in the organization.                                                |
+| Each of your groups' drives   | The group's members. Organization owners and admins see every group's drive. |
+
+To share a file, put it in your organization's drive or a group's.
+
+## Files and folders
+
+- **Upload** files or a whole folder, or drag them onto the page.
+- **New folder**, then drag files onto a folder to move them, or use **Move to…** from a file's menu to move it to another folder or place.
+- Click a file to open it. Images, video, audio and PDFs show in the page; text and code open in an editor you can save from (⌘S / Ctrl+S). Anything else offers a download.
+- **Download** a file, or a folder as a zip.
+
+Uploading a file with the same name as one in the folder replaces it with the new version.
+
+Changes made anywhere else, by someone else, on a computer or by a project's agent, show up without reloading.
+
+## Trash
+
+Deleting a file or folder, from the page, a computer or a project, moves it to that place's **Trash** for 30 days. From there you can **Restore** it (beside anything that took its name meanwhile) or delete it for good. After 30 days it's deleted for good.
+
+## Drive on your computer
+
+Your [computer](/guides/computer) keeps your drives in its **Drive** folder (`~/Drive`, also on its desktop):
+
+| Folder                 | Place                     |
+| ---------------------- | ------------------------- |
+| `My Drive`             | My Drive                  |
+| `<organization name>`  | Your organization's drive |
+| `Groups/<group name>`  | Each group's drive        |
+
+Files you or the AI add, change, rename or delete there reach Drive within seconds, and Drive's changes reach your computer within seconds while you're using it. When a file is changed in two places at once, both are kept: the other copy is saved beside it as `<name> (conflict <date>)`.
+
+## Drive in projects
+
+A project's agent and Shell find your organization's drive and the drives of the project owner's groups at `/drive` (`/drive/<organization name>`, `/drive/Groups/<group name>`). They can read and write them, so an agent can use shared specs, assets and data, and save what it makes. The owner's My Drive isn't there.
+
+`/drive` is outside the project's files, so it's never committed, backed up with the code or published.
+
+## Space
+
+The Drive page shows how much space your organization's files take, Trash included. The hosted OneDrop has a limit per organization; an upload that would go over it says so. Empty Trash to make room.

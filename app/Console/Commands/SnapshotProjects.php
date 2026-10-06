@@ -22,8 +22,9 @@ class SnapshotProjects extends Command
             ->when(
                 $this->argument('project'),
                 fn ($query, $id) => $query->whereKey($id),
-                // Nothing changes in a sandbox nobody used, and snapshotting it would wake it.
-                fn ($query) => $query->whereHas('sandbox', fn ($sandbox) => $sandbox->where('last_active_at', '>', now()->subDay())),
+                // Nothing changes in a sandbox nobody used, and snapshotting it would wake it. A computer's Home isn't
+                // backed up (CMP-001): what people keep goes in Drive.
+                fn ($query) => $query->apps()->whereHas('sandbox', fn ($sandbox) => $sandbox->where('last_active_at', '>', now()->subDay())),
             )
             ->get();
         $failed = 0;

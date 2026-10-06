@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+# The computer's desktop (CMP-001), started by start.sh when ONEDROP_DESKTOP=1: TigerVNC's Xvnc as the screen (it
+# resizes to the viewer), Openbox, PCManFM drawing the wallpaper and desktop icons, a Plank dock, and websockify
+# serving desktop-viewer.html (with noVNC) on 127.0.0.1:6080, which host-proxy.mjs passes on under /__onedrop/desktop/.
+#
+#   desktop run       run the desktop until any part of it stops (start.sh runs it again)
+#   desktop restart   close every program on it; start.sh starts it afresh. Files stay.
+set -uo pipefail
+
+PID_FILE=/tmp/onedrop-desktop.pid
+FILES=/opt/onedrop/desktop-files
+WEB=/tmp/onedrop-desktop-web
+
+case "${1:-run}" in
+restart)
+    # The whole session is one process group (start.sh starts it with setsid).
+    if [ -f "$PID_FILE" ]; then
+        kill -TERM -- "-$(cat "$PID_FILE")" 2>/dev/null
+    fi
+    exit 0
+    ;;
+run) ;;
+*)
+    echo "usage: desktop run|restart" >&2
+    exit 2
+    ;;
+esac
+
+echo $$ >"$PID_FILE"
+trap 'kill -TERM -- -$$ 2>/dev/null' EXIT
+
+# The computer's Home is /workspace (Desktop, Documents, Downloads, Drive), so programs keep their settings and files
+# there, kept across updates; caches stay out of it.
+export HOME=/workspace DISPLAY=:1 XDG_CONFIG_HOME=/workspace/.config XDG_CACHE_HOME=/tmp/onedrop-cache
+export XDG_RUNTIME_DIR=/tmp/onedrop-runtime XDG_DATA_DIRS=/usr/local/share:/usr/share
+export BROWSER="$FILES/chromium" NO_AT_BRIDGE=1
+mkdir -p "$XDG_RUNTIME_DIR" "$XDG_CACHE_HOME" && chmod 700 "$XDG_RUNTIME_DIR"
+
+mkdir -p /workspace/Desktop /workspace/Documents /workspace/Downloads /workspace/Drive \
+    "$XDG_CONFIG_HOME/openbox" "$XDG_CONFIG_HOME/pcmanfm/default" "$XDG_CONFIG_HOME/libfm" \
+    "$XDG_CONFIG_HOME/gtk-3.0" "$XDG_CONFIG_HOME/plank/dock1/launchers"
+
+# The desktop's icons: the folders people look for first.
+for folder in Drive Documents Downloads; do
+    [ -e "/workspace/Desktop/$folder" ] || ln -s "/workspace/$folder" "/workspace/Desktop/$folder"
+done
+
+# Our settings, put back each start so an image update reaches them; the user's own files are never touched.
+cp "$FILES/openbox.xml" "$XDG_CONFIG_HOME/openbox/rc.xml"
+cp "$FILES/pcmanfm-desktop.conf" "$XDG_CONFIG_HOME/pcmanfm/default/desktop-items-0.conf"
+cp -n "$FILES/pcmanfm.conf" "$XDG_CONFIG_HOME/pcmanfm/default/pcmanfm.conf"
+printf '[config]\nquick_exec=1\n' >"$XDG_CONFIG_HOME/libfm/libfm.conf"
+cp -n "$FILES/gtk-settings.ini" "$XDG_CONFIG_HOME/gtk-3.0/settings.ini"
+rm -f "$XDG_CONFIG_HOME/plank/dock1/launchers/"*.dockitem
+cp "$FILES/chromium.dockitem" "$XDG_CONFIG_HOME/plank/dock1/launchers/01-chromium.dockitem"
+cp "$FILES/files.dockitem" "$XDG_CONFIG_HOME/plank/dock1/launchers/02-files.dockitem"
+cp "$FILES/terminal.dockitem" "$XDG_CONFIG_HOME/plank/dock1/launchers/03-terminal.dockitem"
+
+# Links to the dock's apps open in our Chromium.
+mkdir -p "$XDG_CONFIG_HOME" && cat >"$XDG_CONFIG_HOME/mimeapps.list" <<'MIME'
+[Default Applications]
+text/html=chromium.desktop
+x-scheme-handler/http=chromium.desktop
+x-scheme-handler/https=chromium.desktop
+inode/directory=files.desktop
+MIME
+mkdir -p "$HOME/.local/share/applications"
+ln -sf "$FILES/chromium.desktop" "$FILES/files.desktop" "$FILES/terminal.desktop" "$HOME/.local/share/applications/"
+
+# The viewer's page and noVNC beside it, as websockify serves them.
+mkdir -p "$WEB"
+ln -sfn /usr/share/novnc/core "$WEB/core"
+ln -sfn /usr/share/novnc/vendor "$WEB/vendor"
+ln -sf /opt/onedrop/desktop-viewer.html "$WEB/index.html"
+
+# A screen left over from a killed session would block this one; X's socket folder is made by root otherwise.
+rm -f /tmp/.X1-lock /tmp/.X11-unix/X1
+mkdir -p -m 1777 /tmp/.X11-unix
+
+Xvnc :1 -geometry 1440x900 -depth 24 -rfbport 5901 -localhost -SecurityTypes None -AlwaysShared \
+    -AcceptSetDesktopSize -desktop Computer -dpi 96 -nolisten tcp >>/tmp/onedrop-desktop.log 2>&1 &
+
+for _ in $(seq 50); do
+    [ -S /tmp/.X11-unix/X1 ] && break
+    sleep 0.1
+done
+
+websockify --web "$WEB" 127.0.0.1:6080 127.0.0.1:5901 >>/tmp/onedrop-desktop.log 2>&1 &
+
+dbus-run-session -- bash -c '
+    openbox --config-file "$XDG_CONFIG_HOME/openbox/rc.xml" &
+    sleep 0.3
+    pcmanfm --desktop --profile default &
+    # Plank stays where it was when the screen changes size (the viewer resizes it): start it again each time.
+    ( while true; do plank; sleep 0.5; done ) &
+    (
+        size=$(xdotool getdisplaygeometry)
+        while sleep 1; do
+            now=$(xdotool getdisplaygeometry) || continue
+            [ "$now" != "$size" ] && size=$now && sleep 0.5 && pkill -x plank
+        done
+    ) &
+    wait -n
+' >>/tmp/onedrop-desktop.log 2>&1 &
+
+# Any part stopping ends the session; start.sh starts a whole new one.
+wait -n

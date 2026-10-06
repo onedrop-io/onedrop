@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Actions\DeleteProject;
 use App\Enums\OrganizationRole;
+use App\Enums\ProjectKind;
 use Database\Factories\OrganizationFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -29,11 +31,12 @@ use Illuminate\Support\Str;
  * @property float $ai_credits_charged What that key had spent (USD) when its usage was last charged to the credits
  * @property array<string, array<string, mixed>>|null $hosting_accounts Its own hosting accounts (HOST-003): provider => settings
  * @property int|null $max_task_copies Most task copies one of its projects runs at once (TASK-003), or null for no limit of its own
+ * @property bool $computers_enabled Whether its people get their own computer (CMP-003)
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read OrganizationMember $pivot Set on organizations loaded through a user's organizations
  */
-#[Fillable(['name', 'slug', 'logo_path', 'logo_hash', 'max_task_copies'])]
+#[Fillable(['name', 'slug', 'logo_path', 'logo_hash', 'max_task_copies', 'computers_enabled'])]
 #[Hidden(['ai_credits_key', 'ai_credits_key_hash', 'hosting_accounts'])]
 class Organization extends Model
 {
@@ -52,6 +55,7 @@ class Organization extends Model
             'ai_credits_charged' => 'float',
             'hosting_accounts' => 'encrypted:array',
             'max_task_copies' => 'integer',
+            'computers_enabled' => 'boolean',
         ];
     }
 
@@ -61,6 +65,14 @@ class Organization extends Model
     public static function multiTenant(): bool
     {
         return (bool) config('app.multi_tenant');
+    }
+
+    /**
+     * Whether its people get their own computer (CMP-003): on unless its owners turned them off, or the install did.
+     */
+    public function computersEnabled(): bool
+    {
+        return (bool) config('sandbox.computers.enabled') && $this->computers_enabled !== false;
     }
 
     /**
@@ -144,7 +156,7 @@ class Organization extends Model
      */
     public function projects(): HasMany
     {
-        return $this->hasMany(Project::class);
+        return $this->hasMany(Project::class)->where('projects.kind', ProjectKind::App);
     }
 
     /**
@@ -185,10 +197,13 @@ class Organization extends Model
     }
 
     /**
-     * Take someone out of the organization and its groups (ORG-004). Their projects stay, out of their reach.
+     * Take someone out of the organization and its groups (ORG-004). Their projects stay, out of their reach; their
+     * computer there goes (CMP-001).
      */
     public function removeMember(User $user): void
     {
+        $user->computers()->where('organization_id', $this->id)->get()->each(app(DeleteProject::class)->handle(...));
+
         $this->groups()->each(fn (Group $group) => $group->members()->detach($user));
         $this->members()->detach($user);
         $user->forgetOrganizationRoles();

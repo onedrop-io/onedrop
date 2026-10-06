@@ -256,3 +256,9 @@ The normal test suite uses a fake provider. To test against real containers:
 ```bash
 RUN_DOCKER_TESTS=1 vendor/bin/pest tests/Integration
 ```
+
+## People's computers
+
+Each person's [computer](/guides/computer) is a sandbox too, on the same provider and image as projects (`SANDBOX_PROVIDER`), started with `ONEDROP_DESKTOP=1` so it runs a desktop (TigerVNC, Openbox, Chromium) shown through the sandbox's own proxy at `/__onedrop/desktop/`. It sleeps when unused and is kept up to date like any sandbox, so it costs what a project's sandbox costs while someone uses it. Turn them off for the install with `COMPUTERS_ENABLED=false`.
+
+Every sandbox, computer or project, keeps a copy of [Drive](/guides/drive) in step with `drive.mjs`, which only asks for changes while the sandbox is in use, so it doesn't keep idle sandboxes awake.

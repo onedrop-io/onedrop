@@ -74,6 +74,15 @@ These are the defaults for new projects; users can pick any other model in the c
 | `SANDBOX_CHATGPT_MODELS_URL` | Where ChatGPT lists the models a ChatGPT sign-in's plan includes with Codex. Defaults to `https://chatgpt.com/backend-api/codex/models`. Cached for an hour per connection. |
 | `sandbox.featured_models`    | Models shown first in the picker, per provider, in `config/sandbox.php`.                                                                                                    |
 
+## Computers and Drive
+
+| Variable            | Default                  | Description                                                                                                                                                                                       |
+| ------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `COMPUTERS_ENABLED` | `true`                   | Give everyone their own [computer](/guides/computer). `false` turns them off for the whole install; organization owners and admins can also turn them off for their organization. Each computer is a sandbox on `SANDBOX_PROVIDER`, running only while it's used. |
+| `DRIVE_DISK`        | the app's default disk   | Where [Drive](/guides/drive) keeps file contents. On Laravel Cloud, the bucket attached as the default disk. Uploads pass through the app in 8 MB parts, so the bucket needs no CORS setup.        |
+| `DRIVE_QUOTA_GB`    | (none)                   | How much each organization's Drive may hold, Trash included. No limit when unset.                                                                                                                  |
+| `DRIVE_MAX_FILE_MB` | `5120`                   | The largest file one upload may be.                                                                                                                                                                |
+
 ## Publishing
 
 | Variable            | Default                      | Description                                                                                                                                              |

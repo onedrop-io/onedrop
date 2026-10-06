@@ -141,6 +141,8 @@ class HandleInertiaRequests extends Middleware
             'logo_url' => $organization->logoUrl(),
             'role' => $user->organizationRole($organization)?->value,
             'manages' => $organization->isManagedBy($user),
+            // Whether its people get their own computer (CMP-003).
+            'computers' => $organization->computersEnabled(),
         ];
     }
 

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\OrganizationRole;
 use App\Http\Middleware\ResolveOrganization;
+use App\Jobs\SuspendComputers;
 use App\Models\HostedService;
 use App\Models\Organization;
 use App\Models\User;
@@ -62,6 +63,8 @@ class OrganizationController extends Controller
 
         return Inertia::render('organizations/edit', [
             'details' => [...$organization->only('name', 'slug'), 'logo_url' => $organization->logoUrl()],
+            // Whether its people get their own computer (CMP-003); null when the install turned them off.
+            'computers' => config('sandbox.computers.enabled') ? ['enabled' => $organization->computers_enabled !== false] : null,
             'members' => $organization->members()
                 ->orderBy('name')
                 ->get()
@@ -127,6 +130,27 @@ class OrganizationController extends Controller
         $organization->update(['max_task_copies' => $limit === null ? null : (int) $limit]);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Task copies saved.')]);
+
+        return to_route('organizations.edit', $organization);
+    }
+
+    /**
+     * Turn its people's computers on or off (CMP-003). Turning them off puts running ones to sleep.
+     */
+    public function updateComputers(Request $request): RedirectResponse
+    {
+        $organization = ResolveOrganization::current($request);
+
+        abort_unless($organization->isManagedBy($request->user()), 403);
+
+        $enabled = $request->validate(['enabled' => ['required', 'boolean']])['enabled'];
+        $organization->update(['computers_enabled' => $enabled]);
+
+        if (! $enabled) {
+            SuspendComputers::dispatch($organization);
+        }
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => $enabled ? __('Computers turned on.') : __('Computers turned off.')]);
 
         return to_route('organizations.edit', $organization);
     }

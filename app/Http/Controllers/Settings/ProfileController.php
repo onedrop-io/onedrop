@@ -47,7 +47,7 @@ class ProfileController extends Controller
     }
 
     /**
-     * Delete the user's profile, and each of their projects with its app, sandbox, and attachments.
+     * Delete the user's profile, and each of their projects with its app, sandbox, and attachments, and their computers (CMP-001).
      */
     public function destroy(ProfileDeleteRequest $request, DeleteProject $deleteProject): RedirectResponse
     {
@@ -56,6 +56,7 @@ class ProfileController extends Controller
         Auth::logout();
 
         $user->projects()->with('sandbox')->get()->each($deleteProject->handle(...));
+        $user->computers()->get()->each($deleteProject->handle(...));
         // Their sandboxes are gone; this removes the Claude sign-in they shared (AI-005).
         SignOutOfClaude::dispatch($user->id);
         $user->delete();

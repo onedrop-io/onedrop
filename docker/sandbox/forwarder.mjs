@@ -9,13 +9,15 @@
 // APP_CLAUDE_AUTH is "subscription" when it runs on the user's own `claude auth login` (AI-005).
 // For Codex, CODEX_AUTH_CONTENT is its auth.json (the ChatGPT sign-in or OpenAI key), written before it starts.
 // APP_REQUIREMENTS is "1" when the agent keeps the project's requirements and their tests (REQ-002, TEST-002): those
-// guides join the instructions.
+// guides join the instructions. APP_MODE is "computer" on a person's computer (CMP-002): the agent works its desktop
+// with the computer guide instead of building an app, and there's no checkpoint to commit.
 // Provider keys (ANTHROPIC_API_KEY, OPENAI_API_KEY, ...) are read by the agent; a Claude subscription is Claude Code's own sign-in.
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 
 const INSTRUCTIONS = '/opt/onedrop/instructions.md';
+const COMPUTER_INSTRUCTIONS = '/opt/onedrop/computer.md';
 const REQUIREMENTS_GUIDES = [
     '/opt/onedrop/guides/requirements.md',
     '/opt/onedrop/guides/tests.md',
@@ -35,21 +37,27 @@ const {
     APP_RUN = 'main',
     APP_CLAUDE_AUTH,
     APP_REQUIREMENTS,
+    APP_MODE = 'app',
     CODEX_AUTH_CONTENT,
 } = process.env;
 
-const requirements = APP_REQUIREMENTS === '1';
+const computer = APP_MODE === 'computer';
+const requirements = APP_REQUIREMENTS === '1' && !computer;
 
-// The agent's instructions: the platform's, plus the requirements and tests guides when that's on.
+// The agent's instructions: the platform's (or, on a computer, the computer guide), plus the requirements and tests
+// guides when that's on.
 function instructions() {
-    return [INSTRUCTIONS, ...(requirements ? REQUIREMENTS_GUIDES : [])]
+    return [
+        computer ? COMPUTER_INSTRUCTIONS : INSTRUCTIONS,
+        ...(requirements ? REQUIREMENTS_GUIDES : []),
+    ]
         .map((file) => readFileSync(file, 'utf8'))
         .join('\n');
 }
 
 // OpenCode reads its instructions from its config, so the guides go in a copy that lists them too.
 function opencodeConfig() {
-    if (!requirements) {
+    if (!requirements && !computer) {
         return OPENCODE_CONFIG;
     }
 
@@ -57,10 +65,9 @@ function opencodeConfig() {
     // One per run: several runs may start at once.
     const path = `/tmp/onedrop-opencode-${APP_RUN.replace(/[^a-z0-9-]/g, '')}.json`;
 
-    config.instructions = [
-        ...(config.instructions ?? []),
-        ...REQUIREMENTS_GUIDES,
-    ];
+    config.instructions = computer
+        ? [COMPUTER_INSTRUCTIONS]
+        : [...(config.instructions ?? []), ...REQUIREMENTS_GUIDES];
     writeFileSync(path, JSON.stringify(config));
 
     return path;
@@ -330,6 +337,11 @@ function compactCodexEvent(event) {
 // Commit the turn's changes before the platform hears it's over, so its backup includes them.
 // The first line of the prompt is the subject; a longer prompt follows in full.
 function checkpoint() {
+    // A computer's Home isn't a repository (CMP-001).
+    if (computer) {
+        return;
+    }
+
     const prompt = (APP_PROMPT ?? '').trim();
     const firstLine = prompt.split('\n')[0];
     const subject =

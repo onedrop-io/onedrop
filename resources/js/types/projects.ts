@@ -12,6 +12,8 @@ export type Project = {
     waiting_for_sign_in?: boolean;
     /** Its SSH name for opening it in an editor from the desktop app (DESK-008); null unless the user owns it. Workspace only. */
     editor_alias?: string | null;
+    /** Set when this is the owner's computer (CMP-001): a desktop where an app's preview would be. Workspace only. */
+    computer?: { organization: string } | null;
 };
 
 export type ProjectSummary = Pick<Project, 'id' | 'name'>;
@@ -186,6 +188,8 @@ export type SandboxState = {
     error: string | null;
     /** Moving to the current sandbox image (files kept). */
     updating: boolean;
+    /** A computer's desktop viewer (CMP-001); null for an app. */
+    desktop_url?: string | null;
 };
 
 export type WorkspaceEntry = {

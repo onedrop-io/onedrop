@@ -75,6 +75,35 @@ if [ -x /opt/onedrop/dockerd ]; then
     ) &
 fi
 
+# A person's computer runs a desktop (CMP-001), when the platform made the sandbox for one. Its own process group, so
+# `desktop restart` can close everything on it.
+(
+    while true; do
+        [ -f ~/.onedrop-env ] && set -a && . ~/.onedrop-env && set +a
+
+        if [ "${ONEDROP_DESKTOP:-}" = "1" ]; then
+            setsid -w /opt/onedrop/desktop run >>/tmp/onedrop-desktop.log 2>&1
+            sleep 1
+        else
+            sleep 30
+        fi
+    done
+) &
+
+# Keeps the sandbox's copy of Drive in step (DRIVE-003, DRIVE-004). Its address may only arrive in ~/.onedrop-env after start.
+(
+    while true; do
+        [ -f ~/.onedrop-env ] && set -a && . ~/.onedrop-env && set +a
+
+        if [ -n "${ONEDROP_DRIVE_URL:-}" ]; then
+            node /opt/onedrop/drive.mjs >>/tmp/onedrop-drive.log 2>&1
+            sleep 5
+        else
+            sleep 30
+        fi
+    done
+) &
+
 while true; do
     # Settings written after start by providers that can't set env at create (RuntimeSandboxProvider).
     [ -f ~/.onedrop-env ] && set -a && . ~/.onedrop-env && set +a

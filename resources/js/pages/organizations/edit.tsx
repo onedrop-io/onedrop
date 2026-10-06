@@ -20,6 +20,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { useOrganization } from '@/hooks/use-organization';
 import { edit } from '@/routes/organizations';
 import type { OrganizationRole } from '@/types';
@@ -59,15 +60,17 @@ const ROLES: { value: OrganizationRole; label: string }[] = [
     { value: 'owner', label: 'Owner' },
 ];
 
-/** An organization's name, address, members, own hosting accounts and task copy limit (ORG-004, ORG-005, HOST-003, TASK-003). */
+/** An organization's name, address, computers, members, own hosting accounts and task copy limit (ORG-004, ORG-005, CMP-003, HOST-003, TASK-003). */
 export default function OrganizationEdit({
     details,
+    computers,
     members,
     hosting,
     taskCopies,
     can,
 }: {
     details: { name: string; slug: string; logo_url: string | null };
+    computers: { enabled: boolean } | null;
     members: Member[];
     hosting: HostingAccount[] | null;
     taskCopies: { limit: number | null; install_limit: number | null };
@@ -234,6 +237,35 @@ export default function OrganizationEdit({
                             )}
                         </div>
                         <InputError message={errors.logo} />
+                    </section>
+                )}
+
+                {can.update && computers && (
+                    <section className="space-y-4">
+                        <Heading
+                            variant="small"
+                            title="Computers"
+                            description="Each person gets their own cloud computer: a desktop with a browser, which they and the AI use. Turning computers off puts running ones to sleep; turning them on again gives everyone theirs back."
+                        />
+                        <div className="flex items-center gap-3 text-sm">
+                            <Switch
+                                checked={computers.enabled}
+                                label={`Give everyone in ${details.name} a computer`}
+                                testId="organization-computers"
+                                onChange={(enabled) =>
+                                    router.put(
+                                        OrganizationController.updateComputers.url(
+                                            organization.slug,
+                                        ),
+                                        { enabled },
+                                        { preserveScroll: true },
+                                    )
+                                }
+                            />
+                            <span>
+                                Give everyone in {details.name} a computer
+                            </span>
+                        </div>
                     </section>
                 )}
 

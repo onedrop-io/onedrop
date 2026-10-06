@@ -349,6 +349,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Computers
+    |--------------------------------------------------------------------------
+    |
+    | Each person's own cloud computer (CMP-001): a desktop with Chromium in a
+    | sandbox of its own. Organizations can turn them off in their settings;
+    | COMPUTERS_ENABLED=false turns them off for the whole install.
+    |
+    */
+
+    'computers' => [
+        'enabled' => (bool) env('COMPUTERS_ENABLED', true),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Dev Seed Credential
     |--------------------------------------------------------------------------
     |

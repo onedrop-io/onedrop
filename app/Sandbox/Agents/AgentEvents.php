@@ -131,6 +131,14 @@ abstract class AgentEvents
             $this->sayFailure($conversation, $this->explainExit($stderr));
         }
 
+        // A computer (CMP-001) has no app to check, deploy or back up, no icon, and no place in the sidebar.
+        if ($project->isComputer()) {
+            app(AgentQueue::class)->finished($conversation, succeeded: $code === 0);
+            ChargeAiCredits::afterRun($project->organization);
+
+            return;
+        }
+
         // Before the next queued message starts, so the check knows which turn it's for.
         if ($code === 0 && $conversation instanceof Project) {
             CheckPreviewErrors::afterTurn($project);

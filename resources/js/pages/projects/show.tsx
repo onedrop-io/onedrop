@@ -115,6 +115,7 @@ import {
 import EditorMenu from '@/components/workspace/editor-menu';
 import GitActionsMenu from '@/components/workspace/git-actions-menu';
 import PublishMenu from '@/components/workspace/publish-menu';
+import { ComputerMenu, DesktopView } from '@/components/workspace/desktop-view';
 import ShareMenu from '@/components/workspace/share-menu';
 import ToolsPanel from '@/components/workspace/tools-panel';
 import FileViewer from '@/components/workspace/file-viewer';
@@ -162,6 +163,7 @@ import {
     setWorkspaceView,
     viewFromUrl,
 } from '@/lib/workspace-view';
+import { show as computerRoute } from '@/routes/computers';
 import { board, show } from '@/routes/projects';
 import {
     create as createTask,
@@ -309,9 +311,16 @@ export default function ShowProject({
         setMobileView('chat');
     };
 
+    const computer = project.computer ?? null;
+
     setLayoutProps({
         breadcrumbs: [
-            { title: project.name, href: show(project.id) },
+            computer
+                ? {
+                      title: 'Computer',
+                      href: computerRoute(computer.organization),
+                  }
+                : { title: project.name, href: show(project.id) },
             ...(task
                 ? [
                       {
@@ -374,25 +383,45 @@ export default function ShowProject({
 
     return (
         <>
-            <Head title={title ? `${title} · ${project.name}` : project.name} />
-            <HeaderActions>
-                <GitActionsMenu
-                    projectId={project.id}
-                    running={sandbox?.status === 'running'}
-                    working={working}
-                />
-                <ShareMenu
-                    projectId={project.id}
-                    projectName={project.name}
-                    sharing={sharing}
-                />
-                <EditorMenu
-                    projectId={project.id}
-                    alias={project.editor_alias ?? null}
-                    running={sandbox?.status === 'running'}
-                />
-                <PublishMenu projectId={project.id} publication={publication} />
-            </HeaderActions>
+            <Head
+                title={
+                    computer
+                        ? 'Computer'
+                        : title
+                          ? `${title} · ${project.name}`
+                          : project.name
+                }
+            />
+            {computer ? (
+                <HeaderActions>
+                    <ComputerMenu
+                        organization={computer.organization}
+                        running={sandbox?.status === 'running'}
+                    />
+                </HeaderActions>
+            ) : (
+                <HeaderActions>
+                    <GitActionsMenu
+                        projectId={project.id}
+                        running={sandbox?.status === 'running'}
+                        working={working}
+                    />
+                    <ShareMenu
+                        projectId={project.id}
+                        projectName={project.name}
+                        sharing={sharing}
+                    />
+                    <EditorMenu
+                        projectId={project.id}
+                        alias={project.editor_alias ?? null}
+                        running={sandbox?.status === 'running'}
+                    />
+                    <PublishMenu
+                        projectId={project.id}
+                        publication={publication}
+                    />
+                </HeaderActions>
+            )}
 
             <div className="flex h-[calc(100svh-4rem)] min-h-0 flex-col md:h-[calc(100svh-5rem)] lg:flex-row">
                 <MobileViewTabs
@@ -759,7 +788,9 @@ function ChatPanel({
                             ? 'Queue a message, or ⌘/Ctrl+Enter to send now…'
                             : newTask
                               ? 'Describe the task…'
-                              : 'Message the agent…'
+                              : project.computer
+                                ? 'Ask the AI to do something on your computer…'
+                                : 'Message the agent…'
                     }
                     footer={
                         <>
@@ -789,7 +820,9 @@ function ChatPanel({
                                     }
                                 />
                             )}
-                            <AutofixToggle project={project} />
+                            {!project.computer && (
+                                <AutofixToggle project={project} />
+                            )}
                         </>
                     }
                 />
@@ -915,6 +948,11 @@ function WorkspacePanel({
     onOpenFileChange: (file: ContextFile | null) => void;
 }) {
     const running = sandbox?.status === 'running';
+    // The owner's computer (CMP-001): its desktop is the pinned tab, and it has no app tools.
+    const computer = project.computer ?? null;
+    const toolTabs = (Object.keys(TOOL_TABS) as ToolTab[]).filter(
+        (kind) => !computer || kind === 'shell',
+    );
     const isRemoteBrowser = useIsRemote();
     // A 127.0.0.1 preview (laptop) can't be reached from another machine; servers use gateway URLs instead.
     const remote =
@@ -953,18 +991,26 @@ function WorkspacePanel({
     const [layout, setLayout] = useState<Layout>(() => {
         const asked = initialView.tab ?? (initialView.tool ? 'tools' : null);
         const first: PaneTab =
-            asked === 'file' && !initialView.file
+            (asked === 'file' && !initialView.file) ||
+            (computer && asked === 'tools')
                 ? 'preview'
                 : ACTIVE_TABS.includes(asked as PaneTab)
                   ? (asked as PaneTab)
                   : 'preview';
 
         // Simple mode opens with just Tools and Preview; the rest are still in "+" (PRJ-013).
-        return panes.initialLayout(first, simple ? [] : undefined);
+        return panes.initialLayout(first, simple || computer ? [] : undefined);
     });
     const tab = panes.focusedTab(layout);
     const showTab = (kind: PaneTab, paneId?: number) =>
         setLayout((current) => panes.showTab(current, kind, paneId));
+
+    // A computer has no Tools tab to show (a layout saved in this tab, a link): its desktop instead.
+    useEffect(() => {
+        if (computer && layout.panes.some((pane) => pane.active === 'tools')) {
+            setLayout((current) => panes.showTab(current, 'preview'));
+        }
+    }, [computer, layout]);
     const [draggedTab, setDraggedTab] = useState<PaneTab | null>(null);
     /**
      * Each open Shell's tmux session, so a reload reattaches to it (LAYOUT-005), and how it started: in a
@@ -1813,8 +1859,8 @@ function WorkspacePanel({
         }
 
         return {
-            // A running preview's address has its own bar above the page.
-            preview: statusIsUrl ? '' : statusText,
+            // A running preview's address has its own bar above the page; a computer's desktop says how it's doing.
+            preview: statusIsUrl || computer ? '' : statusText,
             tools: '',
             file: openPath,
             console: '',
@@ -1902,6 +1948,10 @@ function WorkspacePanel({
     const tabButton = (kind: PaneTab, paneId: number) => {
         const active = panes.paneOf(layout, kind)?.active === kind;
 
+        if (kind === 'tools' && computer) {
+            return null;
+        }
+
         if (kind === 'tools' || kind === 'preview') {
             return (
                 <TabButton
@@ -1916,7 +1966,11 @@ function WorkspacePanel({
                     ) : (
                         <Monitor className="size-4" />
                     )}
-                    {kind === 'tools' ? 'Tools' : 'Preview'}
+                    {kind === 'tools'
+                        ? 'Tools'
+                        : computer
+                          ? 'Desktop'
+                          : 'Preview'}
                 </TabButton>
             );
         }
@@ -1982,6 +2036,7 @@ function WorkspacePanel({
     const switcherTabs = (pane: Layout['panes'][number]) =>
         pane.tabs
             .filter((kind) => kind !== 'file' || openPath)
+            .filter((kind) => kind !== 'tools' || !computer)
             .map((kind) => {
                 const name = openPath?.split('/').pop() ?? '';
 
@@ -1991,7 +2046,9 @@ function WorkspacePanel({
                         kind === 'tools'
                             ? 'Tools'
                             : kind === 'preview'
-                              ? 'Preview'
+                              ? computer
+                                  ? 'Desktop'
+                                  : 'Preview'
                               : kind === 'file'
                                 ? name
                                 : panes.isShell(kind)
@@ -2092,7 +2149,7 @@ function WorkspacePanel({
                             <MobileTabSwitcher
                                 className="md:hidden"
                                 tabs={switcherTabs(pane)}
-                                newTabs={(Object.keys(TOOL_TABS) as ToolTab[])
+                                newTabs={toolTabs
                                     .filter(
                                         (kind) =>
                                             kind === 'shell' ||
@@ -2139,9 +2196,7 @@ function WorkspacePanel({
                                             }
                                         }}
                                     >
-                                        {(
-                                            Object.keys(TOOL_TABS) as ToolTab[]
-                                        ).map((kind) => (
+                                        {toolTabs.map((kind) => (
                                             <DropdownMenuItem
                                                 key={kind}
                                                 onSelect={() =>
@@ -2259,7 +2314,7 @@ function WorkspacePanel({
                                     <PanelRight className="size-4" />
                                 </IconButton>
                             )}
-                            {((pane.active === 'preview' && url) ||
+                            {((pane.active === 'preview' && url && !computer) ||
                                 index === filesTogglePane) && (
                                 <DropdownMenu modal={false}>
                                     <DropdownMenuTrigger asChild>
@@ -2274,23 +2329,25 @@ function WorkspacePanel({
                                         </button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end">
-                                        {pane.active === 'preview' && url && (
-                                            <DropdownMenuItem asChild>
-                                                <a
-                                                    href={previewUrlAt(
-                                                        url,
-                                                        previewPage,
-                                                        sandbox?.shell_via_gateway ??
-                                                            false,
-                                                    )}
-                                                    target="_blank"
-                                                    rel="noreferrer"
-                                                >
-                                                    <ExternalLink />
-                                                    Open in a new tab
-                                                </a>
-                                            </DropdownMenuItem>
-                                        )}
+                                        {pane.active === 'preview' &&
+                                            url &&
+                                            !computer && (
+                                                <DropdownMenuItem asChild>
+                                                    <a
+                                                        href={previewUrlAt(
+                                                            url,
+                                                            previewPage,
+                                                            sandbox?.shell_via_gateway ??
+                                                                false,
+                                                        )}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                    >
+                                                        <ExternalLink />
+                                                        Open in a new tab
+                                                    </a>
+                                                </DropdownMenuItem>
+                                            )}
                                         {index === filesTogglePane && (
                                             <DropdownMenuItem
                                                 onSelect={toggleFiles}
@@ -2311,7 +2368,18 @@ function WorkspacePanel({
 
                 {content(
                     'preview',
-                    url && restored ? (
+                    computer ? (
+                        <DesktopView
+                            organization={computer.organization}
+                            sandbox={sandbox}
+                            url={
+                                running && !sandbox.updating && restored
+                                    ? (sandbox.desktop_url ?? null)
+                                    : null
+                            }
+                            wakes={wakes}
+                        />
+                    ) : url && restored ? (
                         <>
                             <div
                                 className="relative flex min-w-0 items-center gap-1 border-b border-sidebar-border/70 bg-toolbar px-2 py-1.5 text-sm dark:border-sidebar-border"

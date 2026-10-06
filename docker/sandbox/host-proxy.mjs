@@ -10,6 +10,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import {
     appendFile,
     closeSync,
+    existsSync,
     fstatSync,
     mkdirSync,
     openSync,
@@ -35,6 +36,8 @@ const appHost = `localhost:${appPort}`;
 // (this proxy, the web terminal, SSH) can never be routed to, so they stay behind the platform's auth.
 const ROUTES_FILE =
     process.env.ONEDROP_ROUTES_FILE || '/workspace/.onedrop/routes.json';
+// websockify, serving a computer's desktop viewer and its screen (see desktop).
+const DESKTOP_PORT = 6080;
 const RESERVED_PORTS = new Set(
     [
         listenPort,
@@ -44,6 +47,10 @@ const RESERVED_PORTS = new Set(
         process.env.TUNNEL_PROXY_PORT || 7690,
         process.env.ONEDROP_TESTS_UI_PORT || 9323,
         process.env.ONEDROP_BROWSER_PORT || 9331,
+        // A computer's desktop (CMP-001): the viewer, the screen, and Chromium's debugging port.
+        DESKTOP_PORT,
+        5901,
+        9222,
         // The debugging ports browser.mjs gives the test's browser.
         ...Array.from({ length: 10 }, (_, i) => 9224 + i),
     ].map(Number),
@@ -1558,6 +1565,104 @@ function browserHeaders(req) {
     return headers;
 }
 
+// A computer's desktop (CMP-001) under /__onedrop/desktop/, on the preview's address only, while the desktop runs:
+// websockify (started by desktop) serves the viewer and noVNC, and the screen's WebSocket. The gateway only lets the
+// computer's owner reach its preview address.
+const DESKTOP_PATH = '/__onedrop/desktop';
+const DESKTOP_PID = '/tmp/onedrop-desktop.pid';
+
+function isDesktop(path) {
+    return path === DESKTOP_PATH || path.startsWith(`${DESKTOP_PATH}/`);
+}
+
+function desktopAllowed(req) {
+    return existsSync(DESKTOP_PID) && isPreview(String(req.headers.host ?? ''));
+}
+
+function desktopHeaders(req) {
+    const headers = { ...req.headers, host: `127.0.0.1:${DESKTOP_PORT}` };
+
+    delete headers.cookie;
+
+    return headers;
+}
+
+function serveDesktop(req, res) {
+    if (!desktopAllowed(req)) {
+        res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+        res.end("This computer's desktop isn't running.");
+
+        return;
+    }
+
+    const [path, query] = String(req.url).split(/\?(.*)/s);
+
+    // The viewer loads noVNC by relative paths.
+    if (path === DESKTOP_PATH) {
+        res.writeHead(302, {
+            location: `${DESKTOP_PATH}/${query ? `?${query}` : ''}`,
+        });
+        res.end();
+
+        return;
+    }
+
+    const upstream = http.request(
+        {
+            host: '127.0.0.1',
+            port: DESKTOP_PORT,
+            method: req.method,
+            path: String(req.url).slice(DESKTOP_PATH.length) || '/',
+            headers: desktopHeaders(req),
+        },
+        (response) => {
+            res.writeHead(response.statusCode ?? 502, {
+                ...response.headers,
+                'cache-control': 'no-cache',
+                'referrer-policy': 'no-referrer',
+            });
+            response.pipe(res);
+        },
+    );
+
+    upstream.on('error', () => {
+        if (!res.headersSent) {
+            res.writeHead(502, { 'content-type': 'text/plain; charset=utf-8' });
+        }
+
+        res.end('The desktop is starting…');
+    });
+
+    req.pipe(upstream);
+}
+
+// When someone last used the sandbox through this address (a page, the desktop), for the Drive daemon, which only
+// asks for changes while the sandbox is in use (DRIVE-003). At most every 10 seconds.
+const ACTIVE_FILE = '/tmp/onedrop-active';
+let activeMarkedAt = 0;
+
+function markActive() {
+    const now = Date.now();
+
+    if (now - activeMarkedAt < 10_000) {
+        return;
+    }
+
+    activeMarkedAt = now;
+
+    try {
+        const at = new Date(now);
+
+        utimesSync(ACTIVE_FILE, at, at);
+    } catch {
+        try {
+            writeFileSync(ACTIVE_FILE, '');
+        } catch {
+            // Not worth failing a request over.
+        }
+    }
+}
+
 function serveBrowser(req, res) {
     if (!browserAllowed(req)) {
         res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
@@ -1600,6 +1705,14 @@ function serveBrowser(req, res) {
 
 const server = http.createServer((req, res) => {
     const path = String(req.url ?? '').split('?')[0];
+
+    markActive();
+
+    if (isDesktop(path)) {
+        serveDesktop(req, res);
+
+        return;
+    }
 
     if (path === TUNNEL_PATH) {
         res.writeHead(404);
@@ -1713,6 +1826,28 @@ function connectUpgrade(req, socket, head, port, path, headers) {
 }
 
 server.on('upgrade', (req, socket, head) => {
+    markActive();
+
+    if (isDesktop(String(req.url ?? '').split('?')[0])) {
+        if (desktopAllowed(req)) {
+            // An open desktop is in use the whole time, even while nothing on it moves.
+            const keepActive = setInterval(markActive, 15_000);
+
+            socket.on('close', () => clearInterval(keepActive));
+            connectUpgrade(
+                req,
+                socket,
+                head,
+                DESKTOP_PORT,
+                String(req.url).slice(DESKTOP_PATH.length) || '/',
+                desktopHeaders(req),
+            );
+        } else {
+            socket.end('HTTP/1.1 404 Not Found\r\n\r\n');
+        }
+
+        return;
+    }
     if (String(req.url ?? '').split('?')[0] === TUNNEL_PATH) {
         connectUpgrade(req, socket, head, TUNNEL_PORT, req.url, req.headers);
 

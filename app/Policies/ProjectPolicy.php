@@ -33,7 +33,8 @@ class ProjectPolicy
     }
 
     /**
-     * Its owner while they're still in its organization, and the organization's owners and admins (ORG-005).
+     * Its owner while they're still in its organization, and the organization's owners and admins (ORG-005); only its
+     * owner for a computer (CMP-001).
      * Platform admins get nothing here: another company's projects aren't theirs to open (ORG-006). Someone
      * outside its organization gets a 404, so they can't learn it exists (ORG-001).
      */
@@ -41,6 +42,11 @@ class ProjectPolicy
     {
         if (! $user->belongsToOrganization($project->organization_id)) {
             return Response::denyAsNotFound();
+        }
+
+        // A person's computer holds their browser's sign-ins and their own files: only theirs to open (CMP-001).
+        if ($project->isComputer()) {
+            return $project->user_id === $user->id && $project->organization->computersEnabled() ? Response::allow() : Response::denyAsNotFound();
         }
 
         return $project->user_id === $user->id || $project->organization->isManagedBy($user)

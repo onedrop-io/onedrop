@@ -1,0 +1,74 @@
+---
+title: 'Computers and Drive'
+description: 'Manual tests for people’s computers (the desktop, the AI using it) and Drive syncing with computers and projects.'
+noindex: true
+---
+
+These need real Docker sandboxes and an image with the desktop: run `php artisan sandbox:build-image` after changing `docker/sandbox/Dockerfile`, `desktop` or `desktop-files`. Drive's own pages are covered by Pest and a browser test; these check what only a real sandbox shows.
+
+## The desktop
+
+### A computer starts and fills the page (CMP-001)
+
+1. Click **Computer** in the sidebar.
+
+- [ ] **Starting your computer…** shows, then the desktop: the grey wallpaper, Documents, Downloads and Drive on it, and a dock with Chromium, Files and Terminal.
+- [ ] The desktop fills the pane. Resizing the window or hiding the chat resizes the desktop (the dock moves to the new bottom within a couple of seconds).
+- [ ] Chromium opens from the dock, maximized above the dock; Files opens the Home; Terminal opens in `/workspace`.
+- [ ] Copying text on the desktop and pasting it in another tab works, and the other way round (the browser may ask to allow the clipboard once).
+- [ ] On a Mac, ⌘L then typing an address in Chromium works; ⌘C/⌘V copy and paste in the terminal and Chromium.
+
+### It's kept and sleeps (CMP-001)
+
+1. Sign in to a site in Chromium and save a file to Documents.
+2. Leave the page for a few minutes (Docker suspends it after a minute), then come back.
+
+- [ ] The desktop comes back with Chromium as it was, after **Reconnecting…** at most.
+- [ ] **⋯ → Restart desktop** closes everything; the desktop comes back; the file and the sign-in are kept.
+- [ ] **⋯ → Reset computer…** asks first; afterwards it's a new computer (Documents empty, signed out) and Drive still has its files.
+
+### Only its owner (CMP-001)
+
+1. As Sam (`sam@example.com`), an admin, try the dev user's computer's preview address (copy the desktop frame's address while signed in as dev).
+
+- [ ] It doesn't open for Sam.
+
+## The AI on the computer (CMP-002)
+
+Test with each agent (OpenCode, Claude Code, Codex).
+
+1. Ask: "Go to news.ycombinator.com and save the top 5 titles to a file in My Drive called hn.txt".
+
+- [ ] You watch Chromium open the page on the desktop while the chat shows its steps.
+- [ ] It finishes saying where the file is; `hn.txt` is in Drive → My Drive within seconds.
+- [ ] **Stop** while it works stops it.
+2. Ask it to sign in to a site you're signed out of.
+
+- [ ] It asks you to sign in on the desktop and stops, without typing a password.
+
+## Drive in a sandbox
+
+### Both ways on a computer (DRIVE-003)
+
+1. Open the computer's Terminal (or the Shell tab) and run `ls ~/Drive`.
+
+- [ ] `My Drive`, the organization's name and `Groups/Engineering` are there.
+- [ ] A file made in `~/Drive/My Drive` shows in Drive → My Drive within a few seconds, by the dev user.
+- [ ] A file uploaded on the Drive page appears in the folder within a few seconds while the desktop is open.
+- [ ] Renaming a folder on the desktop renames it in Drive (same item, not a new upload); moving a file from `My Drive` to the organization's folder moves it there.
+- [ ] Deleting a file on the desktop puts it in Drive's Trash; restoring it brings it back to the desktop.
+- [ ] Editing the same text file on the Drive page and on the desktop at once leaves both: one as `(conflict …)`.
+
+### In a project (DRIVE-004)
+
+1. In a project's Shell, run `ls /drive`.
+
+- [ ] The organization's drive and `Groups/…` are there; `My Drive` isn't.
+- [ ] Asking the agent to "read /drive/(organization)/brief.md and summarize it" works.
+- [ ] A file the agent writes to `/drive/(organization)/` shows on the Drive page; `git status` in `/workspace` doesn't list it.
+
+### Sleep isn't kept off (DRIVE-003, SBX-007)
+
+1. Close every tab on a project and on the computer.
+
+- [ ] Both sandboxes are suspended after about a minute (Settings → Sandboxes, or `docker ps --filter status=paused`), even though Drive is synced.

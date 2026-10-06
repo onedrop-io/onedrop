@@ -7,6 +7,7 @@ use App\Concerns\BroadcastsProjectChanges;
 use App\Enums\AgentHarness;
 use App\Enums\AgentProvider;
 use App\Enums\GitSyncStatus;
+use App\Enums\ProjectKind;
 use App\Enums\ProjectSort;
 use App\Enums\ProjectStatus;
 use App\Enums\PublishStatus;
@@ -36,6 +37,7 @@ use Laravel\Sanctum\PersonalAccessToken;
  * @property string $name
  * @property string $prompt
  * @property ProjectStatus $status
+ * @property ProjectKind $kind An app, or its owner's computer (CMP-001)
  * @property string|null $agent_session_id
  * @property int|null $sign_in_retry_message_id
  * @property AgentHarness|null $agent_harness
@@ -86,7 +88,7 @@ use Laravel\Sanctum\PersonalAccessToken;
  * @property int|null $device_id The computer (a desktop app sign-in) it runs on, or null for the install's provider (DESK-010)
  * @property list<array{host: string, port: int}>|null $network_hosts Hosts on its people's network it may reach through their desktop app (DESK-009)
  */
-#[Fillable(['organization_id', 'name', 'prompt', 'status', 'agent_session_id', 'sign_in_retry_message_id', 'agent_harness', 'agent_provider', 'agent_model', 'agent_variant', 'agent_auto', 'publish_status', 'publish_visibility', 'publish_target', 'published_url', 'published_at', 'published_by', 'publish_error', 'publish_login_url', 'publish_waiting_for', 'onedrop_enabled', 'onedrop_client_id', 'onedrop_client_secret', 'onedrop_callback_path', 'onedrop_group_ids', 'pinned_at', 'read_at', 'archived_at', 'sidebar_position', 'backup_commit', 'backed_up_at', 'icon_path', 'icon_mime', 'icon_hash', 'git_remote_url', 'git_remote_username', 'git_remote_token', 'git_sync_status', 'git_sync_error', 'git_synced_at', 'github_installation_id', 'autofix', 'track_requirements', 'turn_outcome', 'hosting_changes', 'auto_deploy', 'hosting_sqlite_import', 'hosting_size', 'published_default_url', 'device_id', 'network_hosts'])]
+#[Fillable(['organization_id', 'kind', 'name', 'prompt', 'status', 'agent_session_id', 'sign_in_retry_message_id', 'agent_harness', 'agent_provider', 'agent_model', 'agent_variant', 'agent_auto', 'publish_status', 'publish_visibility', 'publish_target', 'published_url', 'published_at', 'published_by', 'publish_error', 'publish_login_url', 'publish_waiting_for', 'onedrop_enabled', 'onedrop_client_id', 'onedrop_client_secret', 'onedrop_callback_path', 'onedrop_group_ids', 'pinned_at', 'read_at', 'archived_at', 'sidebar_position', 'backup_commit', 'backed_up_at', 'icon_path', 'icon_mime', 'icon_hash', 'git_remote_url', 'git_remote_username', 'git_remote_token', 'git_sync_status', 'git_sync_error', 'git_synced_at', 'github_installation_id', 'autofix', 'track_requirements', 'turn_outcome', 'hosting_changes', 'auto_deploy', 'hosting_sqlite_import', 'hosting_size', 'published_default_url', 'device_id', 'network_hosts'])]
 #[Hidden(['onedrop_client_secret', 'git_remote_token'])]
 class Project extends Model implements Conversation
 {
@@ -101,7 +103,7 @@ class Project extends Model implements Conversation
      *
      * @var array<string, mixed>
      */
-    protected $attributes = ['autofix' => true, 'track_requirements' => true, 'auto_deploy' => false];
+    protected $attributes = ['kind' => 'app', 'autofix' => true, 'track_requirements' => true, 'auto_deploy' => false];
 
     /**
      * Order projects the way the sidebar lists them (PRJ-010). Ties go to the newest.
@@ -129,6 +131,7 @@ class Project extends Model implements Conversation
     {
         return [
             'status' => ProjectStatus::class,
+            'kind' => ProjectKind::class,
             'autofix' => 'boolean',
             'hosting_changes' => 'array',
             'auto_deploy' => 'boolean',
@@ -154,6 +157,24 @@ class Project extends Model implements Conversation
             'github_installation_id' => 'integer',
             'network_hosts' => 'array',
         ];
+    }
+
+    /**
+     * Only apps, leaving out people's computers (CMP-001).
+     *
+     * @param  Builder<static>  $query
+     */
+    public function scopeApps(Builder $query): void
+    {
+        $query->where('projects.kind', ProjectKind::App);
+    }
+
+    /**
+     * Whether this is its owner's computer (CMP-001) rather than an app.
+     */
+    public function isComputer(): bool
+    {
+        return $this->kind === ProjectKind::Computer;
     }
 
     /**

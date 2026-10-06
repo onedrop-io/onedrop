@@ -1,5 +1,5 @@
-import { Link, router } from '@inertiajs/react';
-import { Archive, Search, SquarePen } from 'lucide-react';
+import { Link, router, usePage } from '@inertiajs/react';
+import { Archive, HardDrive, Monitor, Search, SquarePen } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import {
@@ -16,17 +16,21 @@ import {
 } from '@/components/ui/sidebar';
 import { jsonRequest } from '@/lib/json-request';
 import { useOrganization } from '@/hooks/use-organization';
+import { show as computer } from '@/routes/computers';
+import { index as drive } from '@/routes/drive';
 import { home } from '@/routes/organizations';
 import { search, show } from '@/routes/projects';
 
 type SearchResult = { id: number; name: string; archived: boolean };
 
 /**
- * The sidebar's Search row (opens a dialog that searches all the user's projects) under a full-width New project row.
+ * The sidebar's Search row (opens a dialog that searches all the user's projects) under a full-width New project row,
+ * then the user's own Computer (CMP-001) and Drive (DRIVE-001).
  */
 export function NavSearch() {
     const [open, setOpen] = useState(false);
     const organization = useOrganization();
+    const currentUrl = usePage().url;
 
     return (
         <SidebarGroup className="px-2 pt-px pb-0">
@@ -56,6 +60,43 @@ export function NavSearch() {
                     >
                         <Search />
                         <span>Search</span>
+                    </SidebarMenuButton>
+                </SidebarMenuItem>
+                {organization.computers && (
+                    <SidebarMenuItem>
+                        <SidebarMenuButton
+                            asChild
+                            tooltip={{ children: 'Computer' }}
+                            isActive={currentUrl.startsWith(
+                                computer.url(organization.slug),
+                            )}
+                        >
+                            <Link
+                                href={computer(organization.slug)}
+                                data-test="sidebar-computer"
+                            >
+                                <Monitor />
+                                <span>Computer</span>
+                            </Link>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                )}
+                <SidebarMenuItem>
+                    <SidebarMenuButton
+                        asChild
+                        tooltip={{ children: 'Drive' }}
+                        isActive={currentUrl.startsWith(
+                            drive.url(organization.slug),
+                        )}
+                    >
+                        <Link
+                            href={drive(organization.slug)}
+                            prefetch
+                            data-test="sidebar-drive"
+                        >
+                            <HardDrive />
+                            <span>Drive</span>
+                        </Link>
                     </SidebarMenuButton>
                 </SidebarMenuItem>
             </SidebarMenu>

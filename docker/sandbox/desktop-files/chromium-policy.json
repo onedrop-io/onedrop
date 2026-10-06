@@ -1,0 +1,9 @@
+{
+    "DownloadDirectory": "/workspace/Downloads",
+    "PromptForDownloadLocation": false,
+    "DefaultBrowserSettingEnabled": false,
+    "MetricsReportingEnabled": false,
+    "BackgroundModeEnabled": false,
+    "BrowserGuestModeEnabled": false,
+    "HardwareAccelerationModeEnabled": false
+}
