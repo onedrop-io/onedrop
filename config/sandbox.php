@@ -28,8 +28,9 @@ return [
             // Minutes a suspended sandbox stays frozen before it's stopped, freeing its memory (it starts again in a
             // second or two on its next use, files kept); 0 never.
             'stop_after_minutes' => (int) env('SANDBOX_DOCKER_STOP_AFTER_MINUTES', 5),
-            // Host the browser uses to reach published container ports.
-            'host' => env('SANDBOX_DOCKER_HOST', '127.0.0.1'),
+            // Host the browser uses to reach published container ports. Unset: APP_URL's host when it's localhost
+            // or 127.0.0.1 (so previews are same-site with the app and keep their cookies), else 127.0.0.1.
+            'host' => env('SANDBOX_DOCKER_HOST'),
             // Optional container runtime, e.g. "runsc" for gVisor isolation on Linux servers.
             'runtime' => env('SANDBOX_DOCKER_RUNTIME'),
             // Docker inside each sandbox, for projects that run their own Docker Compose (SBX-008): "off", "privileged"

@@ -240,7 +240,23 @@ class DockerSandboxProvider implements SandboxProvider
         $binding = explode("\n", trim($result->output()))[0];
         $hostPort = substr($binding, strrpos($binding, ':') + 1);
 
-        return ctype_digit($hostPort) ? "http://{$this->config['host']}:{$hostPort}" : null;
+        return ctype_digit($hostPort) ? "http://{$this->browserHost()}:{$hostPort}" : null;
+    }
+
+    /**
+     * The host the browser reaches published ports on: the configured one, else the app's own loopback name, so
+     * the preview frame is same-site with the page around it (browsers treat localhost and 127.0.0.1 as different
+     * sites, which cuts a framed app off from its cookies).
+     */
+    protected function browserHost(): string
+    {
+        if (filled($this->config['host'] ?? null)) {
+            return $this->config['host'];
+        }
+
+        $appHost = parse_url((string) config('app.url'), PHP_URL_HOST);
+
+        return in_array($appHost, ['localhost', '127.0.0.1'], true) ? $appHost : '127.0.0.1';
     }
 
     public function isOutdated(string $id): bool

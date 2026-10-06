@@ -126,6 +126,19 @@ test('the preview url comes from the published port', function () {
     expect($this->docker->previewUrl('abc123', 8000))->toBe('http://127.0.0.1:55012');
 })->group('SBX-001');
 
+test('without a configured host, the preview url uses the app url\'s loopback name', function (string $appUrl, string $previewUrl) {
+    config(['app.url' => $appUrl]);
+    Process::fake(['*' => Process::result("127.0.0.1:55012\n")]);
+
+    $docker = new DockerSandboxProvider([...$this->dockerConfig, 'host' => null]);
+
+    expect($docker->previewUrl('abc123', 8000))->toBe($previewUrl);
+})->with([
+    'localhost' => ['http://localhost:8000', 'http://localhost:55012'],
+    '127.0.0.1' => ['http://127.0.0.1:8000', 'http://127.0.0.1:55012'],
+    'another host' => ['https://zap.test', 'http://127.0.0.1:55012'],
+])->group('SBX-001');
+
 test('no preview url when the port is not published', function () {
     Process::fake(['*' => Process::result(errorOutput: 'no public port', exitCode: 1)]);
 
