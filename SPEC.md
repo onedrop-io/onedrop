@@ -516,6 +516,13 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see why nothing is shown when the sandbox isn't running, and a note when the sandbox has no Docker.
 - Only people who can change the project should be able to restart, stop or start things; anyone who can see it can see the tab.
 
+## SVC-002: All logs in one view
+
+- With more than one container, user should be able to open **All logs** in the Services tab and read every container's latest lines merged in time order (the latest 200, or 2,000 expanded), each labelled with its service in a color of its own.
+- A container is labelled by its compose service, or by its name when it has no service or two compose projects share the service name.
+- User should be able to search, tail Live, expand and see a match in context in All logs like in a single container's logs, and search by a service's name to keep its lines.
+- One container's colors (ANSI) shouldn't spill onto another's lines.
+
 ## AGT-001: Real coding agent
 
 - When user sends a message, OpenCode should run inside the project's sandbox using the user's default AI (Anthropic key, OpenAI key, or OpenRouter).

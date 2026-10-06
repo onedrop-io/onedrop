@@ -118,6 +118,51 @@ class SandboxServices
     }
 
     /**
+     * Every given container's latest log lines merged in time order, each line as "label<TAB>line". Docker's
+     * timestamps (fixed-width RFC 3339 in UTC) sort as text, so a stable sort on them keeps each container's own
+     * order. Arguments: lines, then name and label pairs.
+     */
+    public const MERGED_LOGS_SCRIPT = <<<'BASH'
+        lines="$1"; shift
+        while [ "$#" -gt 1 ]; do
+            docker logs --timestamps --tail "$lines" "$1" 2>&1 \
+                | LABEL="$2" awk '{ time = $1; sub(/^[^ ]* ?/, ""); print time "\t" ENVIRON["LABEL"] "\t" $0 }'
+            shift 2
+        done | LC_ALL=C sort -s -t "$(printf '\t')" -k1,1 | cut -f2- | tail -n "$lines"
+        BASH;
+
+    /**
+     * The latest log lines of every container, merged in time order, each as "label<TAB>line" where the label is
+     * its compose service (its name when two projects share a service name, or it has none).
+     *
+     * @throws SandboxException
+     */
+    public function mergedLogs(Sandbox $sandbox, int $lines = self::LOG_LINES): string
+    {
+        $containers = $this->describe($sandbox)['containers'];
+
+        if ($containers === []) {
+            return '';
+        }
+
+        $services = array_count_values(array_filter(array_column($containers, 'service')));
+        $arguments = [];
+        foreach ($containers as $container) {
+            $service = $container['service'];
+            $arguments[] = $container['name'];
+            $arguments[] = $service !== null && $services[$service] === 1 ? $service : $container['name'];
+        }
+
+        $result = $this->provider->exec($sandbox->external_id, ['bash', '-c', self::MERGED_LOGS_SCRIPT, 'logs', (string) $lines, ...$arguments]);
+
+        if (! $result->successful()) {
+            throw new SandboxException(__("Couldn't read the containers' logs."));
+        }
+
+        return $result->output;
+    }
+
+    /**
      * Restarts a container, but recreates a compose service whose config (its compose files, .env) changed since it
      * was made, which `docker restart` would ignore. An unchanged one is only restarted, so it keeps what it wrote
      * outside its volumes.

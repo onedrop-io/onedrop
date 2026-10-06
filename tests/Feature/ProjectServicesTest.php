@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Sandbox\ExecResult;
 use App\Sandbox\Providers\FakeSandboxProvider;
 use App\Sandbox\SandboxProvider;
+use App\Sandbox\SandboxServices;
 
 beforeEach(function () {
     $this->provider = new FakeSandboxProvider;
@@ -113,6 +114,51 @@ test('reads more log lines for the expanded view, up to a limit', function () {
         ->getJson(route('projects.services.logs', [$this->project, 'workspace-worker-1', 'lines' => 2001]))
         ->assertJsonValidationErrors('lines');
 })->group('SVC-001');
+
+test('reads every container\'s latest logs merged, each labelled with its service', function () {
+    $this->actingAs($this->user)
+        ->getJson(route('projects.services.all-logs', [$this->project, 'lines' => 2000]))
+        ->assertOk()
+        ->assertJsonPath('logs', "worker: li3: No such file or directory\n");
+
+    $command = collect($this->provider->executed)->pluck('command')->last();
+    expect($command[2])->toBe(SandboxServices::MERGED_LOGS_SCRIPT)
+        ->and(array_slice($command, 3))->toBe(['logs', '2000', 'workspace-app-1', 'app', 'workspace-worker-1', 'worker']);
+
+    $this->actingAs($this->user)
+        ->getJson(route('projects.services.all-logs', [$this->project, 'lines' => 2001]))
+        ->assertJsonValidationErrors('lines');
+})->group('SVC-002');
+
+test('merged logs label a container by its name when two compose projects share its service name', function () {
+    $this->services['containers'][] = [
+        'Names' => 'other-app-1',
+        'Image' => 'app:latest',
+        'State' => 'running',
+        'Status' => 'Up 1 minute',
+        'Ports' => '',
+        'Labels' => 'com.docker.compose.project=other,com.docker.compose.service=app',
+    ];
+    $this->services['containers'][] = ['Names' => 'loose', 'Image' => 'redis', 'State' => 'running', 'Status' => 'Up 1 minute', 'Ports' => '', 'Labels' => ''];
+
+    $this->actingAs($this->user)
+        ->getJson(route('projects.services.all-logs', $this->project))
+        ->assertOk();
+
+    expect(array_slice(collect($this->provider->executed)->pluck('command')->last(), 4))
+        ->toBe(['200', 'loose', 'loose', 'other-app-1', 'other-app-1', 'workspace-app-1', 'workspace-app-1', 'workspace-worker-1', 'worker']);
+})->group('SVC-002');
+
+test('merged logs are empty without containers', function () {
+    $this->services['containers'] = [];
+
+    $this->actingAs($this->user)
+        ->getJson(route('projects.services.all-logs', $this->project))
+        ->assertOk()
+        ->assertJsonPath('logs', '');
+
+    expect(collect($this->provider->executed)->pluck('command')->filter(fn (array $command) => $command[0] === 'bash'))->toBeEmpty();
+})->group('SVC-002');
 
 test('stops and starts a container in the background', function (string $action) {
     $this->actingAs($this->user)

@@ -195,6 +195,7 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
         Route::get('projects/{project}/logs', [ProjectLogController::class, 'index'])->name('projects.logs.index');
         Route::get('projects/{project}/services', [ProjectServiceController::class, 'index'])->name('projects.services.index');
         Route::post('projects/{project}/services/preview/restart', [ProjectServiceController::class, 'restartPreview'])->name('projects.services.preview.restart');
+        Route::get('projects/{project}/services/logs', [ProjectServiceController::class, 'allLogs'])->name('projects.services.all-logs');
         Route::get('projects/{project}/services/{name}/logs', [ProjectServiceController::class, 'logs'])->name('projects.services.logs');
         Route::put('projects/{project}/services/{name}', [ProjectServiceController::class, 'update'])->name('projects.services.update');
         Route::get('projects/{project}/requirements', [ProjectRequirementsController::class, 'show'])->name('projects.requirements.show');

@@ -58,16 +58,30 @@ type AnsiStyle = { color: string | null; bold: boolean; dim: boolean };
 /** A log line as shown: its position in the log (from 0) and its colored content. */
 export type LogLine = { index: number; nodes: ReactNode[] };
 
+/** Colors told apart on a dark background, one per label of merged logs. */
+const LABEL_COLORS = [
+    'text-cyan-400',
+    'text-fuchsia-400',
+    'text-yellow-300',
+    'text-green-400',
+    'text-blue-400',
+    'text-orange-400',
+    'text-pink-400',
+    'text-lime-400',
+];
+
 /**
  * Log output as colored lines, for a dark background. Lines a program colored itself (ANSI escapes) keep
  * those colors; other lines get their timestamps, levels, keys, quoted strings, URLs and durations colored
  * (slow ones amber or red) and dot leaders dimmed, and URLs open in a new tab. Other escapes (cursor moves,
  * `\r` redraws) are dropped, so they don't show as junk. With a search, only the lines passing it are kept,
- * and its terms are marked.
+ * and its terms are marked. `labelled` logs merge several programs' output as "label<TAB>line": each label
+ * gets its own color, is searched with its line, and keeps its own ANSI colors so one can't bleed into another.
  */
 export function highlightLog(
     text: string,
     search: LogSearch | null = null,
+    labelled = false,
 ): LogLine[] {
     const lines: LogLine[] = [];
     const marker = search?.terms.length
@@ -75,53 +89,98 @@ export function highlightLog(
         : null;
     const marked = (part: string): ReactNode =>
         marker ? markMatches(part, marker) : part;
-    let style: AnsiStyle = { color: null, bold: false, dim: false };
+    const styles = new Map<string, AnsiStyle>();
+    const rows = text.replace(/\n$/, '').split('\n');
+    const labels = labelled
+        ? rows.map((row) => {
+              const tab = row.indexOf('\t');
 
-    text.replace(/\n$/, '')
-        .split('\n')
-        .forEach((line, index) => {
-            const plain = line.replace(ESCAPE, '');
-            const shown = !search || search.matches(plain);
-            const nodes: ReactNode[] = [];
-            // eslint-disable-next-line no-control-regex
-            const styled = /\x1b\[[0-9;]*m/.test(line) || style.color !== null;
+              return tab > 0 ? row.slice(0, tab) : null;
+          })
+        : [];
+    const labelWidth = Math.max(
+        0,
+        ...labels.map((label) => label?.length ?? 0),
+    );
 
-            if (!styled) {
+    rows.forEach((row, index) => {
+        const label = labels[index] ?? null;
+        const line = label ? row.slice(label.length + 1) : row;
+        let style: AnsiStyle = styles.get(label ?? '') ?? {
+            color: null,
+            bold: false,
+            dim: false,
+        };
+        const plain = line.replace(ESCAPE, '');
+        const shown =
+            !search || search.matches(label ? `${label} ${plain}` : plain);
+        const nodes: ReactNode[] = [];
+
+        if (label && shown) {
+            nodes.push(
+                <span
+                    key="label"
+                    className={cn('inline-block', labelColor(label))}
+                    style={{ width: `${labelWidth + 2}ch` }}
+                    data-test="log-label"
+                >
+                    {marked(label)}
+                </span>,
+            );
+        }
+
+        // eslint-disable-next-line no-control-regex
+        const styled = /\x1b\[[0-9;]*m/.test(line) || style.color !== null;
+
+        if (!styled) {
+            if (shown) {
+                highlightPlain(plain, nodes, marked);
+            }
+        } else {
+            let last = 0;
+
+            // Escapes are still read on hidden lines, so the colors they start carry on.
+            for (const match of line.matchAll(ESCAPE)) {
                 if (shown) {
-                    highlightPlain(plain, nodes, marked);
-                }
-            } else {
-                let last = 0;
-
-                // Escapes are still read on hidden lines, so the colors they start carry on.
-                for (const match of line.matchAll(ESCAPE)) {
-                    if (shown) {
-                        pushStyled(
-                            line.slice(last, match.index),
-                            style,
-                            nodes,
-                            marked,
-                        );
-                    }
-
-                    last = match.index + match[0].length;
-
-                    if (match[2] === 'm') {
-                        style = applySgr(style, match[1]);
-                    }
+                    pushStyled(
+                        line.slice(last, match.index),
+                        style,
+                        nodes,
+                        marked,
+                    );
                 }
 
-                if (shown) {
-                    pushStyled(line.slice(last), style, nodes, marked);
+                last = match.index + match[0].length;
+
+                if (match[2] === 'm') {
+                    style = applySgr(style, match[1]);
                 }
             }
 
             if (shown) {
-                lines.push({ index, nodes });
+                pushStyled(line.slice(last), style, nodes, marked);
             }
-        });
+        }
+
+        styles.set(label ?? '', style);
+
+        if (shown) {
+            lines.push({ index, nodes });
+        }
+    });
 
     return lines;
+}
+
+/** A label's color, from its name, so it keeps it as lines come and go. */
+function labelColor(label: string): string {
+    let hash = 0;
+
+    for (const character of label) {
+        hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
+    }
+
+    return LABEL_COLORS[hash % LABEL_COLORS.length];
 }
 
 function escapeRegExp(text: string): string {

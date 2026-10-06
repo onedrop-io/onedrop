@@ -40,6 +40,19 @@ class ProjectServiceController extends Controller
     }
 
     /**
+     * Every container's latest log lines merged in time order, each labelled with its service: 200, or up to 2,000
+     * with `lines`.
+     */
+    public function allLogs(Request $request, Project $project, SandboxServices $services): JsonResponse
+    {
+        Gate::authorize('view', $project);
+
+        $lines = (int) ($request->validate(['lines' => ['sometimes', 'integer', 'min:1', 'max:'.SandboxServices::MAX_LOG_LINES]])['lines'] ?? SandboxServices::LOG_LINES);
+
+        return $this->fromSandbox($project, fn (Sandbox $sandbox) => ['logs' => $services->mergedLogs($sandbox, $lines)]);
+    }
+
+    /**
      * Restart, stop or start a container.
      */
     public function update(Request $request, Project $project, SandboxServices $services, string $name): JsonResponse

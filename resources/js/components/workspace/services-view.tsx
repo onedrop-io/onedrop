@@ -4,6 +4,7 @@ import {
     Play,
     Radio,
     RotateCw,
+    ScrollText,
     Search,
     Square,
 } from 'lucide-react';
@@ -58,6 +59,9 @@ type Services = {
     containers: Container[];
     ports: Port[];
 };
+
+/** Stands for every container in `logsFor`; Docker names can't contain it. */
+const ALL_CONTAINERS = '*';
 
 /** How often the tab reads the sandbox again while it's shown. */
 const POLL_MS = 3000;
@@ -244,6 +248,32 @@ export default function ServicesView({
                             Shell tab.
                         </p>
                     )}
+                {services.containers.length > 1 && (
+                    <div className="rounded-lg border">
+                        <button
+                            type="button"
+                            aria-expanded={logsFor === ALL_CONTAINERS}
+                            onClick={() => toggleLogs(ALL_CONTAINERS)}
+                            className="flex w-full items-center gap-3 p-2.5 text-left hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                            data-test="services-all-logs"
+                        >
+                            <ChevronRight
+                                className={cn(
+                                    '-mx-1 size-3.5 text-muted-foreground transition-transform',
+                                    logsFor === ALL_CONTAINERS && 'rotate-90',
+                                )}
+                            />
+                            <ScrollText className="size-3.5 text-muted-foreground" />
+                            <span className="font-medium">All logs</span>
+                            <span className="text-xs text-muted-foreground">
+                                Every container's, merged in time order
+                            </span>
+                        </button>
+                        {logsFor === ALL_CONTAINERS && (
+                            <ContainerLogs projectId={projectId} name={null} />
+                        )}
+                    </div>
+                )}
                 {projects.map(([project, containers]) => (
                     <div key={project} className="space-y-1">
                         <h4 className="text-xs font-medium text-muted-foreground">
@@ -444,13 +474,16 @@ function containerAction(
     );
 }
 
-/** A container's latest log lines, searchable, with a bigger view that loads more of them. */
+/**
+ * A container's latest log lines, or every container's merged (`name` null), searchable, with a bigger view that
+ * loads more of them.
+ */
 function ContainerLogs({
     projectId,
     name,
 }: {
     projectId: number;
-    name: string;
+    name: string | null;
 }) {
     const [query, setQuery] = useState('');
     const [expanded, setExpanded] = useState(false);
@@ -471,10 +504,12 @@ function ContainerLogs({
                     data-test="service-log-expanded"
                 >
                     <DialogHeader>
-                        <DialogTitle>Logs of {name}</DialogTitle>
+                        <DialogTitle>
+                            {name ? `Logs of ${name}` : 'All logs'}
+                        </DialogTitle>
                         <DialogDescription>
                             The latest {EXPANDED_LOG_LINES.toLocaleString()}{' '}
-                            lines.
+                            lines{name ? '' : ' of every container'}.
                         </DialogDescription>
                     </DialogHeader>
                     <LogViewer
@@ -496,8 +531,8 @@ function ContainerLogs({
 const EXPANDED_LOG_LINES = 2000;
 
 /**
- * Log lines loaded when shown, on Refresh, and every few seconds while Live is on, narrowed to the lines
- * passing the search (lib/log-search.ts). Clicking a matching line clears the search and shows it among its
+ * Log lines of a container (or of every container, labelled, when `name` is null) loaded when shown, on Refresh,
+ * and every few seconds while Live is on, narrowed to the lines passing the search (lib/log-search.ts). Clicking a matching line clears the search and shows it among its
  * neighbours. It stays scrolled to the newest line unless the user scrolls up.
  */
 function LogViewer({
@@ -511,7 +546,7 @@ function LogViewer({
     autoFocus = false,
 }: {
     projectId: number;
-    name: string;
+    name: string | null;
     lines?: number;
     query: string;
     onQueryChange: (query: string) => void;
@@ -531,17 +566,20 @@ function LogViewer({
         [deferredQuery],
     );
     const shown = useMemo(
-        () => (logs ? highlightLog(logs, search) : []),
-        [logs, search],
+        () => (logs ? highlightLog(logs, search, name === null) : []),
+        [logs, search, name],
     );
 
     const load = useCallback(async () => {
         try {
+            const options = lines ? { query: { lines } } : undefined;
             const body = await jsonRequest<{ logs: string }>(
-                ProjectServiceController.logs.url(
-                    { project: projectId, name },
-                    lines ? { query: { lines } } : undefined,
-                ),
+                name === null
+                    ? ProjectServiceController.allLogs.url(projectId, options)
+                    : ProjectServiceController.logs.url(
+                          { project: projectId, name },
+                          options,
+                      ),
             );
             setLogs(body.logs);
             setError(null);
@@ -601,7 +639,11 @@ function LogViewer({
                         type="search"
                         value={query}
                         onChange={(event) => changeQuery(event.target.value)}
-                        placeholder='Search: words, "a phrase", -exclude, a OR b'
+                        placeholder={
+                            name === null
+                                ? 'Search: words, a service, "a phrase", -exclude, a OR b'
+                                : 'Search: words, "a phrase", -exclude, a OR b'
+                        }
                         aria-label="Search logs"
                         className="h-7 pl-7 text-xs"
                         autoFocus={autoFocus}

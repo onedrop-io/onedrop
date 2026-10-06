@@ -34,11 +34,12 @@ The **Services** tab shows what's running in the project's sandbox, and checks a
 
 - **Preview server**: the command the preview runs (from `.onedrop/dev`, or the placeholder page), whether it's running, and **Restart**.
 - **Docker**: each container the sandbox's own Docker runs, grouped by compose project, with its state, how long it's been up (or why it's restarting, with its exit code), and the ports it publishes. Click a container to open its latest logs (in color: errors red, warnings amber, timestamps dimmed, slow durations amber or red, and any colors the program prints itself), search them, or **Expand** them into a large view with the latest 2,000 lines. You can also restart, stop or start a container. Projects that [run their own Docker Compose](/guides/docker-compose) show their whole stack here.
+- **All logs**: with more than one container, every container's latest logs in one view, in time order, each line labelled with its service in its own color. It has the same search, **Live** and **Expand** as a single container's logs; search for a service's name to keep just its lines.
 - **Ports**: everything listening in the sandbox and what it is (the preview, the host proxy, the Shell tab, SSH, or a Docker service). Only the preview port is reachable from outside.
 
 #### Searching logs
 
-The search box above a container's logs keeps only the lines that match, and marks the matches:
+The search box above a container's logs (or **All logs**) keeps only the lines that match, and marks the matches:
 
 | Search | Finds lines |
 | --- | --- |

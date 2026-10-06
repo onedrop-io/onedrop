@@ -90,6 +90,15 @@ Most panels run a script inside the sandbox, so they need an app to look at. Bui
 - [ ] With a Docker Compose app, each container shows with its state, uptime and ports.
 - [ ] A container's logs open in color; search (`error -healthcheck`, `"exact phrase"`, `a OR b`) filters them; **Live** follows new lines.
 - [ ] Restart, stop and start a container.
+
+### All logs (SVC-002)
+
+With a Docker Compose app of two or more services (an app and its database):
+
+- [ ] **All logs** shows every service's latest lines in time order, each labelled with its service in its own color, and the labels keep their colors after **Refresh**.
+- [ ] Startup lines of the services interleave as they happened (compare with `docker compose logs --timestamps` in the Shell).
+- [ ] A service that prints its own colors doesn't color the next service's lines.
+- [ ] Searching a service's name keeps only its lines; **Live** shows a request to the app within a few seconds; **Expand** shows up to 2,000 lines.
 - [ ] **Ports** lists the preview, host proxy, Shell, SSH and Docker services.
 
 ## Console colors and search (TAB-002)

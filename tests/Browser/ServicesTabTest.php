@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Sandbox\ExecResult;
 use App\Sandbox\Providers\FakeSandboxProvider;
 use App\Sandbox\SandboxProvider;
+use App\Sandbox\SandboxServices;
 
 test('the Services tab shows the preview server, the compose stack and the ports, and restarts a crashing service', function () {
     $container = fn (string $service, string $state, string $status, string $ports = '') => [
@@ -134,3 +135,51 @@ test('a container\'s logs can be searched like Papertrail, a match shown in cont
         ->waitForText('worker picked up job 42')
         ->assertNoJavaScriptErrors();
 })->group('SVC-001');
+
+test('all containers\' logs can be read together, labelled by service, and searched by service', function () {
+    $container = fn (string $service) => [
+        'Names' => "workspace-{$service}-1",
+        'Image' => "{$service}:latest",
+        'State' => 'running',
+        'Status' => 'Up 12 minutes',
+        'Ports' => '',
+        'Labels' => "com.docker.compose.project=workspace,com.docker.compose.service={$service}",
+    ];
+
+    $provider = new FakeSandboxProvider;
+    $provider->execUsing = fn (array $command) => match (true) {
+        $command[0] === 'php' && str_contains($command[2] ?? '', 'onedrop-server.pid') => new ExecResult(0, json_encode([
+            'dev' => 'exec /opt/onedrop/compose up --preview 8080',
+            'running' => true,
+            'docker' => true,
+            'containers' => [$container('app'), $container('db')],
+        ])),
+        $command[0] === 'php' => new ExecResult(0, '[]'),
+        $command[0] === 'bash' && ($command[2] ?? '') === SandboxServices::MERGED_LOGS_SCRIPT => new ExecResult(0, "db\tdatabase system is ready\napp\tGET /api/users 500\ndb\tERROR: relation \"users\" does not exist\n"),
+        default => new ExecResult(0, ''),
+    };
+    app()->instance(SandboxProvider::class, $provider);
+
+    $user = User::factory()->has(AgentConnection::factory())->create();
+    $project = Project::factory()->for($user)->create();
+    Sandbox::factory()->for($project)->create(['preview_url' => null, 'shell_url' => null]);
+    $this->actingAs($user);
+
+    visit("/projects/{$project->id}")
+        ->click('@add-tab')
+        ->click('@add-tab-services')
+        ->click('@services-all-logs')
+        ->assertSeeIn('@service-log-lines', 'database system is ready')
+        ->assertSeeIn('@service-log-lines', 'GET /api/users 500')
+        ->assertSeeIn('[data-test="service-log-lines"] [data-line="1"] [data-test="log-label"]', 'app')
+        ->assertSeeIn('[data-test="service-log-lines"] [data-line="2"] .font-semibold', 'ERROR')
+        ->type('@service-log-search', 'db')
+        ->assertSeeIn('@service-log-matches', '2 lines')
+        ->assertDontSeeIn('@service-log-lines', 'GET /api/users 500')
+        ->click('@service-log-expand')
+        ->assertSeeIn('@service-log-expanded', 'All logs')
+        ->assertSeeIn('[data-test="service-log-expanded"] [data-test="service-log-lines"]', 'does not exist')
+        ->assertNoJavaScriptErrors();
+
+    expect(collect($provider->executed)->pluck('command')->contains(fn (array $command) => ($command[4] ?? null) === '2000' && ($command[2] ?? '') === SandboxServices::MERGED_LOGS_SCRIPT))->toBeTrue();
+})->group('SVC-002');
