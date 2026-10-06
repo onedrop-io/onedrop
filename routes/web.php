@@ -220,6 +220,7 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
         Route::get('projects/{project}/database/rows', [ProjectDatabaseController::class, 'rows'])->name('projects.database.rows');
         Route::post('projects/{project}/database/changes', [ProjectDatabaseController::class, 'change'])->name('projects.database.change');
         Route::post('projects/{project}/database/query', [ProjectDatabaseController::class, 'query'])->name('projects.database.query');
+        Route::post('projects/{project}/database/write-query', [ProjectDatabaseController::class, 'writeQuery'])->name('projects.database.write-query');
         Route::post('projects/{project}/database/download', [ProjectDatabaseController::class, 'download'])->name('projects.database.download');
         Route::get('projects/{project}/auth', [ProjectAuthController::class, 'show'])->name('projects.auth.show');
         Route::get('projects/{project}/auth/users', [ProjectAuthController::class, 'users'])->name('projects.auth.users');

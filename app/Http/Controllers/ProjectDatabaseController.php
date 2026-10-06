@@ -9,9 +9,11 @@ use App\Jobs\DeleteDatabaseCopy;
 use App\Models\HostedService;
 use App\Models\Project;
 use App\Models\Sandbox;
+use App\Sandbox\Agents\ChatGptSignInFailed;
 use App\Sandbox\DatabaseException;
 use App\Sandbox\Hosting\HostingException;
 use App\Sandbox\Hosting\ReleaseStorage;
+use App\Sandbox\QueryWriter;
 use App\Sandbox\SandboxException;
 use App\Sandbox\WorkspaceDatabase;
 use Illuminate\Http\JsonResponse;
@@ -118,6 +120,32 @@ class ProjectDatabaseController extends Controller
         ]);
 
         return $this->fromSandbox($request, $project, fn ($sandbox) => $database->query($sandbox, $validated['connection'], $validated['sql']));
+    }
+
+    /**
+     * Have the project's AI write a query from a plain-words request (DB-003), knowing the database's tables and
+     * columns and the query in the editor. The query is only returned; the runner decides whether to run it.
+     */
+    public function writeQuery(Request $request, Project $project, WorkspaceDatabase $database, QueryWriter $writer): JsonResponse
+    {
+        Gate::authorize('update', $project);
+
+        $validated = $request->validate([
+            'connection' => ['required', 'string', 'max:500'],
+            'driver' => ['required', 'in:sqlite,pgsql,mysql,mongodb'],
+            'request' => ['required', 'string', 'max:2000'],
+            'current' => ['nullable', 'string', 'max:50000'],
+        ]);
+
+        return $this->fromSandbox($request, $project, function ($sandbox) use ($database, $writer, $project, $validated) {
+            $tables = $database->tables($sandbox, $validated['connection']);
+
+            try {
+                return ['query' => $writer->write($project, $validated['driver'], $tables, $validated['request'], $validated['current'] ?? null)];
+            } catch (ChatGptSignInFailed $e) {
+                throw new DatabaseException($e->getMessage(), previous: $e);
+            }
+        });
     }
 
     /**

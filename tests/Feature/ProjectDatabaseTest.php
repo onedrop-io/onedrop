@@ -121,3 +121,76 @@ test('it explains a stopped sandbox and a sandbox without the database tool', fu
         ->assertStatus(502)
         ->assertJsonPath('message', "This sandbox doesn't have the database tool yet. Rebuild the sandbox image and recreate the sandbox.");
 })->group('DB-001');
+
+/**
+ * The fake sandbox's database tool, plus the project's AI answering $answer through OpenCode (DB-003).
+ */
+function withAiAnswer(FakeSandboxProvider $provider, string $answer): FakeSandboxProvider
+{
+    $database = $provider->execUsing;
+    $provider->execUsing = fn (array $command, array $env) => str_contains($command[2] ?? '', 'opencode run')
+        ? new ExecResult(0, json_encode(['type' => 'text', 'part' => ['text' => $answer]]))
+        : $database($command, $env);
+
+    return $provider;
+}
+
+test('the ai writes a query from a plain-words request, knowing the tables and the current query', function () {
+    withAiAnswer($this->provider, "Here it is:\n```sql\nselect * from users where lower(name) like '%ann%' limit 50\n```\nThis finds Ann.");
+
+    $this->actingAs($this->user)
+        ->postJson(route('projects.database.write-query', $this->project), [
+            'connection' => $this->connection,
+            'driver' => 'sqlite',
+            'request' => 'people called ann',
+            'current' => 'select * from users',
+        ])
+        ->assertOk()
+        ->assertJson(['query' => "select * from users where lower(name) like '%ann%' limit 50"]);
+
+    $prompt = collect($this->provider->executed)->first(fn ($call) => str_contains($call['command'][2] ?? '', 'opencode run'))['env']['APP_PROMPT'];
+
+    expect($prompt)->toContain('one SQLite SQL statement')
+        ->toContain('people called ann')
+        ->toContain('users: id, name, email, active, avatar')
+        ->toContain('user_names (view): name')
+        ->toContain("<current-query>\nselect * from users\n</current-query>")
+        // The rows never go to the AI.
+        ->not->toContain('ann@example.com');
+})->group('DB-003');
+
+test('a mongodb request asks for mongosh syntax, and an answer without a code block is used whole', function () {
+    withAiAnswer($this->provider, "db.users.find({ name: /ann/i }).limit(50)\n");
+
+    $this->actingAs($this->user)
+        ->postJson(route('projects.database.write-query', $this->project), ['connection' => $this->connection, 'driver' => 'mongodb', 'request' => 'ann'])
+        ->assertOk()
+        ->assertJson(['query' => 'db.users.find({ name: /ann/i }).limit(50)']);
+
+    $prompt = collect($this->provider->executed)->first(fn ($call) => str_contains($call['command'][2] ?? '', 'opencode run'))['env']['APP_PROMPT'];
+
+    expect($prompt)->toContain('mongosh syntax')->toContain('use database')->not->toContain('<current-query>');
+})->group('DB-003');
+
+test('writing a query explains when the ai gives no query or can\'t be asked, and needs edit access', function () {
+    withAiAnswer($this->provider, "```\n```");
+
+    $this->actingAs($this->user)
+        ->postJson(route('projects.database.write-query', $this->project), ['connection' => $this->connection, 'driver' => 'sqlite', 'request' => 'x'])
+        ->assertStatus(502)
+        ->assertJson(['message' => "The AI didn't write a query. Try describing it another way."]);
+
+    $database = $this->provider->execUsing;
+    $this->provider->execUsing = fn (array $command, array $env) => str_contains($command[2] ?? '', 'opencode run')
+        ? new ExecResult(1, '', "Error: model not found\nmore detail")
+        : $database($command, $env);
+
+    $this->actingAs($this->user)
+        ->postJson(route('projects.database.write-query', $this->project), ['connection' => $this->connection, 'driver' => 'sqlite', 'request' => 'x'])
+        ->assertStatus(502)
+        ->assertJson(['message' => 'Error: model not found']);
+
+    $this->actingAs(User::factory()->has(AgentConnection::factory())->create())
+        ->postJson(route('projects.database.write-query', $this->project), ['connection' => $this->connection, 'driver' => 'sqlite', 'request' => 'x'])
+        ->assertForbidden();
+})->group('DB-003');

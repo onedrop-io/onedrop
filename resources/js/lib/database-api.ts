@@ -93,6 +93,22 @@ export const databaseApi = {
             { connection, sql, where },
         ),
 
+    /** A query the project's AI writes from a plain-words request (DB-003); not run. */
+    writeQuery: (
+        projectId: number,
+        options: {
+            connection: string;
+            driver: DatabaseConnection['driver'];
+            request: string;
+            current: string;
+        },
+        where: DatabaseLocation = 'sandbox',
+    ) =>
+        request<{ query: string }>(
+            ProjectDatabaseController.writeQuery.url(projectId),
+            { ...options, where },
+        ).then((body) => body.query),
+
     /** A consistent copy of a SQLite database, as a short-lived download link. */
     download: (
         projectId: number,

@@ -252,3 +252,133 @@ test('an env file that names a container with the port it publishes reaches that
 
     expect($error)->toContain('"127.0.0.1", port 9 failed');
 })->group('DB-001');
+
+/**
+ * A MongoDB connection's error on a machine without the mongodb extension (the sandbox image has it).
+ */
+function mongoUnavailable(): ?string
+{
+    return extension_loaded('mongodb') ? null : "This sandbox can't open MongoDB yet. Rebuild the sandbox image and update the sandbox.";
+}
+
+test('it finds mongodb urls under any name, beside the app\'s sql database, without exposing credentials', function () {
+    mkdir($this->workspace.'/api');
+    file_put_contents($this->workspace.'/api/.env', "MONGODB_URI=mongodb://app:s3cret@mongo:27017/?authSource=admin\nMONGODB_DATABASE=shop\nANALYTICS=mongodb+srv://reader:pw@cluster0.abc.mongodb.net/stats?retryWrites=true\nDB_CONNECTION=pgsql\nDB_HOST=pg\nDB_DATABASE=app\n");
+
+    $response = runDatabaseTool($this->workspace, ['op' => 'connections']);
+    $found = array_map(fn ($c) => [$c['id'], $c['driver'], $c['label'], $c['summary']], $response['data']);
+
+    expect($found)->toBe([
+        ['sqlite:database/database.sqlite', 'sqlite', 'SQLite', 'database/database.sqlite'],
+        ['env:api/.env:MONGODB_URI', 'mongodb', 'MongoDB', 'app@mongo:27017/shop'],
+        ['env:api/.env:ANALYTICS', 'mongodb', 'MongoDB', 'reader@cluster0.abc.mongodb.net/stats'],
+        ['env:api/.env:DB_CONNECTION', 'pgsql', 'PostgreSQL', 'pg:5432/app'],
+    ])
+        ->and($response['data'][1]['error'])->toBe(mongoUnavailable())
+        ->and(json_encode($response))->not->toContain('s3cret');
+})->group('DB-002');
+
+test('it finds mongodb settings in env files: Laravel MongoDB\'s and MONGO_HOST', function () {
+    $found = function (string $env) {
+        file_put_contents($this->workspace.'/.env', $env);
+
+        return array_map(fn ($c) => [$c['id'], $c['driver'], $c['summary']], runDatabaseTool($this->workspace, ['op' => 'connections'])['data']);
+    };
+
+    expect($found("DB_CONNECTION=mongodb\nDB_HOST=127.0.0.1\nDB_PORT=27017\nDB_DATABASE=app\nDB_USERNAME=\n"))
+        ->toBe([['env:.env:DB_CONNECTION', 'mongodb', '127.0.0.1:27017/app'], ['sqlite:database/database.sqlite', 'sqlite', 'database/database.sqlite']])
+        ->and($found("MONGO_HOST=mongo\nMONGO_USER=root\nMONGO_PASSWORD=pw\nMONGO_DB=blog\n"))
+        ->toBe([['env:.env:MONGO_HOST', 'mongodb', 'root@mongo:27017/blog'], ['sqlite:database/database.sqlite', 'sqlite', 'database/database.sqlite']]);
+})->group('DB-002');
+
+test('it finds mongo containers in the sandbox docker, signed in as their root user', function () {
+    mkdir($this->workspace.'/.fake-docker-secrets');
+    $docker = fakeDocker($this->workspace, [
+        composeContainer('mongo', 'mongo:8.0.16', ['MONGO_INITDB_ROOT_USERNAME=admin', 'MONGO_INITDB_ROOT_PASSWORD_FILE=/run/secrets/mongo'], ['27017/tcp' => [['HostIp' => '0.0.0.0', 'HostPort' => '27017']]]),
+        composeContainer('events', 'registry.example.com/events-db:1', ['MONGO_MAJOR=7.0', 'MONGO_VERSION=7.0.14']),
+        composeContainer('app', 'ghcr.io/acme/platform:latest', ['MONGO_URL=mongodb://mongo:27017/app']),
+    ]);
+    mkdir($this->workspace.'/.fake-docker/run/secrets', recursive: true);
+    file_put_contents($this->workspace.'/.fake-docker/run/secrets/mongo', "r00t-secret\n");
+
+    $response = runDatabaseTool($this->workspace, ['op' => 'connections'], ['ONEDROP_DOCKER_BIN' => $docker]);
+
+    expect(array_map(fn ($c) => [$c['id'], $c['driver'], $c['summary']], array_slice($response['data'], 1)))->toBe([
+        ['docker:supabase-mongo', 'mongodb', 'admin@mongo:27017'],
+        ['docker:supabase-events', 'mongodb', 'events:27017'],
+    ])
+        ->and($response['data'][1]['source'])->toBe('Docker container supabase-mongo')
+        ->and(json_encode($response))->not->toContain('r00t-secret');
+})->group('DB-002');
+
+test('an env file mongodb url naming a container is reached at that container, listed once', function () {
+    file_put_contents($this->workspace.'/.env', "MONGO_URL=mongodb://mongo:27017/app?replicaSet=rs0\n");
+    $docker = fakeDocker($this->workspace, [composeContainer('mongo', 'mongo:8', [])]);
+
+    $response = runDatabaseTool($this->workspace, ['op' => 'connections'], ['ONEDROP_DOCKER_BIN' => $docker]);
+
+    expect(array_column($response['data'], 'id'))->toBe(['env:.env:MONGO_URL', 'sqlite:database/database.sqlite'])
+        ->and($response['data'][0]['summary'])->toBe('mongo:27017/app');
+})->group('DB-002');
+
+test('users and auth finds the users table past a mongodb connection', function () {
+    $workspace = authWorkspace();
+    file_put_contents($workspace.'/.env', "MONGODB_URI=mongodb://127.0.0.1:9/app\nDB_CONNECTION=sqlite\n");
+
+    expect(array_column(runDatabaseTool($workspace, ['op' => 'connections'])['data'], 'driver'))->toBe(['mongodb', 'sqlite'])
+        ->and(runAuthTool($workspace, ['op' => 'users'])['data']['total'])->toBe(3);
+})->group('DB-002');
+
+/**
+ * Run db.php's mongosh reader (MongoSyntax) on some text, as JSON: Extended JSON for values, steps for commands.
+ */
+function readMongoSyntax(string $method, string $text): mixed
+{
+    $result = Process::run([PHP_BINARY, '-r', 'define("APP_DB_LIBRARY", true); require $argv[1]; try { echo json_encode(MongoSyntax::'.$method.'($argv[2]), JSON_PRESERVE_ZERO_FRACTION); } catch (ToolError $e) { echo json_encode(["error" => $e->getMessage()]); }', base_path('docker/sandbox/db.php'), $text])->throw();
+
+    return json_decode($result->output(), true);
+}
+
+test('the query runner reads mongosh literals and extended json, without running javascript', function () {
+    $value = readMongoSyntax('value', <<<'JS'
+        {
+          _id: ObjectId('65a000000000000000000001'), // a comment
+          "name": 'Ann \'A\' é', n: -1.5e2, big: NumberLong("9007199254740993"), d: new Date("2026-01-02T03:04:05Z"),
+          when: ISODate(1700000000000), price: NumberDecimal('1.10'), id: UUID("0e7a9f3c-1b2d-4c5e-8f90-123456789abc"),
+          re: /^a\/b[/]/i, tags: ['x', 2, true, null, undefined,], nested: { $gt: 5, "$oid": "65a000000000000000000002" },
+          inf: -Infinity, max: MaxKey(), ts: Timestamp(1, 2), bin: BinData(0, 'AAE='), int: NumberInt('7'),
+        }
+        JS);
+
+    expect($value)->toBe([
+        '_id' => ['$oid' => '65a000000000000000000001'],
+        'name' => "Ann 'A' é",
+        'n' => -150.0,
+        'big' => ['$numberLong' => '9007199254740993'],
+        'd' => ['$date' => '2026-01-02T03:04:05Z'],
+        'when' => ['$date' => ['$numberLong' => '1700000000000']],
+        'price' => ['$numberDecimal' => '1.10'],
+        'id' => ['$uuid' => '0e7a9f3c-1b2d-4c5e-8f90-123456789abc'],
+        're' => ['$regularExpression' => ['pattern' => '^a\/b[/]', 'options' => 'i']],
+        'tags' => ['x', 2, true, null, null],
+        'nested' => ['$gt' => 5, '$oid' => '65a000000000000000000002'],
+        'inf' => ['$numberDouble' => '-Infinity'],
+        'max' => ['$maxKey' => 1],
+        'ts' => ['$timestamp' => ['t' => 1, 'i' => 2]],
+        'bin' => ['$binary' => ['base64' => 'AAE=', 'subType' => '00']],
+        'int' => 7,
+    ]);
+})->group('DB-002');
+
+test('the query runner reads mongosh commands as steps, and explains what it cannot read', function () {
+    expect(readMongoSyntax('chain', "db.users.find({ age: { \$gte: 18 } })\n  .sort({ name: -1 })\n  .limit(5);"))->toBe([
+        ['prop', 'users'], ['prop', 'find'], ['call', [['age' => ['$gte' => 18]]]], ['prop', 'sort'], ['call', [['name' => -1]]], ['prop', 'limit'], ['call', [5]],
+    ])
+        ->and(readMongoSyntax('chain', "db['my-users'].findOne()"))->toBe([['prop', 'my-users'], ['prop', 'findOne'], ['call', []]])
+        ->and(readMongoSyntax('chain', 'users.find()')['error'])->toContain('Commands start with db')
+        ->and(readMongoSyntax('chain', 'db.users.find({ a: 1 )')['error'])->toBe('Expected "," or "}", found ")". (at character 22)')
+        ->and(readMongoSyntax('chain', 'db.users.find(); db.users.drop()')['error'])->toContain('Run one command at a time')
+        ->and(readMongoSyntax('value', '{ a: process.exit(1) }')['error'])->toContain('Unknown name "process"')
+        ->and(readMongoSyntax('value', '{ a: require("fs") }')['error'])->toBe('require() isn\'t supported. (at character 19)')
+        ->and(readMongoSyntax('value', '{ a: hello }')['error'])->toContain('Unknown name "hello". Put text in quotes.');
+})->group('DB-002');

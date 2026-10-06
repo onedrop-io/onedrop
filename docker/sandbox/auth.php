@@ -155,6 +155,11 @@ function usersTable(string $name): array
     }
 
     foreach ($connections as $connection) {
+        // Users & Auth reads SQL tables (DB-002 browses MongoDB, but sign-in data isn't read from it).
+        if ($connection['driver'] === 'mongodb') {
+            continue;
+        }
+
         try {
             [$pdo, $driver] = open($connection['id']);
 

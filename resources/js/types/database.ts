@@ -1,6 +1,6 @@
 export type DatabaseConnection = {
     id: string;
-    driver: 'sqlite' | 'pgsql' | 'mysql';
+    driver: 'sqlite' | 'pgsql' | 'mysql' | 'mongodb';
     label: string;
     summary: string;
     source: string | null;
@@ -11,6 +11,9 @@ export type DatabaseTable = {
     name: string;
     type: 'table' | 'view';
     columns: string[];
+    /** MongoDB only (DB-002): the database and collection a "database.collection" name stands for. */
+    database?: string;
+    collection?: string;
 };
 
 export type DatabaseColumn = {

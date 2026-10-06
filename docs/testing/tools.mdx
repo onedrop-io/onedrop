@@ -14,6 +14,28 @@ Most panels run a script inside the sandbox, so they need an app to look at. Bui
 - [ ] Leaving a table with unsaved changes asks first.
 - [ ] The SQL runner runs a statement with **Cmd/Ctrl+Enter** and suggests table and column names.
 - [ ] A change made here shows in the preview after a reload.
+- [ ] Dragging the edge of the table list widens it; a reload keeps the width, and double-clicking the edge resets it.
+
+## Ask AI for a query (DB-003)
+
+- [ ] In the SQL runner, **Write query** with "the 5 newest tasks" writes a SELECT against the real table names and runs it.
+- [ ] A follow-up ("only the done ones") refines the query in the editor rather than starting over.
+- [ ] "Delete the oldest task" writes a DELETE that doesn't run until **Run** is pressed.
+- [ ] On a MongoDB connection, the written command is mongosh syntax and runs.
+- [ ] It works on a Claude subscription and on AI credits, not only an API key.
+
+## MongoDB (DB-002)
+
+Ask for "a Node app with a Docker Compose `mongo` service, a users collection and a seed script", then add data to it.
+
+- [ ] **Tools → Database** lists the `mongo` container as **MongoDB**, with each collection as `database.collection`.
+- [ ] A collection opens with `_id` first, types in the headers, nested values as JSON, and _missing_ where a document lacks a field.
+- [ ] An **equals** filter on `_id` with an ObjectId's hex finds that document; **is missing or null** finds documents without the field.
+- [ ] Editing a number, a date and an ObjectId field keeps their types: check with `db.users.find()` in the query runner or `mongosh` in the Shell.
+- [ ] **Add field**, fill it in on one document, save: only that document has the field.
+- [ ] A save that fails partway on a standalone server says how many changes before it were saved.
+- [ ] The query runner runs `use <db>` plus `db.users.find({ … }).limit(5)` and an `updateMany`, and suggests collections after `db.` and methods after a collection.
+- [ ] A sandbox on an image without MongoDB support says to rebuild the image.
 
 ## Users & Auth
 

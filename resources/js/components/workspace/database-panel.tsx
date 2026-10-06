@@ -9,14 +9,47 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import SqlRunner from '@/components/workspace/database/sql-runner';
+import SqlRunner, {
+    mongoCollectionReference,
+} from '@/components/workspace/database/sql-runner';
 import TableView from '@/components/workspace/database/table-view';
 import { databaseApi } from '@/lib/database-api';
 import type { DatabaseLocation } from '@/lib/database-api';
+import ResizeHandle from '@/components/workspace/resize-handle';
+import { useResizableWidth } from '@/hooks/use-resizable-width';
 import { cn } from '@/lib/utils';
 import type { DatabaseConnection, DatabaseTable } from '@/types';
 
 type View = { kind: 'table'; table: string } | { kind: 'sql' };
+
+/** The table list's width in the side-by-side layout, dragged by its edge (DB-001). */
+const LIST_WIDTH = { initial: 224, min: 160, max: 560 };
+
+/** What the runner starts with: the first table's (or collection's) first rows. */
+function initialQuery(
+    driver: DatabaseConnection['driver'],
+    tables: DatabaseTable[] | null,
+): string {
+    const first =
+        tables?.find((table) => table.type === 'table') ?? tables?.[0];
+
+    if (!first) {
+        return '';
+    }
+
+    if (driver !== 'mongodb') {
+        return `select * from ${first.name} limit 50`;
+    }
+
+    const collection = first.collection ?? first.name;
+    // A connection covering several databases names collections "database.collection".
+    const use =
+        first.database && first.name !== collection
+            ? `use ${first.database}\n`
+            : '';
+
+    return `${use}${mongoCollectionReference(collection)}.find({}).limit(50)`;
+}
 
 /**
  * Browse and edit the app's own database, like Drizzle Studio:
@@ -47,8 +80,15 @@ export default function DatabasePanel({
     const [tablesError, setTablesError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const dirty = useRef(false);
+    const [listWidth, setListWidth] = useResizableWidth(
+        'database-table-list-width',
+        LIST_WIDTH,
+    );
 
     const connection = connections?.find((c) => c.id === connectionId) ?? null;
+    // MongoDB (DB-002) has collections and a query runner where SQL databases have tables and a SQL runner.
+    const mongo = connection?.driver === 'mongodb';
+    const runnerName = mongo ? 'Query runner' : 'SQL runner';
 
     const loadConnections = useCallback(() => {
         setLoading(true);
@@ -229,9 +269,10 @@ export default function DatabasePanel({
                 <Empty>
                     <span className="block">No database found yet.</span>
                     <span className="mt-1 block">
-                        When your app has one (a SQLite file, or{' '}
-                        <code>DATABASE_URL</code> or <code>DB_CONNECTION</code>{' '}
-                        in <code>.env</code>), it shows up here.
+                        When your app has one (a SQLite file,{' '}
+                        <code>DATABASE_URL</code>, <code>DB_CONNECTION</code> or{' '}
+                        <code>MONGODB_URI</code> in <code>.env</code>, or a
+                        database container), it shows up here.
                     </span>
                     <Button
                         size="sm"
@@ -270,7 +311,14 @@ export default function DatabasePanel({
                 data-test="database-panel"
             >
                 <div className="flex h-full flex-col @2xl:flex-row">
-                    <aside className="flex shrink-0 flex-col border-b border-sidebar-border/70 @2xl:w-56 @2xl:border-r @2xl:border-b-0 dark:border-sidebar-border">
+                    <aside
+                        className="flex shrink-0 flex-col border-b border-sidebar-border/70 @2xl:w-(--db-list-width) @2xl:border-b-0 dark:border-sidebar-border"
+                        style={
+                            {
+                                '--db-list-width': `${listWidth}px`,
+                            } as React.CSSProperties
+                        }
+                    >
                         <div className="space-y-2 border-b border-sidebar-border/70 p-2 dark:border-sidebar-border">
                             <div className="flex items-center gap-1">
                                 <select
@@ -376,7 +424,7 @@ export default function DatabasePanel({
                                     );
                                 }}
                                 className="h-8 w-full rounded-md border border-input bg-transparent px-2 font-mono text-xs @2xl:hidden"
-                                aria-label="Table"
+                                aria-label={mongo ? 'Collection' : 'Table'}
                                 data-test="db-table-select"
                             >
                                 {(tables ?? []).map((table) => (
@@ -388,7 +436,7 @@ export default function DatabasePanel({
                                         {table.type === 'view' ? ' (view)' : ''}
                                     </option>
                                 ))}
-                                <option value="sql">SQL runner</option>
+                                <option value="sql">{runnerName}</option>
                             </select>
                             <label className="hidden items-center gap-1.5 rounded-md border border-input px-2 @2xl:flex">
                                 <Search className="size-3.5 text-muted-foreground" />
@@ -397,16 +445,24 @@ export default function DatabasePanel({
                                     onChange={(event) =>
                                         setSearch(event.target.value)
                                     }
-                                    placeholder="Search tables"
+                                    placeholder={
+                                        mongo
+                                            ? 'Search collections'
+                                            : 'Search tables'
+                                    }
                                     className="h-7 min-w-0 flex-1 bg-transparent text-xs outline-none"
-                                    aria-label="Search tables"
+                                    aria-label={
+                                        mongo
+                                            ? 'Search collections'
+                                            : 'Search tables'
+                                    }
                                 />
                             </label>
                         </div>
 
                         <ul
                             className="hidden min-h-0 flex-1 overflow-y-auto p-1 @2xl:block"
-                            aria-label="Tables"
+                            aria-label={mongo ? 'Collections' : 'Tables'}
                             data-test="db-tables"
                         >
                             {tables === null && !connection?.error && (
@@ -416,7 +472,9 @@ export default function DatabasePanel({
                             )}
                             {tables?.length === 0 && !tablesError && (
                                 <li className="px-2 py-1 text-xs text-muted-foreground">
-                                    No tables yet.
+                                    {mongo
+                                        ? 'No collections yet.'
+                                        : 'No tables yet.'}
                                 </li>
                             )}
                             {visibleTables.map((table) => {
@@ -472,10 +530,23 @@ export default function DatabasePanel({
                                 data-test="db-open-sql"
                             >
                                 <SquareTerminal className="size-3.5 text-muted-foreground" />
-                                SQL runner
+                                {runnerName}
                             </button>
                         </div>
                     </aside>
+                    <ResizeHandle
+                        label={
+                            mongo
+                                ? 'Resize collection list'
+                                : 'Resize table list'
+                        }
+                        side="left"
+                        width={listWidth}
+                        limits={LIST_WIDTH}
+                        onResize={setListWidth}
+                        className="hidden @2xl:block"
+                        data-test="db-list-resize"
+                    />
 
                     {connection?.error || tablesError ? (
                         <Empty tone="error" className="m-4 flex-1 self-start">
@@ -489,6 +560,7 @@ export default function DatabasePanel({
                             table={view.table}
                             onDirtyChange={onDirtyChange}
                             where={where}
+                            mongo={mongo}
                         />
                     ) : view?.kind === 'sql' && connection ? (
                         <SqlRunner
@@ -498,11 +570,7 @@ export default function DatabasePanel({
                             connection={connection.id}
                             driver={connection.driver}
                             tables={tables}
-                            initialSql={
-                                tables?.[0]
-                                    ? `select * from ${tables[0].name} limit 50`
-                                    : ''
-                            }
+                            initialSql={initialQuery(connection.driver, tables)}
                             onRan={() => void loadTables(connection.id, true)}
                         />
                     ) : (

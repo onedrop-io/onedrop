@@ -74,7 +74,7 @@ const GROUPS: { label: string; sections: Section[] }[] = [
                 label: 'Database',
                 icon: Database,
                 description:
-                    "Browse and edit your app's data, or run SQL against it.",
+                    "Browse and edit your app's data, or run queries against it.",
             },
             {
                 id: 'auth',

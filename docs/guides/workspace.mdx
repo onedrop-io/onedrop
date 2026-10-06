@@ -209,7 +209,7 @@ How it works: the app sends each event to its own address (`POST /__onedrop/even
 
 ## Database
 
-**Tools → Database** lets you browse and edit your app's data, similar to Drizzle Studio. It works with SQLite, PostgreSQL and MySQL/MariaDB.
+**Tools → Database** lets you browse and edit your app's data, similar to Drizzle Studio. It works with SQLite, PostgreSQL, MySQL/MariaDB and [MongoDB](#mongodb).
 
 It finds your app's databases on its own:
 
@@ -230,11 +230,53 @@ It finds your app's databases on its own:
 | Delete rows  | Tick the rows, then **Delete**                                                                                                                                                                                                                                  |
 | Run SQL      | **SQL runner**: write one statement and press **Run** (or <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>Enter</kbd>). SQL is highlighted as you type, with suggestions for keywords, tables and the columns of tables in your query; press <kbd>Enter</kbd> to accept one |
 
+Drag the edge between the table list and the grid to make the list wider, for long names. Double-click the edge to reset it. The width is remembered in your browser.
+
+### Ask AI to write a query
+
+Above the SQL runner (and the MongoDB query runner), describe what you're looking for in plain words, like `users who signed up this week without a team`, and press **Write query**. Your project's AI writes the query in your database's own language and puts it in the editor:
+
+- A query that only reads runs right away, so finding records takes one step.
+- A query that would change data waits for you to check it and press **Run**. On the [hosted database](#your-hosted-apps-database) it also asks first, as usual.
+
+Ask again to refine it, like `only the ones from Canada`: the AI sees the query in the editor. It's given your tables' and columns' names, never your data. It uses the same AI as the project's chat, so it needs the project's sandbox to be running.
+
 Edits, new rows and deletions are held until you press **Save changes**, and they're saved in a single transaction: all of them or none. You're asked before leaving a table with unsaved changes. Statements in the SQL runner take effect right away.
 
 Views can't be edited. Nor can existing rows of a table without a primary key; change those with the SQL runner instead. Binary values and values over 10 KB show as a read-only preview.
 
 **Download** (the arrow next to the database menu) saves a copy of a SQLite database, safe to take while the app is using it, that you can open in TablePlus, DB Browser for SQLite or DBeaver.
+
+### MongoDB
+
+MongoDB databases show up in the same panel. They're found in two places:
+
+- A `mongodb://` or `mongodb+srv://` URL in a `.env` file, whatever the variable is called (`MONGODB_URI`, `MONGO_URL`, `DATABASE_URL`, …). If the URL names no database, `MONGODB_DATABASE` or `MONGO_DB` supplies one. Separate settings work too: `MONGO_HOST` with `MONGO_USER`, `MONGO_PASSWORD` and `MONGO_DB`, or Laravel MongoDB's `DB_CONNECTION=mongodb`.
+- MongoDB containers your project runs with Docker Compose (the `mongo` image, or your own image built `FROM mongo`). It signs in as the root user set in the container's environment (`MONGO_INITDB_ROOT_USERNAME`, `MONGO_INITDB_ROOT_PASSWORD`, or `MONGO_INITDB_ROOT_PASSWORD_FILE` for a Docker secret).
+
+A connection that names a database lists its collections. A container lists the collections of every database on the server, as `database.collection`, leaving out MongoDB's own `admin`, `config` and `local`.
+
+Collections open in the same grid as tables, one document per row. `_id` comes first and is the key. After it come the top-level fields of the documents on the page, each labeled with its type (`objectId`, `string`, `int`, `date`, `object`, `array`, …). Nested objects and arrays show as JSON, and a field a document doesn't have shows as _missing_.
+
+- **Filters** work as they do for tables. **equals** matches the value however it's stored: `42` finds the number 42 and the text "42", and a 24-character hex string finds that ObjectId. **is missing or null** matches documents without the field.
+- **Edits keep each field's type.** An ObjectId stays an ObjectId, a date stays a date (type it as `2026-10-06` or `2026-10-06T09:30:00Z`), and a number stays a number. Objects and arrays are edited as JSON. A field the collection doesn't have yet takes the type of what you type: a number, `true` or `false`, a JSON object or array, or else text.
+- **Add field** adds a column that none of the shown documents have, so you can fill it in. It's saved only on the documents you fill it in on.
+- **Saving**: on a replica set, all of your changes are saved in one transaction, or none are. A standalone server has no transactions, so changes are saved in order. If one fails, the message says how many before it were saved.
+
+The **Query runner** takes mongosh commands, one at a time. Put `use <database>` on a line before the command to pick a database. You can leave it out when the connection names a database, or when the server has only one.
+
+```javascript
+use shop
+db.users.find({ age: { $gte: 18 } }, { name: 1 }).sort({ name: 1 }).limit(20)
+```
+
+It supports:
+
+- **Reading:** `find` (with `.sort`, `.skip`, `.limit`, `.projection` and `.count`), `findOne`, `aggregate`, `countDocuments`, `estimatedDocumentCount` and `distinct`
+- **Writing:** `insertOne`, `insertMany`, `updateOne`, `updateMany`, `replaceOne`, `deleteOne` and `deleteMany`
+- **Anything else:** `db.getCollection('name')`, `db.getSiblingDB('name')`, `db.runCommand({ … })` (or a bare `{ … }` command), `db.adminCommand({ … })`, `show dbs` and `show collections`
+
+It reads mongosh's literals: unquoted keys, single quotes, `ObjectId('…')`, `ISODate('…')`, `new Date(…)`, `NumberLong('…')`, `NumberDecimal('…')`, `UUID('…')` and `/regex/i`. It also reads Extended JSON, such as `{ "$oid": "…" }`. Commands are highlighted as JavaScript. After `db.` you get suggestions for collection names, after a collection for its methods, and elsewhere for the fields of the collection your command names. Nothing you type is run as JavaScript. Other shell commands (`drop`, `createIndex`, …) can go through `db.runCommand`, or through `mongosh` in the Shell (see [Cloud and service CLIs](#cloud-and-service-clis)).
 
 ### Your hosted app's database
 

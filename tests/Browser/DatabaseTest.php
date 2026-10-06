@@ -9,8 +9,10 @@ use App\Models\HostedService;
 use App\Models\Project;
 use App\Models\Sandbox;
 use App\Models\User;
+use App\Sandbox\ExecResult;
 use App\Sandbox\Providers\FakeSandboxProvider;
 use App\Sandbox\SandboxProvider;
+use App\Sandbox\WorkspaceDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 
@@ -202,3 +204,157 @@ test("on a hosted project, the user switches to the hosted app's live database",
         ->assertMissing('@db-hosted-note')
         ->assertNoJavaScriptErrors();
 })->group('HOST-007');
+
+/**
+ * A sandbox whose database tool answers like docker/sandbox/db.php does for a MongoDB server (DB-002), whose real
+ * answers tests/Integration/MongoDatabaseDockerTest.php checks. The requests it gets are kept in $log.
+ */
+function fakeMongoSandbox(string $log): FakeSandboxProvider
+{
+    $provider = new FakeSandboxProvider;
+    $provider->execUsing = function (array $command, array $env) use ($log) {
+        if ($command !== ['php', WorkspaceDatabase::SCRIPT]) {
+            return new ExecResult(0, '');
+        }
+
+        $request = json_decode($env['APP_DB_REQUEST'], true);
+        file_put_contents($log, json_encode($request)."\n", FILE_APPEND);
+        $column = fn (string $name, string $type) => ['name' => $name, 'type' => $type, 'nullable' => $name !== '_id', 'default' => null, 'primary' => $name === '_id', 'auto' => $name === '_id'];
+
+        $data = match ($request['op'] ?? null) {
+            'connections' => [['id' => 'docker:workspace-mongo-1', 'driver' => 'mongodb', 'label' => 'MongoDB', 'summary' => 'mongo:27017', 'source' => 'Docker container workspace-mongo-1', 'error' => null]],
+            'tables' => [
+                ['name' => 'shop.orders', 'type' => 'table', 'columns' => ['_id', 'total'], 'database' => 'shop', 'collection' => 'orders'],
+                ['name' => 'shop.users', 'type' => 'table', 'columns' => ['_id', 'name', 'age'], 'database' => 'shop', 'collection' => 'users'],
+            ],
+            'rows' => ['table' => 'shop.users', 'type' => 'table', 'columns' => [$column('_id', 'objectId'), $column('name', 'string'), $column('age', 'int')], 'rows' => [
+                ['_id' => '65a000000000000000000001', 'name' => 'Ann', 'age' => 30],
+                ['_id' => '65a000000000000000000002', 'name' => 'Bob'],
+            ], 'total' => 2, 'page' => 1, 'per_page' => 50],
+            'changes' => ['inserted' => 0, 'updated' => 2, 'deleted' => 0],
+            'query' => ['columns' => ['_id', 'name'], 'rows' => [['65a000000000000000000001', 'Ann']], 'truncated' => false, 'affected' => null, 'duration_ms' => 1.2],
+            default => null,
+        };
+
+        return new ExecResult(0, json_encode(['ok' => true, 'data' => $data]));
+    };
+
+    return $provider;
+}
+
+test('the user can browse and edit a mongodb collection, add a field, and run a mongosh query', function () {
+    $log = $this->workspace.'/mongo-requests.jsonl';
+    app()->instance(SandboxProvider::class, fakeMongoSandbox($log));
+    $requests = fn (string $op) => array_values(array_filter(array_map(fn ($line) => json_decode($line, true), file($log, FILE_IGNORE_NEW_LINES)), fn ($request) => $request['op'] === $op));
+
+    $page = visit("/projects/{$this->project->id}")
+        ->resize(1920, 1080)
+        ->click('@tab-tools')
+        ->click('@tool-database')
+        ->assertSeeIn('@db-open-sql', 'Query runner')
+        ->click('[data-test="db-table-shop.users"]')
+        ->assertSeeIn('@db-row-count', '2 documents')
+        ->assertSeeIn('@db-column-age', 'int')
+        ->assertSeeIn('@db-cell-1-age', 'missing')
+
+        // Edit a field, and fill in a field none of the shown documents have.
+        ->keys('@db-cell-0-age', 'Enter')
+        ->type('@db-cell-input', '31')
+        ->keys('@db-cell-input', 'Enter')
+        ->click('@db-add-field')
+        ->type('@db-add-field-name', 'nickname')
+        ->keys('@db-add-field-name', 'Enter')
+        ->keys('@db-cell-1-nickname', 'Enter')
+        ->type('@db-cell-input', 'Bobby')
+        ->keys('@db-cell-input', 'Enter')
+        ->assertSeeIn('@db-pending', '2 unsaved changes')
+        ->click('@db-save')
+        ->assertMissing('@db-pending');
+
+    expect($requests('changes')[0])->toMatchArray([
+        'connection' => 'docker:workspace-mongo-1',
+        'table' => 'shop.users',
+        'updates' => [
+            ['key' => ['_id' => '65a000000000000000000001'], 'values' => ['age' => '31']],
+            ['key' => ['_id' => '65a000000000000000000002'], 'values' => ['nickname' => 'Bobby']],
+        ],
+    ]);
+
+    // The runner starts on the first collection of its database, and completes collection names after db.
+    $page->click('@db-open-sql')
+        ->assertSeeIn('@db-sql', 'use shop')
+        ->assertSeeIn('@db-sql', 'db.orders.find({}).limit(50)')
+        ->clear('@db-sql')
+        ->typeSlowly('@db-sql', 'use shop', 10)
+        ->keys('@db-sql', 'Enter')
+        ->typeSlowly('@db-sql', 'db.us', 20)
+        ->assertSeeIn('.cm-tooltip-autocomplete', 'users')
+        ->wait(0.2)
+        ->keys('@db-sql', 'Enter')
+        ->typeSlowly('@db-sql', '.fi', 20)
+        ->assertSeeIn('.cm-tooltip-autocomplete', 'findOne')
+        ->keys('@db-sql', 'Escape')
+        ->typeSlowly('@db-sql', "nd({ name: 'Ann' })", 10)
+        ->keys('@db-sql', 'ControlOrMeta+Enter')
+        ->assertSeeIn('@db-sql-summary', '1 document')
+        ->assertSeeIn('@db-sql-result', 'Ann')
+        ->assertNoJavaScriptErrors();
+
+    expect(collect($requests('query'))->last()['sql'])->toStartWith("use shop\ndb.users.find({ name: 'Ann' })");
+})->group('DB-002');
+
+test('the user asks ai for a query: a read runs at once, a change waits for run', function () {
+    $answers = ["```sql\nselect name from users where id = 2\n```", "```sql\ndelete from users where id = 1\n```"];
+    $provider = fakeDatabaseSandbox($this->workspace);
+    $database = $provider->execUsing;
+    $provider->execUsing = function (array $command, array $env) use ($database, &$answers) {
+        return str_contains($command[2] ?? '', 'opencode run')
+            ? new ExecResult(0, json_encode(['type' => 'text', 'part' => ['text' => array_shift($answers)]]))
+            : $database($command, $env);
+    };
+    app()->instance(SandboxProvider::class, $provider);
+
+    $page = visit("/projects/{$this->project->id}")
+        ->resize(1920, 1080)
+        ->click('@tab-tools')
+        ->click('@tool-database')
+        ->assertSeeIn('@db-tables', 'users')
+        ->click('@db-open-sql')
+        ->type('@db-ask-ai-input', 'the second user')
+        ->click('@db-ask-ai-submit')
+        ->assertSeeIn('@db-sql', 'select name from users where id = 2')
+        ->assertSeeIn('@db-sql-summary', '1 row')
+        ->assertSeeIn('@db-sql-result', 'Bob')
+        ->clear('@db-ask-ai-input')
+        ->type('@db-ask-ai-input', 'delete the first user')
+        ->click('@db-ask-ai-submit')
+        ->assertSeeIn('@db-sql', 'delete from users where id = 1')
+        ->assertSeeIn('@db-ask-ai-review', 'hasn’t run');
+
+    expect(array_column(workspaceUsers($this->workspace), 'name'))->toContain('Ann');
+
+    $page->click('@db-run')
+        ->assertSeeIn('@db-sql-result', '1 row affected')
+        ->assertMissing('@db-ask-ai-review')
+        ->assertNoJavaScriptErrors();
+
+    expect(array_column(workspaceUsers($this->workspace), 'name'))->not->toContain('Ann');
+})->group('DB-003');
+
+test('the table list can be made wider by its edge, and stays that wide', function () {
+    $page = visit("/projects/{$this->project->id}")
+        ->resize(1920, 1080)
+        ->click('@tab-tools')
+        ->click('@tool-database')
+        ->assertAttribute('@db-list-resize', 'aria-valuenow', '224')
+        ->keys('@db-list-resize', ['ArrowRight', 'ArrowRight'])
+        ->assertAttribute('@db-list-resize', 'aria-valuenow', '256');
+
+    expect($page->script("getComputedStyle(document.querySelector('[data-test=database-panel] aside')).width"))->toBe('256px');
+
+    $page->refresh()
+        ->click('@tab-tools')
+        ->click('@tool-database')
+        ->assertAttribute('@db-list-resize', 'aria-valuenow', '256')
+        ->assertNoJavaScriptErrors();
+})->group('DB-001');

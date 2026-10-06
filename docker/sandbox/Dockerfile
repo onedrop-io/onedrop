@@ -19,6 +19,15 @@ RUN apt-get update \
     && corepack enable \
     && rm -rf /var/lib/apt/lists/*
 
+# PHP's mongodb extension, for MongoDB in the Tools → Database panel (DB-002); OpenSSL for Atlas's TLS.
+# renovate: datasource=github-releases depName=mongodb/mongo-php-driver
+ARG MONGODB_EXT_VERSION=2.5.3
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libssl-dev pkg-config \
+    && pecl install "mongodb-${MONGODB_EXT_VERSION}" \
+    && docker-php-ext-enable mongodb \
+    && rm -rf /tmp/pear /var/lib/apt/lists/*
+
 COPY --from=composer:2@sha256:af98f42dfff7c68ba8d53c2164fd9fde1087b7d449514baa38c418b1f6bc4bac /usr/bin/composer /usr/bin/composer
 
 # ttyd: web terminal for the workspace Shell tab (static release binary; not packaged in bookworm).
@@ -123,7 +132,7 @@ RUN useradd --create-home --shell /bin/bash sandbox \
     && mkdir -p /workspace /data/storage && chown sandbox:sandbox /workspace /data/storage
 
 COPY placeholder /opt/onedrop/placeholder
-# shell-entry runs each Shell tab in its own tmux session (tmux.conf, shell-reap), so a reloaded page gets it back (LAYOUT-005). fork copies the app for a task and merges its work back (TASK-003). file-watcher.mjs tells the Files panel when files come and go (FILE-004). inspector.js is the preview's Inspect mode, served by host-proxy.mjs (AGT-014); preview-frame.mjs is its rewrite of apps' frame checks (SBX-001). share-card makes share cards (SHARE-001). db.php backs the Tools → Database panel (SQLite, Postgres and MySQL through PDO); auth.php backs Users & Auth; secrets.php backs Secrets; storage.php backs App Storage; git.php backs Git. snapshot packs and restores project snapshots (SBX-009). hosting packs the app for hosting and runs it there (HOST-001); pg-import.php moves a hosted app's SQLite data into Postgres (HOST-009). ask puts a question to the project's AI from the shell (SBX-012).
+# shell-entry runs each Shell tab in its own tmux session (tmux.conf, shell-reap), so a reloaded page gets it back (LAYOUT-005). fork copies the app for a task and merges its work back (TASK-003). file-watcher.mjs tells the Files panel when files come and go (FILE-004). inspector.js is the preview's Inspect mode, served by host-proxy.mjs (AGT-014); preview-frame.mjs is its rewrite of apps' frame checks (SBX-001). share-card makes share cards (SHARE-001). db.php backs the Tools → Database panel (SQLite, Postgres and MySQL through PDO, MongoDB through the mongodb extension); auth.php backs Users & Auth; secrets.php backs Secrets; storage.php backs App Storage; git.php backs Git. snapshot packs and restores project snapshots (SBX-009). hosting packs the app for hosting and runs it there (HOST-001); pg-import.php moves a hosted app's SQLite data into Postgres (HOST-009). ask puts a question to the project's AI from the shell (SBX-012).
 COPY start.sh restart stop-agent ask shell-entry shell-reap tmux.conf checkpoint fork share-card forwarder.mjs file-watcher.mjs host-proxy.mjs inspector.js preview-frame.mjs db.php auth.php secrets.php storage.php git.php skills.php snapshot hosting pg-import.php instructions.md opencode.json /opt/onedrop/
 # Task guides the agent follows (e.g. guides/auth.md for adding sign-in).
 COPY guides /opt/onedrop/guides

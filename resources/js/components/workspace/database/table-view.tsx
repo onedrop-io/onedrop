@@ -3,6 +3,7 @@ import {
     ArrowUp,
     ChevronLeft,
     ChevronRight,
+    Columns3,
     Filter,
     KeyRound,
     Plus,
@@ -40,6 +41,12 @@ const OPERATORS: { value: DatabaseFilterOperator; label: string }[] = [
     { value: 'notnull', label: 'is not NULL' },
 ];
 
+/** MongoDB's documents can lack a field, which its null filter also matches (DB-002). */
+const MONGO_OPERATOR_LABELS: Partial<Record<DatabaseFilterOperator, string>> = {
+    null: 'is missing or null',
+    notnull: 'exists, not null',
+};
+
 const PAGE_SIZES = [25, 50, 100];
 
 /** Passed to a cell's finish() when editing is cancelled; a symbol, since any string is a valid cell value. */
@@ -56,12 +63,15 @@ export default function TableView({
     table,
     onDirtyChange,
     where = 'sandbox',
+    mongo = false,
 }: {
     projectId: number;
     connection: string;
     table: string;
     onDirtyChange: (dirty: boolean) => void;
     where?: DatabaseLocation;
+    /** A MongoDB collection (DB-002): documents, which may lack fields and gain new ones. */
+    mongo?: boolean;
 }) {
     const [data, setData] = useState<DatabaseRows | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -84,6 +94,9 @@ export default function TableView({
     const [editing, setEditing] = useState<EditTarget | null>(null);
     const [saving, setSaving] = useState(false);
     const [saveError, setSaveError] = useState<string | null>(null);
+    const [addedFields, setAddedFields] = useState<string[]>([]);
+    const [addingField, setAddingField] = useState(false);
+    const rowWord = mongo ? 'document' : 'row';
 
     const changeCount =
         Object.values(edits).reduce(
@@ -137,7 +150,24 @@ export default function TableView({
         where,
     ]);
 
-    const columns = useMemo(() => data?.columns ?? [], [data]);
+    // Fields added in the grid (MongoDB) sit after the collection's own until they're saved.
+    const columns = useMemo(() => {
+        const own = data?.columns ?? [];
+
+        return [
+            ...own,
+            ...addedFields
+                .filter((name) => !own.some((column) => column.name === name))
+                .map((name) => ({
+                    name,
+                    type: 'new',
+                    nullable: true,
+                    default: null,
+                    primary: false,
+                    auto: false,
+                })),
+        ];
+    }, [data, addedFields]);
     const primary = columns.filter((column) => column.primary);
     const isTable = data?.type === 'table';
     const canEditRows = isTable && primary.length > 0;
@@ -215,6 +245,8 @@ export default function TableView({
             const row = { ...current[target.index] };
             const unchanged =
                 value === undefined ||
+                // A field the document doesn't have, left empty.
+                (original === undefined && value === '') ||
                 (value === null
                     ? original === null
                     : original !== undefined &&
@@ -308,8 +340,8 @@ export default function TableView({
                             className="ml-2 font-sans text-xs font-normal text-muted-foreground"
                             data-test="db-row-count"
                         >
-                            {data.total.toLocaleString()}{' '}
-                            {data.total === 1 ? 'row' : 'rows'}
+                            {data.total.toLocaleString()} {rowWord}
+                            {data.total === 1 ? '' : 's'}
                         </span>
                     )}
                 </h3>
@@ -354,17 +386,30 @@ export default function TableView({
                     <span className="hidden @xl:inline">Filters</span>
                     {filters.length ? ` (${filters.length})` : ''}
                 </Button>
+                {isTable && mongo && (
+                    <Button
+                        size="sm"
+                        variant={addingField ? 'secondary' : 'ghost'}
+                        onClick={() => setAddingField((open) => !open)}
+                        aria-label="Add field"
+                        title="Add field"
+                        data-test="db-add-field"
+                    >
+                        <Columns3 />
+                        <span className="hidden @xl:inline">Add field</span>
+                    </Button>
+                )}
                 {isTable && (
                     <Button
                         size="sm"
                         variant="ghost"
                         onClick={() => setInserts((rows) => [...rows, {}])}
-                        aria-label="Add row"
-                        title="Add row"
+                        aria-label={`Add ${rowWord}`}
+                        title={`Add ${rowWord}`}
                         data-test="db-add-row"
                     >
                         <Plus />
-                        <span className="hidden @xl:inline">Add row</span>
+                        <span className="hidden @xl:inline">Add {rowWord}</span>
                     </Button>
                 )}
                 <Button
@@ -379,8 +424,20 @@ export default function TableView({
                 </Button>
             </header>
 
+            {addingField && (
+                <AddField
+                    existing={columns.map((column) => column.name)}
+                    onAdd={(name) => {
+                        setAddedFields((fields) => [...fields, name]);
+                        setAddingField(false);
+                    }}
+                    onCancel={() => setAddingField(false)}
+                />
+            )}
+
             {showFilters && (
                 <FilterEditor
+                    mongo={mongo}
                     columns={columns}
                     filters={draftFilters}
                     onChange={setDraftFilters}
@@ -397,7 +454,7 @@ export default function TableView({
 
             {data && !isTable && (
                 <Notice>
-                    This is a view, so its rows can't be edited here.
+                    This is a view, so its {rowWord}s can't be edited here.
                 </Notice>
             )}
             {data && isTable && primary.length === 0 && (
@@ -516,10 +573,15 @@ export default function TableView({
                                             key={column.name}
                                             value={row[column.name]}
                                             placeholder={
-                                                column.auto ? 'auto' : 'default'
+                                                column.auto
+                                                    ? 'auto'
+                                                    : mongo
+                                                      ? 'not set'
+                                                      : 'default'
                                             }
                                             editable
                                             isNew
+                                            mongo={mongo}
                                             changed={column.name in row}
                                             editing={
                                                 editing?.kind === 'new' &&
@@ -637,6 +699,7 @@ export default function TableView({
                                                 <Cell
                                                     key={column.name}
                                                     value={value}
+                                                    placeholder="missing"
                                                     editable={
                                                         canEditRows &&
                                                         !deleted &&
@@ -689,8 +752,8 @@ export default function TableView({
                         data-test="db-no-rows"
                     >
                         {filters.length
-                            ? 'No rows match these filters.'
-                            : 'This table is empty.'}
+                            ? `No ${rowWord}s match these filters.`
+                            : `This ${mongo ? 'collection' : 'table'} is empty.`}
                     </p>
                 )}
             </div>
@@ -733,7 +796,7 @@ export default function TableView({
 
             <footer className="flex items-center justify-end gap-2 border-t border-sidebar-border/70 px-3 py-1.5 text-xs text-muted-foreground dark:border-sidebar-border">
                 <label className="flex items-center gap-1">
-                    Rows per page
+                    {mongo ? 'Documents' : 'Rows'} per page
                     <select
                         value={perPage}
                         onChange={(event) =>
@@ -811,6 +874,7 @@ function Cell({
     placeholder,
     editable,
     isNew = false,
+    mongo = false,
     changed,
     editing,
     onEdit,
@@ -822,6 +886,7 @@ function Cell({
     placeholder?: string;
     editable: boolean;
     isNew?: boolean;
+    mongo?: boolean;
     changed: boolean;
     editing: boolean;
     onEdit: () => void;
@@ -904,7 +969,7 @@ function Cell({
                             }}
                             className="rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-muted"
                         >
-                            DEFAULT
+                            {mongo ? 'NOT SET' : 'DEFAULT'}
                         </button>
                     )}
                 </div>
@@ -932,12 +997,14 @@ function Cell({
 }
 
 function FilterEditor({
+    mongo,
     columns,
     filters,
     onChange,
     onApply,
     onClear,
 }: {
+    mongo: boolean;
     columns: DatabaseColumn[];
     filters: DatabaseFilter[];
     onChange: (filters: DatabaseFilter[]) => void;
@@ -991,7 +1058,9 @@ function FilterEditor({
                     >
                         {OPERATORS.map((operator) => (
                             <option key={operator.value} value={operator.value}>
-                                {operator.label}
+                                {(mongo &&
+                                    MONGO_OPERATOR_LABELS[operator.value]) ||
+                                    operator.label}
                             </option>
                         ))}
                     </select>
@@ -1050,6 +1119,68 @@ function FilterEditor({
                     Apply
                 </Button>
             </div>
+        </form>
+    );
+}
+
+/**
+ * Name a field to add to the grid (MongoDB), so it can be filled in on any document.
+ */
+function AddField({
+    existing,
+    onAdd,
+    onCancel,
+}: {
+    existing: string[];
+    onAdd: (name: string) => void;
+    onCancel: () => void;
+}) {
+    const [name, setName] = useState('');
+    const trimmed = name.trim();
+    const problem =
+        trimmed === ''
+            ? null
+            : trimmed.startsWith('$')
+              ? 'Field names can’t start with $.'
+              : existing.includes(trimmed)
+                ? 'That field is already shown.'
+                : null;
+
+    return (
+        <form
+            className="flex flex-wrap items-center gap-2 border-b border-sidebar-border/70 bg-muted/30 px-3 py-2 dark:border-sidebar-border"
+            onSubmit={(event) => {
+                event.preventDefault();
+
+                if (trimmed !== '' && problem === null) {
+                    onAdd(trimmed);
+                }
+            }}
+            data-test="db-add-field-form"
+        >
+            <input
+                autoFocus
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                onKeyDown={(event) => event.key === 'Escape' && onCancel()}
+                className="h-7 w-48 rounded-md border border-input bg-transparent px-2 font-mono text-xs"
+                placeholder="field name"
+                aria-label="New field name"
+                data-test="db-add-field-name"
+            />
+            <Button
+                type="submit"
+                size="sm"
+                disabled={trimmed === '' || problem !== null}
+            >
+                Add
+            </Button>
+            <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
+                Cancel
+            </Button>
+            <span className="text-xs text-muted-foreground">
+                {problem ?? 'It’s saved on the documents you fill it in on.'}
+            </span>
         </form>
     );
 }

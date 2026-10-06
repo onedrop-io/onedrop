@@ -1064,6 +1064,29 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Database passwords and connection details should stay inside the sandbox; the app builder only sees connection names.
 - User should see a clear message when the sandbox isn't running, no database is found yet, or the database can't be reached.
 
+- User should be able to drag the edge of the table list to make it wider or narrower (double-click puts it back), and the browser should remember the width.
+
+## DB-002: MongoDB in the database browser
+
+- User should see the app's MongoDB databases in Tools → Database: `mongodb://` and `mongodb+srv://` URLs in `.env` files under any name (`MONGODB_URI`, `MONGO_URL`, `DATABASE_URL`, …), and MongoDB containers in the sandbox's own Docker (the `mongo` image, or one built from it), signed in with the root user in the container's environment or its Docker secrets.
+- A connection that names a database should list that database's collections; one that doesn't (a container) should list the collections of every database on the server except MongoDB's own (`admin`, `config`, `local`), as `database.collection`.
+- User should be able to open a collection and see its documents as rows: `_id` first and marked as the key, then every top-level field the page's documents have, each with its type (`objectId`, `string`, `int`, `date`, `object`, `array`, …); nested objects and arrays show as JSON.
+- User should be able to sort by a field, filter (equals, not equal, contains, greater/less than, is missing or null, exists and isn't null) and page through documents. An equals filter matches a value whether it's stored as text, a number, a boolean or an ObjectId.
+- User should be able to edit fields, add documents and delete documents, pending until they save, as with tables. An edited field keeps its type (an ObjectId stays an ObjectId, a date a date, a number a number); objects and arrays are edited as JSON. A field the collection doesn't have yet takes the type of what's typed (a number, `true`/`false`, a JSON object or array, else text).
+- User should be able to add a field to the grid that the shown documents don't have, and fill it in.
+- A save should apply all changes or none on a replica set; on a standalone server, which has no transactions, it should apply them in order and say which change failed and that the ones before it were saved.
+- User should be able to run mongosh-style commands in a query runner: `db.<collection>.find(…)` (with `.sort`, `.skip`, `.limit`, `.projection`), `findOne`, `aggregate`, `countDocuments`, `estimatedDocumentCount`, `distinct`, `insertOne`, `insertMany`, `updateOne`, `updateMany`, `replaceOne`, `deleteOne`, `deleteMany`, `db.getCollection('…')`, `db.runCommand({…})`, `show dbs` and `show collections`, with `use <database>` to pick the database.
+- The query runner should accept mongosh's literals (unquoted keys, single quotes, `ObjectId(…)`, `ISODate(…)`, `new Date(…)`, `NumberLong(…)`, `NumberDecimal(…)`, `/regex/i`) and Extended JSON (`{"$oid": …}`), show returned documents as rows and writes as how many documents they changed, and highlight and autocomplete JavaScript, collection names after `db.` and the collection's methods and field names.
+- On the hosted app's database, a command that may change it should be confirmed first, as with SQL.
+- User should be told to rebuild the sandbox image when the sandbox doesn't have MongoDB support yet.
+
+## DB-003: Ask AI to write a query
+
+- User should be able to describe what they're looking for in plain words above the SQL or query runner ("users who signed up this week without a team") and have the project's AI write the query, in the database's own language (SQLite, PostgreSQL or MySQL SQL, or mongosh commands for MongoDB).
+- The AI should get the database's tables (or collections) and their columns (or fields), and the query in the editor, so the user can refine it ("only the ones from Canada"); it never sees the database's rows.
+- The written query should replace the editor's text, so the user can read and edit it; a query that only reads should run right away, and one that would change data should wait for the user to press Run (and on the hosted database, to confirm as usual).
+- The AI should write a query that only reads unless the user asks for a change, and limit what a search returns.
+- It should use the same AI as the project's chat (the user's own connection, a Claude subscription, or the organization's AI credits), and say why when there's none to ask or the sandbox isn't running.
 ## APPAUTH-001: Users & Auth for the app
 
 - User should see a Users & Auth section under Tools that explains how to let people sign in to their app.

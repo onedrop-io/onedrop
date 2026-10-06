@@ -99,7 +99,8 @@ function runDatabaseTool(string $workspace, array $request, array $env = []): ar
  */
 function runDatabaseScript(string $workspace, string $request, array $env = []): string
 {
-    return Process::env(['APP_WORKSPACE' => $workspace, 'APP_DB_REQUEST' => $request, ...$env])
+    // The machine's own Docker isn't the sandbox's: tests that need containers pass a fake one.
+    return Process::env(['APP_WORKSPACE' => $workspace, 'APP_DB_REQUEST' => $request, 'ONEDROP_DOCKER_BIN' => 'false', ...$env])
         ->run([PHP_BINARY, base_path('docker/sandbox/db.php')])
         ->throw()
         ->output();
@@ -240,7 +241,7 @@ function runAuthTool(string $workspace, array $request): array
 
 function runAuthScript(string $workspace, string $request): string
 {
-    return Process::env(['APP_WORKSPACE' => $workspace, 'APP_AUTH_REQUEST' => $request])
+    return Process::env(['APP_WORKSPACE' => $workspace, 'APP_AUTH_REQUEST' => $request, 'ONEDROP_DOCKER_BIN' => 'false'])
         ->run([PHP_BINARY, base_path('docker/sandbox/auth.php')])
         ->throw()
         ->output();
