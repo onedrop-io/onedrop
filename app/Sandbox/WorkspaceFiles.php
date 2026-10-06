@@ -18,6 +18,18 @@ class WorkspaceFiles
 
     public const MAX_BYTES = 200_000;
 
+    /** Most matches one search inside files returns (FILE-008). */
+    public const SEARCH_LIMIT = 1000;
+
+    /** Most lines of ripgrep's JSON read per search: each match, plus a begin and an end line per file. */
+    public const SEARCH_OUTPUT_LINES = 3000;
+
+    /** Longest a search inside files runs before answering with what it found. */
+    public const SEARCH_SECONDS = 10;
+
+    /** Most of a matching line shown in search results; longer lines are cut around the match. */
+    public const SEARCH_LINE_BYTES = 300;
+
     /** Bytes sent per exec when writing; keeps each env value under Linux's 128 KiB limit. */
     public const WRITE_CHUNK_BYTES = 64_000;
 
@@ -95,6 +107,150 @@ class WorkspaceFiles
         usort($entries, fn (array $a, array $b) => strnatcasecmp($a['path'], $b['path']));
 
         return $entries;
+    }
+
+    /**
+     * Search inside the workspace's text files with ripgrep (FILE-008), in the whole workspace or one folder.
+     * Hidden files are searched; .gitignore'd files, binaries, files over 1 MB and the COLLAPSED folders aren't.
+     * Stops at SEARCH_LIMIT matches or after SEARCH_SECONDS, saying so with `truncated`.
+     *
+     * @param  array{case?: bool, word?: bool, regex?: bool}  $options
+     * @return array{results: list<array{path: string, matches: list<array{line: int, column: array{int, int}, text: string, ranges: list<array{int, int}>}>}>, truncated: bool}
+     *
+     * @throws SandboxException when the search can't run, or InvalidSearchException when a regex doesn't parse
+     */
+    public function search(Sandbox $sandbox, string $query, string $folder = '', array $options = []): array
+    {
+        $args = ['--json', '--hidden', '--max-filesize', '1M', '--max-count', (string) self::SEARCH_LIMIT];
+
+        foreach (self::COLLAPSED as $name) {
+            array_push($args, '--glob', "!{$name}");
+        }
+
+        $args[] = ($options['case'] ?? false) ? '--case-sensitive' : '--ignore-case';
+
+        if ($options['word'] ?? false) {
+            $args[] = '--word-regexp';
+        }
+
+        if (! ($options['regex'] ?? false)) {
+            $args[] = '--fixed-strings';
+        }
+
+        array_push($args, '--regexp', $query, '--');
+
+        if ($folder !== '') {
+            $args[] = $folder;
+        }
+
+        // ripgrep's own exit status goes to stderr, since head's is the pipeline's; head stops it at the limit.
+        $result = $this->provider->exec($sandbox->external_id, [
+            'sh', '-c',
+            'cd '.self::ROOT.' || exit 1; { timeout '.self::SEARCH_SECONDS.' rg "$@"; echo "rg-exit:$?" >&2; } | head -n '.self::SEARCH_OUTPUT_LINES,
+            'sh', ...$args,
+        ]);
+
+        preg_match('/rg-exit:(\d+)/', $result->errorOutput, $exit);
+        $status = isset($exit[1]) ? (int) $exit[1] : null;
+
+        if ($status === 127) {
+            throw new SandboxException('Searching inside files needs a newer sandbox. Recreate it to get one.');
+        }
+
+        if ($status === 2 && trim($result->output) === '') {
+            if (str_contains($result->errorOutput, 'regex parse error')) {
+                throw new InvalidSearchException("That isn't a valid regular expression.");
+            }
+
+            if ($folder !== '' && str_contains($result->errorOutput, 'No such file or directory')) {
+                return ['results' => [], 'truncated' => false];
+            }
+        }
+
+        if ($status === null && ! $result->successful()) {
+            throw new SandboxException("Couldn't search the project's files.");
+        }
+
+        $results = [];
+        $count = 0;
+        $lines = explode("\n", trim($result->output));
+
+        foreach ($lines as $line) {
+            $event = json_decode($line, true);
+
+            if (($event['type'] ?? null) !== 'match' || $count >= self::SEARCH_LIMIT) {
+                continue;
+            }
+
+            $path = $event['data']['path']['text'] ?? null;
+            $text = $event['data']['lines']['text'] ?? null;
+
+            if (! is_string($path) || ! is_string($text)) {
+                continue;
+            }
+
+            $results[$path] ??= ['path' => $path, 'matches' => []];
+            $results[$path]['matches'][] = self::searchLine(
+                (int) $event['data']['line_number'],
+                rtrim($text, "\r\n"),
+                $event['data']['submatches'] ?? [],
+            );
+            $count++;
+        }
+
+        // ripgrep searches files in parallel, so they come in any order.
+        uksort($results, 'strnatcasecmp');
+
+        return [
+            'results' => array_values($results),
+            'truncated' => $count >= self::SEARCH_LIMIT || count($lines) >= self::SEARCH_OUTPUT_LINES || $status === 124,
+        ];
+    }
+
+    /**
+     * One matching line for the results list: long lines are cut to the part around the first match, and ripgrep's
+     * byte offsets become character offsets into the text that's kept (`ranges`) and, for the first match, into the
+     * whole line (`column`, where the editor selects it).
+     *
+     * @param  list<array{start: int, end: int}>  $submatches
+     * @return array{line: int, column: array{int, int}, text: string, ranges: list<array{int, int}>}
+     */
+    protected static function searchLine(int $number, string $text, array $submatches): array
+    {
+        $start = 0;
+        $first = $submatches[0]['start'] ?? 0;
+
+        if (strlen($text) > self::SEARCH_LINE_BYTES && $first > 40) {
+            $start = $first - 40;
+
+            // Don't cut a character in half.
+            while ($start > 0 && (ord($text[$start]) & 0xC0) === 0x80) {
+                $start--;
+            }
+        }
+
+        $kept = mb_strcut($text, $start, self::SEARCH_LINE_BYTES, 'UTF-8');
+        $ranges = [];
+
+        foreach ($submatches as $submatch) {
+            $from = $submatch['start'] - $start;
+            $to = min($submatch['end'] - $start, strlen($kept));
+
+            if ($from < 0 || $from >= $to) {
+                continue;
+            }
+
+            $ranges[] = [mb_strlen(substr($kept, 0, $from), 'UTF-8'), mb_strlen(substr($kept, 0, $to), 'UTF-8')];
+        }
+
+        $firstEnd = $submatches[0]['end'] ?? 0;
+
+        return [
+            'line' => $number,
+            'column' => [mb_strlen(substr($text, 0, $first), 'UTF-8'), mb_strlen(substr($text, 0, $firstEnd), 'UTF-8')],
+            'text' => ($start > 0 ? '…' : '').$kept,
+            'ranges' => $start > 0 ? array_map(fn (array $range) => [$range[0] + 1, $range[1] + 1], $ranges) : $ranges,
+        ];
     }
 
     /**

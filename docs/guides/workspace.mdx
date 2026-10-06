@@ -254,6 +254,7 @@ The files panel on the right shows the project's folder tree, with a colored ico
 - Binary files and files over 200 KB show a notice instead of their contents
 - Type in **Search files** at the top of the panel to show only files and folders whose names contain it; press Escape to clear it
 - Press <kbd>⌘</kbd> <kbd>P</kbd> (<kbd>Ctrl</kbd> <kbd>P</kbd> on Windows and Linux) to [go to a file](#go-to-a-file) by name
+- Type in **Search in files** below it to [search inside files](#search-inside-files)
 - Hide or show the panel with the button in the tab bar; it opens by default on wide screens, and your browser remembers whether you last left it open or closed
 - On a phone, open it from **⋯** in the tab bar: it covers the workspace, and closes when you open a file or tap **×**. It always starts closed there
 
@@ -264,6 +265,20 @@ Press <kbd>⌘</kbd> <kbd>P</kbd> on a Mac or <kbd>Ctrl</kbd> <kbd>P</kbd> on Wi
 It works with the files panel closed, and it includes hidden files like `.env`. Files inside `node_modules`, `vendor`, `.git` and `.cache` aren't listed.
 
 <Tip>
+### Search inside files
+
+Type in **Search in files**, the second box at the top of the files panel, or press <kbd>⌘</kbd> <kbd>Shift</kbd> <kbd>F</kbd> (<kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>F</kbd> on Windows and Linux) to jump there from anywhere in the workspace. Results show as you type, grouped by file, with each match highlighted. Click a line to open the file with the match selected. Press Escape to clear the box and get the tree back.
+
+The three buttons in the box work like your code editor's:
+
+| Button | What it does |
+| ------ | ------------ |
+| **Match case** | `User` no longer finds `user`. |
+| **Match whole word** | `id` no longer finds `width`. |
+| **Use regular expression** | Searches for a pattern, like `use[A-Z]\w+`. |
+
+The search runs inside the sandbox with [ripgrep](https://github.com/BurntSushi/ripgrep), so it's fast even in big projects. It includes hidden files like `.env`, and skips `node_modules`, `vendor`, `.git`, `.cache`, files your `.gitignore` lists, binary files and files over 1 MB. It stops at 1,000 results; type more to narrow it down. Choosing **Search this folder** from a folder's menu limits this box to that folder too.
+
   Your browser keeps <kbd>⌘</kbd> <kbd>T</kbd> for a new tab, so the workspace
   uses <kbd>⌘</kbd> <kbd>P</kbd>, like VS Code.
 </Tip>
@@ -291,7 +306,7 @@ Hover over a file or folder and click its **⋮**, or right-click it:
 | Action                                  | What it does                                                                                                                                                                                                |
 | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Rename**                              | Renames it where it is. Type a name with slashes, like `pages/Home.tsx`, to move it into a folder (missing folders are created). If a file open in the editor is renamed, it stays open under its new name. |
-| **Search this folder** | Limits the **Search files** box to this folder. Click **×** on the folder's name in the box to search the whole project again. Folders only. |
+| **Search this folder** | Limits the **Search files** and **Search in files** boxes to this folder. Click **×** on the folder's name in the box to search the whole project again. Folders only. |
 | **Add file** / **Add folder**           | Creates an empty file (opened in the editor) or folder inside it. Folders only.                                                                                                                             |
 | **Collapse child folders**              | Closes every folder inside it. Folders only.                                                                                                                                                                |
 | **Open shell here**                     | Opens a new Shell in that folder (a file's own folder, for files).                                                                                                       |

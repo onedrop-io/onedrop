@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\SandboxStatus;
 use App\Models\Project;
 use App\Models\Sandbox;
+use App\Sandbox\InvalidSearchException;
 use App\Sandbox\SandboxException;
 use App\Sandbox\WorkspaceFiles;
 use Illuminate\Http\JsonResponse;
@@ -52,6 +53,37 @@ class ProjectFileController extends Controller
         abort_unless(WorkspaceFiles::isSafePath($path), 422, __('That path is outside the project.'));
 
         return $this->fromSandbox($project, fn ($sandbox) => $files->read($sandbox, $path));
+    }
+
+    /**
+     * Search inside the project's files (FILE-008), in the whole project or one folder.
+     */
+    public function search(Request $request, Project $project, WorkspaceFiles $files): JsonResponse
+    {
+        Gate::authorize('view', $project);
+
+        $validated = $request->validate([
+            'query' => ['required', 'string', 'max:500'],
+            'folder' => ['nullable', 'string', 'max:1000'],
+            'case' => ['boolean'],
+            'word' => ['boolean'],
+            'regex' => ['boolean'],
+        ]);
+        $folder = trim((string) ($validated['folder'] ?? ''), '/');
+
+        abort_unless($folder === '' || WorkspaceFiles::isEntryPath($folder), 422, __('That path is outside the project.'));
+
+        return $this->fromSandbox($project, function ($sandbox) use ($files, $validated, $folder, $request) {
+            try {
+                return $files->search($sandbox, (string) $validated['query'], $folder, [
+                    'case' => $request->boolean('case'),
+                    'word' => $request->boolean('word'),
+                    'regex' => $request->boolean('regex'),
+                ]);
+            } catch (InvalidSearchException $e) {
+                return response()->json(['message' => $e->getMessage()], 422);
+            }
+        });
     }
 
     /**

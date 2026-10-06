@@ -120,6 +120,16 @@ Use a sandbox started from an image built after this change (`php artisan sandbo
 - [ ] Reordering, removing and adding scenes and editing captions sticks after **Save** and a reload; `.onedrop/demo.json` has them.
 - [ ] **Render** shows **Recording the scenes…**, then **Rendering** with a rising percentage, and the video plays in the panel when it's done.
 - [ ] The video opens on the app's icon, title and tagline; each scene has its caption, the page's path in the address bar, a cursor that glides to fields and buttons (arriving as they're used), a ripple on clicks, and a zoom towards them; it ends on the title card.
+### Search in files (FILE-008)
+
+- [ ] In a project with `node_modules` installed, **Search in files** for a word in the app's code answers in well under a second, and lists nothing from `node_modules`, `vendor` or `.git`.
+- [ ] Hidden files like `.env` are searched; files the project's `.gitignore` lists aren't.
+- [ ] **Match case**, **Match whole word** and **Use regular expression** each change the results; an unfinished regex like `foo(` shows "That isn't a valid regular expression."
+- [ ] Clicking a match opens the file with the match selected and scrolled into view, also in a minified file with very long lines.
+- [ ] **Search this folder** from a folder's menu limits both search boxes to that folder.
+- [ ] Searching for one letter in a big project stops at 1,000 results and says so, without freezing the page.
+- [ ] <kbd>⌘</kbd>/<kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>F</kbd> opens the files panel with the cursor in the box, even while editing a file.
+
 - [ ] With the app published, the end card shows its address.
 - [ ] **Download MP4** saves a 1920×1080 H.264 file that plays in QuickTime and a browser.
 - [ ] The **Tests** tab's results and recordings are unchanged by the render.

@@ -184,6 +184,7 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
         Route::post('projects/{project}/sandbox/activity', [SandboxActivityController::class, 'store'])->name('projects.sandbox.activity');
         Route::get('projects/{project}/files', [ProjectFileController::class, 'index'])->name('projects.files.index');
         Route::get('projects/{project}/files/version', [ProjectFileController::class, 'version'])->name('projects.files.version');
+        Route::get('projects/{project}/files/search', [ProjectFileController::class, 'search'])->name('projects.files.search');
         Route::get('projects/{project}/files/show', [ProjectFileController::class, 'show'])->name('projects.files.show');
         Route::put('projects/{project}/files', [ProjectFileController::class, 'update'])->name('projects.files.update');
         Route::post('projects/{project}/files', [ProjectFileController::class, 'store'])->name('projects.files.store');

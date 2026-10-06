@@ -601,6 +601,17 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Saving example env files (`.env.example`, `.env.sample`, …) or any other file should not ask.
 
 ## TAB-001: Workspace tabs
+## FILE-008: Search inside files
+
+- User should see a "Search in files" box below "Search files" in the files panel, and be able to press Cmd+Shift+F (Ctrl+Shift+F on Windows and Linux) anywhere in the workspace to open the panel with the cursor in it.
+- User should see matching lines as they type, grouped by file with a count, each match highlighted and its line number shown; folding a file hides its lines.
+- User should be able to turn on Match case, Match whole word and Use regular expression; an unfinished regular expression shows a message instead of results.
+- User should be able to click a match to open the file with the match selected and scrolled into view.
+- The search should include hidden files and skip `node_modules`, `vendor`, `.git`, `.cache`, files the project's `.gitignore` lists, binary files and files over 1 MB.
+- The search should stop at 1,000 matches (or 10 seconds) and say the results were cut short; long lines are shown around the match.
+- A folder chosen with "Search this folder" should limit this search too; Escape clears the box and shows the tree again.
+- Only the project's owner (or an admin) should be able to search its files, and only inside the project's workspace.
+
 
 - User should see Shell, Services and Console tabs open next to Tools and Preview when opening a project, with Preview showing.
 - User should be able to add tabs next to Preview from a "+" menu, and close them.

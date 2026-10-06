@@ -1,4 +1,5 @@
 import type { BrowserSession } from '@/components/workspace/browser-view';
+import type { ContentQuery } from '@/components/workspace/content-search';
 import type { Layout, ShellTab } from '@/components/workspace/panes';
 
 /**
@@ -14,6 +15,8 @@ export type SavedWorkspace = {
     tool: string | null;
     recentFiles: string[];
     fileSearch: { folder: string; query: string };
+    /** The files panel's search inside files (FILE-008). */
+    contentSearch: ContentQuery;
     testsFocus: string | null;
     /** The test page taken over in the Browser tab (TEST-005). */
     browserSession: BrowserSession | null;

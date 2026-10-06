@@ -1,7 +1,7 @@
 import { languages } from '@codemirror/language-data';
 import { oneDark } from '@codemirror/theme-one-dark';
 import type { Extension } from '@codemirror/state';
-import { keymap } from '@codemirror/view';
+import { EditorView, keymap } from '@codemirror/view';
 import CodeMirror from '@uiw/react-codemirror';
 import { LanguageDescription } from '@codemirror/language';
 import { RotateCw, Save } from 'lucide-react';
@@ -33,6 +33,17 @@ export function readAtStartup(path: string): boolean {
 }
 
 /**
+ * A place in the open file to show and select, e.g. a search match (FILE-008): a 1-based line and character
+ * offsets in it. A new `key` jumps again, even to the same place.
+ */
+export type FileLocation = {
+    line: number;
+    from: number;
+    to: number;
+    key: number;
+};
+
+/**
  * An open file: shows notices for binary/large files, otherwise an editor
  * with syntax highlighting that saves back into the sandbox (Cmd/Ctrl+S).
  * Render with `key={path}` so each file gets fresh editor state.
@@ -41,11 +52,13 @@ export default function FileViewer({
     projectId,
     file,
     error,
+    location,
     onDirtyChange,
 }: {
     projectId: number;
     file: WorkspaceFile | null;
     error: string | null;
+    location?: FileLocation | null;
     onDirtyChange?: (dirty: boolean) => void;
 }) {
     if (error) {
@@ -72,6 +85,7 @@ export default function FileViewer({
             projectId={projectId}
             path={file.path}
             content={file.content ?? ''}
+            location={location}
             onDirtyChange={onDirtyChange}
         />
     );
@@ -81,11 +95,13 @@ function FileEditor({
     projectId,
     path,
     content,
+    location,
     onDirtyChange,
 }: {
     projectId: number;
     path: string;
     content: string;
+    location?: FileLocation | null;
     onDirtyChange?: (dirty: boolean) => void;
 }) {
     const { resolvedAppearance } = useAppearance();
@@ -180,6 +196,36 @@ function FileEditor({
     useEffect(() => {
         saveRef.current = save;
     });
+
+    // Select and scroll to the asked-for place once the editor exists, and again whenever it changes.
+    const view = useRef<EditorView | null>(null);
+    const locationRef = useRef(location);
+    const goTo = (target: FileLocation | null | undefined) => {
+        if (!view.current || !target) {
+            return;
+        }
+
+        const doc = view.current.state.doc;
+        const line = doc.line(Math.min(Math.max(target.line, 1), doc.lines));
+        const from = Math.min(line.from + target.from, line.to);
+        const to = Math.min(line.from + target.to, line.to);
+
+        view.current.dispatch({
+            selection: { anchor: from, head: to },
+            effects: EditorView.scrollIntoView(from, { y: 'center' }),
+        });
+        view.current.focus();
+    };
+
+    useEffect(() => {
+        if (location && location.key !== locationRef.current?.key) {
+            goTo(location);
+        }
+
+        locationRef.current = location;
+        // Only when asked for a new place.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [location]);
 
     const extensions = useMemo(
         () => [
@@ -276,6 +322,10 @@ function FileEditor({
             <CodeMirror
                 value={draft}
                 onChange={setDraft}
+                onCreateEditor={(created) => {
+                    view.current = created;
+                    goTo(locationRef.current);
+                }}
                 extensions={extensions}
                 theme={resolvedAppearance === 'dark' ? oneDark : 'light'}
                 height="100%"

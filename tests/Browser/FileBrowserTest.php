@@ -375,3 +375,55 @@ test('cmd or ctrl+p in a shell opens go to file', function () {
     $page->assertVisible('@quick-open')
         ->assertNoJavaScriptErrors();
 })->group('FILE-006');
+
+test('cmd+shift+f searches inside files and opens a match at its line', function () {
+    $match = fn (string $path, int $line, string $text, int $start) => json_encode(['type' => 'match', 'data' => [
+        'path' => ['text' => $path],
+        'lines' => ['text' => $text."\n"],
+        'line_number' => $line,
+        'submatches' => [['match' => ['text' => 'useState'], 'start' => $start, 'end' => $start + 8]],
+    ]]);
+
+    $provider = new FakeSandboxProvider;
+    $provider->execUsing = fn (array $command) => match (true) {
+        $command[0] === 'find' => new ExecResult(0, "d src\nf src/App.tsx\nf src/Counter.tsx\nf package.json\n"),
+        $command[0] === 'sh' && in_array('--json', $command, true) => new ExecResult(0, implode("\n", [
+            $match('src/App.tsx', 1, "import { useState } from 'react';", 9),
+            $match('src/Counter.tsx', 3, '    const [n, setN] = useState(0);', 22),
+        ])."\n", "rg-exit:0\n"),
+        default => new ExecResult(0, "line one\nline two\n    const [n, setN] = useState(0);\n"),
+    };
+    app()->instance(SandboxProvider::class, $provider);
+
+    $user = User::factory()->has(AgentConnection::factory())->create();
+    $project = Project::factory()->for($user)->create();
+    Sandbox::factory()->for($project)->create(['preview_url' => null]);
+    $this->actingAs($user);
+
+    visit("/projects/{$project->id}")
+        ->resize(1600, 900)
+        ->navigate("/projects/{$project->id}")
+        ->assertSeeIn('@files-panel', 'package.json')
+        ->click('@toggle-files')
+        ->assertMissing('@files-panel')
+        ->keys('@toggle-files', 'Meta+Shift+f')
+        ->assertVisible('@files-panel')
+        ->assertScript('document.activeElement?.dataset.test', 'content-search')
+        ->type('@content-search', 'useState')
+        ->assertSeeIn('@content-search-results', '2 results in 2 files')
+        ->assertSeeIn('[data-test="content-result-src/Counter.tsx"]', 'Counter.tsx')
+        ->click('@content-search-word')
+        ->assertScript('document.querySelector(\'[data-test="content-search-word"]\').getAttribute("aria-pressed")', 'true')
+        // Searches run once typing or toggling pauses.
+        ->wait(0.5)
+        ->click('[data-test="content-result-src/Counter.tsx"] + ul [data-test="content-match"]')
+        ->assertSeeIn('@file-viewer', 'line two')
+        ->assertSeeIn('@sandbox-status', 'src/Counter.tsx')
+        ->assertScript('getSelection()?.toString()', 'useState')
+        ->keys('@content-search', 'Escape')
+        ->assertSeeIn('@files-panel', 'package.json')
+        ->assertNoJavaScriptErrors();
+
+    $search = collect($provider->executed)->last(fn (array $exec) => in_array('--json', $exec['command'], true));
+    expect($search['command'])->toContain('--word-regexp');
+})->group('FILE-008');

@@ -26,6 +26,7 @@ import {
     SquareMousePointer,
     Pencil,
     MessageSquare,
+    TextSearch,
     Monitor,
     MoreHorizontal,
     Columns2,
@@ -117,6 +118,14 @@ import PublishMenu from '@/components/workspace/publish-menu';
 import ShareMenu from '@/components/workspace/share-menu';
 import ToolsPanel from '@/components/workspace/tools-panel';
 import FileViewer from '@/components/workspace/file-viewer';
+import type { FileLocation } from '@/components/workspace/file-viewer';
+import {
+    ContentSearchResults,
+    ContentSearchToggles,
+    EMPTY_CONTENT_QUERY,
+    useContentSearch,
+} from '@/components/workspace/content-search';
+import type { ContentQuery } from '@/components/workspace/content-search';
 import ResizeHandle from '@/components/workspace/resize-handle';
 import { isLocalHostname, useIsRemote } from '@/hooks/use-is-remote';
 import {
@@ -1002,6 +1011,12 @@ function WorkspacePanel({
     /** The files panel's name search, in the whole project ('') or a folder picked from its menu (FILE-005). */
     const [fileSearch, setFileSearch] = useState({ folder: '', query: '' });
     const fileSearchInput = useRef<HTMLInputElement>(null);
+    /** The search inside files below it (FILE-008), in the same folder, and where the open file should show. */
+    const [contentSearch, setContentSearch] =
+        useState<ContentQuery>(EMPTY_CONTENT_QUERY);
+    const contentSearchInput = useRef<HTMLInputElement>(null);
+    const [contentFocus, setContentFocus] = useState(0);
+    const [fileLocation, setFileLocation] = useState<FileLocation | null>(null);
     const [openPath, setOpenPath] = useState<string | null>(
         tab === 'file' ? initialView.file : null,
     );
@@ -1097,6 +1112,22 @@ function WorkspacePanel({
     const visibleEntries = searching
         ? searchEntries(unhiddenEntries, fileSearch.folder, fileSearch.query)
         : unhiddenEntries;
+    const searchingContent = contentSearch.query.trim() !== '';
+    const contentResults = useContentSearch(
+        project.id,
+        contentSearch,
+        fileSearch.folder,
+        running && filesOpen && searchingContent,
+        filesVersion,
+    );
+
+    // Cmd/Ctrl+Shift+F opens the files panel with the cursor in "Search in files" (FILE-008).
+    useEffect(() => {
+        if (contentFocus > 0 && filesOpen) {
+            contentSearchInput.current?.focus();
+            contentSearchInput.current?.select();
+        }
+    }, [contentFocus, filesOpen]);
 
     const [previewSize, setPreviewSize] = useState<PreviewSize>('desktop');
 
@@ -1332,7 +1363,7 @@ function WorkspacePanel({
         seenFilesVersion.current = filesVersion;
     }, [filesVersion, files.refresh]);
 
-    const openFile = (path: string) => {
+    const openFile = (path: string, location: FileLocation | null = null) => {
         if (
             path !== openPath &&
             fileDirty &&
@@ -1352,6 +1383,7 @@ function WorkspacePanel({
         }
 
         setOpenPath(path);
+        setFileLocation(location);
         showTab('file');
 
         // On a phone the panel covers the workspace: get it out of the way of the file.
@@ -1372,6 +1404,18 @@ function WorkspacePanel({
                 event.preventDefault();
                 event.stopPropagation();
                 setQuickOpen(true);
+            }
+
+            if (
+                (event.metaKey || event.ctrlKey) &&
+                event.shiftKey &&
+                !event.altKey &&
+                event.key.toLowerCase() === 'f'
+            ) {
+                event.preventDefault();
+                event.stopPropagation();
+                setFilesOpen(true);
+                setContentFocus((count) => count + 1);
             }
         };
 
@@ -1567,6 +1611,13 @@ function WorkspacePanel({
             setFileSearch(saved.fileSearch);
         }
 
+        if (typeof saved?.contentSearch?.query === 'string') {
+            setContentSearch({
+                ...EMPTY_CONTENT_QUERY,
+                ...saved.contentSearch,
+            });
+        }
+
         if (typeof saved?.testsFocus === 'string') {
             setTestsFocus(saved.testsFocus);
         }
@@ -1593,6 +1644,7 @@ function WorkspacePanel({
             tool,
             recentFiles,
             fileSearch,
+            contentSearch,
             testsFocus,
             browserSession,
             previewPage,
@@ -1606,6 +1658,7 @@ function WorkspacePanel({
         tool,
         recentFiles,
         fileSearch,
+        contentSearch,
         testsFocus,
         browserSession,
         previewPage,
@@ -2536,6 +2589,7 @@ function WorkspacePanel({
                             projectId={project.id}
                             file={file}
                             error={fileError}
+                            location={fileLocation}
                             onDirtyChange={setFileDirty}
                         />
                     ),
@@ -2664,82 +2718,130 @@ function WorkspacePanel({
                     style={{ width: filesWidth }}
                     data-test="files-panel"
                 >
-                    <div className="flex items-center gap-1 border-b border-sidebar-border/70 bg-toolbar px-2 py-2 text-sm dark:border-sidebar-border">
-                        <div className="flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-md border border-input bg-transparent px-2 focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
-                            <Search className="size-3.5 shrink-0 text-muted-foreground" />
-                            {fileSearch.folder && (
-                                <button
-                                    type="button"
-                                    title="Search the whole project"
-                                    onClick={() => {
+                    <div className="flex flex-col gap-1.5 border-b border-sidebar-border/70 bg-toolbar px-2 py-2 text-sm dark:border-sidebar-border">
+                        <div className="flex items-center gap-1">
+                            <div className="flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-md border border-input bg-transparent px-2 focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
+                                <Search className="size-3.5 shrink-0 text-muted-foreground" />
+                                {fileSearch.folder && (
+                                    <button
+                                        type="button"
+                                        title="Search the whole project"
+                                        onClick={() => {
+                                            setFileSearch({
+                                                ...fileSearch,
+                                                folder: '',
+                                            });
+                                            fileSearchInput.current?.focus();
+                                        }}
+                                        className="flex max-w-[50%] shrink-0 items-center gap-0.5 rounded bg-muted px-1 text-xs text-muted-foreground hover:text-foreground"
+                                        data-test="files-search-folder"
+                                    >
+                                        <span className="truncate">
+                                            {fileSearch.folder}
+                                        </span>
+                                        <X className="size-3 shrink-0" />
+                                    </button>
+                                )}
+                                <input
+                                    ref={fileSearchInput}
+                                    value={fileSearch.query}
+                                    disabled={!running}
+                                    onChange={(event) =>
                                         setFileSearch({
                                             ...fileSearch,
-                                            folder: '',
-                                        });
-                                        fileSearchInput.current?.focus();
-                                    }}
-                                    className="flex max-w-[50%] shrink-0 items-center gap-0.5 rounded bg-muted px-1 text-xs text-muted-foreground hover:text-foreground"
-                                    data-test="files-search-folder"
-                                >
-                                    <span className="truncate">
-                                        {fileSearch.folder}
-                                    </span>
-                                    <X className="size-3 shrink-0" />
-                                </button>
-                            )}
+                                            query: event.target.value,
+                                        })
+                                    }
+                                    onKeyDown={(event) =>
+                                        event.key === 'Escape' &&
+                                        setFileSearch({ folder: '', query: '' })
+                                    }
+                                    placeholder="Search files"
+                                    title="Filter the tree by name; ⌘/Ctrl+P goes to any file"
+                                    aria-label={`Search file names in ${fileSearch.folder || 'the project'}`}
+                                    className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
+                                    data-test="files-search"
+                                />
+                            </div>
+                            <IconButton
+                                label="Refresh files"
+                                onClick={() => void files.refresh()}
+                            >
+                                <RefreshCw
+                                    className={cn(
+                                        'size-3.5',
+                                        files.loading && 'animate-spin',
+                                    )}
+                                />
+                            </IconButton>
+                            <FilesMenu
+                                projectId={project.id}
+                                disabled={!running}
+                                hideHidden={hideHidden}
+                                onToggleHidden={toggleHidden}
+                                onClose={toggleFiles}
+                                onChanged={() => void files.refresh()}
+                                onCreatedFile={openFile}
+                                onGoToFile={() => setQuickOpen(true)}
+                            />
+                            <IconButton
+                                label="Close files"
+                                onClick={toggleFiles}
+                                testId="files-panel-close"
+                                className="md:hidden"
+                            >
+                                <X className="size-4" />
+                            </IconButton>
+                        </div>
+                        <div className="flex h-8 min-w-0 items-center gap-1 rounded-md border border-input bg-transparent pr-1 pl-2 focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
+                            <TextSearch className="size-3.5 shrink-0 text-muted-foreground" />
                             <input
-                                ref={fileSearchInput}
-                                value={fileSearch.query}
+                                ref={contentSearchInput}
+                                value={contentSearch.query}
                                 disabled={!running}
                                 onChange={(event) =>
-                                    setFileSearch({
-                                        ...fileSearch,
+                                    setContentSearch({
+                                        ...contentSearch,
                                         query: event.target.value,
                                     })
                                 }
                                 onKeyDown={(event) =>
                                     event.key === 'Escape' &&
-                                    setFileSearch({ folder: '', query: '' })
+                                    setContentSearch({
+                                        ...contentSearch,
+                                        query: '',
+                                    })
                                 }
-                                placeholder="Search files"
-                                title="Filter the tree by name; ⌘/Ctrl+P goes to any file"
-                                aria-label={`Search file names in ${fileSearch.folder || 'the project'}`}
-                                className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
-                                data-test="files-search"
+                                placeholder="Search in files"
+                                title="Search inside files (⌘/Ctrl+Shift+F)"
+                                aria-label={`Search inside files in ${fileSearch.folder || 'the project'}`}
+                                className="min-w-0 flex-1 bg-transparent pl-0.5 outline-none placeholder:text-muted-foreground"
+                                data-test="content-search"
+                            />
+                            <ContentSearchToggles
+                                search={contentSearch}
+                                onChange={(next) => {
+                                    setContentSearch(next);
+                                    contentSearchInput.current?.focus();
+                                }}
+                                disabled={!running}
                             />
                         </div>
-                        <IconButton
-                            label="Refresh files"
-                            onClick={() => void files.refresh()}
-                        >
-                            <RefreshCw
-                                className={cn(
-                                    'size-3.5',
-                                    files.loading && 'animate-spin',
-                                )}
-                            />
-                        </IconButton>
-                        <FilesMenu
-                            projectId={project.id}
-                            disabled={!running}
-                            hideHidden={hideHidden}
-                            onToggleHidden={toggleHidden}
-                            onClose={toggleFiles}
-                            onChanged={() => void files.refresh()}
-                            onCreatedFile={openFile}
-                            onGoToFile={() => setQuickOpen(true)}
-                        />
-                        <IconButton
-                            label="Close files"
-                            onClick={toggleFiles}
-                            testId="files-panel-close"
-                            className="md:hidden"
-                        >
-                            <X className="size-4" />
-                        </IconButton>
                     </div>
                     <div className="flex-1 overflow-y-auto px-1">
-                        {!running ? (
+                        {running && searchingContent ? (
+                            <ContentSearchResults
+                                {...contentResults}
+                                onOpen={(path, match) =>
+                                    openFile(path, {
+                                        line: match.line,
+                                        from: match.column[0],
+                                        to: match.column[1],
+                                        key: Date.now(),
+                                    })
+                                }
+                            />
+                        ) : !running ? (
                             <p className="p-3 text-sm text-muted-foreground">
                                 Files appear once the sandbox is running.
                             </p>
