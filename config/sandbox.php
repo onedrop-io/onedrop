@@ -164,7 +164,7 @@ return [
         'openrouter' => env('SANDBOX_MODEL_OPENROUTER', 'openrouter/anthropic/claude-sonnet-5'),
         'gemini' => env('SANDBOX_MODEL_GEMINI', 'google/gemini-3.8-flash'),
         'ollama' => env('SANDBOX_MODEL_OLLAMA', 'ollama-cloud/glm-5.3'),
-        // AI credits (CREDIT-001) run through OpenRouter, on the one cheap model below.
+        // AI credits (CREDIT-001) run any OpenRouter model, on this cheap one unless the user picks another.
         'credits' => env('SANDBOX_MODEL_CREDITS', 'openrouter/deepseek/deepseek-v4.1-flash'),
     ],
 
@@ -178,8 +178,11 @@ return [
         ],
         'gemini' => ['gemini-3.8-flash', 'gemini-3.1-pro-preview', 'gemini-3.7-flash'],
         'ollama' => ['glm-5.3', 'kimi-k2.7-code', 'deepseek-v4-pro', 'qwen3.5:397b'],
-        // The only models AI credits can run.
-        'credits' => ['deepseek/deepseek-v4.1-flash'],
+        // AI credits can run any OpenRouter model; these come first, the cheap default leading.
+        'credits' => [
+            'deepseek/deepseek-v4.1-flash', 'google/gemini-3.8-flash', 'moonshotai/kimi-k3', 'z-ai/glm-5',
+            'deepseek/deepseek-v4-pro', 'anthropic/claude-sonnet-5', 'anthropic/claude-opus-5.5', 'openai/gpt-6-astra',
+        ],
     ],
 
     // What Auto (AGT-011) runs for each size of request, per provider: [catalog id, reasoning level], smallest first

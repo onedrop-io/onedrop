@@ -38,11 +38,6 @@ class ModelCatalog
 
         $models = $this->allModels($provider);
 
-        // AI credits (CREDIT-001) only run the cheap models picked for them.
-        if ($provider === AgentProvider::Credits) {
-            return array_values(array_filter($models, fn (array $model) => $model['featured']));
-        }
-
         if (! $this->signedInWithChatGpt($provider, $user)) {
             return $models;
         }

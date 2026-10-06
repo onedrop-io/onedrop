@@ -64,7 +64,7 @@ OneDrop is a Laravel application, so the usual Laravel settings (`APP_URL`, `DB_
 | `JEV_MODEL`                      | `typesafe/jev-1.13`                    | The Jev model on OpenRouter.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `OPENROUTER_PROVISIONING_KEY` | empty | An OpenRouter management key. With `AUTUMN_SECRET_KEY`, it turns on [AI credits](/guides/set-up-ai#build-on-ai-credits): people build without their own AI, each organization on its own OpenRouter key that this one makes, limited to what the organization has left. |
 | `AUTUMN_SECRET_KEY` | empty | Autumn key that keeps each organization's AI credits. The plans live in `autumn/autumn.config.ts`; push them with `npm run atmn push`. Use a sandbox key everywhere but production. |
-| `SANDBOX_MODEL_CREDITS` | `openrouter/deepseek/deepseek-v4.1-flash` | Model that AI credits run. |
+| `SANDBOX_MODEL_CREDITS` | `openrouter/deepseek/deepseek-v4.1-flash` | Model AI credits run by default. People can pick any other OpenRouter model. |
 
 These are the defaults for new projects; users can pick any other model in the chat. Models use OpenCode's `provider/model` format.
 

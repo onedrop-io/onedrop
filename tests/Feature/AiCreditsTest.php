@@ -153,8 +153,22 @@ test('the model picker offers AI credits after the user\'s own AI, with what is 
 
     expect($response->json('harnesses.0.providers'))->toBe(['openrouter', 'credits'])
         ->and(collect($response->json('providers'))->firstWhere('id', 'credits'))
-        ->label->toBe('AI credits · $4.82 left')
-        ->models->toHaveCount(1);
+        ->label->toBe('AI credits · $4.82 left');
+})->group('CREDIT-001');
+
+test('AI credits offer any OpenRouter model, the cheap default first', function () {
+    fakeCredits(482);
+
+    $models = $this->actingAs($this->user)->getJson(route('agent-models.index'))->assertOk()
+        ->collect('providers')->firstWhere('id', 'credits')['models'];
+
+    expect(array_column($models, 'id'))->toBe(['deepseek/deepseek-v4.1-flash', 'moonshotai/kimi-k3', 'anthropic/claude-sonnet-5']);
+
+    $this->actingAs($this->user)
+        ->patch(route('projects.agent.update', $this->project), ['agent_provider' => 'credits', 'agent_model' => 'anthropic/claude-sonnet-5'])
+        ->assertSessionHasNoErrors();
+
+    expect($this->project->fresh()->agent_model)->toBe('anthropic/claude-sonnet-5');
 })->group('CREDIT-001');
 
 test('AI credits can not be connected like a provider', function () {

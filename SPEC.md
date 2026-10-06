@@ -1757,7 +1757,8 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## CREDIT-001: AI credits to start
 
-- On an install with AI credits turned on, user should be able to build without connecting their own AI: they skip the AI onboarding and the agent runs on "AI credits" (DeepSeek Flash through OpenRouter).
+- On an install with AI credits turned on, user should be able to build without connecting their own AI: they skip the AI onboarding and the agent runs on "AI credits" (DeepSeek Flash through OpenRouter by default).
+- User on AI credits should be able to pick any OpenRouter model in the model picker, DeepSeek Flash first; the run is paid from the credits at that model's price.
 - Each organization should start with $5 of AI credits once, plus $1 every month that doesn't carry over; the monthly $1 is used first.
 - Each run on credits should be charged to the project's organization at the provider's price, with no markup, from what OpenRouter says the organization's key spent.
 - User should see what's left of the organization's AI credits beside the model picker under the chat box (on a project and on the new-project page) whenever the install offers them: dimmed while the project uses their own AI, and while it builds on credits, amber when it's low and red with when more arrives once it's used up; hovering it shows this month's part, the welcome part, when the next $1 arrives, and whether this project uses them.
