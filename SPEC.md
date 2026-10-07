@@ -1088,6 +1088,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - The written query should replace the editor's text, so the user can read and edit it; a query that only reads should run right away, and one that would change data should wait for the user to press Run (and on the hosted database, to confirm as usual).
 - The AI should write a query that only reads unless the user asks for a change, and limit what a search returns.
 - It should use the same AI as the project's chat (the user's own connection, a Claude subscription, or the organization's AI credits), and say why when there's none to ask or the sandbox isn't running.
+
 ## APPAUTH-001: Users & Auth for the app
 
 - User should see a Users & Auth section under Tools that explains how to let people sign in to their app.
