@@ -3,6 +3,7 @@
 namespace App\Sandbox;
 
 use App\Models\Project;
+use Closure;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
@@ -422,10 +423,10 @@ class GitHubPulls
     /**
      * @template T
      *
-     * @param  callable(): T  $callback
+     * @param  Closure(): T  $callback
      * @return T
      */
-    protected function cached(Project $project, string $key, callable $callback): mixed
+    protected function cached(Project $project, string $key, Closure $callback): mixed
     {
         return Cache::remember($this->cacheKey($project, $key), self::CACHE_SECONDS, $callback);
     }

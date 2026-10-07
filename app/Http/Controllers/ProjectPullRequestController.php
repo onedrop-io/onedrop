@@ -180,12 +180,19 @@ class ProjectPullRequestController extends Controller
      */
     protected function checkOutProblem(Project $project, array $pull): ?string
     {
-        return match (true) {
-            ! Task::getsCopies() => __('Checking out needs tasks to get their own copy of the app, which is turned off here (SANDBOX_TASK_COPIES).'),
-            ! in_array($pull['state'], ['open', 'draft'], true) => __('Only open pull requests can be checked out.'),
-            $project->taskCopyLimitReached() => TaskController::copyLimitError($project)->getMessage(),
-            default => null,
-        };
+        if (! Task::getsCopies()) {
+            return __('Checking out needs tasks to get their own copy of the app, which is turned off here (SANDBOX_TASK_COPIES).');
+        }
+
+        if (! in_array($pull['state'], ['open', 'draft'], true)) {
+            return __('Only open pull requests can be checked out.');
+        }
+
+        if ($project->taskCopyLimitReached()) {
+            return TaskController::copyLimitError($project)->getMessage();
+        }
+
+        return null;
     }
 
     /**
@@ -227,7 +234,7 @@ class ProjectPullRequestController extends Controller
     /**
      * Keep the task's checks as last seen when they're for its newest commit, so the board and its page agree with GitHub.
      *
-     * @param  list<array<string, mixed>>  $checks
+     * @param  list<array{state: string}>  $checks
      */
     protected function remember(?Task $task, string $sha, array $checks): void
     {

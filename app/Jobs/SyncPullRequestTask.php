@@ -35,14 +35,27 @@ class SyncPullRequestTask implements ShouldQueue
     {
         $copy = $task->sandbox()->first();
 
-        return match (true) {
-            ! $task->isPullRequest() => __('This task isn\'t a pull request.'),
-            $task->sync_status !== null => __('Wait for the current push or pull to finish.'),
-            $copy?->status !== SandboxStatus::Running || $copy->external_id === null => __("This task doesn't have its own copy of the app running."),
-            $direction === TaskSyncStatus::Pushing && $task->pull_request_fork => __('This pull request comes from a fork, so OneDrop can\'t push to it.'),
-            $direction === TaskSyncStatus::Pulling && $task->isWorking() => __("Wait for the task's agent to finish, or stop it."),
-            default => null,
-        };
+        if (! $task->isPullRequest()) {
+            return __('This task isn\'t a pull request.');
+        }
+
+        if ($task->sync_status !== null) {
+            return __('Wait for the current push or pull to finish.');
+        }
+
+        if ($copy?->status !== SandboxStatus::Running || $copy->external_id === null) {
+            return __("This task doesn't have its own copy of the app running.");
+        }
+
+        if ($direction === TaskSyncStatus::Pushing && $task->pull_request_fork) {
+            return __('This pull request comes from a fork, so OneDrop can\'t push to it.');
+        }
+
+        if ($direction === TaskSyncStatus::Pulling && $task->isWorking()) {
+            return __("Wait for the task's agent to finish, or stop it.");
+        }
+
+        return null;
     }
 
     /**
