@@ -5,6 +5,10 @@
 # rebuilt php or composer image (Debian security fixes) is an update too.
 FROM php:8.4-cli-bookworm@sha256:f1d32fb402fffba0b3dd8ba8c0aca474c9e9f04395fa846eedea77c503257dee
 
+# apt gives up on a stalled download after 30 seconds and tries again, instead of waiting forever: Runtime's build
+# proxy sometimes drops one mid-download, which hung builds until Runtime stopped them at 30 minutes.
+RUN printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' > /etc/apt/apt.conf.d/80-retries
+
 # Postgres's own apt repository, so psql and pg_dump are the newest major and work with any server version (Debian's
 # are 15, and pg_dump refuses newer servers).
 RUN apt-get update \

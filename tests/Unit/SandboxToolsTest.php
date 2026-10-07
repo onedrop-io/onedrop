@@ -36,6 +36,15 @@ test('the image keeps a copy of its base files where the platform reads them', f
     expect($dockerfile)->toContain('COPY '.implode(' ', SandboxTools::BASE_FILES).' '.SandboxTools::BASE_PATH.'/');
 })->group('SBX-002');
 
+test('the image retries stalled apt downloads before installing anything', function () {
+    $dockerfile = file_get_contents(dirname(__DIR__, 2).'/docker/sandbox/Dockerfile');
+    $retries = strpos($dockerfile, 'Acquire::Retries');
+
+    expect($retries)->not->toBeFalse()
+        ->and($dockerfile)->toContain('Acquire::http::Timeout')
+        ->and($retries)->toBeLessThan(strpos($dockerfile, 'apt-get update'));
+})->group('SBX-002');
+
 test('comparing a sandbox\'s tools sends the paths in the environment, within the arguments Runtime takes', function () {
     $tools = new SandboxTools(base_path('docker/sandbox'));
     $provider = new FakeSandboxProvider;
