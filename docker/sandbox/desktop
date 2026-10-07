@@ -54,6 +54,8 @@ cp "$FILES/openbox.xml" "$XDG_CONFIG_HOME/openbox/rc.xml"
 cp "$FILES/pcmanfm-desktop.conf" "$XDG_CONFIG_HOME/pcmanfm/default/desktop-items-0.conf"
 cp -n "$FILES/pcmanfm.conf" "$XDG_CONFIG_HOME/pcmanfm/default/pcmanfm.conf"
 printf '[config]\nquick_exec=1\n' >"$XDG_CONFIG_HOME/libfm/libfm.conf"
+# The Terminal's bash reads the Home's .bashrc: give it one that loads the Shell tab's setup (colors, ls, prompt).
+cp -n /opt/onedrop/home-bashrc "$HOME/.bashrc"
 cp "$FILES/gtk-settings.ini" "$XDG_CONFIG_HOME/gtk-3.0/settings.ini"
 printf 'gtk-theme-name="Adwaita-dark"\ngtk-icon-theme-name="Papirus-Dark"\ngtk-font-name="Inter 10"\n' >"$HOME/.gtkrc-2.0"
 mkdir -p "$HOME/.themes/OneDrop" "$HOME/.local/share/plank/themes/OneDrop"

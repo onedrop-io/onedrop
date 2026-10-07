@@ -1905,6 +1905,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should have one computer in each organization they belong to; leaving an organization, or deleting their account, should delete their computer there.
 - User should be able to restart their computer's desktop (programs close, files stay) and to reset it (a new computer: Home and sign-ins gone, Drive kept) from its menu, after confirming the reset.
 - User should be able to open the computer's Shell and Files tabs beside the desktop, as in a project.
+- User should get the same shell in the desktop's Terminal as in the Shell tab: colored `ls`, the prompt and the shortcuts.
 - User's computer should not show up as a project: not in the sidebar's projects, search, the desktop app's activity, or project counts; its AI usage shows on the Usage page as "Computer".
 
 ## CMP-002: Give the AI a task on your computer
