@@ -310,6 +310,11 @@ class Drive
         $path = $this->disk()->path($upload['blob']);
         @mkdir(dirname($path), 0755, true);
         $file = fopen($path, 'c');
+
+        if ($file === false) {
+            throw new DriveException(__('The upload could not be saved. Try again.'));
+        }
+
         fseek($file, $index * self::PART_BYTES);
         fwrite($file, $body);
         fclose($file);
@@ -350,7 +355,7 @@ class Drive
                 $name = $this->freeName($space, $parent, $this->conflictName($name));
             }
 
-            $this->ensureRoom(Organization::query()->findOrFail($space->organizationId), $upload['size'] - ($target?->size ?? 0));
+            $this->ensureRoom(Organization::query()->findOrFail($space->organizationId), $upload['size'] - ($target->size ?? 0));
 
             $columns = [
                 'size' => $upload['size'],
@@ -876,7 +881,7 @@ class Drive
                 'Bucket' => $this->bucket(),
                 'Key' => $key,
                 'UploadId' => $upload['multipart'],
-                'MultipartUpload' => ['Parts' => collect($parts)->map(fn (array $part) => ['PartNumber' => $part['PartNumber'], 'ETag' => $part['ETag']])->all()],
+                'MultipartUpload' => ['Parts' => array_map(fn (array $part) => ['PartNumber' => $part['PartNumber'], 'ETag' => $part['ETag']], array_values($parts))],
             ]);
         }
 

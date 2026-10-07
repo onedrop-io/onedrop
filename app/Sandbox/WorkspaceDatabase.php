@@ -41,7 +41,7 @@ class WorkspaceDatabase
     }
 
     /**
-     * @return list<array{name: string, type: 'table'|'view'}>
+     * @return list<array{name: string, type: 'table'|'view', columns: list<string>, database?: string, collection?: string}>
      *
      * @throws SandboxException|DatabaseException
      */

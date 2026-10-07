@@ -45,7 +45,7 @@ class DockerSandboxProvider implements SandboxProvider
     public const STOP_SECONDS = 5;
 
     /**
-     * @param  array{image: string, memory: string, cpus: string, host: string, runtime?: ?string, nested_docker?: ?string, network?: ?string, reach?: ?string, storage_path?: ?string}  $config
+     * @param  array{image: string, memory: string, cpus: string, host: ?string, runtime?: ?string, nested_docker?: ?string, network?: ?string, reach?: ?string, storage_path?: ?string}  $config
      */
     public function __construct(protected array $config) {}
 
@@ -254,7 +254,7 @@ class DockerSandboxProvider implements SandboxProvider
      */
     protected function browserHost(): string
     {
-        if (filled($this->config['host'] ?? null)) {
+        if (filled($this->config['host'])) {
             return $this->config['host'];
         }
 

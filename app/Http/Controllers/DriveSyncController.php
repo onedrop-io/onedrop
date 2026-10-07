@@ -177,7 +177,7 @@ class DriveSyncController extends Controller
     protected function placeOf(Collection $spaces, array $data): array
     {
         $space = $this->drive->pick($spaces, (string) $data['space']) ?? abort(404);
-        $parent = isset($data['parent_id']) ? DriveItem::query()->in($space)->find($data['parent_id']) : null;
+        $parent = isset($data['parent_id']) ? DriveItem::query()->in($space)->find((int) $data['parent_id']) : null;
 
         abort_if(isset($data['parent_id']) && $parent === null, 409, __('That folder no longer exists.'));
 

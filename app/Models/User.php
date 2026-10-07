@@ -293,6 +293,8 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
 
     /**
      * The user's computer in the organization, if they've opened it (CMP-001).
+     *
+     * @phpstan-impure
      */
     public function computerIn(Organization $organization): ?Project
     {
