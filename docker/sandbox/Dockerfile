@@ -5,20 +5,23 @@
 # rebuilt php or composer image (Debian security fixes) is an update too.
 FROM php:8.4-cli-bookworm@sha256:f1d32fb402fffba0b3dd8ba8c0aca474c9e9f04395fa846eedea77c503257dee
 
-# apt gives up on a stalled download after 30 seconds and tries again, instead of waiting forever: Runtime's build
-# proxy sometimes drops one mid-download, which hung builds until Runtime stopped them at 30 minutes.
-RUN printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' > /etc/apt/apt.conf.d/80-retries
+# Runtime's build proxy sometimes drops a download mid-way and holds the connection open, which hung builds until
+# Runtime stopped them at 30 minutes. apt retries failed downloads, and apt-update stops a stuck `apt-get update`
+# after 2 minutes and tries again (apt's own timeout never fires on a held connection).
+RUN printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' > /etc/apt/apt.conf.d/80-retries \
+    && printf '#!/bin/sh\nfor try in 1 2 3 4 5; do\n    timeout -k 10 120 apt-get update && exit 0\n    echo "apt-get update stalled or failed (try $try of 5)" >&2\ndone\nexit 1\n' > /usr/local/bin/apt-update \
+    && chmod +x /usr/local/bin/apt-update
 
 # Postgres's own apt repository, so psql and pg_dump are the newest major and work with any server version (Debian's
 # are 15, and pg_dump refuses newer servers).
-RUN apt-get update \
+RUN apt-update \
     && apt-get install -y --no-install-recommends git curl unzip ca-certificates sqlite3 libsqlite3-dev libpq-dev libzip-dev procps openssh-server bash-completion vim ncdu rsync inotify-tools tmux zstd \
     && docker-php-ext-install pdo_sqlite pdo_pgsql pdo_mysql zip pcntl \
     && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && install -m 0755 -d /etc/apt/keyrings \
     && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc -o /etc/apt/keyrings/postgresql.asc \
     && echo "deb [signed-by=/etc/apt/keyrings/postgresql.asc] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
-    && apt-get update \
+    && apt-update \
     && apt-get install -y --no-install-recommends nodejs postgresql-client mariadb-client redis-tools python3 python3-venv python3-pip shellcheck \
     && corepack enable \
     && rm -rf /var/lib/apt/lists/*
@@ -26,7 +29,7 @@ RUN apt-get update \
 # PHP's mongodb extension, for MongoDB in the Tools → Database panel (DB-002); OpenSSL for Atlas's TLS.
 # renovate: datasource=github-releases depName=mongodb/mongo-php-driver
 ARG MONGODB_EXT_VERSION=2.5.3
-RUN apt-get update \
+RUN apt-update \
     && apt-get install -y --no-install-recommends libssl-dev pkg-config \
     && pecl install "mongodb-${MONGODB_EXT_VERSION}" \
     && docker-php-ext-enable mongodb \
@@ -93,14 +96,14 @@ RUN case "${TARGETARCH:-amd64}" in arm64) arch=aarch64 go=arm64 lazygit=arm64 mi
     && curl -fsSL "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${arch}-unknown-linux-gnu.tar.gz" | tar -xz -C /usr/local/bin --strip-components=1 "uv-${arch}-unknown-linux-gnu/uv" "uv-${arch}-unknown-linux-gnu/uvx"
 
 # Headless Chromium for share cards: a screenshot of the app and the card made from it (SHARE-001, see share-card).
-RUN apt-get update \
+RUN apt-update \
     && apt-get install -y --no-install-recommends chromium fonts-liberation2 fonts-noto-color-emoji \
     && rm -rf /var/lib/apt/lists/*
 
 # A person's computer's desktop (CMP-001), started by start.sh only in computers: TigerVNC's Xvnc (screen and VNC in
 # one), Openbox, picom (rounded corners and shadows), a Plank dock, PCManFM (the desktop), Thunar (files), a terminal, Papirus
 # icons and Inter, noVNC with websockify for the viewer, and xdotool and scrot for the AI's `computer` command (CMP-002).
-RUN apt-get update \
+RUN apt-update \
     && apt-get install -y --no-install-recommends tigervnc-standalone-server openbox plank pcmanfm xfce4-terminal \
         novnc websockify xdotool scrot dbus-x11 x11-xserver-utils xdg-utils adwaita-icon-theme gnome-themes-extra \
         at-spi2-core fonts-noto-core fonts-wqy-microhei picom papirus-icon-theme fonts-inter thunar libglib2.0-bin librsvg2-common \
@@ -110,7 +113,7 @@ RUN apt-get update \
 # the provider gives the sandbox its own volume for Docker's data and sets ONEDROP_DOCKER=1.
 RUN curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian bookworm stable" > /etc/apt/sources.list.d/docker.list \
-    && apt-get update \
+    && apt-update \
     && apt-get install -y --no-install-recommends docker-ce docker-ce-cli containerd.io docker-compose-plugin docker-buildx-plugin iptables sudo \
     && rm -rf /var/lib/apt/lists/*
 
