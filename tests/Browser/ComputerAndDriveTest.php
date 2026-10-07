@@ -1,7 +1,10 @@
 <?php
 
+use App\Enums\ProjectKind;
 use App\Models\AgentConnection;
 use App\Models\DriveItem;
+use App\Models\Project;
+use App\Models\Sandbox;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Support\Facades\Storage;
@@ -36,6 +39,33 @@ test('the dev user opens their computer from the sidebar and gets a desktop with
 
     expect($this->user->computers()->count())->toBe(1);
 })->group('CMP-001', 'CMP-002');
+
+test('a woken computer\'s desktop loads again until its viewer answers', function () {
+    // Woken from a stop, the desktop is still starting: nothing listens yet, so the frame gets an error page.
+    $computer = Project::factory()->for($this->user)->create([
+        'organization_id' => $this->user->currentOrganization()->id,
+        'kind' => ProjectKind::Computer,
+    ]);
+    Sandbox::factory()->for($computer)->create(['external_id' => 'ctr', 'preview_url' => 'http://127.0.0.1:9/']);
+
+    $page = signInAsDev()
+        ->click('@sidebar-computer')
+        ->assertPresent('@desktop-frame')
+        ->assertSee('Starting your computer…');
+    $markStale = "document.querySelector('[data-test=desktop-frame]').dataset.stale = 'yes'";
+    $stale = "document.querySelector('[data-test=desktop-frame]').dataset.stale ?? null";
+
+    $page->script($markStale);
+    $page->wait(5);
+    expect($page->script($stale))->toBeNull();
+
+    // The viewer loaded: it reconnects by itself from now on, so the frame stays.
+    $page->script("window.dispatchEvent(new MessageEvent('message', { data: { type: 'onedrop-desktop', state: 'connecting' }, source: document.querySelector('[data-test=desktop-frame]').contentWindow }))");
+    $page->assertMissing('@desktop-placeholder');
+    $page->script($markStale);
+    $page->wait(5);
+    expect($page->script($stale))->toBe('yes');
+})->group('CMP-001');
 
 test('the dev user keeps files in Drive: a folder, an upload, a rename, Trash and back', function () {
     Storage::fake('local');

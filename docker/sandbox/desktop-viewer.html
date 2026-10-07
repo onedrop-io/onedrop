@@ -100,6 +100,7 @@
 
             function connect() {
                 clearTimeout(retry);
+                tell('connecting');
 
                 rfb = new RFB(screen, socketUrl(), { shared: true });
                 rfb.resizeSession = true;

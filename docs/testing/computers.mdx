@@ -24,6 +24,7 @@ These need real Docker sandboxes and an image with the desktop: run `php artisan
 2. Leave the page for a few minutes (Docker suspends it after a minute), then come back.
 
 - [ ] The desktop comes back with Chromium as it was, after **Reconnecting…** at most.
+- [ ] Stop its container (`docker stop onedrop-computer-…`), go to another page, then click **Computer**: **Starting your computer…** shows, then the desktop appears by itself, with no need to leave and come back.
 - [ ] **⋯ → Restart desktop** closes everything; the desktop comes back; the file and the sign-in are kept.
 - [ ] **⋯ → Reset computer…** asks first; afterwards it's a new computer (Documents empty, signed out) and Drive still has its files.
 
