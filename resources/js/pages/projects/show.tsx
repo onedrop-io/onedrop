@@ -8,6 +8,7 @@ import {
 } from '@inertiajs/react';
 import {
     ArrowLeft,
+    AppWindow,
     ArrowRight,
     Ban,
     Brush,
@@ -2348,6 +2349,25 @@ function WorkspacePanel({
                                                     </a>
                                                 </DropdownMenuItem>
                                             )}
+                                        {pane.active === 'preview' &&
+                                            url &&
+                                            !computer && (
+                                                <DropdownMenuItem
+                                                    onSelect={() =>
+                                                        openPreviewWindow(
+                                                            previewUrlAt(
+                                                                url,
+                                                                previewPage,
+                                                                sandbox?.shell_via_gateway ??
+                                                                    false,
+                                                            ),
+                                                        )
+                                                    }
+                                                >
+                                                    <AppWindow />
+                                                    Open in a new window
+                                                </DropdownMenuItem>
+                                            )}
                                         {index === filesTogglePane && (
                                             <DropdownMenuItem
                                                 onSelect={toggleFiles}
@@ -3737,8 +3757,9 @@ function TaskEmptyState({
 /**
  * The address of the preview's page, in the bar above it. It follows the page as the app moves around, and typing
  * one of the app's paths (or its full address) then Enter goes there; Esc puts it back. The copy button that shows
- * on hover copies a link that opens the same page, and the arrow opens it in a new tab; clicking or selecting the
- * address never touches the clipboard. Until it is focused, the path stands out and the host is dimmed.
+ * on hover copies a link that opens the same page, the arrow opens it in a new tab and the window button in a
+ * full-size pop-up window; clicking or selecting the address never touches the clipboard. Until it is focused, the
+ * path stands out and the host is dimmed.
  */
 function PreviewAddress({
     address,
@@ -3846,6 +3867,27 @@ function PreviewAddress({
             >
                 <ExternalLink className="size-3.5" />
             </a>
+            <button
+                type="button"
+                onClick={() => openPreviewWindow(link)}
+                aria-label="Open preview in a new window"
+                title="Open preview in a new window"
+                className="shrink-0 rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                data-test="preview-open-window"
+            >
+                <AppWindow className="size-3.5" />
+            </button>
         </div>
+    );
+}
+
+/** Open the preview in its own pop-up window (no tabs or toolbars) as big as the screen. */
+function openPreviewWindow(link: string): void {
+    const { availWidth, availHeight } = window.screen;
+
+    window.open(
+        link,
+        '_blank',
+        `popup,noopener,left=0,top=0,width=${availWidth},height=${availHeight}`,
     );
 }

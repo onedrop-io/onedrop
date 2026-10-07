@@ -221,11 +221,12 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see the agent's replies appear while it works, without reloading.
 - User should be able to send follow-up messages to the agent.
 - User should see the live app in the preview once it has a preview URL, and a placeholder until then.
-- User should see a bar between the tab bar and the preview, like a browser's toolbar: back, forward and reload on the left, then the address of the app's page the preview is on in a rounded address field (not on a phone), with copy and open-in-a-new-tab inside it, then size, inspect and annotate.
+- User should see a bar between the tab bar and the preview, like a browser's toolbar: back, forward and reload on the left, then the address of the app's page the preview is on in a rounded address field (not on a phone), with copy, open-in-a-new-tab and open-in-a-new-window inside it, then size, inspect and annotate.
 - User should see the page's path stand out in the address and its host dimmed, like a browser, until they click into it to type.
 - User should see a thin moving line under the bar while the preview's page loads, which goes away once it has loaded.
 - User should be able to go back and forward through the pages they visited in the preview; each button is greyed out when there's nowhere to go.
 - User should be able to type one of the app's paths (or its full address) in the address and press Enter to go there; Esc puts the address back. An address on another site is refused and stays to fix.
+- User should be able to open the preview's page in a new window: a pop-up with no tabs or toolbars, as big as their screen.
 - User should be able to copy the preview's address with the copy button that shows when they hover it (a check shows briefly after). Clicking or selecting the address itself shouldn't copy it.
 - User should see their recent projects in the sidebar.
 - On a phone, the sidebar should close once the user picks a project (or any other page) in it.
@@ -692,7 +693,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 ## LAYOUT-007: Tabs and header buttons on a phone
 
 - On a phone, user should see one button for a pane's tabs showing the tab on screen and how many are open; tapping it opens a sheet listing the open tabs (to switch to or close) and the tabs that can be opened.
-- The showing tab's own buttons (e.g. the preview's Inspect, Annotate and Reload) should stay in the bar however many tabs are open; "Open in a new tab" and the files toggle should be in a "⋯" menu.
+- The showing tab's own buttons (e.g. the preview's Inspect, Annotate and Reload) should stay in the bar however many tabs are open; "Open in a new tab", "Open in a new window" and the files toggle should be in a "⋯" menu.
 - On a phone, the header's Commit and Share buttons should show only their icons, Publish keeps its label, and the project's name should stay on one line, cut short if it's long.
 - Panels opened from the header (Share, Publish) should fit the phone's screen.
 

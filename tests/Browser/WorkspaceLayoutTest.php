@@ -213,6 +213,7 @@ test('on a small screen a pane\'s tabs are one switcher, with the rest in a shee
         ->assertVisible('@preview-annotate')
         ->click('@pane-more')
         ->assertSee('Open in a new tab')
+        ->assertSee('Open in a new window')
         ->assertNoJavaScriptErrors();
 
     $page->screenshot(filename: 'mobile-tab-switcher');
@@ -262,6 +263,23 @@ test('the preview address copies only from its copy button', function () {
         ->click('@preview-address-copy')
         ->assertAttribute('@preview-address-copy', 'title', 'Copied')
         ->assertScript('window.copiedText', 'http://127.0.0.1:49152')
+        ->assertNoJavaScriptErrors();
+})->group('PRJ-002');
+
+test('the preview opens in a pop-up window as big as the screen', function () {
+    $user = User::factory()->has(AgentConnection::factory())->create();
+    $project = Project::factory()->for($user)->create();
+    Sandbox::factory()->for($project)->create(['preview_url' => 'http://127.0.0.1:49152']);
+    $this->actingAs($user);
+
+    $page = visit("/projects/{$project->id}")->resize(1600, 900);
+
+    $page->script('window.open = (url, target, features) => { window.opened = [url, target, features]; return null; }');
+
+    $page->hover('@preview-address')
+        ->click('@preview-open-window')
+        ->assertScript('window.opened[0]', 'http://127.0.0.1:49152')
+        ->assertScript('window.opened[2] === `popup,noopener,left=0,top=0,width=${screen.availWidth},height=${screen.availHeight}`', true)
         ->assertNoJavaScriptErrors();
 })->group('PRJ-002');
 
