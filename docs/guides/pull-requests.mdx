@@ -1,0 +1,72 @@
+---
+title: 'Pull requests'
+description: "Follow a GitHub repository's pull requests, check one out as a task, and have the agent fix its failing checks."
+---
+
+When your project is connected to a GitHub repository (see [Git](/guides/git)), **Tools → Pull requests** shows the repository's pull requests. You can read one the way you would on GitHub, run it as a [task](/guides/tasks) with its own copy of the app, and have that task's agent fix its failing checks.
+
+OneDrop reads GitHub with the same connection it pushes with: the GitHub App, or the access token you connected with. Nothing about GitHub goes into the sandbox.
+
+## Browse pull requests
+
+The list shows the open pull requests, the most recently changed first. Switch to **Closed** for closed and merged ones, or search by title, number, branch or author. Each row shows:
+
+- its number, author, and its branch and the branch it goes into
+- **Draft**, and the review: **Approved**, **Changes requested** or **Review required**
+- how many comments it has
+- its checks: a green tick when they passed, a red cross when one failed, a spinning circle while they run
+- **Task** when it's checked out as a task
+
+## A pull request's page
+
+Click a pull request to open its page. The address keeps it (`?tab=tools&tool=pulls&pr=12`), so a reload or a shared link opens it again. At the top are its state, who opened it, its branches, its size, whether it has conflicts with the branch it goes into, and **Open on GitHub**. Below, four tabs:
+
+| Tab               | What it shows                                                                                                                                        |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Conversation**  | The description, then comments, reviews and comments on lines, oldest first.                                                                         |
+| **Commits**       | Each commit's message, author and when, with a link to it on GitHub.                                                                                 |
+| **Files changed** | Each file with lines added and removed. Click one to see its diff. GitHub leaves out the diff of very large files; open those on GitHub.             |
+| **Checks**        | Each check and commit status on the newest commit, how long it took, and a link to its details. Click a failed check to see the end of its log. |
+
+While any check is still running, the page looks again every 15 seconds.
+
+## Check out a pull request as a task
+
+Click **Check out as task**. OneDrop starts a task named after the pull request, such as "#12 Fix login", makes its own copy of the app from Main, and switches the copy to the pull request's branch with its newest commits. The agent doesn't start. The task's preview, files, shell and tools now show the pull request's code, so you can try it before you review it. Main isn't touched.
+
+A pull request is checked out once. After that, its button says **Open task**.
+
+The task's page shows the pull request where other tasks show **Apply to Main**:
+
+| Control                              | What it does                                                                                                                                         |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **#12**                              | Opens the pull request's page in Tools.                                                                                                              |
+| **Pull**                             | Brings in commits pushed to the pull request since. They're merged in, and the task's agent resolves conflicts and installs what changed.          |
+| **Push**                             | Commits what changed in the task's copy and pushes it to the pull request's branch.                                                                  |
+| **Push after each turn**             | On by default: when the agent finishes a turn, its work is pushed to the pull request.                                                               |
+| **Fix failing checks automatically** | Off by default. See below.                                                                                                                           |
+
+Ask the task's agent for changes the same way as in any chat. It works on the pull request's branch, and its work reaches GitHub through **Push**, since the agent can't push itself.
+
+OneDrop never force-pushes. If someone pushed to the pull request in the meantime, the push fails and the task says to pull first.
+
+<Note>
+  A pull request from a fork runs in its task, but can't be pushed to: OneDrop
+  can only write to your repository.
+</Note>
+
+Checking out needs tasks to get their own copy of the app. On an install where that's turned off, the button says why.
+
+## Fix failing checks
+
+When a check fails, click **Fix failing checks** on the pull request's page. The names of the failed checks and the end of their logs go to the pull request's task (it's checked out first if it has none), asking its agent to find and fix the cause. When its turn ends, the fix is pushed and the checks run again.
+
+To keep going without you, turn on **Fix failing checks automatically** on the task. After each push, OneDrop watches the checks. When they fail, it sends them to the agent the same way. If 3 tries in a row don't make them pass, it stops and says so in the task's chat; passing checks start the count again.
+
+After each push, the task's chat says how the checks went, such as "Checks passed on 3f2a1c9" or "2 checks failed on 3f2a1c9", and the task's card on the [board](/guides/tasks) shows them too.
+
+The agent is asked to fix the code, not the checks: it doesn't skip, delete or loosen tests, or add sleeps or longer timeouts. If a check fails for a reason outside the code, such as a missing secret, it says so instead of changing anything.
+
+## What GitHub needs to allow
+
+With the GitHub App, its admin gives it the **Pull requests**, **Checks**, **Commit statuses** and **Actions** read permissions (see [GitHub App](/self-hosting/github-app)); admins see in Tools → Git which are missing. With an access token, the token needs the same read access to the repository. When GitHub refuses, the section says which permission it needs.

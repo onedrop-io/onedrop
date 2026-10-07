@@ -37,13 +37,37 @@ export type TaskDetail = Task & {
     own_copy: boolean;
     /** It has that copy now (it's made with the first message, and removed once applied). */
     has_copy: boolean;
-    /** Merging between the copy and Main. */
-    sync_status: 'forking' | 'applying' | 'updating' | null;
+    /** Making the copy, merging between the copy and Main, or pushing to or pulling from its pull request. */
+    sync_status:
+        | 'forking'
+        | 'applying'
+        | 'updating'
+        | 'pushing'
+        | 'pulling'
+        | null;
     /** Why the last merge failed. */
     sync_error: string | null;
     applied_at: string | null;
     /** A message that failed because Claude Code wasn't signed in waits to run again (AI-005). */
     waiting_for_sign_in: boolean;
+    /** Checked out from a GitHub pull request (GIT-014). */
+    pull_request: TaskPullRequest | null;
+};
+
+/** A task's pull request (GIT-014, GIT-015). */
+export type TaskPullRequest = {
+    number: number;
+    branch: string;
+    base: string;
+    /** Its branch is in a fork, which can't be pushed to. */
+    fork: boolean;
+    /** Push the agent's work after each turn. */
+    push: boolean;
+    /** Send failed checks to the agent after each push. */
+    autofix: boolean;
+    checks: 'success' | 'failure' | 'pending' | null;
+    head_sha: string | null;
+    url: string | null;
 };
 
 /** Why an agent is waiting for the user after its turn, as Jev judged it (PRJ-011; App\Enums\TurnOutcome). */
@@ -67,6 +91,8 @@ export type BoardTask = Task & {
     /** Its last turn just ended and is still being checked for waiting_for. */
     checking: boolean;
     updated_at: string | null;
+    /** Checked out from a pull request: its number and its checks as last seen (GIT-014). */
+    pull_request: { number: number; checks: TaskPullRequest['checks'] } | null;
 };
 
 /** The project the user opened: the sidebar shows just it, with all its tasks. */

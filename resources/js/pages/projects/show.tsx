@@ -21,7 +21,9 @@ import {
     FlaskConical,
     Globe,
     FileText,
+    CloudUpload,
     GitMerge,
+    GitPullRequest,
     Kanban,
     LoaderCircle,
     SquareMousePointer,
@@ -83,6 +85,7 @@ import PreviewInspectorPanel, {
     inspectorRects,
     usePreviewInspector,
 } from '@/components/workspace/preview-inspector';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
     DropdownMenu,
@@ -119,6 +122,10 @@ import PublishMenu from '@/components/workspace/publish-menu';
 import { ComputerMenu, DesktopView } from '@/components/workspace/desktop-view';
 import ShareMenu from '@/components/workspace/share-menu';
 import ToolsPanel from '@/components/workspace/tools-panel';
+import {
+    ChecksIcon,
+    openPullRequest,
+} from '@/components/workspace/pull-requests-panel';
 import FileViewer from '@/components/workspace/file-viewer';
 import type { FileLocation } from '@/components/workspace/file-viewer';
 import {
@@ -181,6 +188,7 @@ import type {
     SandboxState,
     Sharing,
     TaskDetail,
+    TaskPullRequest,
     TaskStage,
     WorkspaceFile,
 } from '@/types';
@@ -663,12 +671,21 @@ function ChatPanel({
             {(task || newTask) && (
                 <TaskHeader projectId={project.id} task={task} />
             )}
-            {task?.own_copy && (
-                <TaskCopyBar
+            {task?.pull_request ? (
+                <PullRequestBar
                     projectId={project.id}
                     task={task}
+                    pullRequest={task.pull_request}
                     working={working}
                 />
+            ) : (
+                task?.own_copy && (
+                    <TaskCopyBar
+                        projectId={project.id}
+                        task={task}
+                        working={working}
+                    />
+                )
             )}
             <div
                 ref={scroller}
@@ -3696,6 +3713,160 @@ function TaskCopyBar({
                         Apply to Main
                     </button>
                 </>
+            )}
+        </div>
+    );
+}
+
+/**
+ * Under a pull request's task's title (GIT-014): the pull request, its checks, Push and Pull, and whether the agent's
+ * work is pushed after each turn and failed checks are fixed automatically (GIT-015).
+ */
+function PullRequestBar({
+    projectId,
+    task,
+    pullRequest,
+    working,
+}: {
+    projectId: number;
+    task: TaskDetail;
+    pullRequest: TaskPullRequest;
+    working: boolean;
+}) {
+    const ids = { project: projectId, task: task.id };
+    const busy = task.sync_status !== null || !task.has_copy;
+    const post = (url: string) =>
+        router.post(url, {}, { preserveScroll: true });
+    const set =
+        (field: 'pull_request_push' | 'pull_request_autofix') =>
+        (value: boolean) =>
+            router.patch(
+                TaskController.update.url(ids),
+                { [field]: value },
+                { preserveScroll: true },
+            );
+
+    return (
+        <div
+            className="flex shrink-0 flex-col gap-1 border-b border-sidebar-border/70 px-4 py-1.5 text-xs text-muted-foreground dark:border-sidebar-border"
+            data-test="task-pull-request-bar"
+        >
+            <div className="flex min-h-6 flex-wrap items-center gap-2">
+                <GitPullRequest className="size-3.5 shrink-0" />
+                <button
+                    type="button"
+                    onClick={() => openPullRequest(pullRequest.number)}
+                    title="Open its page in Tools"
+                    className="font-medium text-foreground hover:underline"
+                    data-test="task-pull-request-open"
+                >
+                    #{pullRequest.number}
+                </button>
+                <span className="min-w-0 truncate">
+                    <code>{pullRequest.branch}</code> into{' '}
+                    <code>{pullRequest.base}</code>
+                </span>
+                <ChecksIcon state={pullRequest.checks} className="size-3.5" />
+                <span
+                    className="min-w-0 flex-1 truncate"
+                    data-test="task-pull-request-status"
+                >
+                    {task.sync_status === 'forking'
+                        ? 'Checking out…'
+                        : task.sync_status === 'pushing'
+                          ? 'Pushing…'
+                          : task.sync_status === 'pulling'
+                            ? 'Pulling…'
+                            : pullRequest.checks === 'failure'
+                              ? 'Checks failed'
+                              : pullRequest.checks === 'pending'
+                                ? 'Checks running'
+                                : pullRequest.checks === 'success'
+                                  ? 'Checks passed'
+                                  : ''}
+                </span>
+                <button
+                    type="button"
+                    onClick={() =>
+                        post(TaskController.pullPullRequest.url(ids))
+                    }
+                    disabled={busy || working}
+                    title="Bring in commits pushed to the pull request since"
+                    className="flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-muted disabled:opacity-50"
+                    data-test="task-pull-request-pull"
+                >
+                    <RefreshCw
+                        className={cn(
+                            'size-3.5',
+                            task.sync_status === 'pulling' && 'animate-spin',
+                        )}
+                    />
+                    Pull
+                </button>
+                <button
+                    type="button"
+                    onClick={() =>
+                        post(TaskController.pushPullRequest.url(ids))
+                    }
+                    disabled={busy || pullRequest.fork}
+                    title={
+                        pullRequest.fork
+                            ? "It comes from a fork, which OneDrop can't push to"
+                            : 'Commit what changed and push it to the pull request'
+                    }
+                    className="flex items-center gap-1 rounded bg-primary px-2 py-0.5 font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                    data-test="task-pull-request-push"
+                >
+                    <CloudUpload className="size-3.5" />
+                    Push
+                </button>
+                {pullRequest.url && (
+                    <a
+                        href={pullRequest.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        title="Open on GitHub"
+                        className="rounded p-0.5 hover:bg-muted"
+                    >
+                        <ExternalLink className="size-3.5" />
+                    </a>
+                )}
+            </div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                {pullRequest.fork ? (
+                    <span>
+                        From a fork: it runs here, but can't be pushed to.
+                    </span>
+                ) : (
+                    <label className="flex items-center gap-1.5">
+                        <Checkbox
+                            checked={pullRequest.push}
+                            onCheckedChange={(value) =>
+                                set('pull_request_push')(value === true)
+                            }
+                            data-test="task-pull-request-push-after-turn"
+                        />
+                        Push after each turn
+                    </label>
+                )}
+                <label className="flex items-center gap-1.5">
+                    <Checkbox
+                        checked={pullRequest.autofix}
+                        onCheckedChange={(value) =>
+                            set('pull_request_autofix')(value === true)
+                        }
+                        data-test="task-pull-request-autofix"
+                    />
+                    Fix failing checks automatically
+                </label>
+            </div>
+            {task.sync_error && (
+                <span
+                    className="text-red-600 dark:text-red-400"
+                    data-test="task-copy-error"
+                >
+                    {task.sync_error}
+                </span>
             )}
         </div>
     );

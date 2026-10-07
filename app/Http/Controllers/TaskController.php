@@ -7,11 +7,14 @@ use App\Enums\ProjectStatus;
 use App\Enums\TaskStage;
 use App\Enums\TaskSyncStatus;
 use App\Jobs\CheckTurnOutcome;
+use App\Jobs\SyncPullRequestTask;
 use App\Jobs\SyncTask;
 use App\Models\Attachment;
 use App\Models\Project;
 use App\Models\Task;
 use App\Sandbox\Agents\AgentQueue;
+use App\Sandbox\GitException;
+use App\Sandbox\PullRequestFixes;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -48,6 +51,8 @@ class TaskController extends Controller
                 'waiting_for' => ! $task->isWorking() && $task->turn_outcome?->waiting() ? $task->turn_outcome->value : null,
                 'checking' => CheckTurnOutcome::checking($task),
                 'updated_at' => $task->updated_at?->toIso8601String(),
+                // Checked out from a pull request (GIT-014): its number and its checks as last seen (GIT-015).
+                'pull_request' => $task->isPullRequest() ? ['number' => $task->pull_request_number, 'checks' => $task->pull_request_checks] : null,
             ]),
         ]);
     }
@@ -116,9 +121,10 @@ class TaskController extends Controller
     }
 
     /**
-     * Rename the task, change its notes, or move it to another column.
+     * Rename the task, change its notes, or move it to another column; for a pull request's task, whether to push after
+     * each turn and fix failed checks automatically.
      */
-    public function update(Request $request, Project $project, Task $task): RedirectResponse
+    public function update(Request $request, Project $project, Task $task, PullRequestFixes $fixes): RedirectResponse
     {
         Gate::authorize('update', $project);
 
@@ -126,6 +132,9 @@ class TaskController extends Controller
             'title' => ['sometimes', 'required', 'string', 'max:80'],
             'description' => ['sometimes', 'nullable', 'string', 'max:5000'],
             'stage' => ['sometimes', Rule::enum(TaskStage::class)],
+            // A pull request's task (GIT-014, GIT-015).
+            'pull_request_push' => ['sometimes', 'boolean'],
+            'pull_request_autofix' => ['sometimes', 'boolean'],
         ], [
             'title.required' => __('Give the task a title.'),
         ]);
@@ -138,7 +147,54 @@ class TaskController extends Controller
             $validated['position'] = $project->nextTaskPosition(TaskStage::from($validated['stage']));
         }
 
-        $task->update($validated);
+        if (! $task->isPullRequest()) {
+            unset($validated['pull_request_push'], $validated['pull_request_autofix']);
+        }
+
+        $fixingNow = ($validated['pull_request_autofix'] ?? false) && ! $task->pull_request_autofix;
+
+        // Turned on again: the count of tries in a row starts over.
+        $task->update([...$validated, ...($fixingNow ? ['pull_request_fix_attempts' => 0] : [])]);
+
+        // Turned on while the checks are failing: start fixing them now rather than after the next push.
+        if ($fixingNow && $task->pull_request_checks === 'failure' && ! $task->isWorking()) {
+            try {
+                if ($fixes->send($task)) {
+                    $task->update(['pull_request_fix_attempts' => 1]);
+                }
+            } catch (GitException $e) {
+                Inertia::flash('toast', ['type' => 'error', 'message' => $e->getMessage()]);
+            }
+        }
+
+        return back();
+    }
+
+    /**
+     * Push a pull request's task to its branch on GitHub (GIT-014).
+     */
+    public function pushPullRequest(Project $project, Task $task): RedirectResponse
+    {
+        Gate::authorize('update', $project);
+
+        return $this->syncPullRequest($task, TaskSyncStatus::Pushing);
+    }
+
+    /**
+     * Bring commits pushed to the pull request since into the task's copy (GIT-014).
+     */
+    public function pullPullRequest(Project $project, Task $task): RedirectResponse
+    {
+        Gate::authorize('update', $project);
+
+        return $this->syncPullRequest($task, TaskSyncStatus::Pulling);
+    }
+
+    protected function syncPullRequest(Task $task, TaskSyncStatus $direction): RedirectResponse
+    {
+        if (($problem = SyncPullRequestTask::start($task, $direction)) !== null) {
+            Inertia::flash('toast', ['type' => 'error', 'message' => $problem]);
+        }
 
         return back();
     }
@@ -177,6 +233,7 @@ class TaskController extends Controller
     protected function sync(Project $project, Task $task, TaskSyncStatus $direction): RedirectResponse
     {
         $problem = match (true) {
+            $task->isPullRequest() => __('A pull request\'s work goes back through GitHub: push it, or pull its newer commits.'),
             $task->sync_status !== null => __('Wait for the current merge to finish.'),
             ! $task->agentSandbox()?->external_id || $task->agentSandbox()->task_id === null => __("This task doesn't have its own copy of the app."),
             $task->isWorking() => __("Wait for the task's agent to finish, or stop it."),

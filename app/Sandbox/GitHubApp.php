@@ -94,6 +94,18 @@ class GitHubApp
             $problems[] = __('Give the GitHub App the Metadata: Read-only repository permission, so it can list repositories.');
         }
 
+        // Pull requests in Tools (GIT-013) and their failed checks' logs (GIT-015).
+        $reading = array_filter([
+            'pull_requests' => 'Pull requests',
+            'checks' => 'Checks',
+            'statuses' => 'Commit statuses',
+            'actions' => 'Actions',
+        ], fn (string $label, string $permission) => ! in_array($permissions[$permission] ?? null, ['read', 'write'], true), ARRAY_FILTER_USE_BOTH);
+
+        if ($reading !== []) {
+            $problems[] = __('Give the GitHub App the :permissions: Read-only repository permissions, so pull requests and their checks show in Tools.', ['permissions' => implode(', ', $reading)]);
+        }
+
         // Installed on GitHub, yet nobody ever came back: GitHub isn't sending people to OneDrop after installing.
         if (($app['installations_count'] ?? 0) > 0 && ! GitHubInstallation::query()->exists()) {
             $problems[] = __('The app is installed on GitHub, but nobody has come back to OneDrop from installing it. Set its Callback URL and Setup URL to :url, turn on "Redirect on update" and "Request user authorization (OAuth) during installation".', ['url' => $this->callbackUrl()]);

@@ -159,3 +159,30 @@ test('with remotes limited to HTTPS, the local steps that read the backup bundle
         ->and(fn () => app(GitRemote::class)->push($this->project))
         ->not->toThrow(GitException::class, "transport 'file' not allowed");
 })->group('GIT-004');
+
+test("a pull request's newest commits come as a bundle whose HEAD is its head, and a task's branch is pushed back to it", function () {
+    app(GitRemote::class)->push($this->project);
+    // GitHub keeps each pull request's head at refs/pull/N/head.
+    $other = "{$this->root}/other";
+    Process::run(['git', 'clone', '-q', $this->remote, $other])->throw();
+    ($this->sh)("git switch -q -c fix-login && echo fix > b.txt && git add b.txt && git {$this->commit} -m Fix && git push -q origin fix-login fix-login:refs/pull/12/head", $other);
+    $head = ($this->sh)('git rev-parse HEAD', $other);
+
+    $sha = app(GitRemote::class)->fetchPullRequest($this->project, 12, "{$this->root}/pull");
+
+    expect($sha)->toBe($head)
+        ->and(($this->sh)('git bundle list-heads pull.bundle', "{$this->root}/pull"))->toContain("{$head} HEAD");
+
+    // The task's copy adds a commit on the branch and bundles it (fork bundle), which goes back to the pull request's branch.
+    ($this->sh)("git fetch -q {$this->root}/pull/pull.bundle HEAD && git switch -q -c fix-login FETCH_HEAD && echo more > c.txt && git add c.txt && git {$this->commit} -m More && git bundle create -q {$this->root}/branch.bundle HEAD");
+    $pushed = app(GitRemote::class)->pushBundle($this->project, "{$this->root}/branch.bundle", 'fix-login');
+
+    expect($pushed)->toBe(($this->sh)('git rev-parse HEAD'))
+        ->and(($this->sh)('git rev-parse refs/heads/fix-login', $this->remote))->toBe($pushed);
+
+    // Never forced: when the pull request moved on meanwhile, it says to pull first.
+    ($this->sh)("echo theirs > d.txt && git add d.txt && git {$this->commit} -m Theirs && git push -q -f origin fix-login", $other);
+
+    expect(fn () => app(GitRemote::class)->pushBundle($this->project, "{$this->root}/branch.bundle", 'fix-login'))
+        ->toThrow(GitException::class, "The remote has commits this project doesn't. Pull first.");
+})->group('GIT-014');

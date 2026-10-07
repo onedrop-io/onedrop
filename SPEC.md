@@ -1272,6 +1272,38 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Diffs (uncommitted changes and commits' files) should show the old and new line numbers, color the code by its language, and highlight the words that changed within an edited line.
 - User should be able to hide whitespace-only changes in a diff; lines that only changed in spacing then read as unchanged, and picking or discarding parts waits until they're shown again.
 
+## GIT-013: See a GitHub repository's pull requests
+
+- User should see a Pull requests section under Tools for a project connected to a GitHub repository (with the GitHub App or a token); without one, it says to connect a GitHub repository in Tools → Git.
+- User should see the open pull requests, newest activity first, and be able to switch to closed ones and search them by title, number, branch or author. Each shows its number, title, author, branch and base, draft, its checks (passing, failing or running), its review (approved, changes requested), how many comments, when it last changed, and whether it's checked out as a task.
+- User should be able to click a pull request to open its page (the URL keeps it, e.g. `?tab=tools&tool=pulls&pr=12`, so a reload or a link opens it again), with its title, state (open, draft, merged, closed), author, branch into base, whether it can be merged, a link to it on GitHub, and four tabs:
+    - **Conversation:** the description and the comments and reviews, oldest first, formatted.
+    - **Commits:** each commit's message, author and when.
+    - **Files changed:** each file with its state and lines added and removed, and its diff (as in GIT-012) when clicked; very large ones are cut short and say so.
+    - **Checks:** each check and commit status on the newest commit, with its state, how long it took, and a link to its details; a failed check shows the end of its log when opened.
+- The checks should refresh on their own while any is still running and the page is open.
+- The pull requests are read on the platform with the project's GitHub App installation token or its stored token, never in the sandbox. GitHub's errors (no access, missing permission, rate limit) are shown plainly. Only people who can see the project should see its pull requests.
+- Admins should be told in Tools → Git when the GitHub App lacks the Pull requests, Checks, Commit statuses or Actions read permissions these need.
+
+## GIT-014: Check out a pull request as a task
+
+- User should be able to click "Check out as task" on a pull request: it starts a task named after it ("#12 Fix login"), makes the task's own copy of the app (TASK-003) and switches the copy to the pull request's branch, with its newest commits, without starting the agent. The preview, files, shell and tools on the task's page then show the pull request's code.
+- A pull request should only be checked out once; while its task is open, the button says "Open task" and goes to it.
+- The task's page should show the pull request (number, branch into base, its checks, a link to its page in Tools and on GitHub) instead of Apply to Main and Update from Main, with:
+    - **Push:** commit what's changed and push the task's branch to the pull request (never force-pushing); it says Pushing…, then how it went.
+    - **Pull:** bring in commits pushed to the pull request since (merged, with conflicts and follow-up handed to the agent as with Update from Main).
+    - **Push after each turn** (on by default): the agent's work is pushed to the pull request when each of its turns ends.
+- A pull request from a fork should check out and run, but can't be pushed to; the task says so.
+- Messages to the task's agent should work on the pull request's branch; the agent doesn't push itself.
+- Deleting the task removes its copy; the pull request is untouched.
+
+## GIT-015: Fix a pull request's failing checks
+
+- On a pull request whose checks failed, user should be able to click "Fix failing checks": the failed checks' names and the end of their logs go to the pull request's task (checking it out first when it has none), asking its agent to find and fix the cause; the work is pushed when its turn ends (GIT-014).
+- User should be able to turn on "Fix failing checks automatically" on a pull request's task: after each push the platform watches the checks, and when they fail it sends them to the task's agent the same way. After 3 tries in a row that don't make them pass it stops and says so in the task's chat; checks passing starts the count again.
+- After each push the task's chat should say how the checks went ("Checks passed on abc1234", "2 checks failed on abc1234"), and the board and the task's page show the checks' state.
+- The agent should be asked to fix the root cause and not skip, delete or loosen tests, or add sleeps or longer timeouts.
+
 ## STORE-001: App Storage
 
 - User should see an App Storage section under Tools for files the app keeps, like uploaded photos, videos and documents, organized in buckets.

@@ -44,11 +44,20 @@ use Illuminate\Support\Str;
  * @property Carbon|null $applied_at
  * @property Carbon|null $read_at
  * @property TurnOutcome|null $turn_outcome
+ * @property int|null $pull_request_number The GitHub pull request it was checked out from (GIT-014).
+ * @property string|null $pull_request_branch The pull request's own branch, which the task's copy works on and pushes to.
+ * @property string|null $pull_request_base
+ * @property bool $pull_request_fork Its branch is in a fork, so it can't be pushed to.
+ * @property bool $pull_request_push Push the agent's work to the pull request after each turn.
+ * @property bool $pull_request_autofix Send failed checks to the agent after each push (GIT-015).
+ * @property int $pull_request_fix_attempts Fixes sent in a row without the checks passing.
+ * @property string|null $pull_request_head_sha The newest commit pushed or checked out, whose checks are watched.
+ * @property string|null $pull_request_checks Those checks as last seen: pending, success or failure.
  * @property string|null $last_reply_at From withLastReply().
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['title', 'description', 'stage', 'position', 'status', 'agent_session_id', 'sign_in_retry_message_id', 'events_token_hash', 'base_commit', 'sync_status', 'sync_error', 'applied_at', 'read_at', 'turn_outcome'])]
+#[Fillable(['title', 'description', 'stage', 'position', 'status', 'agent_session_id', 'sign_in_retry_message_id', 'events_token_hash', 'base_commit', 'sync_status', 'sync_error', 'applied_at', 'read_at', 'turn_outcome', 'pull_request_number', 'pull_request_branch', 'pull_request_base', 'pull_request_fork', 'pull_request_push', 'pull_request_autofix', 'pull_request_fix_attempts', 'pull_request_head_sha', 'pull_request_checks'])]
 #[Hidden(['events_token_hash'])]
 class Task extends Model implements Conversation
 {
@@ -60,7 +69,7 @@ class Task extends Model implements Conversation
     /**
      * @var array<string, mixed>
      */
-    protected $attributes = ['stage' => 'todo', 'status' => 'idle', 'position' => 0];
+    protected $attributes = ['stage' => 'todo', 'status' => 'idle', 'position' => 0, 'pull_request_fork' => false, 'pull_request_push' => true, 'pull_request_autofix' => false, 'pull_request_fix_attempts' => 0];
 
     /**
      * Get the attributes that should be cast.
@@ -77,6 +86,11 @@ class Task extends Model implements Conversation
             'applied_at' => 'datetime',
             'read_at' => 'datetime',
             'turn_outcome' => TurnOutcome::class,
+            'pull_request_number' => 'integer',
+            'pull_request_fork' => 'boolean',
+            'pull_request_push' => 'boolean',
+            'pull_request_autofix' => 'boolean',
+            'pull_request_fix_attempts' => 'integer',
         ];
     }
 
@@ -133,6 +147,14 @@ class Task extends Model implements Conversation
     public function agentSandbox(): ?Sandbox
     {
         return self::getsCopies() ? $this->sandbox()->first() : $this->project->sandbox()->first();
+    }
+
+    /**
+     * Whether the task was checked out from a pull request (GIT-014).
+     */
+    public function isPullRequest(): bool
+    {
+        return $this->pull_request_number !== null;
     }
 
     /**

@@ -15,4 +15,10 @@ enum TaskSyncStatus: string
 
     /** Merging Main's newer work into the task. */
     case Updating = 'updating';
+
+    /** Pushing a pull request's task to its branch on GitHub (GIT-014). */
+    case Pushing = 'pushing';
+
+    /** Merging commits pushed to a pull request since into its task (GIT-014). */
+    case Pulling = 'pulling';
 }

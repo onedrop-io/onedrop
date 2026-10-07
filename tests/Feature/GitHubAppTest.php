@@ -56,7 +56,7 @@ beforeEach(function () {
         'full_name' => $fullName, 'name' => explode('/', $fullName)[1], 'private' => true, 'default_branch' => 'main', 'size' => 10,
         'clone_url' => "https://github.com/{$fullName}.git", 'html_url' => "https://github.com/{$fullName}", 'pushed_at' => '2026-09-20T10:00:00Z', ...$extra,
     ];
-    $this->permissions = ['contents' => 'write', 'metadata' => 'read', 'administration' => 'write'];
+    $this->permissions = ['contents' => 'write', 'metadata' => 'read', 'administration' => 'write', 'pull_requests' => 'read', 'checks' => 'read', 'statuses' => 'read', 'actions' => 'read'];
 
     // GitHub, answering as it would: the user's token sees what both the user and the app can reach.
     $this->github = function (array $routes = []) {
@@ -128,8 +128,10 @@ test('admins are told what the GitHub App setup is missing; others are not', fun
         ->assertJsonPath('github.settings_url', 'https://github.com/organizations/onedrop-io/settings/apps/onedrop-test/permissions')
         ->json('github.problems');
 
-    expect(implode(' ', $problems))->toContain('Contents: Read and write')->toContain('Metadata')->toContain('Administration');
-})->group('GIT-005');
+    expect(implode(' ', $problems))->toContain('Contents: Read and write')->toContain('Metadata')->toContain('Administration')
+        // What pull requests in Tools need (GIT-013).
+        ->toContain('Pull requests, Checks, Commit statuses, Actions: Read-only');
+})->group('GIT-005', 'GIT-013');
 
 test('admins are told which GitHub App settings are missing', function () {
     config(['services.github_app.client_id' => null, 'services.github_app.client_secret' => null]);

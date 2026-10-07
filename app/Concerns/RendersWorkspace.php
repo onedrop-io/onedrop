@@ -22,6 +22,7 @@ use App\Sandbox\Agents\MessageChecks;
 use App\Sandbox\Agents\ModelCatalog;
 use App\Sandbox\Agents\PlainActivity;
 use App\Sandbox\Gateway;
+use App\Sandbox\GitHubPulls;
 use App\Sandbox\Hosting\Deployer;
 use App\Sandbox\Hosting\HostedServices;
 use App\Sandbox\Hosting\MachineSizes;
@@ -91,6 +92,18 @@ trait RendersWorkspace
                 'own_copy' => Task::getsCopies(),
                 'has_copy' => $sandbox !== null,
                 'applied_at' => $task->applied_at?->toIso8601String(),
+                // Checked out from a GitHub pull request (GIT-014, GIT-015).
+                'pull_request' => $task->isPullRequest() ? [
+                    'number' => $task->pull_request_number,
+                    'branch' => $task->pull_request_branch,
+                    'base' => $task->pull_request_base,
+                    'fork' => $task->pull_request_fork,
+                    'push' => $task->pull_request_push,
+                    'autofix' => $task->pull_request_autofix,
+                    'checks' => $task->pull_request_checks,
+                    'head_sha' => $task->pull_request_head_sha,
+                    'url' => ($repository = GitHubPulls::repository($project)) ? "https://github.com/{$repository}/pull/{$task->pull_request_number}" : null,
+                ] : null,
             ] : null,
             'newTask' => $newTask,
             // With Auto (AGT-011), the provider and its default model, which a message runs on when Jev can't size it.

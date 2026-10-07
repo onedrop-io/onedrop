@@ -1,0 +1,35 @@
+---
+title: 'Pull requests'
+description: 'Manual checks for pull requests in Tools, checking one out as a task, and fixing its checks.'
+noindex: true
+---
+
+The Pest suite fakes GitHub and the sandbox's git. These checks need a real GitHub repository, a real sandbox and a real agent.
+
+Set up: a project connected to a GitHub repository you can push to (GitHub App or token) with a GitHub Actions workflow that runs tests, and two open pull requests: one from a branch in the repository whose tests fail, and one from a fork.
+
+## Browse and read (GIT-013)
+
+- [ ] **Tools → Pull requests** lists the open pull requests with their checks, review and comment count; **Closed** lists closed and merged ones; search filters by title, number, branch and author.
+- [ ] A pull request's page shows its description and comments formatted, its commits, and its files with diffs matching GitHub's.
+- [ ] **Checks** lists the workflow's jobs; clicking the failed one shows the end of its real log.
+- [ ] Reloading the page keeps the pull request open (`pr=` in the address).
+- [ ] With a GitHub App missing **Checks** or **Actions** read, an admin sees it named in Tools → Git, and the section says which permission GitHub wants.
+
+## Check out as a task (GIT-014)
+
+- [ ] **Check out as task** opens the task, which says "Checking out…", then "Checked out #N at …"; the agent doesn't start.
+- [ ] The task's preview runs the pull request's code; the Shell shows `git branch --show-current` as the pull request's branch.
+- [ ] A message sent while it's checking out waits and runs after.
+- [ ] Ask the agent for a small change: when its turn ends, "Pushed to #N" appears and the commit is on GitHub.
+- [ ] With **Push after each turn** off, the next turn isn't pushed; **Push** pushes it.
+- [ ] Push a commit to the branch from your computer, then **Pull**: it's merged into the task's copy and the agent brings the copy up to date. **Pull** again says "Already up to date".
+- [ ] Push from your computer, then **Push** in the task without pulling: it fails and says to pull first. Nothing is force-pushed.
+- [ ] The fork's pull request checks out and runs; **Push** is disabled and says why.
+- [ ] Main's preview and files are unchanged throughout.
+
+## Fix failing checks (GIT-015)
+
+- [ ] **Fix failing checks** on the failing pull request sends the failed job's name and log to its task's agent; it fixes the code, the fix is pushed, and the chat says "Checks passed on …" once the workflow passes.
+- [ ] With **Fix failing checks automatically** on and a test that can't pass, the agent tries 3 times, then the chat says it stopped.
+- [ ] The board's card shows the checks' state.

@@ -64,10 +64,11 @@ class SyncTask implements ShouldQueue
      * What the receiving agent is asked to do after the merge. Nothing here knows the stack: the agent does.
      *
      * @param  list<string>  $conflicts
+     * @param  string|null  $what  What was merged, in place of Main's or a task's work.
      */
-    public static function handOff(string $source, array $conflicts, bool $fromMain): string
+    public static function handOff(string $source, array $conflicts, bool $fromMain, ?string $what = null): string
     {
-        $what = $fromMain
+        $what ??= $fromMain
             ? 'The latest work from Main was just merged into this task\'s copy of the app.'
             : "The work from {$source} (done by another agent in a separate copy of the app) was just merged in here.";
 

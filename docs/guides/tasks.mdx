@@ -16,6 +16,8 @@ The task's page shows its copy: its own preview, files, console, shell and tools
 | **Apply to Main**    | Merges the task's code into Main with git. Main's agent then does what your app needs, such as installing new packages or running database migrations, resolves any conflicts, and checks the preview. The task moves to **Done** and its copy is removed. |
 | **Update from Main** | Merges Main's newer work into the task's copy, and the task's agent brings its copy up to date. Use it when Main moved on while the task worked.                                                                                                           |
 
+A task checked out from a GitHub pull request has **Push** and **Pull** instead, which go through the pull request; see [Pull requests](/guides/pull-requests).
+
 Only code merges. Rows added to a database in a task's copy stay there, while schema changes come to Main as migrations, which Main's agent runs.
 
 <Warning>

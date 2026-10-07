@@ -22,6 +22,8 @@ use App\Sandbox\Providers\FakeSandboxProvider;
 use App\Sandbox\SandboxProvider;
 use App\Sandbox\TaskCopies;
 use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
@@ -321,3 +323,35 @@ test("deleting a task or its project removes the task's copy", function () {
     Queue::assertPushed(DestroySandbox::class, fn (DestroySandbox $job) => $job->externalId === 'copy-2');
     Queue::assertPushed(DestroySandbox::class, fn (DestroySandbox $job) => $job->externalId === 'main-1');
 })->group('TASK-003');
+
+test("the fork tool switches a pull request's task copy to its branch at the bundle's HEAD, keeping ignored files", function () {
+    $root = sys_get_temp_dir().'/onedrop-fork-'.uniqid();
+    $sh = fn (string $command, string $path) => trim(Process::path($path)->env(['GIT_CONFIG_GLOBAL' => '/dev/null'])->run($command)->throw()->output());
+    $commit = '-c user.name=Me -c user.email=me@example.com commit -q';
+    File::ensureDirectoryExists("{$root}/workspace");
+    File::ensureDirectoryExists("{$root}/pr");
+    // Main's copy: committed work, an uncommitted change, and an ignored .env.
+    $sh("git init -q -b main && printf '.env\\n' > .gitignore && echo main > a.txt && git add . && git {$commit} -m Main && echo SECRET=1 > .env && echo edited > a.txt", "{$root}/workspace");
+    // The pull request: its own history.
+    $sh("git init -q -b fix && echo pr > a.txt && echo new > b.txt && git add . && git {$commit} -m PR && git bundle create -q ../pull.bundle HEAD fix", "{$root}/pr");
+    $head = $sh('git rev-parse HEAD', "{$root}/pr");
+
+    // Stands in for the checkpoint tool: commit everything.
+    file_put_contents("{$root}/checkpoint", "#!/bin/sh\ngit add -A && git -c user.name=Me -c user.email=me@example.com commit -q -m Checkpoint\n");
+    chmod("{$root}/checkpoint", 0755);
+
+    $output = $sh(implode(' ', [
+        'ONEDROP_WORKSPACE='.escapeshellarg("{$root}/workspace"),
+        'ONEDROP_CHECKPOINT='.escapeshellarg("{$root}/checkpoint"),
+        'bash', base_path('docker/sandbox/fork'), 'checkout', escapeshellarg("{$root}/pull.bundle"), 'fix-login',
+    ]), "{$root}/workspace");
+
+    expect($output)->toBe($head)
+        ->and($sh('git branch --show-current', "{$root}/workspace"))->toBe('fix-login')
+        ->and(file_get_contents("{$root}/workspace/a.txt"))->toBe("pr\n")
+        ->and(file_get_contents("{$root}/workspace/.env"))->toBe("SECRET=1\n")
+        // Main's uncommitted change was kept on Main's branch, not lost.
+        ->and($sh('git show main:a.txt', "{$root}/workspace"))->toBe('edited');
+
+    File::deleteDirectory($root);
+})->group('GIT-014');

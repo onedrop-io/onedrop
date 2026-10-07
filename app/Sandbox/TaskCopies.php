@@ -31,6 +31,7 @@ class TaskCopies
         protected SandboxUpdater $updater,
         protected ProjectSnapshots $snapshots,
         protected SandboxTools $tools,
+        protected GitRemote $remote,
     ) {}
 
     /**
@@ -64,11 +65,14 @@ class TaskCopies
 
             $this->provider->exec($copy->external_id, ['bash', '-c', SandboxUpdater::USE_IMAGE_SHELL_SETUP]);
             $this->carryImages($project, $main, $copy);
-            $branch = $this->run($copy, ['/opt/onedrop/fork', 'branch', self::branch($task)]);
+            // A pull request's task works on the pull request's own branch, at its newest commit (GIT-014).
+            $branch = $task->isPullRequest()
+                ? $this->checkOut($task, $copy)
+                : $this->run($copy, ['/opt/onedrop/fork', 'branch', self::branch($task)]);
             // The app's dev server (.onedrop/dev) and its services came with the files; start them.
             $this->provider->exec($copy->external_id, ['/opt/onedrop/restart']);
 
-            $task->update(['base_commit' => trim($branch) ?: null, 'applied_at' => null]);
+            $task->update(['base_commit' => trim($branch) ?: null, 'applied_at' => null, ...($task->isPullRequest() ? ['pull_request_head_sha' => trim($branch) ?: null] : [])]);
 
             return $this->externalServices($copy);
         } catch (Throwable $e) {
@@ -106,6 +110,64 @@ class TaskCopies
     public function updateFromMain(Task $task): array
     {
         return $this->merge($this->mainSandbox($task->project), $this->copySandbox($task), 'Checkpoint', 'Update from Main');
+    }
+
+    /**
+     * Commit what's changed in a pull request's task copy and push its branch to the pull request (GIT-014).
+     * Returns the pushed commit.
+     *
+     * @throws SandboxException|GitException
+     */
+    public function pushPullRequest(Task $task): string
+    {
+        if ($task->pull_request_fork) {
+            throw new GitException(__('This pull request comes from a fork, so OneDrop can\'t push to it.'));
+        }
+
+        $copy = $this->copySandbox($task);
+        $dir = '/tmp/onedrop-bundle-'.Str::lower(Str::random(8));
+        $local = storage_path('framework/task-bundle-'.uniqid());
+
+        try {
+            $this->run($copy, ['bash', '-c', 'mkdir -p "$1" && /opt/onedrop/fork bundle "$1/branch.bundle" "$2"', 'bundle', $dir, 'Checkpoint']);
+            File::ensureDirectoryExists($local);
+            $this->provider->copyOut($copy->external_id, $dir, $local);
+
+            return $this->remote->pushBundle($task->project, "{$local}/branch.bundle", (string) $task->pull_request_branch);
+        } finally {
+            File::deleteDirectory($local);
+            $this->clearUp($copy, $dir);
+        }
+    }
+
+    /**
+     * Merge commits pushed to a pull request since into its task's copy (GIT-014). Nothing is merged when the
+     * pull request's newest commit is still the one the task last had.
+     *
+     * @return array{sha: string, merged: bool, conflicts: list<string>} the pull request's newest commit, and files left with conflicts in the copy
+     *
+     * @throws SandboxException|GitException
+     */
+    public function pullPullRequest(Task $task): array
+    {
+        $copy = $this->copySandbox($task);
+        $local = storage_path('framework/task-bundle-'.uniqid());
+        $dir = '/tmp/onedrop-bundle-'.Str::lower(Str::random(8));
+
+        try {
+            $sha = $this->remote->fetchPullRequest($task->project, (int) $task->pull_request_number, $local);
+
+            if ($sha === $task->pull_request_head_sha) {
+                return ['sha' => $sha, 'merged' => false, 'conflicts' => []];
+            }
+
+            $this->provider->copyIn($copy->external_id, $local, $dir);
+
+            return ['sha' => $sha, 'merged' => true, 'conflicts' => $this->mergeIn($copy, "{$dir}/pull.bundle", "Merge #{$task->pull_request_number} from GitHub")];
+        } finally {
+            File::deleteDirectory($local);
+            $this->clearUp($copy, $dir);
+        }
     }
 
     /**
@@ -331,27 +393,65 @@ class TaskCopies
             $this->provider->copyOut($from->external_id, $dir, $local);
             $this->provider->copyIn($to->external_id, $local, $dir);
 
-            $result = $this->provider->exec($to->external_id, ['/opt/onedrop/fork', 'merge', "{$dir}/branch.bundle", $mergeMessage]);
-
-            if ($result->exitCode === 3) {
-                return array_values(array_filter(array_map('trim', explode("\n", $result->output))));
-            }
-
-            if (! $result->successful()) {
-                throw new SandboxException("Couldn't merge: ".(strtok(trim($result->errorOutput), "\n") ?: 'git failed'));
-            }
-
-            return [];
+            return $this->mergeIn($to, "{$dir}/branch.bundle", $mergeMessage);
         } finally {
             File::deleteDirectory($local);
 
             foreach ([$from, $to] as $sandbox) {
-                try {
-                    $this->provider->exec($sandbox->external_id, ['rm', '-rf', $dir]);
-                } catch (SandboxException) {
-                    // A leftover in /tmp does no harm.
-                }
+                $this->clearUp($sandbox, $dir);
             }
+        }
+    }
+
+    /**
+     * Merge a bundle's HEAD into the sandbox's current branch.
+     *
+     * @return list<string> files left with conflicts, or none
+     *
+     * @throws SandboxException
+     */
+    protected function mergeIn(Sandbox $to, string $bundle, string $mergeMessage): array
+    {
+        $result = $this->provider->exec($to->external_id, ['/opt/onedrop/fork', 'merge', $bundle, $mergeMessage]);
+
+        if ($result->exitCode === 3) {
+            return array_values(array_filter(array_map('trim', explode("\n", $result->output))));
+        }
+
+        if (! $result->successful()) {
+            throw new SandboxException("Couldn't merge: ".(strtok(trim($result->errorOutput), "\n") ?: 'git failed'));
+        }
+
+        return [];
+    }
+
+    protected function clearUp(Sandbox $sandbox, string $dir): void
+    {
+        try {
+            $this->provider->exec($sandbox->external_id, ['rm', '-rf', $dir]);
+        } catch (SandboxException) {
+            // A leftover in /tmp does no harm.
+        }
+    }
+
+    /**
+     * Switch a new copy to the pull request's branch at its newest commit, fetched on the platform. Returns that commit.
+     *
+     * @throws SandboxException|GitException
+     */
+    protected function checkOut(Task $task, Sandbox $copy): string
+    {
+        $local = storage_path('framework/task-bundle-'.uniqid());
+        $dir = '/tmp/onedrop-bundle-'.Str::lower(Str::random(8));
+
+        try {
+            $this->remote->fetchPullRequest($task->project, (int) $task->pull_request_number, $local);
+            $this->provider->copyIn($copy->external_id, $local, $dir);
+
+            return $this->run($copy, ['/opt/onedrop/fork', 'checkout', "{$dir}/pull.bundle", (string) $task->pull_request_branch]);
+        } finally {
+            File::deleteDirectory($local);
+            $this->clearUp($copy, $dir);
         }
     }
 

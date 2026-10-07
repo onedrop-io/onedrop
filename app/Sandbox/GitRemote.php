@@ -127,6 +127,54 @@ class GitRemote
     }
 
     /**
+     * Fetch a GitHub pull request's newest commits (`refs/pull/N/head`, which a fork's pull request has too) into
+     * $directory/pull.bundle, whose HEAD is the pull request's head, for its task's copy (GIT-014). Returns that commit.
+     *
+     * @throws GitException
+     */
+    public function fetchPullRequest(Project $project, int $number, string $directory): string
+    {
+        $this->checkRemote($project);
+        $work = storage_path('framework/git-pr-'.uniqid());
+        File::ensureDirectoryExists($work);
+        File::ensureDirectoryExists($directory);
+
+        try {
+            $this->run($project, ['git', 'init', '--bare', '-q', 'repo.git'], $work);
+            $this->run($project, ['git', '-C', 'repo.git', 'fetch', '-q', $project->git_remote_url, "+refs/pull/{$number}/head:refs/heads/pull"], $work, remote: true);
+            $this->run($project, ['git', '-C', 'repo.git', 'symbolic-ref', 'HEAD', 'refs/heads/pull'], $work);
+            $this->run($project, ['git', '-C', 'repo.git', 'bundle', 'create', '-q', "{$directory}/pull.bundle", 'HEAD', 'refs/heads/pull'], $work);
+
+            return trim($this->run($project, ['git', '-C', 'repo.git', 'rev-parse', 'HEAD'], $work));
+        } finally {
+            File::deleteDirectory($work);
+        }
+    }
+
+    /**
+     * Push the HEAD of a bundle (a pull request's task's branch, from its copy) to $branch on the remote, never
+     * forcing: when the remote has moved on, it fails and says to pull first. Returns the pushed commit.
+     *
+     * @throws GitException
+     */
+    public function pushBundle(Project $project, string $bundle, string $branch): string
+    {
+        $this->checkRemote($project);
+        $work = storage_path('framework/git-pr-'.uniqid());
+        File::ensureDirectoryExists($work);
+
+        try {
+            $this->run($project, ['git', 'init', '--bare', '-q', 'repo.git'], $work);
+            $this->run($project, ['git', '-C', 'repo.git', 'fetch', '-q', $bundle, "+HEAD:refs/heads/{$branch}"], $work);
+            $this->run($project, ['git', '-C', 'repo.git', 'push', '-q', $project->git_remote_url, "refs/heads/{$branch}:refs/heads/{$branch}"], $work, remote: true);
+
+            return trim($this->run($project, ['git', '-C', 'repo.git', 'rev-parse', "refs/heads/{$branch}"], $work));
+        } finally {
+            File::deleteDirectory($work);
+        }
+    }
+
+    /**
      * The default branch of a repository anyone can read (no token), checked before importing it into a new project;
      * null when it has no commits yet.
      *
@@ -178,13 +226,7 @@ class GitRemote
      */
     protected function prepare(Project $project, bool $importing = false, ?string $importBranch = null): array
     {
-        if ($project->git_remote_url === null) {
-            throw new GitException(__('Connect a remote repository first.'));
-        }
-
-        if (($problem = self::problemWith($project->git_remote_url)) !== null) {
-            throw new GitException($problem);
-        }
+        $this->checkRemote($project);
 
         $sandbox = $project->sandbox()->first();
 
@@ -207,6 +249,20 @@ class GitRemote
         }
 
         return [$sandbox, $status['branch']];
+    }
+
+    /**
+     * @throws GitException when the project has no remote, or one that can't be used
+     */
+    protected function checkRemote(Project $project): void
+    {
+        if ($project->git_remote_url === null) {
+            throw new GitException(__('Connect a remote repository first.'));
+        }
+
+        if (($problem = self::problemWith($project->git_remote_url)) !== null) {
+            throw new GitException($problem);
+        }
     }
 
     /**

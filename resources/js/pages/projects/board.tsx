@@ -22,6 +22,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
+import { ChecksIcon } from '@/components/workspace/pull-requests-panel';
 import { cn } from '@/lib/utils';
 import { WAITING_LABELS } from '@/lib/waiting-for';
 import { useWorkspaceLinks } from '@/lib/workspace-view';
@@ -36,6 +37,13 @@ type Stage = { value: TaskStage; label: string };
 
 /** Carries the dragged card's id between columns. */
 const DRAG_TYPE = 'application/x-onedrop-task';
+
+/** A pull request's task's checks (GIT-015). */
+const CHECKS_LABELS = {
+    success: 'Checks passed',
+    failure: 'Checks failed',
+    pending: 'Checks running',
+} as const;
 
 /**
  * A project's tasks as a kanban board (TASK-002): To do, In progress, Review and Done. Cards move
@@ -260,6 +268,18 @@ function Card({
                         data-test="board-card-activity"
                     >
                         {task.activity ?? 'Working…'}
+                    </p>
+                )}
+                {task.pull_request?.checks && (
+                    <p
+                        className="mt-1 flex items-center gap-1 pl-6 text-xs text-muted-foreground"
+                        data-test="board-card-checks"
+                    >
+                        <ChecksIcon
+                            state={task.pull_request.checks}
+                            className="size-3.5"
+                        />
+                        {CHECKS_LABELS[task.pull_request.checks]}
                     </p>
                 )}
                 {!working && task.waiting_for && (

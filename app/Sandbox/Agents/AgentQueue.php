@@ -6,6 +6,7 @@ use App\Enums\MessageRole;
 use App\Enums\ProjectStatus;
 use App\Enums\SandboxStatus;
 use App\Enums\TaskStage;
+use App\Enums\TaskSyncStatus;
 use App\Jobs\BackupProject;
 use App\Jobs\ForkTaskSandbox;
 use App\Jobs\RunAgentTask;
@@ -39,7 +40,8 @@ class AgentQueue
     public function send(Conversation $conversation, string $content, bool $now = false, array $attachments = [], ?array $meta = null, ?string $nowNote = null): Message
     {
         if ($conversation->getAttribute('status') === ProjectStatus::Working) {
-            if (! $now) {
+            // A pull request's task whose copy is still being made (GIT-014) has no run to stop yet.
+            if (! $now || ($conversation instanceof Task && $conversation->sync_status === TaskSyncStatus::Forking)) {
                 $message = $conversation->queuedMessages()->create([
                     'role' => MessageRole::User,
                     'content' => $content,

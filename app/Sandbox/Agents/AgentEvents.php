@@ -7,6 +7,7 @@ use App\Enums\AgentHarness;
 use App\Enums\AgentProvider;
 use App\Enums\CredentialType;
 use App\Enums\MessageRole;
+use App\Enums\TaskSyncStatus;
 use App\Enums\UsagePayer;
 use App\Jobs\AutoDeploy;
 use App\Jobs\BackupProject;
@@ -15,6 +16,7 @@ use App\Jobs\CheckPreviewErrors;
 use App\Jobs\CheckRequirementsKept;
 use App\Jobs\CheckTurnOutcome;
 use App\Jobs\ExplainAgentFailure;
+use App\Jobs\SyncPullRequestTask;
 use App\Jobs\UpdateProjectIcon;
 use App\Models\Project;
 use App\Models\Task;
@@ -150,6 +152,11 @@ abstract class AgentEvents
         // Before it goes idle, so the sidebar holds its notification until the outcome is known (PRJ-011).
         if ($conversation instanceof Project || $conversation instanceof Task) {
             CheckTurnOutcome::afterTurn($conversation);
+        }
+
+        // A pull request's task sends the agent's work to the pull request (GIT-014).
+        if ($code === 0 && $conversation instanceof Task && $conversation->isPullRequest() && $conversation->pull_request_push && ! $conversation->pull_request_fork) {
+            SyncPullRequestTask::start($conversation, TaskSyncStatus::Pushing);
         }
 
         app(AgentQueue::class)->finished($conversation, succeeded: $code === 0);

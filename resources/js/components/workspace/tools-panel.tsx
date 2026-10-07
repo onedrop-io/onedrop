@@ -5,6 +5,7 @@ import {
     Database,
     Globe,
     GitBranch,
+    GitPullRequest,
     HardDrive,
     Image as ImageIcon,
     KeyRound,
@@ -31,6 +32,7 @@ import GitPanel from '@/components/workspace/git-panel';
 import GrowthPanel from '@/components/workspace/growth-panel';
 import IconPanel from '@/components/workspace/icon-panel';
 import MonitoringPanel from '@/components/workspace/monitoring-panel';
+import PullRequestsPanel from '@/components/workspace/pull-requests-panel';
 import SecretsPanel from '@/components/workspace/secrets-panel';
 import SkillsPanel from '@/components/workspace/skills-panel';
 import StoragePanel from '@/components/workspace/storage-panel';
@@ -148,6 +150,13 @@ const GROUPS: { label: string; sections: Section[] }[] = [
                 icon: GitBranch,
                 description:
                     "Your app's changes and history, and pushing them to GitHub or another git host.",
+            },
+            {
+                id: 'pulls',
+                label: 'Pull requests',
+                icon: GitPullRequest,
+                description:
+                    'Pull requests on GitHub: review them, check them out as tasks, and fix their failing checks.',
             },
             {
                 id: 'skills',
@@ -317,6 +326,8 @@ export default function ToolsPanel({
                             running={running}
                             working={working}
                         />
+                    ) : section.id === 'pulls' ? (
+                        <PullRequestsPanel projectId={projectId} />
                     ) : section.id === 'icon' ? (
                         <IconPanel projectId={projectId} running={running} />
                     ) : section.id === 'developer' ? (

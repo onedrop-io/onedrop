@@ -7,6 +7,9 @@
 #                               a second. Run as root, so files the containers own come along (a database's own user).
 #                               Writes DIR/.done, or DIR/.failed with the reason. Takes a while: run it detached.
 #   fork branch NAME            In a task's copy: start branch NAME at the current commit. Prints the commit.
+#   fork checkout BUNDLE NAME   In a pull request's task copy (GIT-014): commit everything, then switch to branch NAME at the
+#                               bundle's HEAD (the pull request's newest commit). Ignored files (dependencies, .env, databases)
+#                               stay. Prints the commit.
 #   fork bundle OUT MESSAGE     Commit everything (as MESSAGE), then write the current branch's history to the git bundle OUT.
 #   fork merge BUNDLE MESSAGE   Commit everything, then merge the bundle's branch into the current one.
 #                               Exits 0 when merged (or nothing to merge), 3 on conflicts (left for the agent to resolve).
@@ -189,6 +192,14 @@ case "${1:-}" in
         git switch -q -c "$2" 2>/dev/null || git switch -q "$2" || exit 1
         git rev-parse HEAD
         ;;
+    checkout)
+        cd "$WORKSPACE" || exit 1
+        commit_all "Checkpoint"
+        [ -d .git ] || git init -q -b main || exit 1
+        git fetch -q "$2" "HEAD:refs/onedrop/incoming" --force || exit 1
+        git switch -q -f -C "$3" refs/onedrop/incoming || exit 1
+        git rev-parse HEAD
+        ;;
     bundle)
         cd "$WORKSPACE" || exit 1
         commit_all "$3"
@@ -239,7 +250,7 @@ case "${1:-}" in
         exit 0
         ;;
     *)
-        echo "usage: fork snapshot|branch|bundle|merge|images|save-image|load-image|services ..." >&2
+        echo "usage: fork snapshot|branch|checkout|bundle|merge|images|save-image|load-image|services ..." >&2
         exit 2
         ;;
 esac
