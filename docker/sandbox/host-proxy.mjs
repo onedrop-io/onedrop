@@ -10,12 +10,14 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import {
     appendFile,
     closeSync,
+    createReadStream,
     existsSync,
     fstatSync,
     mkdirSync,
     openSync,
     readFileSync,
     readSync,
+    realpathSync,
     renameSync,
     statSync,
     utimesSync,
@@ -1636,6 +1638,158 @@ function serveDesktop(req, res) {
     req.pipe(upstream);
 }
 
+// The workspace's files, for the Files tab's previews of images, video, audio and PDFs (FILE-001): `raw?path=` is a
+// file's bytes (with ranges, so video seeks), `view?path=` a page that shows it. On the preview's address only, like
+// the rest of the workspace, never on published addresses, and only for files inside /workspace.
+const FILES_PATH = '/__onedrop/files';
+const WORKSPACE_ROOT = process.env.ONEDROP_WORKSPACE || '/workspace';
+const MEDIA_TYPES = {
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    gif: 'image/gif',
+    webp: 'image/webp',
+    avif: 'image/avif',
+    bmp: 'image/bmp',
+    ico: 'image/x-icon',
+    svg: 'image/svg+xml',
+    mp4: 'video/mp4',
+    m4v: 'video/mp4',
+    mov: 'video/quicktime',
+    webm: 'video/webm',
+    ogv: 'video/ogg',
+    mp3: 'audio/mpeg',
+    wav: 'audio/wav',
+    ogg: 'audio/ogg',
+    oga: 'audio/ogg',
+    opus: 'audio/ogg',
+    m4a: 'audio/mp4',
+    aac: 'audio/aac',
+    flac: 'audio/flac',
+    pdf: 'application/pdf',
+};
+
+function isFiles(path) {
+    return path === `${FILES_PATH}/raw` || path === `${FILES_PATH}/view`;
+}
+
+/** The file a request names, inside /workspace (links followed), or null. */
+function workspaceFile(req) {
+    const relative =
+        new URL(String(req.url ?? '/'), 'http://preview').searchParams.get(
+            'path',
+        ) ?? '';
+
+    if (relative === '' || relative.includes('\0')) {
+        return null;
+    }
+
+    try {
+        const root = realpathSync(WORKSPACE_ROOT);
+        const real = realpathSync(`${root}/${relative.replace(/^\/+/, '')}`);
+
+        return real.startsWith(`${root}/`) && statSync(real).isFile()
+            ? real
+            : null;
+    } catch {
+        return null;
+    }
+}
+
+function mediaType(file) {
+    return (
+        MEDIA_TYPES[file.split('.').pop()?.toLowerCase() ?? ''] ??
+        'application/octet-stream'
+    );
+}
+
+function serveFiles(req, res, path) {
+    const file = isPreview(String(req.headers.host ?? ''))
+        ? workspaceFile(req)
+        : null;
+
+    if (!file) {
+        res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+        res.end('No such file.');
+
+        return;
+    }
+
+    const type = mediaType(file);
+
+    if (path.endsWith('/view')) {
+        const raw = `${FILES_PATH}/raw?path=${encodeURIComponent(new URL(String(req.url), 'http://preview').searchParams.get('path') ?? '')}`;
+        const kind = type.split('/')[0];
+        const element =
+            kind === 'video'
+                ? `<video src="${raw}" controls autoplay playsinline></video>`
+                : kind === 'audio'
+                  ? `<audio src="${raw}" controls autoplay></audio>`
+                  : `<img src="${raw}" alt="">`;
+
+        res.writeHead(200, {
+            'content-type': 'text/html; charset=utf-8',
+            'cache-control': 'no-cache',
+            'content-security-policy':
+                "default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'",
+        });
+        res.end(
+            `<!doctype html><meta charset="utf-8"><style>html,body{margin:0;height:100%;background:#0a0a0a;display:flex;align-items:center;justify-content:center}img,video{max-width:100%;max-height:100%;object-fit:contain}audio{width:min(90%,600px)}</style>${element}`,
+        );
+
+        return;
+    }
+
+    const { size } = statSync(file);
+    const range = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range ?? ''));
+    const partial = !!range && (range[1] !== '' || range[2] !== '');
+    let start = 0;
+    let end = size - 1;
+
+    if (partial) {
+        start =
+            range[1] === ''
+                ? Math.max(0, size - Number(range[2]))
+                : Number(range[1]);
+        end =
+            range[1] !== '' && range[2] !== ''
+                ? Math.min(Number(range[2]), size - 1)
+                : size - 1;
+
+        if (start > end || start >= size) {
+            res.writeHead(416, { 'content-range': `bytes */${size}` });
+            res.end();
+
+            return;
+        }
+    }
+
+    res.writeHead(partial ? 206 : 200, {
+        'content-type': type,
+        'content-length': String(size === 0 ? 0 : end - start + 1),
+        'accept-ranges': 'bytes',
+        'cache-control': 'no-cache',
+        'x-content-type-options': 'nosniff',
+        // An SVG opened on its own can't run scripts as the preview's address.
+        ...(type === 'image/svg+xml'
+            ? { 'content-security-policy': 'sandbox' }
+            : {}),
+        ...(partial
+            ? { 'content-range': `bytes ${start}-${end}/${size}` }
+            : {}),
+    });
+
+    if (req.method === 'HEAD' || size === 0) {
+        res.end();
+
+        return;
+    }
+
+    createReadStream(file, { start, end })
+        .on('error', () => res.destroy())
+        .pipe(res);
+}
+
 // When someone last used the sandbox through this address (a page, the desktop), for the Drive daemon, which only
 // asks for changes while the sandbox is in use (DRIVE-003). At most every 10 seconds.
 const ACTIVE_FILE = '/tmp/onedrop-active';
@@ -1710,6 +1864,12 @@ const server = http.createServer((req, res) => {
 
     if (isDesktop(path)) {
         serveDesktop(req, res);
+
+        return;
+    }
+
+    if (isFiles(path)) {
+        serveFiles(req, res, path);
 
         return;
     }

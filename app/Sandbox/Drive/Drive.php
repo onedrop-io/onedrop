@@ -625,7 +625,8 @@ class Drive
         }
 
         $disposition = ($download ? 'attachment' : 'inline').'; filename="'.Str::ascii(str_replace('"', '', $item->name)).'"; filename*=UTF-8\'\''.rawurlencode($item->name);
-        $type = $item->mime_type ?: 'application/octet-stream';
+        // From the name, so files saved before a type was known show right too.
+        $type = $this->mimeType($item->name);
 
         if ($this->s3()) {
             return redirect()->away($this->disk()->temporaryUrl($item->blob, now()->addMinutes(30), [
@@ -634,17 +635,17 @@ class Drive
             ]));
         }
 
-        $stream = $this->disk()->readStream($item->blob) ?? abort(404);
+        // From the app's own disk as a file response, which answers ranges, so video plays and seeks in every browser.
+        $path = $this->disk()->path($item->blob);
 
-        return response()->stream(function () use ($stream) {
-            fpassthru($stream);
-            fclose($stream);
-        }, 200, [
+        abort_unless(is_file($path), 404);
+
+        return response()->file($path, [
             'Content-Type' => $type,
-            'Content-Length' => (string) $item->size,
             'Content-Disposition' => $disposition,
-            // Shown inline from the app's own address: never let a file run as a page of it.
-            'Content-Security-Policy' => "default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'; sandbox",
+            // Shown inline from the app's own address: never let a file run as a page of it. Chrome won't show a PDF
+            // in a sandboxed frame, and its PDF viewer runs apart from the page anyway.
+            'Content-Security-Policy' => "default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'".($type === 'application/pdf' ? '' : '; sandbox'),
             'X-Content-Type-Options' => 'nosniff',
         ]);
     }
@@ -884,11 +885,25 @@ class Drive
         }
     }
 
-    protected function mimeType(string $name): string
+    /** The types of files browsers show (DRIVE-001), which the general list gets wrong (`application/mp4`, `image/pdf`). */
+    protected const PREVIEW_TYPES = [
+        'png' => 'image/png', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'gif' => 'image/gif', 'webp' => 'image/webp',
+        'avif' => 'image/avif', 'bmp' => 'image/bmp', 'ico' => 'image/x-icon', 'svg' => 'image/svg+xml',
+        'mp4' => 'video/mp4', 'm4v' => 'video/mp4', 'mov' => 'video/quicktime', 'webm' => 'video/webm', 'ogv' => 'video/ogg',
+        'mp3' => 'audio/mpeg', 'wav' => 'audio/wav', 'ogg' => 'audio/ogg', 'oga' => 'audio/ogg', 'opus' => 'audio/ogg',
+        'm4a' => 'audio/mp4', 'aac' => 'audio/aac', 'flac' => 'audio/flac', 'pdf' => 'application/pdf',
+    ];
+
+    /**
+     * A file's type from its name.
+     */
+    public function mimeType(string $name): string
     {
         $extension = strtolower(pathinfo($name, PATHINFO_EXTENSION));
 
-        return ($extension !== '' ? (MimeTypes::getDefault()->getMimeTypes($extension)[0] ?? null) : null) ?? 'application/octet-stream';
+        return self::PREVIEW_TYPES[$extension]
+            ?? ($extension !== '' ? (MimeTypes::getDefault()->getMimeTypes($extension)[0] ?? null) : null)
+            ?? 'application/octet-stream';
     }
 
     /**

@@ -544,7 +544,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - On a phone, the files panel should cover the workspace when shown, close when a file is opened, and start closed whatever was chosen on a wider screen.
 - User's choice to hide or show the files panel should be remembered in their browser across reloads.
 - Large folders (node_modules, vendor, .git) should be listed but not expanded.
-- Binary and very large files should show a notice instead of garbled or partial content.
+- Images (SVG too), video, audio and PDFs should show as they are, with video and audio playable and seekable; other binary and very large files should show a notice instead of garbled or partial content.
 - Only the project's owner (or an admin) should be able to read its files, and only inside the project's workspace.
 
 ## FILE-002: Edit project files
@@ -1928,7 +1928,8 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see places on the left: My Drive (only theirs), the organization's shared drive (everyone in it), and a drive for each group they're in (its members); organization owners and admins should also see every group's drive.
 - User should be able to browse folders, with a path they can click back through, and see each item's name, size, who changed it last and when.
 - User should be able to upload files and whole folders (button or drag and drop), with progress, create folders, rename, move (drag onto a folder, or Move to…), download a file, download a folder as a zip, and delete.
-- User should be able to open a file to see it: images, video, audio and PDFs show in the page, text and code open in an editor they can save from, other files offer a download.
+- User should be able to open a file to see it: images, video, audio and PDFs show in the page (video and audio seek), Markdown shows rendered and CSV/TSV as a table (with the text a click away), text and code open in an editor they can save from, other files offer a download. A video or audio format the browser can't play should say so and offer the download.
+- User should see a small preview of each image in the list.
 - User should see how much the organization's Drive uses, and be stopped with a clear message when an upload would go over its limit (none on a self-hosted install unless `DRIVE_QUOTA_GB` is set).
 - Changes made anywhere else (another person, their computer, a project's agent) should show up in Drive without reloading.
 

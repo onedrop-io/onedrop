@@ -2659,6 +2659,16 @@ function WorkspacePanel({
                             error={fileError}
                             location={fileLocation}
                             onDirtyChange={setFileDirty}
+                            mediaUrl={
+                                running && sandbox.preview_url && !remote
+                                    ? (page) =>
+                                          previewUrlAt(
+                                              sandbox.preview_url!,
+                                              page,
+                                              sandbox.shell_via_gateway,
+                                          )
+                                    : null
+                            }
                         />
                     ),
                 )}

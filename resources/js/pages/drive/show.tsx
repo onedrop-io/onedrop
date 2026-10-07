@@ -17,7 +17,9 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { DragEvent, ReactNode } from 'react';
+import Markdown from '@/components/markdown';
 import FileIcon from '@/components/workspace/file-icon';
+import { mediaKind } from '@/components/workspace/file-viewer';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -97,20 +99,21 @@ function viewKind(
     item: DriveEntry,
 ): 'image' | 'video' | 'audio' | 'pdf' | 'text' {
     const type = item.mime_type ?? '';
+    const byName = mediaKind(item.name);
 
-    if (type.startsWith('image/')) {
+    if (type.startsWith('image/') || byName === 'image') {
         return 'image';
     }
 
-    if (type.startsWith('video/')) {
+    if (type.startsWith('video/') || byName === 'video') {
         return 'video';
     }
 
-    if (type.startsWith('audio/')) {
+    if (type.startsWith('audio/') || byName === 'audio') {
         return 'audio';
     }
 
-    return type === 'application/pdf' ? 'pdf' : 'text';
+    return type === 'application/pdf' || byName === 'pdf' ? 'pdf' : 'text';
 }
 
 function when(iso: string | null | undefined): string {
@@ -677,10 +680,27 @@ export default function DriveShow({
                                                     }
                                                     disabled={trash}
                                                 >
-                                                    <FileIcon
-                                                        name={item.name}
-                                                        isDir={item.folder}
-                                                    />
+                                                    {!trash &&
+                                                    !item.folder &&
+                                                    viewKind(item) ===
+                                                        'image' ? (
+                                                        <img
+                                                            src={viewItem.url({
+                                                                organization:
+                                                                    slug,
+                                                                item: item.id,
+                                                            })}
+                                                            alt=""
+                                                            loading="lazy"
+                                                            className="size-6 shrink-0 rounded object-cover"
+                                                            data-test="drive-thumbnail"
+                                                        />
+                                                    ) : (
+                                                        <FileIcon
+                                                            name={item.name}
+                                                            isDir={item.folder}
+                                                        />
+                                                    )}
                                                     <span
                                                         className="truncate"
                                                         data-test="drive-item-name"
@@ -1266,6 +1286,20 @@ function ViewerDialog({
         }
     };
 
+    // Markdown shows rendered and CSV as a table, with the text a click away.
+    const extension = item.name.split('.').pop()?.toLowerCase() ?? '';
+    const rendered =
+        kind !== 'text'
+            ? null
+            : ['md', 'markdown'].includes(extension)
+              ? 'markdown'
+              : extension === 'csv'
+                ? 'csv'
+                : extension === 'tsv'
+                  ? 'tsv'
+                  : null;
+    const [textView, setTextView] = useState<'preview' | 'edit'>('preview');
+    const [unplayable, setUnplayable] = useState(false);
     let body: ReactNode;
 
     if (kind === 'image') {
@@ -1276,10 +1310,35 @@ function ViewerDialog({
                 className="mx-auto max-h-[70vh] max-w-full object-contain"
             />
         );
+    } else if ((kind === 'video' || kind === 'audio') && unplayable) {
+        body = (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+                Your browser can't play this file's format. Download it to open
+                it in an app that can.
+            </p>
+        );
     } else if (kind === 'video') {
-        body = <video src={src} controls className="max-h-[70vh] w-full" />;
+        body = (
+            <video
+                src={src}
+                controls
+                autoPlay
+                playsInline
+                onError={() => setUnplayable(true)}
+                className="max-h-[70vh] w-full bg-black"
+                data-test="drive-video"
+            />
+        );
     } else if (kind === 'audio') {
-        body = <audio src={src} controls className="w-full" />;
+        body = (
+            <audio
+                src={src}
+                controls
+                autoPlay
+                onError={() => setUnplayable(true)}
+                className="w-full"
+            />
+        );
     } else if (kind === 'pdf') {
         body = (
             <iframe
@@ -1298,6 +1357,22 @@ function ViewerDialog({
         body = (
             <div className="flex h-40 items-center justify-center">
                 <Spinner />
+            </div>
+        );
+    } else if (rendered && textView !== 'edit') {
+        body = (
+            <div
+                className="h-[60vh] overflow-auto rounded-md border border-sidebar-border/70 p-4 dark:border-sidebar-border"
+                data-test="drive-rendered"
+            >
+                {rendered === 'markdown' ? (
+                    <Markdown content={draft} className="max-w-3xl text-sm" />
+                ) : (
+                    <CsvTable
+                        text={draft}
+                        separator={rendered === 'tsv' ? '\t' : ','}
+                    />
+                )}
             </div>
         );
     } else {
@@ -1328,6 +1403,27 @@ function ViewerDialog({
                         ? ` · changed ${when(item.updated_at)} by ${item.updated_by}`
                         : ''}
                 </DialogDescription>
+                {rendered && text && (
+                    <div className="flex gap-1">
+                        {(['preview', 'edit'] as const).map((view) => (
+                            <Button
+                                key={view}
+                                size="sm"
+                                variant={
+                                    textView === view ? 'secondary' : 'ghost'
+                                }
+                                onClick={() => setTextView(view)}
+                                data-test={`drive-view-${view}`}
+                            >
+                                {view === 'preview'
+                                    ? rendered === 'markdown'
+                                        ? 'Preview'
+                                        : 'Table'
+                                    : 'Edit'}
+                            </Button>
+                        ))}
+                    </div>
+                )}
                 {body}
                 {problem && text && (
                     <p className="text-sm text-red-600">{problem}</p>
@@ -1356,5 +1452,100 @@ function ViewerDialog({
                 </DialogFooter>
             </DialogContent>
         </Dialog>
+    );
+}
+
+/** Rows of comma- (or tab-) separated text, with quoted fields. */
+function parseDelimited(text: string, separator: string): string[][] {
+    const rows: string[][] = [];
+    let row: string[] = [];
+    let field = '';
+    let quoted = false;
+
+    for (let index = 0; index < text.length; index++) {
+        const char = text[index];
+
+        if (quoted) {
+            if (char === '"' && text[index + 1] === '"') {
+                field += '"';
+                index++;
+            } else if (char === '"') {
+                quoted = false;
+            } else {
+                field += char;
+            }
+        } else if (char === '"' && field === '') {
+            quoted = true;
+        } else if (char === separator) {
+            row.push(field);
+            field = '';
+        } else if (char === '\n' || char === '\r') {
+            if (char === '\r' && text[index + 1] === '\n') {
+                index++;
+            }
+
+            row.push(field);
+            rows.push(row);
+            row = [];
+            field = '';
+        } else {
+            field += char;
+        }
+    }
+
+    if (field !== '' || row.length > 0) {
+        row.push(field);
+        rows.push(row);
+    }
+
+    return rows;
+}
+
+/** A CSV or TSV file as a table, its first row as the header; the first 1,000 rows. */
+function CsvTable({ text, separator }: { text: string; separator: string }) {
+    const rows = parseDelimited(text, separator);
+    const [header, ...body] = rows;
+
+    if (!header) {
+        return <p className="text-sm text-muted-foreground">Empty.</p>;
+    }
+
+    return (
+        <>
+            <table className="w-full text-xs" data-test="drive-csv">
+                <thead className="sticky top-0 bg-background text-left">
+                    <tr>
+                        {header.map((cell, index) => (
+                            <th
+                                key={index}
+                                className="border-b border-sidebar-border/70 px-2 py-1 font-medium whitespace-nowrap"
+                            >
+                                {cell}
+                            </th>
+                        ))}
+                    </tr>
+                </thead>
+                <tbody>
+                    {body.slice(0, 1000).map((row, rowIndex) => (
+                        <tr key={rowIndex} className="hover:bg-muted/50">
+                            {row.map((cell, index) => (
+                                <td
+                                    key={index}
+                                    className="border-b border-sidebar-border/40 px-2 py-1 align-top"
+                                >
+                                    {cell}
+                                </td>
+                            ))}
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+            {body.length > 1000 && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                    Showing the first 1,000 of {body.length.toLocaleString()}{' '}
+                    rows. Download the file to see them all.
+                </p>
+            )}
+        </>
     );
 }

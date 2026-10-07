@@ -43,10 +43,44 @@ export type FileLocation = {
     key: number;
 };
 
+/** Files the browser can show as they are (FILE-001), by extension. */
+const MEDIA: Record<string, 'image' | 'video' | 'audio' | 'pdf'> = {
+    png: 'image',
+    jpg: 'image',
+    jpeg: 'image',
+    gif: 'image',
+    webp: 'image',
+    avif: 'image',
+    bmp: 'image',
+    ico: 'image',
+    svg: 'image',
+    mp4: 'video',
+    m4v: 'video',
+    mov: 'video',
+    webm: 'video',
+    ogv: 'video',
+    mp3: 'audio',
+    wav: 'audio',
+    ogg: 'audio',
+    oga: 'audio',
+    opus: 'audio',
+    m4a: 'audio',
+    aac: 'audio',
+    flac: 'audio',
+    pdf: 'pdf',
+};
+
+/** Whether the file is an image, video, audio or PDF the browser shows, by its name. */
+export function mediaKind(
+    path: string,
+): 'image' | 'video' | 'audio' | 'pdf' | null {
+    return MEDIA[path.split('.').pop()?.toLowerCase() ?? ''] ?? null;
+}
+
 /**
- * An open file: shows notices for binary/large files, otherwise an editor
- * with syntax highlighting that saves back into the sandbox (Cmd/Ctrl+S).
- * Render with `key={path}` so each file gets fresh editor state.
+ * An open file: images, video, audio and PDFs shown as they are (served by the sandbox's proxy, `mediaUrl`), notices
+ * for other binary or large files, otherwise an editor with syntax highlighting that saves back into the sandbox
+ * (Cmd/Ctrl+S). Render with `key={path}` so each file gets fresh editor state.
  */
 export default function FileViewer({
     projectId,
@@ -54,12 +88,15 @@ export default function FileViewer({
     error,
     location,
     onDirtyChange,
+    mediaUrl,
 }: {
     projectId: number;
     file: WorkspaceFile | null;
     error: string | null;
     location?: FileLocation | null;
     onDirtyChange?: (dirty: boolean) => void;
+    /** The address of a page on the sandbox's preview (e.g. `/__onedrop/files/view?path=…`), when it can be reached. */
+    mediaUrl?: ((page: string) => string) | null;
 }) {
     if (error) {
         return <p className="p-4 text-sm text-red-600">{error}</p>;
@@ -67,6 +104,23 @@ export default function FileViewer({
 
     if (!file) {
         return <p className="p-4 text-sm text-muted-foreground">Loading…</p>;
+    }
+
+    const kind = mediaKind(file.path);
+
+    if (kind && mediaUrl) {
+        return (
+            <iframe
+                key={file.path}
+                src={mediaUrl(
+                    `/__onedrop/files/${kind === 'pdf' ? 'raw' : 'view'}?path=${encodeURIComponent(file.path)}`,
+                )}
+                title={file.path.split('/').pop()}
+                className="min-h-0 w-full flex-1 border-0 bg-neutral-950"
+                allow="fullscreen; autoplay"
+                data-test="file-media"
+            />
+        );
     }
 
     if (file.notice) {

@@ -299,3 +299,21 @@ test('Drive refuses what it can\'t do with a reason', function () {
     expect(fn () => $this->drive->move($this->drive->createFolder($this->org, null, 'A', null), $this->org, null, 'a/b', null))
         ->toThrow(DriveException::class);
 })->group('DRIVE-001');
+
+test('a video plays from the part asked for, and PDFs show in the page', function () {
+    $video = driveFile($this->org, 'demo.mp4', '0123456789');
+    $pdf = driveFile($this->org, 'brief.pdf', '%PDF-1.4');
+    $this->actingAs($this->user);
+
+    $this->withHeaders(['Range' => 'bytes=2-4'])->get(route('drive.items.view', [$this->organization, $video]))
+        ->assertStatus(206)
+        ->assertHeader('Content-Type', 'video/mp4')
+        ->assertHeader('Content-Range', 'bytes 2-4/10');
+
+    $this->flushHeaders();
+    $page = $this->get(route('drive.items.view', [$this->organization, $pdf]))->assertOk();
+
+    expect($page->headers->get('Content-Type'))->toBe('application/pdf')
+        ->and($page->headers->get('Content-Security-Policy'))->not->toContain('sandbox')
+        ->and($this->get(route('drive.items.view', [$this->organization, $video]))->headers->get('Content-Security-Policy'))->toContain('sandbox');
+})->group('DRIVE-001');
