@@ -7,6 +7,7 @@ use App\Http\Middleware\ResolveOrganization;
 use App\Jobs\SuspendComputers;
 use App\Models\HostedService;
 use App\Models\Organization;
+use App\Models\OrganizationDomain;
 use App\Models\User;
 use App\Sandbox\Agents\AiCredits;
 use App\Sandbox\Hosting\HostingProviders;
@@ -54,7 +55,7 @@ class OrganizationController extends Controller
     }
 
     /**
-     * Its name, address, members and own hosting accounts (ORG-004, ORG-005, HOST-003).
+     * Its name, address, members, email domains and own hosting accounts (ORG-004, ORG-005, ORG-008, HOST-003).
      */
     public function edit(Request $request): Response
     {
@@ -83,6 +84,15 @@ class OrganizationController extends Controller
                     ->selectRaw('provider, COUNT(*) as count')->groupBy('provider')
                     ->pluck('count', 'provider')->map(fn ($count) => (int) $count)->all(),
             ) : null,
+            // Its email domains (ORG-008), for the people who can change them, on the hosted install.
+            'domains' => Organization::multiTenant() && $organization->isManagedBy($user)
+                ? $organization->domains()->orderBy('domain')->get()->map(fn (OrganizationDomain $domain): array => [
+                    'id' => $domain->id,
+                    'domain' => $domain->domain,
+                    'verified' => $domain->verified_at !== null,
+                    'txt' => $domain->txtValue(),
+                ])
+                : null,
             // Most task copies one of its projects runs at once (TASK-003), and the install's own limit, if any.
             'taskCopies' => ['limit' => $organization->max_task_copies, 'install_limit' => config('sandbox.max_task_copies')],
             'can' => [

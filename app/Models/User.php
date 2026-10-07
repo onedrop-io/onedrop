@@ -225,7 +225,8 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
 
     /**
      * The organization the user is working in when the address doesn't say: the one they used last, else their
-     * first. Someone in none joins the install's one (self-hosted) or gets their own (hosted, ORG-003).
+     * first. Someone in none joins the install's one (self-hosted), or the one that verified their email's domain
+     * (hosted, ORG-008), or gets their own (hosted, ORG-003).
      */
     public function currentOrganization(): Organization
     {
@@ -234,6 +235,11 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
             : null;
 
         $organization ??= $this->organizations()->oldest('organization_user.id')->first();
+
+        if ($organization === null) {
+            $organization = Organization::joinableBy($this)->first();
+            $organization?->addMember($this);
+        }
 
         if ($organization === null) {
             $organization = Organization::multiTenant()
@@ -246,6 +252,25 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
         $this->switchOrganization($organization);
 
         return $organization;
+    }
+
+    /**
+     * Join the organization that verified the domain of the user's just-verified email (ORG-008), when they aren't in
+     * one by invite: the one signing up made for them before they verified goes, if they haven't used it yet.
+     */
+    public function joinOrganizationByEmailDomain(): void
+    {
+        $organization = Organization::joinableBy($this)->first();
+        $own = $this->organizations()->get();
+
+        if ($organization === null || $own->contains(fn (Organization $mine) => $mine->pivot->role !== OrganizationRole::Owner->value || ! $mine->isUntouched())) {
+            return;
+        }
+
+        $organization->addMember($this);
+        $this->switchOrganization($organization);
+        $own->each(fn (Organization $mine) => $mine->delete());
+        $this->forgetOrganizationRoles();
     }
 
     /**

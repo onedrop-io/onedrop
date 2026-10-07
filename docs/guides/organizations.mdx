@@ -15,6 +15,7 @@ On the hosted OneDrop each company has its own organization:
 
 - Signing up gives you a new organization that you own, named after you.
 - Signing up through an [invite](/guides/invite-people) puts you in the inviter's organization instead.
+- Signing up with a work email at a domain your company's organization has verified (see [Email domains](#email-domains)) puts you in that organization instead, once you verify your email.
 - You can belong to more than one organization, and create more: click your name at the bottom of the sidebar, open **Organization** (it shows the organization's name) and choose **Create organization**. You own the new one, and its address is made from its name.
 
 ## Which organization you're in
@@ -65,6 +66,24 @@ Open **Organization** under **People** in [Settings](/guides/settings). Everyone
 On your own install everyone stays in its one organization. To take someone out, an admin deletes their account.
 
 ## Organization usage
+## Email domains
+
+On the hosted install, owners and admins can let everyone with a work email join the organization, without sending invites. In **Settings → Organization → Email domains**:
+
+1. Enter your company's email domain (for example `acme.com`) and click **Add domain**.
+2. Add the TXT record it shows (`onedrop-verification=…`) to that domain where its DNS is managed. Leave the name empty, or use `@`, so the record is on the domain itself.
+3. Click **Check**. DNS changes can take a few minutes to show up; check again if it isn't found yet.
+
+Once the domain shows **Verified**:
+
+- People who sign up with an email at that domain join the organization as members, once they've verified their email.
+- People who already have an account with that email see **Join Acme** in the **Organization** submenu, and join with one click.
+- Only that exact domain counts: `eu.acme.com` is a domain of its own. Add it too if you need it.
+- Only one organization can verify a domain.
+- Signing up through an [invite](/guides/invite-people) still joins the inviter's organization.
+
+Removing a domain keeps everyone who joined through it. While a domain is verified, anyone with an email there can join again, even after being removed; to stop that, remove the domain.
+
 
 Owners and admins see a usage link named after the organization in the account menu (for example **Acme usage**). It's the [Usage](/guides/usage) page for every agent run in the organization's projects, deleted projects included, with a **Person** breakdown showing whose runs they were.
 

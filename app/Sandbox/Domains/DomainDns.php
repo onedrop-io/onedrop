@@ -3,7 +3,7 @@
 namespace App\Sandbox\Domains;
 
 /**
- * DNS lookups for custom domains (DOM-001). Its own class so tests can stand in for the internet.
+ * DNS lookups for custom domains (DOM-001) and organizations' email domains (ORG-008). Its own class so tests can stand in for the internet.
  */
 class DomainDns
 {
@@ -20,6 +20,21 @@ class DomainDns
             fn (array $record): ?string => $record['ip'] ?? $record['ipv6'] ?? null,
             $records,
         ))));
+    }
+
+    /**
+     * The values of a name's TXT records.
+     *
+     * @return list<string>
+     */
+    public function txt(string $hostname): array
+    {
+        $records = @dns_get_record($hostname, DNS_TXT) ?: [];
+
+        return array_values(array_filter(array_map(
+            fn (array $record): ?string => isset($record['entries']) ? implode('', $record['entries']) : ($record['txt'] ?? null),
+            $records,
+        )));
     }
 
     /**

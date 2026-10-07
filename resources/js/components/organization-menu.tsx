@@ -1,5 +1,5 @@
 import { Form, Link, usePage } from '@inertiajs/react';
-import { Check, Plus, Settings } from 'lucide-react';
+import { Check, Plus, Settings, UserPlus } from 'lucide-react';
 import OrganizationController from '@/actions/App/Http/Controllers/OrganizationController';
 import InputError from '@/components/input-error';
 import { OrganizationMark } from '@/components/organization-mark';
@@ -21,14 +21,18 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useOrganization } from '@/hooks/use-organization';
-import { edit, home } from '@/routes/organizations';
+import { edit, home, join } from '@/routes/organizations';
 
 /**
- * The account menu's Organization submenu: the user's organizations to switch to (ORG-002), the organization's
- * settings, and a new one (ORG-003, hosted only, when `onCreate` is given). A self-hosted install lists its one.
+ * The account menu's Organization submenu: the user's organizations to switch to (ORG-002), ones their email's
+ * domain lets them join (ORG-008), the organization's settings, and a new one (ORG-003, hosted only, when `onCreate` is given). A self-hosted install lists its one.
  */
 export function OrganizationSubmenu({ onCreate }: { onCreate?: () => void }) {
-    const { userOrganizations: organizations, multiTenant } = usePage().props;
+    const {
+        userOrganizations: organizations,
+        joinableOrganizations: joinable,
+        multiTenant,
+    } = usePage().props;
     const organization = useOrganization();
 
     return (
@@ -59,6 +63,20 @@ export function OrganizationSubmenu({ onCreate }: { onCreate?: () => void }) {
                             {other.id === organization.id && (
                                 <Check className="ml-auto size-4" />
                             )}
+                        </Link>
+                    </DropdownMenuItem>
+                ))}
+                {(joinable ?? []).map((other) => (
+                    <DropdownMenuItem key={other.id} asChild>
+                        <Link
+                            href={join(other.slug)}
+                            method="post"
+                            as="button"
+                            className="w-full cursor-pointer"
+                            data-test={`join-${other.slug}`}
+                        >
+                            <UserPlus />
+                            <span className="truncate">Join {other.name}</span>
                         </Link>
                     </DropdownMenuItem>
                 ))}

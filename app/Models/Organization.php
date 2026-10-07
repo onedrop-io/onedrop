@@ -8,6 +8,7 @@ use App\Enums\ProjectKind;
 use Database\Factories\OrganizationFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -100,6 +101,40 @@ class Organization extends Model
     }
 
     /**
+     * The organizations the user can join by their email's domain (ORG-008): on the hosted install, those that verified
+     * the domain of the user's verified email, and that the user isn't in yet.
+     *
+     * @return Collection<int, Organization>
+     */
+    public static function joinableBy(User $user): Collection
+    {
+        if (! static::multiTenant() || ! $user->hasVerifiedEmail()) {
+            return new Collection;
+        }
+
+        return Organization::query()
+            ->whereHas('domains', fn ($query) => $query->whereNotNull('verified_at')->where('domain', OrganizationDomain::ofEmail($user->email)))
+            ->whereDoesntHave('members', fn ($query) => $query->whereKey($user->id))
+            ->orderBy('name')
+            ->get();
+    }
+
+    /**
+     * Whether nothing has been done in it yet: its one member, and no projects, groups, invites, skills, domains or AI
+     * credits. Signing up makes one before the email is verified, and joining by domain removes it (ORG-008).
+     */
+    public function isUntouched(): bool
+    {
+        return $this->ai_credits_key === null
+            && $this->members()->count() === 1
+            && ! Project::query()->where('organization_id', $this->id)->exists()
+            && ! $this->groups()->exists()
+            && ! $this->invitations()->exists()
+            && ! $this->skills()->exists()
+            && ! $this->domains()->exists();
+    }
+
+    /**
      * Replace its logo with an uploaded image (ORG-005).
      */
     public function storeLogo(UploadedFile $file): void
@@ -157,6 +192,16 @@ class Organization extends Model
     public function projects(): HasMany
     {
         return $this->hasMany(Project::class)->where('projects.kind', ProjectKind::App);
+    }
+
+    /**
+     * Its email domains (ORG-008).
+     *
+     * @return HasMany<OrganizationDomain, $this>
+     */
+    public function domains(): HasMany
+    {
+        return $this->hasMany(OrganizationDomain::class);
     }
 
     /**

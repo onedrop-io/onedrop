@@ -23,6 +23,7 @@ use App\Sandbox\SystemConfig;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
+use Illuminate\Auth\Events\Verified;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Foundation\DevCommands;
 use Illuminate\Http\Request;
@@ -123,6 +124,13 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(function (Logout $event): void {
             if (request()->hasSession() && ($id = request()->session()->pull(Impersonation::SESSION_KEY))) {
                 Impersonation::query()->whereKey($id)->first()?->end();
+            }
+        });
+
+        // Verifying an email at an organization's verified domain joins that organization (ORG-008).
+        Event::listen(function (Verified $event): void {
+            if ($event->user instanceof User) {
+                $event->user->joinOrganizationByEmailDomain();
             }
         });
 

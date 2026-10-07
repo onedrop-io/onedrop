@@ -66,6 +66,9 @@ class HandleInertiaRequests extends Middleware
             'currentOrganization' => fn () => $request->user() ? $this->organization($request->user(), ResolveOrganization::current($request)) : null,
             'userOrganizations' => fn () => $request->user()?->organizations()->orderBy('name')->get(['organizations.id', 'name', 'slug', 'logo_hash'])
                 ->map(fn (Organization $organization): array => [...$organization->only('id', 'name', 'slug'), 'logo_url' => $organization->logoUrl()])->all(),
+            // Organizations that verified the domain of the user's email, offered in the Organization submenu (ORG-008).
+            'joinableOrganizations' => fn () => $request->user() ? Organization::joinableBy($request->user())
+                ->map(fn (Organization $organization): array => [...$organization->only('id', 'name', 'slug'), 'logo_url' => null])->all() : [],
             'multiTenant' => Organization::multiTenant(),
             'impersonator' => fn () => $request->user() && $request->session()->has(Impersonation::SESSION_KEY)
                 ? Impersonation::current()?->admin?->only('id', 'name')

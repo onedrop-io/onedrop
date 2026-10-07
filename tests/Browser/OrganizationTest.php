@@ -4,8 +4,10 @@ use App\Enums\OrganizationRole;
 use App\Models\AgentConnection;
 use App\Models\Group;
 use App\Models\Organization;
+use App\Models\OrganizationDomain;
 use App\Models\Project;
 use App\Models\User;
+use App\Sandbox\Domains\DomainDns;
 use Database\Seeders\DatabaseSeeder;
 
 test('the organization in the address decides the sidebar and the groups, and signing in lands in the last one', function () {
@@ -107,3 +109,51 @@ test('on the hosted install the account menu creates an organization and switche
         ->assertSeeIn($sidebar, 'Install CRM')
         ->assertNoJavaScriptErrors();
 })->group('ORG-002', 'ORG-003');
+
+test('on the hosted install an owner verifies an email domain, and someone at it joins from the account menu', function () {
+    config(['app.multi_tenant' => true]);
+    $this->seed(DatabaseSeeder::class);
+    $dev = User::where('email', 'dev@example.com')->sole();
+    AgentConnection::factory()->for($dev)->create();
+    $organization = Organization::install();
+
+    $txt = [];
+    $dns = Mockery::mock(DomainDns::class);
+    $dns->shouldReceive('txt')->andReturnUsing(function (string $host) use (&$txt) {
+        return $txt[$host] ?? [];
+    });
+    app()->instance(DomainDns::class, $dns);
+
+    $this->actingAs($dev);
+
+    $page = visit(orgPath('/settings'))
+        ->type('@email-domain-input', 'acme.com')
+        ->press('@add-email-domain')
+        ->assertSeeIn('[data-test="email-domain-acme.com"]', 'Waiting for DNS');
+
+    $domain = OrganizationDomain::sole();
+    $page->assertSeeIn('[data-test="email-domain-acme.com"]', $domain->txtValue())
+        ->click('[data-test="verify-email-domain-acme.com"]')
+        ->assertSee("We couldn't find the TXT record on acme.com yet.");
+
+    $txt['acme.com'] = [$domain->txtValue()];
+    $page->click('[data-test="verify-email-domain-acme.com"]')
+        ->assertSee('Verified acme.com.')
+        ->assertSeeIn('[data-test="email-domain-acme.com"]', 'Verified')
+        ->assertNoJavaScriptErrors();
+
+    $ada = User::factory()->has(AgentConnection::factory())->create(['name' => 'Ada Lovelace', 'email' => 'ada@elsewhere.com']);
+    $own = $ada->currentOrganization();
+    $ada->forceFill(['email' => 'ada@acme.com'])->save();
+    $this->actingAs($ada);
+
+    visit("/o/{$own->slug}")
+        ->click('@sidebar-menu-button')
+        ->click('@organization-switcher')
+        ->click("@join-{$organization->slug}")
+        ->assertPathIs(orgPath())
+        ->assertSee("You joined {$organization->name}.")
+        ->assertNoJavaScriptErrors();
+
+    expect($ada->fresh()->belongsToOrganization($organization))->toBeTrue();
+})->group('ORG-008');

@@ -137,6 +137,16 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Sign in with OneDrop set to everyone should let in members of the project's organization only, and its group picker and `groups` claim should only list that organization's groups.
 - Previews and shells should only open for the project's people, and a privately published app only for members of the project's organization.
 
+## ORG-008: Join by email domain
+
+- On the hosted install, organization owners and admins should be able to add email domains (`acme.com`) in Settings → Organization, see the TXT record to add at the domain's DNS host, check it, and remove a domain.
+- A domain should only count once its TXT record is found; until then it shows as waiting, with the record to add.
+- A domain another organization has already verified should be refused, and only one organization can verify it.
+- Someone signing up on the hosted install without an invite, whose verified email is at an organization's verified domain (exact match, not subdomains), should join that organization as a member instead of getting their own.
+- Someone who isn't verified yet shouldn't get an organization until they verify their email.
+- Someone already signed up, whose verified email is at an organization's verified domain, should see "Join <organization>" in the account menu's Organization submenu and join it as a member with one click; nobody else can join that way.
+- Members who aren't owners or admins shouldn't see the domains, and a self-hosted install shouldn't offer them (everyone is in its one organization already).
+
 ## AI-001: Set up AI after sign-up
 
 - After signing up, user should be asked to connect an AI before they can start building.

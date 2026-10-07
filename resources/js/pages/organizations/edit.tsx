@@ -7,9 +7,11 @@ import {
     useForm,
     usePage,
 } from '@inertiajs/react';
+import { Check, Copy } from 'lucide-react';
 import { useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import OrganizationController from '@/actions/App/Http/Controllers/OrganizationController';
+import OrganizationDomainController from '@/actions/App/Http/Controllers/OrganizationDomainController';
 import OrganizationHostingController from '@/actions/App/Http/Controllers/OrganizationHostingController';
 import OrganizationMemberController from '@/actions/App/Http/Controllers/OrganizationMemberController';
 import Heading from '@/components/heading';
@@ -21,6 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { useClipboard } from '@/hooks/use-clipboard';
 import { useOrganization } from '@/hooks/use-organization';
 import { edit } from '@/routes/organizations';
 import type { OrganizationRole } from '@/types';
@@ -31,6 +34,13 @@ type Member = {
     email: string;
     role: OrganizationRole;
     joined_at: string | null;
+};
+
+type EmailDomain = {
+    id: number;
+    domain: string;
+    verified: boolean;
+    txt: string;
 };
 
 type HostingField = {
@@ -60,11 +70,12 @@ const ROLES: { value: OrganizationRole; label: string }[] = [
     { value: 'owner', label: 'Owner' },
 ];
 
-/** An organization's name, address, computers, members, own hosting accounts and task copy limit (ORG-004, ORG-005, CMP-003, HOST-003, TASK-003). */
+/** An organization's name, address, computers, members, email domains, own hosting accounts and task copy limit (ORG-004, ORG-005, ORG-008, CMP-003, HOST-003, TASK-003). */
 export default function OrganizationEdit({
     details,
     computers,
     members,
+    domains,
     hosting,
     taskCopies,
     can,
@@ -72,6 +83,7 @@ export default function OrganizationEdit({
     details: { name: string; slug: string; logo_url: string | null };
     computers: { enabled: boolean } | null;
     members: Member[];
+    domains: EmailDomain[] | null;
     hosting: HostingAccount[] | null;
     taskCopies: { limit: number | null; install_limit: number | null };
     can: { update: boolean; manage_owners: boolean; remove: boolean };
@@ -352,6 +364,8 @@ export default function OrganizationEdit({
                     </ul>
                 </section>
 
+                {domains && <EmailDomains domains={domains} />}
+
                 {can.update && (
                     <section className="space-y-4">
                         <Heading
@@ -604,5 +618,143 @@ function HostingAccountRow({
                 </form>
             )}
         </li>
+    );
+}
+
+/**
+ * Email domains (ORG-008): anyone whose verified email is at a verified one joins the organization. Each waits for a
+ * TXT record that proves the organization owns the domain.
+ */
+function EmailDomains({ domains }: { domains: EmailDomain[] }) {
+    const organization = useOrganization();
+    const { errors } = usePage<{ errors: Record<string, string> }>().props;
+    const [copied, copy] = useClipboard();
+
+    return (
+        <section className="space-y-4">
+            <Heading
+                variant="small"
+                title="Email domains"
+                description="People who sign up with a verified email at one of these domains join this organization as members, and people already signed up can join from the organization menu."
+            />
+            {domains.length > 0 && (
+                <ul className="divide-y rounded-lg border">
+                    {domains.map((domain) => (
+                        <li
+                            key={domain.id}
+                            className="space-y-3 p-3 text-sm"
+                            data-test={`email-domain-${domain.domain}`}
+                        >
+                            <div className="flex items-center gap-2">
+                                <span className="font-medium">
+                                    {domain.domain}
+                                </span>
+                                {domain.verified ? (
+                                    <Badge>Verified</Badge>
+                                ) : (
+                                    <Badge variant="secondary">
+                                        Waiting for DNS
+                                    </Badge>
+                                )}
+                                <div className="ml-auto flex gap-2">
+                                    {!domain.verified && (
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            data-test={`verify-email-domain-${domain.domain}`}
+                                            onClick={() =>
+                                                router.post(
+                                                    OrganizationDomainController.verify.url(
+                                                        {
+                                                            organization:
+                                                                organization.slug,
+                                                            domain: domain.id,
+                                                        },
+                                                    ),
+                                                    {},
+                                                    { preserveScroll: true },
+                                                )
+                                            }
+                                        >
+                                            Check
+                                        </Button>
+                                    )}
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        data-test={`remove-email-domain-${domain.domain}`}
+                                        onClick={() =>
+                                            router.delete(
+                                                OrganizationDomainController.destroy.url(
+                                                    {
+                                                        organization:
+                                                            organization.slug,
+                                                        domain: domain.id,
+                                                    },
+                                                ),
+                                                { preserveScroll: true },
+                                            )
+                                        }
+                                    >
+                                        Remove
+                                    </Button>
+                                </div>
+                            </div>
+                            {!domain.verified && (
+                                <div className="space-y-1 text-xs text-muted-foreground">
+                                    <p>
+                                        Add this TXT record to {domain.domain}{' '}
+                                        where its DNS is managed, then check it:
+                                    </p>
+                                    <p className="flex items-center gap-1 font-mono text-foreground">
+                                        <span className="break-all">
+                                            {domain.txt}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => copy(domain.txt)}
+                                            aria-label={`Copy ${domain.txt}`}
+                                            className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted"
+                                        >
+                                            {copied === domain.txt ? (
+                                                <Check className="size-3.5" />
+                                            ) : (
+                                                <Copy className="size-3.5" />
+                                            )}
+                                        </button>
+                                    </p>
+                                </div>
+                            )}
+                        </li>
+                    ))}
+                </ul>
+            )}
+            <Form
+                {...OrganizationDomainController.store.form(organization.slug)}
+                options={{ preserveScroll: true }}
+                resetOnSuccess
+                className="flex gap-2"
+            >
+                {({ processing }) => (
+                    <>
+                        <Input
+                            name="domain"
+                            placeholder="acme.com"
+                            aria-label="Email domain"
+                            className="max-w-xs"
+                            data-test="email-domain-input"
+                        />
+                        <Button
+                            variant="outline"
+                            disabled={processing}
+                            data-test="add-email-domain"
+                        >
+                            Add domain
+                        </Button>
+                    </>
+                )}
+            </Form>
+            <InputError message={errors.domain} />
+        </section>
     );
 }

@@ -27,6 +27,8 @@ declare module '@inertiajs/core' {
             currentOrganization: CurrentOrganization | null;
             /** Every organization the user belongs to, for the switcher. */
             userOrganizations: OrganizationSummary[] | null;
+            /** Organizations that verified the domain of the user's email, to join (ORG-008). */
+            joinableOrganizations: OrganizationSummary[];
             /** Whether the install serves many organizations (hosted) rather than one (self-hosted). */
             multiTenant: boolean;
             /** The admin signed in as this user (USR-003); null when nobody is impersonating. */

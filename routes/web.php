@@ -24,10 +24,12 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\ImpersonationController;
 use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\OnboardingController;
+use App\Http\Controllers\JoinOrganizationController;
 use App\Http\Controllers\OneDropOAuthController;
 use App\Http\Controllers\OpenRouterAuthController;
 use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\OrganizationHostingController;
+use App\Http\Controllers\OrganizationDomainController;
 use App\Http\Controllers\OrganizationMemberController;
 use App\Http\Controllers\ProjectAgentController;
 use App\Http\Controllers\ProjectAttachmentController;
@@ -384,6 +386,8 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
 
     // An organization's settings, members, usage, invites and groups (ORG-004, ORG-005). Anything from another
     // organization is a 404.
+    // One that verified the domain of the user's email (ORG-008). Not under `o/{organization}`, which is for members.
+    Route::post('organizations/{joinable:slug}/join', JoinOrganizationController::class)->name('organizations.join');
     Route::prefix('o/{organization}')->group(function () {
         Route::get('settings', [OrganizationController::class, 'edit'])->name('organizations.edit');
         Route::patch('/', [OrganizationController::class, 'update'])->name('organizations.update');
@@ -399,6 +403,9 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
 
         // The user's own computer (CMP-001): only theirs, made the first time they open it.
         Route::put('computers', [OrganizationController::class, 'updateComputers'])->name('organizations.computers.update');
+        Route::post('domains', [OrganizationDomainController::class, 'store'])->name('organizations.domains.store');
+        Route::post('domains/{domain}/verify', [OrganizationDomainController::class, 'verify'])->name('organizations.domains.verify');
+        Route::delete('domains/{domain}', [OrganizationDomainController::class, 'destroy'])->name('organizations.domains.destroy');
         Route::get('computer', [ComputerController::class, 'show'])->name('computers.show');
         Route::post('computer/retry', [ComputerController::class, 'retry'])->name('computers.retry');
         Route::post('computer/restart', [ComputerController::class, 'restart'])->name('computers.restart');
