@@ -4,9 +4,11 @@ import {
     Bell,
     Box,
     Building2,
+    Contact,
     CloudUpload,
     DatabaseBackup,
     Globe,
+    KeyRound,
     Monitor,
     Palette,
     Settings,
@@ -43,15 +45,21 @@ import { edit as editAppearance } from '@/routes/appearance';
 import { index as desktopDevices } from '@/routes/desktop-devices';
 import { index as groupsIndex } from '@/routes/groups';
 import { edit as editOrganization } from '@/routes/organizations';
+import { index as organizationHosting } from '@/routes/organizations/hosting';
+import { index as organizationMembers } from '@/routes/organizations/members';
+import { index as organizationSecrets } from '@/routes/organizations/secrets';
 import { index as invitationsIndex } from '@/routes/invitations';
 import { edit as editNotifications } from '@/routes/notifications';
 import { edit } from '@/routes/profile';
 import { edit as editSecurity } from '@/routes/security';
 import { index as usersIndex } from '@/routes/users';
 import { index as adminOrganizationsIndex } from '@/routes/admin/organizations';
-import type { NavItem } from '@/types';
+import type { CurrentOrganization, NavItem } from '@/types';
 
-type NavSection = { title: string; items: NavItem[] };
+type NavSection = {
+    title: string;
+    items: (NavItem & { exact?: boolean })[];
+};
 
 const accountSection: NavSection = {
     title: 'Account',
@@ -65,21 +73,51 @@ const accountSection: NavSection = {
     ],
 };
 
-/** The organization's people (ORG-004, ORG-005). */
-const peopleSection = (organization: string): NavSection => ({
-    title: 'People',
+/**
+ * The organization's settings and people (ORG-004, ORG-005, SECRET-003, HOST-003). General, Secrets and Hosting
+ * accounts are for the people who manage it; everyone sees its members, groups and invites.
+ */
+const organizationSection = (
+    organization: CurrentOrganization,
+): NavSection => ({
+    title: 'Organization',
     items: [
+        ...(organization.manages
+            ? [
+                  {
+                      title: 'General',
+                      href: editOrganization(organization.slug),
+                      // Its own pages (Members, Secrets…) sit under its address.
+                      exact: true,
+                      icon: Building2,
+                  },
+              ]
+            : []),
         {
-            title: 'Organization',
-            href: editOrganization(organization),
-            icon: Building2,
+            title: 'Members',
+            href: organizationMembers(organization.slug),
+            icon: Contact,
         },
-        { title: 'Groups', href: groupsIndex(organization), icon: Users },
+        { title: 'Groups', href: groupsIndex(organization.slug), icon: Users },
         {
             title: 'Invite people',
-            href: invitationsIndex(organization),
+            href: invitationsIndex(organization.slug),
             icon: UserPlus,
         },
+        ...(organization.manages
+            ? [
+                  {
+                      title: 'Secrets',
+                      href: organizationSecrets(organization.slug),
+                      icon: KeyRound,
+                  },
+                  {
+                      title: 'Hosting accounts',
+                      href: organizationHosting(organization.slug),
+                      icon: CloudUpload,
+                  },
+              ]
+            : []),
     ],
 });
 
@@ -116,9 +154,9 @@ const adminSection = (multiTenant: boolean): NavSection => ({
 export default function SettingsLayout({ children }: PropsWithChildren) {
     const { auth, multiTenant } = usePage().props;
     const organization = useOrganization();
-    const { isCurrentOrParentUrl } = useCurrentUrl();
+    const { isCurrentUrl, isCurrentOrParentUrl } = useCurrentUrl();
 
-    const people = peopleSection(organization.slug);
+    const people = organizationSection(organization);
     const sections = auth.user.is_admin
         ? [accountSection, people, adminSection(multiTenant)]
         : [accountSection, people];
@@ -170,7 +208,11 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
                                         prefetch
                                         className={cn(
                                             'flex shrink-0 items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-foreground/80 transition-colors hover:bg-muted hover:text-foreground',
-                                            isCurrentOrParentUrl(item.href) &&
+                                            (item.exact
+                                                ? isCurrentUrl(item.href)
+                                                : isCurrentOrParentUrl(
+                                                      item.href,
+                                                  )) &&
                                                 'bg-muted font-medium text-foreground',
                                         )}
                                     >

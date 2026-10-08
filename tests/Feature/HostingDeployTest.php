@@ -458,8 +458,7 @@ test('organization members other than owners and admins do not see its hosting a
     $organization = Organization::query()->find($this->project->organization_id);
     $organization->addMember($member, OrganizationRole::Member);
 
-    $this->actingAs($member)->get(route('organizations.edit', $organization))
-        ->assertInertia(fn ($page) => $page->where('hosting', null));
+    $this->actingAs($member)->get(route('organizations.hosting.index', $organization))->assertForbidden();
 })->group('HOST-003');
 
 test('an app with SQLite gets a backups bucket, and its machine backs the databases up with Litestream', function () {

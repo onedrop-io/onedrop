@@ -61,7 +61,7 @@ test('an owner adds a secret for all projects; its value is kept encrypted and n
             'all_projects' => true,
         ])
         ->assertSessionHasNoErrors()
-        ->assertRedirect(route('organizations.edit', $this->organization));
+        ->assertRedirect(route('organizations.secrets.index', $this->organization));
 
     $secret = $this->organization->secrets()->sole();
 
@@ -69,12 +69,13 @@ test('an owner adds a secret for all projects; its value is kept encrypted and n
         ->and(DB::table('organization_secrets')->value('value'))->not->toContain('wJalrXUtnFEMI');
     Queue::assertPushed(SyncOrganizationSecrets::class, fn (SyncOrganizationSecrets $job) => $job->organization->is($this->organization) && $job->sandbox === null);
 
-    $this->get(route('organizations.edit', $this->organization))
+    $this->get(route('organizations.secrets.index', $this->organization))
         ->assertDontSee('wJalrXUtnFEMI')
         ->assertInertia(fn (Assert $page) => $page
-            ->where('secrets.items.0.name', 'AWS_SECRET_ACCESS_KEY')
-            ->where('secrets.items.0.all_projects', true)
-            ->where('secrets.projects.0.name', 'Billing'));
+            ->component('organizations/secrets')
+            ->where('secrets.0.name', 'AWS_SECRET_ACCESS_KEY')
+            ->where('secrets.0.all_projects', true)
+            ->where('projects.0.name', 'Billing'));
 })->group('SECRET-003');
 
 test('a secret can go to selected projects only, and its value is kept when left empty', function () {
@@ -143,8 +144,7 @@ test('members can\'t see or change the organization\'s secrets', function () {
     $this->organization->addMember($member, OrganizationRole::Member);
     $secret = OrganizationSecret::factory()->for($this->organization)->create();
 
-    $this->actingAs($member)->get(route('organizations.edit', $this->organization))
-        ->assertInertia(fn (Assert $page) => $page->where('secrets', null));
+    $this->actingAs($member)->get(route('organizations.secrets.index', $this->organization))->assertForbidden();
     $this->post(route('organizations.secrets.store', $this->organization), ['name' => 'X', 'value' => 'y', 'all_projects' => true])->assertForbidden();
     $this->put(route('organizations.secrets.update', [$this->organization, $secret]), ['all_projects' => true])->assertForbidden();
     $this->delete(route('organizations.secrets.destroy', [$this->organization, $secret]))->assertForbidden();

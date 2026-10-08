@@ -14,6 +14,8 @@ test('an owner shares an AWS key with selected projects, changes it, and deletes
     $this->actingAs($dev);
 
     $page = visit(orgPath('/settings'))
+        ->click('[data-test="settings-modal"] a:has-text("Secrets")')
+        ->assertPathIs(orgPath('/settings/secrets'))
         ->click('@organization-secret-new')
         ->assertScript('document.activeElement?.dataset.test', 'organization-secret-name')
         ->type('@organization-secret-name', 'AWS_ACCESS_KEY_ID')

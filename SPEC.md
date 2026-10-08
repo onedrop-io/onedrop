@@ -109,7 +109,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## ORG-004: Manage an organization's members
 
-- User should see their organization's members (name, email, role, when they joined) in Settings → Organization.
+- User should see their organization's members (name, email, role, when they joined) in Settings → Organization → Members.
 - Organization owners and admins should be able to change a member's role between member and admin; only owners should be able to make someone an owner, or change or remove an owner.
 - An organization should always keep at least one owner.
 - On the hosted install, organization owners and admins should be able to remove a member, and a member should be able to leave. Leaving or being removed should take them out of the organization's groups and away from its projects at once; their projects should stay in the organization.
@@ -121,9 +121,10 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 - Organization owners and admins should be able to change its name and its address (`/o/<slug>`: lowercase letters, numbers and dashes, not taken by another organization), and land on the new address.
 - Organization owners and admins should be able to see its AI usage at `/o/<slug>/usage` from the account menu: the Usage page for every project in the organization, with a breakdown by person too.
-- Organization owners and admins should be able to give it a logo (PNG, JPEG, WebP or SVG, up to 1 MB) in Settings → Organization, shown in the account menu's Organization submenu, and remove it to go back to its initial. Only its members can load it.
+- Organization owners and admins should be able to give it a logo (PNG, JPEG, WebP or SVG, up to 1 MB) in Settings → Organization → General, shown in the account menu's Organization submenu, and remove it to go back to its initial. Only its members can load it.
 - Groups should belong to an organization, and only its members can be added to them.
 - Organization owners and admins should be able to manage every group and project in their organization.
+- The Settings window should have an Organization section with a page each for General (name, address, logo, computers, task copies), Members (with email domains), Groups, Invite people, Secrets and Hosting accounts. Members should only see Members, Groups and Invite people; opening General sends them to Members.
 
 ## ORG-006: Platform admin
 
@@ -139,7 +140,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## ORG-008: Join by email domain
 
-- On the hosted install, organization owners and admins should be able to add email domains (`acme.com`) in Settings → Organization, see the TXT record to add at the domain's DNS host, check it, and remove a domain.
+- On the hosted install, organization owners and admins should be able to add email domains (`acme.com`) in Settings → Organization → Members, see the TXT record to add at the domain's DNS host, check it, and remove a domain.
 - A domain should only count once its TXT record is found; until then it shows as waiting, with the record to add.
 - A domain another organization has already verified should be refused, and only one organization can verify it.
 - Someone signing up on the hosted install without an invite, whose verified email is at an organization's verified domain (exact match, not subdomains), should join that organization as a member instead of getting their own.
@@ -1181,7 +1182,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 - Organization owners and admins should be able to add secrets in Settings → Organization → Secrets: a name (letters, digits and underscores, not starting with a digit or `ONEDROP_`) and a value of any text, for all of the organization's projects (new ones too) or only selected ones. People's computers never get them.
 - Organization owners and admins should see each secret's name, which projects it reaches and when it was last changed, but never its value again once saved; they should be able to change its value (left empty to keep it) and its projects, and delete it after confirming.
-- Members shouldn't see or change the organization's secrets in Settings → Organization.
+- Members shouldn't see or change the organization's secrets.
 - Every sandbox of a project a secret reaches (task copies too) should have it as an environment variable in the Shell, the running app and the agent, within moments of a change for running sandboxes and on waking for sleeping ones; the app restarts when its secrets changed. Shells already open keep the old values until a new one is opened.
 - A setting the platform gives the sandbox and any name in the project's own `.env` (Tools → Secrets) should win over an organization secret of the same name.
 - Organization secrets should never be written into the project's files, so they don't go into commits, hosted apps, snapshots or remixes.
@@ -1502,7 +1503,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## HOST-003: Use your own hosting accounts
 
-- Organization owners and admins should be able to connect the organization's own account for each hosting provider (Fly.io, Cloudflare, Neon, Upstash) in Settings → Organization, under Hosting, with its keys stored encrypted and never shown again (blank keeps the saved key).
+- Organization owners and admins should be able to connect the organization's own account for each hosting provider (Fly.io, Cloudflare, Neon, Upstash) in Settings → Organization → Hosting accounts, with its keys stored encrypted and never shown again (blank keeps the saved key).
 - When the organization connected its own account for a provider, new things for its apps should be made there and billed to it by the provider; otherwise they use the install's account (ADMIN-007), if it's turned on. Things already made stay in the account they were made in.
 - User should see for each provider whether it's connected, uses OneDrop's account, or isn't set up, and how many things of its apps are in its own account.
 - User should see each provider's logo beside its name, here and in Admin → Hosting.
@@ -1974,7 +1975,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## CMP-003: Turn computers on or off for an organization
 
-- Organization owners and admins should be able to turn computers off for their organization in Settings → Organization (on by default).
+- Organization owners and admins should be able to turn computers off for their organization in Settings → Organization → General (on by default).
 - While they're off, nobody in the organization should see "Computer" in the sidebar or be able to open one, and running computers should be put to sleep; turning them back on should give everyone their computer as it was.
 - On a self-hosted install, platform admins should be able to turn computers off for the whole install with `COMPUTERS_ENABLED=false`.
 

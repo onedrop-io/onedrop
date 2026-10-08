@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
+use Inertia\Response;
 
 /**
  * An organization's secrets (SECRET-003): environment variables in its projects' sandboxes, for all of its projects or
@@ -23,6 +24,26 @@ class OrganizationSecretController extends Controller
 {
     /** Most secrets one organization keeps. */
     public const MAX_SECRETS = 100;
+
+    /**
+     * Its secrets, names only, and the projects they can be given to.
+     */
+    public function index(Request $request): Response
+    {
+        $organization = $this->managed($request);
+
+        return Inertia::render('organizations/secrets', [
+            'secrets' => $organization->secrets()->with('projects:id')->orderBy('name')->get()
+                ->map(fn (OrganizationSecret $secret): array => [
+                    'id' => $secret->id,
+                    'name' => $secret->name,
+                    'all_projects' => $secret->all_projects,
+                    'projects' => $secret->projects->pluck('id')->all(),
+                    'updated_at' => $secret->updated_at?->toIso8601String(),
+                ]),
+            'projects' => $organization->projects()->orderBy('name')->get(['id', 'name']),
+        ]);
+    }
 
     /**
      * Add a secret.
@@ -60,7 +81,7 @@ class OrganizationSecretController extends Controller
         SyncOrganizationSecrets::dispatch($organization);
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Added :name.', ['name' => $secret->name])]);
 
-        return to_route('organizations.edit', $organization);
+        return to_route('organizations.secrets.index', $organization);
     }
 
     /**
@@ -90,7 +111,7 @@ class OrganizationSecretController extends Controller
         SyncOrganizationSecrets::dispatch($organization);
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Saved :name.', ['name' => $secret->name])]);
 
-        return to_route('organizations.edit', $organization);
+        return to_route('organizations.secrets.index', $organization);
     }
 
     /**
@@ -107,7 +128,7 @@ class OrganizationSecretController extends Controller
         SyncOrganizationSecrets::dispatch($organization);
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Deleted :name.', ['name' => $secret->name])]);
 
-        return to_route('organizations.edit', $organization);
+        return to_route('organizations.secrets.index', $organization);
     }
 
     /**

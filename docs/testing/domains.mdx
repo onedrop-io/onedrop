@@ -53,7 +53,7 @@ The Pest suite fakes DNS, Fly.io and Cloudflare. These checks need a real domain
 
 Hosted install (`APP_MULTI_TENANT=true`) with email verification on, and a domain whose DNS you control.
 
-- [ ] Settings → Organization → Email domains: adding the domain shows **Waiting for DNS** and a `onedrop-verification=…` value; **Check** before adding the record says it can't find it.
+- [ ] Settings → Organization → Members, under Email domains: adding the domain shows **Waiting for DNS** and a `onedrop-verification=…` value; **Check** before adding the record says it can't find it.
 - [ ] After adding the TXT record at the DNS host (`dig TXT acme.com +short` shows it), **Check** marks it **Verified**.
 - [ ] Signing up with an email at that domain, then opening the verification email's link, lands in the organization as a member, with no "Ada's organization" left behind.
 - [ ] An existing account at that domain sees **Join** followed by the organization's name in the Organization submenu and joins with it.

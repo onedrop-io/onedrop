@@ -1,4 +1,4 @@
-import { router, useForm } from '@inertiajs/react';
+import { Head, router, setLayoutProps, useForm } from '@inertiajs/react';
 import { KeyRound } from 'lucide-react';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
@@ -9,18 +9,15 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useOrganization } from '@/hooks/use-organization';
+import { index } from '@/routes/organizations/secrets';
 
-export type OrganizationSecret = {
+type OrganizationSecret = {
     id: number;
     name: string;
     all_projects: boolean;
     projects: number[];
     updated_at: string | null;
-};
-
-export type OrganizationSecrets = {
-    items: OrganizationSecret[];
-    projects: { id: number; name: string }[];
 };
 
 type SecretForm = {
@@ -34,66 +31,79 @@ type SecretForm = {
  * Secrets (SECRET-003): environment variables the organization shares with its projects' sandboxes, like a
  * Codespaces organization secret. Values are write-only: they're never sent back once saved.
  */
-export default function OrganizationSecretsSection({
-    organization,
+export default function OrganizationSecrets({
     secrets,
+    projects,
 }: {
-    organization: string;
-    secrets: OrganizationSecrets;
+    secrets: OrganizationSecret[];
+    projects: { id: number; name: string }[];
 }) {
+    const organization = useOrganization().slug;
     const [editing, setEditing] = useState<number | 'new' | null>(null);
 
+    setLayoutProps({
+        breadcrumbs: [{ title: 'Secrets', href: index(organization) }],
+    });
+
     return (
-        <section className="space-y-4" data-test="organization-secrets">
-            <Heading
-                variant="small"
-                title="Secrets"
-                description="Environment variables for your projects' sandboxes, like an AWS profile for everyone: the Shell, the running app and the agent all get them. A project's own secret with the same name wins. Values can't be shown again once saved, but anyone who can open a project can read the ones it gets."
-            />
+        <>
+            <Head title="Secrets" />
 
-            {secrets.items.length > 0 && (
-                <ul className="divide-y rounded-xl border border-sidebar-border/70 dark:border-sidebar-border">
-                    {secrets.items.map((secret) =>
-                        editing === secret.id ? (
-                            <li key={secret.id} className="p-4">
-                                <SecretEditor
+            <div
+                className="flex max-w-3xl flex-1 flex-col gap-6"
+                data-test="organization-secrets"
+            >
+                <Heading
+                    title="Secrets"
+                    description="Environment variables for your projects' sandboxes, like an AWS profile for everyone: the Shell, the running app and the agent all get them. A project's own secret with the same name wins. Values can't be shown again once saved, but anyone who can open a project can read the ones it gets."
+                />
+
+                {secrets.length > 0 && (
+                    <ul className="divide-y rounded-xl border border-sidebar-border/70 dark:border-sidebar-border">
+                        {secrets.map((secret) =>
+                            editing === secret.id ? (
+                                <li key={secret.id} className="p-4">
+                                    <SecretEditor
+                                        organization={organization}
+                                        projects={projects}
+                                        secret={secret}
+                                        onDone={() => setEditing(null)}
+                                    />
+                                </li>
+                            ) : (
+                                <SecretRow
+                                    key={secret.id}
                                     organization={organization}
-                                    projects={secrets.projects}
                                     secret={secret}
-                                    onDone={() => setEditing(null)}
+                                    projects={projects}
+                                    onEdit={() => setEditing(secret.id)}
                                 />
-                            </li>
-                        ) : (
-                            <SecretRow
-                                key={secret.id}
-                                organization={organization}
-                                secret={secret}
-                                projects={secrets.projects}
-                                onEdit={() => setEditing(secret.id)}
-                            />
-                        ),
-                    )}
-                </ul>
-            )}
+                            ),
+                        )}
+                    </ul>
+                )}
 
-            {editing === 'new' ? (
-                <div className="rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border">
-                    <SecretEditor
-                        organization={organization}
-                        projects={secrets.projects}
-                        onDone={() => setEditing(null)}
-                    />
-                </div>
-            ) : (
-                <Button
-                    variant="outline"
-                    onClick={() => setEditing('new')}
-                    data-test="organization-secret-new"
-                >
-                    <KeyRound /> New secret
-                </Button>
-            )}
-        </section>
+                {editing === 'new' ? (
+                    <div className="rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border">
+                        <SecretEditor
+                            organization={organization}
+                            projects={projects}
+                            onDone={() => setEditing(null)}
+                        />
+                    </div>
+                ) : (
+                    <div>
+                        <Button
+                            variant="outline"
+                            onClick={() => setEditing('new')}
+                            data-test="organization-secret-new"
+                        >
+                            <KeyRound /> New secret
+                        </Button>
+                    </div>
+                )}
+            </div>
+        </>
     );
 }
 

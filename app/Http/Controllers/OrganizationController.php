@@ -5,13 +5,8 @@ namespace App\Http\Controllers;
 use App\Enums\OrganizationRole;
 use App\Http\Middleware\ResolveOrganization;
 use App\Jobs\SuspendComputers;
-use App\Models\HostedService;
 use App\Models\Organization;
-use App\Models\OrganizationDomain;
-use App\Models\OrganizationSecret;
-use App\Models\User;
 use App\Sandbox\Agents\AiCredits;
-use App\Sandbox\Hosting\HostingProviders;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -56,65 +51,23 @@ class OrganizationController extends Controller
     }
 
     /**
-     * Its name, address, members, email domains, own hosting accounts and secrets (ORG-004, ORG-005, ORG-008, HOST-003,
-     * SECRET-003).
+     * General settings: its name, address, logo, computers and task copy limit (ORG-005, CMP-003, TASK-003), for its
+     * owners and admins. Members have nothing to change here, so they go to its members.
      */
-    public function edit(Request $request): Response
+    public function edit(Request $request): Response|RedirectResponse
     {
         $organization = ResolveOrganization::current($request);
-        $user = $request->user();
+
+        if (! $organization->isManagedBy($request->user())) {
+            return to_route('organizations.members.index', $organization);
+        }
 
         return Inertia::render('organizations/edit', [
             'details' => [...$organization->only('name', 'slug'), 'logo_url' => $organization->logoUrl()],
             // Whether its people get their own computer (CMP-003); null when the install turned them off.
             'computers' => config('sandbox.computers.enabled') ? ['enabled' => $organization->computers_enabled !== false] : null,
-            'members' => $organization->members()
-                ->orderBy('name')
-                ->get()
-                ->map(fn (User $member): array => [
-                    'id' => $member->id,
-                    'name' => $member->name,
-                    'email' => $member->email,
-                    'role' => $member->pivot->role,
-                    'joined_at' => $member->pivot->created_at?->toIso8601String(),
-                ]),
-            // Its own hosting accounts (HOST-003), for the people who can change them.
-            'hosting' => $organization->isManagedBy($user) ? app(HostingProviders::class)->describeFor(
-                $organization,
-                HostedService::query()->where('owner', HostedService::OWNER_ORGANIZATION)
-                    ->whereHas('project', fn ($query) => $query->where('organization_id', $organization->id))
-                    ->selectRaw('provider, COUNT(*) as count')->groupBy('provider')
-                    ->pluck('count', 'provider')->map(fn ($count) => (int) $count)->all(),
-            ) : null,
-            // Its email domains (ORG-008), for the people who can change them, on the hosted install.
-            'domains' => Organization::multiTenant() && $organization->isManagedBy($user)
-                ? $organization->domains()->orderBy('domain')->get()->map(fn (OrganizationDomain $domain): array => [
-                    'id' => $domain->id,
-                    'domain' => $domain->domain,
-                    'verified' => $domain->verified_at !== null,
-                    'txt' => $domain->txtValue(),
-                ])
-                : null,
-            // Its secrets (SECRET-003), names only, and the projects they can be given to, for the people who manage them.
-            'secrets' => $organization->isManagedBy($user) ? [
-                'items' => $organization->secrets()->with('projects:id')->orderBy('name')->get()
-                    ->map(fn (OrganizationSecret $secret): array => [
-                        'id' => $secret->id,
-                        'name' => $secret->name,
-                        'all_projects' => $secret->all_projects,
-                        'projects' => $secret->projects->pluck('id')->all(),
-                        'updated_at' => $secret->updated_at?->toIso8601String(),
-                    ]),
-                'projects' => $organization->projects()->orderBy('name')->get(['id', 'name']),
-            ] : null,
             // Most task copies one of its projects runs at once (TASK-003), and the install's own limit, if any.
             'taskCopies' => ['limit' => $organization->max_task_copies, 'install_limit' => config('sandbox.max_task_copies')],
-            'can' => [
-                'update' => $organization->isManagedBy($user),
-                'manage_owners' => $organization->isOwnedBy($user),
-                // The one organization of a self-hosted install has everyone in it; accounts are deleted instead.
-                'remove' => Organization::multiTenant(),
-            ],
         ]);
     }
 

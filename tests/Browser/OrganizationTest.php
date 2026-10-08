@@ -57,14 +57,16 @@ test('an owner renames the organization, makes a member an admin, and opens its 
     $page = visit(orgPath())
         ->click('@sidebar-menu-button')
         ->click('@settings-link')
-        ->click('[data-test="settings-modal"] a:has-text("Organization")')
+        ->click('[data-test="settings-modal"] a[href="'.orgPath('/settings').'"]')
         ->assertPathIs(orgPath('/settings'))
-        ->assertSeeIn("@organization-member-{$sam->id}", 'Sam Member')
         ->fill('name', 'Acme Corp')
         ->fill('slug', 'acme-corp')
         ->press('@save-organization')
         ->assertSee('Organization updated.')
         ->assertPathIs('/o/acme-corp/settings')
+        ->click('[data-test="settings-modal"] a:has-text("Members")')
+        ->assertPathIs('/o/acme-corp/settings/members')
+        ->assertSeeIn("@organization-member-{$sam->id}", 'Sam Member')
         ->select("@role-{$sam->id}", 'admin')
         ->assertSelected("@role-{$sam->id}", 'admin')
         ->assertNoJavaScriptErrors();
@@ -76,6 +78,21 @@ test('an owner renames the organization, makes a member an admin, and opens its 
         ->click('@organization-usage-link')
         ->assertPathIs('/o/acme-corp/usage')
         ->assertSee('Acme Corp usage')
+        ->assertNoJavaScriptErrors();
+})->group('ORG-004', 'ORG-005');
+
+test('a member only sees the organization pages they can use', function () {
+    $this->seed(DatabaseSeeder::class);
+    $sam = User::where('email', 'sam@example.com')->sole();
+    AgentConnection::factory()->for($sam)->create();
+    $this->actingAs($sam);
+
+    visit(orgPath('/settings'))
+        ->assertPathIs(orgPath('/settings/members'))
+        ->assertSeeIn('[data-test="settings-modal"] nav', 'Members')
+        ->assertDontSeeIn('[data-test="settings-modal"] nav', 'General')
+        ->assertDontSeeIn('[data-test="settings-modal"] nav', 'Secrets')
+        ->assertDontSeeIn('[data-test="settings-modal"] nav', 'Hosting accounts')
         ->assertNoJavaScriptErrors();
 })->group('ORG-004', 'ORG-005');
 
@@ -126,7 +143,7 @@ test('on the hosted install an owner verifies an email domain, and someone at it
 
     $this->actingAs($dev);
 
-    $page = visit(orgPath('/settings'))
+    $page = visit(orgPath('/settings/members'))
         ->type('@email-domain-input', 'acme.com')
         ->press('@add-email-domain')
         ->assertSeeIn('[data-test="email-domain-acme.com"]', 'Waiting for DNS');

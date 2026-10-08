@@ -47,7 +47,7 @@ test('an owner adds a domain, sees its TXT record, and verifies it once the reco
     $domain = $this->acme->domains()->sole();
     expect($domain->domain)->toBe('acme.com')->and($domain->verified_at)->toBeNull();
 
-    $this->get(route('organizations.edit', $this->acme))
+    $this->get(route('organizations.members.index', $this->acme))
         ->assertInertia(fn ($page) => $page->where('domains.0', ['id' => $domain->id, 'domain' => 'acme.com', 'verified' => false, 'txt' => $domain->txtValue()]));
 
     $this->post(route('organizations.domains.verify', [$this->acme, $domain]))->assertSessionHasErrors('domain');
@@ -97,7 +97,7 @@ test('members, other organizations and self-hosted installs cannot manage domain
     $globexDomain = OrganizationDomain::factory()->for($globex)->create();
     $globex->addMember($this->owner, OrganizationRole::Owner);
 
-    $this->actingAs($member)->get(route('organizations.edit', $this->acme))->assertInertia(fn ($page) => $page->where('domains', null));
+    $this->actingAs($member)->get(route('organizations.members.index', $this->acme))->assertInertia(fn ($page) => $page->where('domains', null));
     $this->post(route('organizations.domains.store', $this->acme), ['domain' => 'evil.com'])->assertForbidden();
     $this->delete(route('organizations.domains.destroy', [$this->acme, $domain]))->assertForbidden();
 

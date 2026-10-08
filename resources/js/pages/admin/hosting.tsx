@@ -72,7 +72,7 @@ export default function Hosting({ providers }: { providers: Provider[] }) {
                 <Heading
                     variant="small"
                     title="Hosting providers"
-                    description="Where published apps run off their sandbox. Organizations can connect their own accounts instead in Settings → Organization."
+                    description="Where published apps run off their sandbox. Organizations can connect their own accounts instead in Settings → Organization → Hosting accounts."
                 />
 
                 <InputError message={errors.enabled} />

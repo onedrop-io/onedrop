@@ -199,8 +199,10 @@ describe('managing an organization', function () {
 
     test('everyone sees the members; only owners and admins can change them', function () {
         $this->actingAs($this->member)->get(route('organizations.edit', $this->acme))
+            ->assertRedirect(route('organizations.members.index', $this->acme));
+        $this->actingAs($this->member)->get(route('organizations.members.index', $this->acme))
             ->assertInertia(fn ($page) => $page
-                ->component('organizations/edit')
+                ->component('organizations/members')
                 ->has('members', 3)
                 ->where('can', ['update' => false, 'manage_owners' => false, 'remove' => true]));
 
@@ -210,7 +212,7 @@ describe('managing an organization', function () {
 
         $this->actingAs($this->admin)
             ->patch(route('organizations.members.update', [$this->acme, $this->member]), ['role' => 'admin'])
-            ->assertRedirect(route('organizations.edit', $this->acme));
+            ->assertRedirect(route('organizations.members.index', $this->acme));
 
         expect($this->member->fresh()->organizationRole($this->acme))->toBe(OrganizationRole::Admin);
     })->group('ORG-004');
@@ -248,7 +250,7 @@ describe('managing an organization', function () {
 
         $this->actingAs($this->admin)
             ->delete(route('organizations.members.destroy', [$this->acme, $this->member]))
-            ->assertRedirect(route('organizations.edit', $this->acme));
+            ->assertRedirect(route('organizations.members.index', $this->acme));
 
         $member = $this->member->fresh();
 

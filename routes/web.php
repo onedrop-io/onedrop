@@ -394,6 +394,9 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
     Route::post('organizations/{joinable:slug}/join', JoinOrganizationController::class)->name('organizations.join');
     Route::prefix('o/{organization}')->group(function () {
         Route::get('settings', [OrganizationController::class, 'edit'])->name('organizations.edit');
+        Route::get('settings/members', [OrganizationMemberController::class, 'index'])->name('organizations.members.index');
+        Route::get('settings/secrets', [OrganizationSecretController::class, 'index'])->name('organizations.secrets.index');
+        Route::get('settings/hosting', [OrganizationHostingController::class, 'index'])->name('organizations.hosting.index');
         Route::patch('/', [OrganizationController::class, 'update'])->name('organizations.update');
         Route::put('task-copies', [OrganizationController::class, 'updateTaskCopies'])->name('organizations.task-copies.update');
         Route::patch('members/{user}', [OrganizationMemberController::class, 'update'])->name('organizations.members.update');

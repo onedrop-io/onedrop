@@ -55,14 +55,14 @@ An organization always keeps at least one owner.
 
 ## Manage your organization
 
-Open **Organization** under **People** in [Settings](/guides/settings). Everyone in the organization sees its members, their roles, and when they joined. Owners and admins can also:
+Its pages are under **Organization** in [Settings](/guides/settings). Everyone in the organization sees **Members**: its people, their roles, and when they joined. Owners and admins also get **General**, **Secrets** and **Hosting accounts**, where they can:
 
-- **Give it a logo.** PNG, JPEG, WebP or SVG, up to 1 MB. It shows in the account menu's organization submenu, only to its members. Remove it to go back to its initial.
-- **Rename it, or change its address.** The address is the `/o/<slug>` part of its pages: lowercase letters, numbers and dashes. Links to the old address stop working.
-- **Change roles** with the menu next to each person.
-- **Limit task copies.** Under **Task copies**, set the most [task copies](/guides/tasks#each-tasks-own-copy-of-the-app) one of its projects runs at once; each is a sandbox that costs money to run. Leave it empty for no limit of its own. When the install has a lower limit, that one applies.
-- **Share secrets with its projects** under **Secrets**: environment variables like an AWS profile, for all projects or selected ones. See [Organization secrets](/guides/secrets#organization-secrets).
-- **Connect its own hosting accounts** (Fly.io, Cloudflare, Neon, Upstash) under **Hosting**, so its apps are [hosted](/guides/hosting#use-your-organizations-own-accounts) there and billed to it.
+- **Give it a logo** in **General**. PNG, JPEG, WebP or SVG, up to 1 MB. It shows in the account menu's organization submenu, only to its members. Remove it to go back to its initial.
+- **Rename it, or change its address** in **General**. The address is the `/o/<slug>` part of its pages: lowercase letters, numbers and dashes. Links to the old address stop working.
+- **Change roles** in **Members**, with the menu next to each person.
+- **Limit task copies.** In **General**, set the most [task copies](/guides/tasks#each-tasks-own-copy-of-the-app) one of its projects runs at once; each is a sandbox that costs money to run. Leave it empty for no limit of its own. When the install has a lower limit, that one applies.
+- **Share secrets with its projects** in **Secrets**: environment variables like an AWS profile, for all projects or selected ones. See [Organization secrets](/guides/secrets#organization-secrets).
+- **Connect its own hosting accounts** (Fly.io, Cloudflare, Neon, Upstash) in **Hosting accounts**, so its apps are [hosted](/guides/hosting#use-your-organizations-own-accounts) there and billed to it.
 - **Remove someone** (hosted install only). They leave the organization's groups and lose its projects right away; the projects stay in the organization. Anyone can **Leave** an organization the same way.
 
 On your own install everyone stays in its one organization. To take someone out, an admin deletes their account.
@@ -70,7 +70,7 @@ On your own install everyone stays in its one organization. To take someone out,
 ## Organization usage
 ## Email domains
 
-On the hosted install, owners and admins can let everyone with a work email join the organization, without sending invites. In **Settings → Organization → Email domains**:
+On the hosted install, owners and admins can let everyone with a work email join the organization, without sending invites. In **Settings → Organization → Members**, under **Email domains**:
 
 1. Enter your company's email domain (for example `acme.com`) and click **Add domain**.
 2. Add the TXT record it shows (`onedrop-verification=…`) to that domain where its DNS is managed. Leave the name empty, or use `@`, so the record is on the domain itself.

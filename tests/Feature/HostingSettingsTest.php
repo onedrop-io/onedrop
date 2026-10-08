@@ -94,8 +94,9 @@ test("organization owners and admins can connect the organization's own account;
         ->and($account->get('api_key'))->toBe('neon-theirs')
         ->and($organization->fresh()->getRawOriginal('hosting_accounts'))->not->toContain('neon-theirs');
 
-    $this->actingAs($owner)->get(route('organizations.edit', $organization))
+    $this->actingAs($owner)->get(route('organizations.hosting.index', $organization))
         ->assertInertia(fn (AssertableInertia $page) => $page
+            ->component('organizations/hosting')
             ->where('hosting.2.name', 'neon')
             ->where('hosting.2.connected', true)
             ->where('hosting.2.platform', false)

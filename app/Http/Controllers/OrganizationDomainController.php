@@ -44,7 +44,7 @@ class OrganizationDomainController extends Controller
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Added :domain. Add its TXT record, then check it.', ['domain' => $domain])]);
 
-        return to_route('organizations.edit', $organization);
+        return to_route('organizations.members.index', $organization);
     }
 
     /**
@@ -68,7 +68,7 @@ class OrganizationDomainController extends Controller
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Verified :domain.', ['domain' => $domain->domain])]);
 
-        return to_route('organizations.edit', $organization);
+        return to_route('organizations.members.index', $organization);
     }
 
     /**
@@ -84,7 +84,7 @@ class OrganizationDomainController extends Controller
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Removed :domain.', ['domain' => $domain->domain])]);
 
-        return to_route('organizations.edit', $organization);
+        return to_route('organizations.members.index', $organization);
     }
 
     protected function managed(Request $request): Organization

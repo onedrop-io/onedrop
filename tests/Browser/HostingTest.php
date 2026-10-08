@@ -41,7 +41,7 @@ test('an admin sets up Fly.io, then publishes an app to hosting and sees it live
         ->assertPathIs(orgPath())
         ->click('@sidebar-menu-button')
         ->click('@settings-link')
-        ->click('[data-test="settings-modal"] a:has-text("Hosting")')
+        ->click('[data-test="settings-modal"] a:text-is("Hosting")')
         ->assertPathIs('/admin/hosting')
         ->assertPresent('[data-test="hosting-fly-item"] [data-test="hosting-logo-fly"]')
         ->click('@hosting-fly-select')
