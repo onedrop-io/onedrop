@@ -1,5 +1,12 @@
 import { Link, router, usePage } from '@inertiajs/react';
-import { Archive, HardDrive, Monitor, Search, SquarePen } from 'lucide-react';
+import {
+    Archive,
+    HardDrive,
+    LayoutGrid,
+    Monitor,
+    Search,
+    SquarePen,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import {
@@ -16,6 +23,7 @@ import {
 } from '@/components/ui/sidebar';
 import { jsonRequest } from '@/lib/json-request';
 import { useOrganization } from '@/hooks/use-organization';
+import { index as apps } from '@/routes/apps';
 import { show as computer } from '@/routes/computers';
 import { index as drive } from '@/routes/drive';
 import { home } from '@/routes/organizations';
@@ -25,7 +33,7 @@ type SearchResult = { id: number; name: string; archived: boolean };
 
 /**
  * The sidebar's Search row (opens a dialog that searches all the user's projects) under a full-width New project row,
- * then the user's own Computer (CMP-001) and Drive (DRIVE-001).
+ * then the organization's Apps (APPS-001), the user's own Computer (CMP-001) and Drive (DRIVE-001).
  */
 export function NavSearch() {
     const [open, setOpen] = useState(false);
@@ -60,6 +68,24 @@ export function NavSearch() {
                     >
                         <Search />
                         <span>Search</span>
+                    </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                    <SidebarMenuButton
+                        asChild
+                        tooltip={{ children: 'Apps' }}
+                        isActive={currentUrl.startsWith(
+                            apps.url(organization.slug),
+                        )}
+                    >
+                        <Link
+                            href={apps(organization.slug)}
+                            prefetch
+                            data-test="sidebar-apps"
+                        >
+                            <LayoutGrid />
+                            <span>Apps</span>
+                        </Link>
                     </SidebarMenuButton>
                 </SidebarMenuItem>
                 {organization.computers && (

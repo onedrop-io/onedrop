@@ -87,8 +87,10 @@ use Laravel\Sanctum\PersonalAccessToken;
  * @property string|null $hosting_size The hosted app's machine size; null is the install's default (HOST-010)
  * @property int|null $device_id The computer (a desktop app sign-in) it runs on, or null for the install's provider (DESK-010)
  * @property list<array{host: string, port: int}>|null $network_hosts Hosts on its people's network it may reach through their desktop app (DESK-009)
+ * @property bool $apps_listed Whether the organization's Apps page lists it once it's published (APPS-003)
+ * @property Carbon|null $apps_featured_at When an organization admin featured it on the Apps page (APPS-003)
  */
-#[Fillable(['organization_id', 'kind', 'name', 'prompt', 'status', 'agent_session_id', 'sign_in_retry_message_id', 'agent_harness', 'agent_provider', 'agent_model', 'agent_variant', 'agent_auto', 'publish_status', 'publish_visibility', 'publish_target', 'published_url', 'published_at', 'published_by', 'publish_error', 'publish_login_url', 'publish_waiting_for', 'onedrop_enabled', 'onedrop_client_id', 'onedrop_client_secret', 'onedrop_callback_path', 'onedrop_group_ids', 'pinned_at', 'read_at', 'archived_at', 'sidebar_position', 'backup_commit', 'backed_up_at', 'icon_path', 'icon_mime', 'icon_hash', 'git_remote_url', 'git_remote_username', 'git_remote_token', 'git_sync_status', 'git_sync_error', 'git_synced_at', 'github_installation_id', 'autofix', 'track_requirements', 'turn_outcome', 'hosting_changes', 'auto_deploy', 'hosting_sqlite_import', 'hosting_size', 'published_default_url', 'device_id', 'network_hosts'])]
+#[Fillable(['organization_id', 'kind', 'name', 'prompt', 'status', 'agent_session_id', 'sign_in_retry_message_id', 'agent_harness', 'agent_provider', 'agent_model', 'agent_variant', 'agent_auto', 'publish_status', 'publish_visibility', 'publish_target', 'published_url', 'published_at', 'published_by', 'publish_error', 'publish_login_url', 'publish_waiting_for', 'onedrop_enabled', 'onedrop_client_id', 'onedrop_client_secret', 'onedrop_callback_path', 'onedrop_group_ids', 'pinned_at', 'read_at', 'archived_at', 'sidebar_position', 'backup_commit', 'backed_up_at', 'icon_path', 'icon_mime', 'icon_hash', 'git_remote_url', 'git_remote_username', 'git_remote_token', 'git_sync_status', 'git_sync_error', 'git_synced_at', 'github_installation_id', 'autofix', 'track_requirements', 'turn_outcome', 'hosting_changes', 'auto_deploy', 'hosting_sqlite_import', 'hosting_size', 'published_default_url', 'device_id', 'network_hosts', 'apps_listed', 'apps_featured_at'])]
 #[Hidden(['onedrop_client_secret', 'git_remote_token'])]
 class Project extends Model implements Conversation
 {
@@ -103,7 +105,7 @@ class Project extends Model implements Conversation
      *
      * @var array<string, mixed>
      */
-    protected $attributes = ['kind' => 'app', 'autofix' => true, 'track_requirements' => true, 'auto_deploy' => false];
+    protected $attributes = ['kind' => 'app', 'autofix' => true, 'track_requirements' => true, 'auto_deploy' => false, 'apps_listed' => true];
 
     /**
      * Order projects the way the sidebar lists them (PRJ-010). Ties go to the newest.
@@ -156,6 +158,8 @@ class Project extends Model implements Conversation
             'git_synced_at' => 'datetime',
             'github_installation_id' => 'integer',
             'network_hosts' => 'array',
+            'apps_listed' => 'boolean',
+            'apps_featured_at' => 'datetime',
         ];
     }
 
@@ -167,6 +171,30 @@ class Project extends Model implements Conversation
     public function scopeApps(Builder $query): void
     {
         $query->where('projects.kind', ProjectKind::App);
+    }
+
+    /**
+     * Apps that are live where anyone in the organization can open them, for its Apps page (APPS-001): on Your domain
+     * or Hosting, or public on Tailscale (a private one needs the tailnet). Hidden ones are included; see apps_listed.
+     *
+     * @param  Builder<static>  $query
+     */
+    public function scopeOpenToOrganization(Builder $query): void
+    {
+        $query->apps()
+            ->where('projects.publish_status', PublishStatus::Live)
+            ->whereNotNull('projects.published_url')
+            ->where(fn (Builder $query) => $query
+                ->where('projects.publish_target', '!=', PublishTarget::Tailscale)
+                ->orWhere('projects.publish_visibility', PublishVisibility::Public));
+    }
+
+    /**
+     * Whether it's on its organization's Apps page for everyone (APPS-001, APPS-003).
+     */
+    public function listedInApps(): bool
+    {
+        return $this->apps_listed && static::query()->whereKey($this->id)->openToOrganization()->exists();
     }
 
     /**
@@ -432,6 +460,16 @@ class Project extends Model implements Conversation
     public function domains(): HasMany
     {
         return $this->hasMany(ProjectDomain::class);
+    }
+
+    /**
+     * The groups its owner put the app in, for the Apps page (APPS-002).
+     *
+     * @return BelongsToMany<Group, $this>
+     */
+    public function groups(): BelongsToMany
+    {
+        return $this->belongsToMany(Group::class)->withTimestamps();
     }
 
     /**

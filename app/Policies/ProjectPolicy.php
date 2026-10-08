@@ -33,6 +33,31 @@ class ProjectPolicy
     }
 
     /**
+     * Determine whether the user can see the app on its organization's Apps page and load its icon (APPS-001):
+     * anyone in the organization while it's listed there, and the people who can open the project.
+     */
+    public function openApp(User $user, Project $project): Response
+    {
+        if ($user->belongsToOrganization($project->organization_id) && $project->listedInApps()) {
+            return Response::allow();
+        }
+
+        return $this->ownsOrManages($user, $project);
+    }
+
+    /**
+     * Determine whether the user can feature the app on its organization's Apps page: its owners and admins (APPS-003).
+     */
+    public function feature(User $user, Project $project): Response
+    {
+        if (! $user->belongsToOrganization($project->organization_id)) {
+            return Response::denyAsNotFound();
+        }
+
+        return $project->organization->isManagedBy($user) ? Response::allow() : Response::deny();
+    }
+
+    /**
      * Its owner while they're still in its organization, and the organization's owners and admins (ORG-005); only its
      * owner for a computer (CMP-001).
      * Platform admins get nothing here: another company's projects aren't theirs to open (ORG-006). Someone

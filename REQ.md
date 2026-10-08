@@ -79,6 +79,20 @@ ORG-001..008 (see `docs/plans/organizations.md`; all built: the boundary, the sw
 - **2026-09-30: Tenancy first, billing later.** Plans and billing attach to the organization, but are a separate piece of work once the boundary is in place.
 - **2026-10-01: Tests always run as a single-organization install (`APP_MULTI_TENANT=false` in `phpunit.xml`); tests for the hosted install turn it on themselves.** A local `.env` with `APP_MULTI_TENANT=true` made 83 tests fail with 404s, since their users weren't in the install's organization.
 
+## Apps
+
+APPS-001..003. One page per organization (`/o/<slug>/apps`) that lists every app its people have published, so nobody has to know an app's address to find it.
+
+### Decisions
+
+- **2026-10-07: Publishing an app lists it in Apps by itself; its owner or an organization admin can hide it.** Publishing to the organization already means "for the organization to use" (ORG-007), and an opt-in list stays empty. Rejected: listing only apps the owner adds.
+- **2026-10-07: Apps lists only apps everyone in the organization can open:** Your domain and Hosting (private or public) and public Tailscale. Private Tailscale apps need the tailnet, which most members aren't on, and an app held for review, failed or unpublished isn't served. Computers never show.
+- **2026-10-07: Being listed lets members see the app, not the project.** The tile has its name, icon, owner, groups and address; its chat, code and tools stay with its owner and the organization's admins (ProjectPolicy is unchanged). The icon route also serves a listed app's icon to anyone in the organization (`ProjectPolicy::openApp`).
+- **2026-10-07: Apps can be put in groups (`group_project`), and the page filters by them.** Grouping by the owner's groups was ruled out: it's wrong as soon as someone builds an app for another team. An owner can choose only groups they're in, admins any; group names on tiles are shown to the whole organization (only names, not members).
+- **2026-10-07: Pins on the Apps page are each person's own (`app_pins`),** unlike the sidebar's pins, which are the project's. Everyone pins different apps.
+- **2026-10-07: Organization admins can feature apps (`projects.apps_featured_at`), listed first for everyone.** The place for "start here" apps an organization wants everyone to use.
+- **2026-10-07: `/o/<slug>` stays the new-project page; Apps is a sidebar link under Search, and opens without an AI connection.** Building is still the main thing people come to do, and people who only use apps shouldn't have to set up an AI first, the same as opening a private app.
+
 ## AI connections and agents
 
 AI-001..007, AGT-001..015, USAGE-001.

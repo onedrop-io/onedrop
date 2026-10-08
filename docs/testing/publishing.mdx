@@ -24,6 +24,13 @@ Each target needs its own setup: a server install with `SANDBOX_GATEWAY_DOMAIN` 
 - [ ] **Public** (Funnel) opens from anywhere.
 - [ ] Without an auth key, **Approve in Tailscale** appears, and approving the device carries on by itself.
 
+## Apps (APPS-001..003)
+
+- [ ] An app published to **Your domain → Private** shows on **Apps** for another member of the organization, with its icon, and clicking the tile opens the real app (signed in, no extra prompt).
+- [ ] Moving it to **Tailscale → Private** takes it off **Apps**; **Tailscale → Public** puts it back.
+- [ ] Turning off the **Apps** switch in the Publish panel hides it for the other member; it still opens at its address.
+- [ ] Unpublishing takes it off **Apps**, and republishing puts it back with its groups and pins kept.
+
 ## Republish and unpublish
 
 - [ ] **Republish** switches between Private and Public, and between your domain and Tailscale; the old address stops working.

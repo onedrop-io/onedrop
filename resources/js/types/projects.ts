@@ -251,6 +251,8 @@ export type Publication = {
     targets: PublishTargetOption[];
     /** Its latest deploy to hosting and what it has there (HOST-001, HOST-002); null when it never had any. */
     hosting: Hosting | null;
+    /** Whether the organization's Apps page lists it (APPS-003); null where it can't be (a private Tailscale app). */
+    apps_listed: boolean | null;
 };
 
 export type PublishTarget = 'domain' | 'tailscale' | 'hosting';

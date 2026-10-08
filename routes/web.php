@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\ServerController;
 use App\Http\Controllers\Admin\ServerMonitoringController;
 use App\Http\Controllers\AgentModelController;
 use App\Http\Controllers\AiCreditsController;
+use App\Http\Controllers\AppController;
 use App\Http\Controllers\ChatGptAuthController;
 use App\Http\Controllers\ClaudeLoginController;
 use App\Http\Controllers\ComputerController;
@@ -178,6 +179,9 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
     Route::post('auth/chatgpt', [ChatGptAuthController::class, 'store'])->middleware('throttle:10,1')->name('chatgpt.store');
     Route::post('auth/chatgpt/poll', [ChatGptAuthController::class, 'poll'])->middleware('throttle:60,1')->name('chatgpt.poll');
 
+    // A project's icon, also for the Apps page (APPS-002), which opens without an AI connection.
+    Route::get('projects/{project}/icon', [ProjectIconController::class, 'show'])->name('projects.icon.show');
+
     // Previews and shells (the project's people), and privately published apps (anyone signed in, AI set up or not).
     Route::get('projects/{project}/open/{kind}', [SandboxGatewayController::class, 'open'])->name('projects.gateway.open');
     // The desktop app opening a preview or shell in a window of its own (DESK-002): a fresh hand-off for it.
@@ -261,7 +265,6 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
         Route::post('projects/{project}/share', [ProjectShareController::class, 'store'])->name('projects.share.store');
         Route::post('projects/{project}/share/card', [ProjectShareController::class, 'refresh'])->name('projects.share.refresh');
         Route::delete('projects/{project}/share', [ProjectShareController::class, 'destroy'])->name('projects.share.destroy');
-        Route::get('projects/{project}/icon', [ProjectIconController::class, 'show'])->name('projects.icon.show');
         Route::post('projects/{project}/icon', [ProjectIconController::class, 'update'])->name('projects.icon.update');
         Route::post('projects/{project}/icon/draw', [ProjectIconController::class, 'draw'])->name('projects.icon.draw');
         Route::get('projects/{project}/domains', [ProjectDomainController::class, 'index'])->name('projects.domains.index');
@@ -400,6 +403,12 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
         Route::delete('logo', [OrganizationController::class, 'destroyLogo'])->name('organizations.logo.destroy');
         Route::put('hosting/{provider}', [OrganizationHostingController::class, 'update'])->name('organizations.hosting.update');
         Route::delete('hosting/{provider}', [OrganizationHostingController::class, 'destroy'])->name('organizations.hosting.destroy');
+
+        // The organization's Apps page (APPS-001..003): open without an AI connection, like the apps themselves.
+        Route::get('apps', [AppController::class, 'index'])->name('apps.index');
+        Route::patch('apps/{project}', [AppController::class, 'update'])->name('apps.update');
+        Route::put('apps/{project}/pin', [AppController::class, 'pin'])->name('apps.pin');
+        Route::delete('apps/{project}/pin', [AppController::class, 'unpin'])->name('apps.unpin');
 
         // The user's own computer (CMP-001): only theirs, made the first time they open it.
         Route::put('computers', [OrganizationController::class, 'updateComputers'])->name('organizations.computers.update');

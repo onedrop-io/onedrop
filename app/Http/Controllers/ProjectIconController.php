@@ -16,11 +16,12 @@ use Symfony\Component\HttpFoundation\Response;
 class ProjectIconController extends Controller
 {
     /**
-     * The project's icon. It may come from the app's own files, so it's served so it can't run anything.
+     * The project's icon, also for anyone who sees the app on the Apps page (APPS-002). It may come from the app's own
+     * files, so it's served so it can't run anything.
      */
     public function show(Project $project): Response
     {
-        Gate::authorize('view', $project);
+        Gate::authorize('openApp', $project);
 
         abort_unless($project->icon_path && Storage::disk(ProjectIcons::disk())->exists($project->icon_path), 404);
 

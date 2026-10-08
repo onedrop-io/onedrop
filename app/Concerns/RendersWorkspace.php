@@ -9,6 +9,7 @@ use App\Enums\DeploymentStatus;
 use App\Enums\MessageRole;
 use App\Enums\PublishStatus;
 use App\Enums\PublishTarget;
+use App\Enums\PublishVisibility;
 use App\Enums\SandboxStatus;
 use App\Http\Middleware\UseDesktopToken;
 use App\Jobs\CreateSandbox;
@@ -131,6 +132,8 @@ trait RendersWorkspace
                     ? app(Publishers::class)->options($project)[0]['unavailable']
                     : null,
                 'hosting' => $this->hostingProps($project),
+                // Whether the organization's Apps page lists it (APPS-003); null where it can't, being a private Tailscale app.
+                'apps_listed' => $project->publish_target === PublishTarget::Tailscale && $project->publish_visibility !== PublishVisibility::Public ? null : $project->apps_listed,
             ],
             'sharing' => $this->sharingProps($project),
             'sandbox' => $sandbox ? [

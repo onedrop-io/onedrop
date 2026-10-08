@@ -307,6 +307,16 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     }
 
     /**
+     * The apps the user pinned to the top of their organizations' Apps pages (APPS-002).
+     *
+     * @return BelongsToMany<Project, $this>
+     */
+    public function pinnedApps(): BelongsToMany
+    {
+        return $this->belongsToMany(Project::class, 'app_pins')->withTimestamps();
+    }
+
+    /**
      * The user's computers, one in each organization they opened theirs in (CMP-001).
      *
      * @return HasMany<Project, $this>

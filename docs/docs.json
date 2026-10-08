@@ -88,6 +88,7 @@
                         "icon": "users",
                         "pages": [
                             "guides/organizations",
+                            "guides/apps",
                             "guides/settings",
                             "guides/usage",
                             "guides/invite-people",

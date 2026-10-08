@@ -1995,3 +1995,28 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - A project's agent and Shell should find the organization's drive and those of the project owner's groups at `/drive` (`/drive/<organization name>`, `/drive/Groups/<group name>`), read and write. The owner's My Drive should not be there.
 - Changes made there should reach Drive, and Drive's changes should reach the project's sandbox, as in a computer.
 - A project's files (`/workspace`) should never include Drive, so it's never committed, backed up with the code, or published.
+
+## APPS-001: An Apps page for the organization's apps
+
+- User should see "Apps" in the sidebar and open it at `/o/<slug>/apps`, without having set up an AI.
+- User should see a tile for every app published in the organization that they can open: published to Your domain or Hosting (private or public), or publicly on Tailscale. A private app on Tailscale, an app waiting for a review, failed or unpublished, and a computer should not be listed.
+- Each tile should show the app's icon (or its initial), name, owner, its groups, whether it's private (the organization) or public, and when it was published.
+- Clicking a tile should open the app at its address (the primary custom domain when there is one) in a new tab.
+- User who can open the project itself (its owner, the organization's owners and admins) should also find "Open project" on the tile.
+- User should be able to search apps by name or owner.
+- Apps should be listed featured first, then by name. With none, user should see an empty state that says how apps get there.
+- Someone outside the organization should get a 404.
+
+## APPS-002: Pin apps and filter by group
+
+- User should be able to pin an app to "Your apps" at the top of the page, and unpin it. Pins are their own: nobody else sees them.
+- An app's owner should be able to put it in groups they belong to, and organization owners and admins in any of the organization's groups.
+- User should be able to filter the page by a group that has apps.
+- Anyone in the organization should be able to load a listed app's icon.
+
+## APPS-003: Choose what's listed
+
+- A newly published app should be listed by itself.
+- An app's owner and the organization's owners and admins should be able to hide it from Apps, from its tile or the Publish panel, and list it again. Hidden apps should only show to them, in a "Hidden" section.
+- Organization owners and admins should be able to feature an app, so it's listed first for everyone, and unfeature it.
+- Members who aren't its owner or an admin should not be able to hide, feature or group an app.

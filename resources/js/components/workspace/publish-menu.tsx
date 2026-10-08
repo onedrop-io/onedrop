@@ -10,14 +10,17 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Spinner } from '@/components/ui/spinner';
+import { Switch } from '@/components/ui/switch';
 import {
     DEPLOY_STEPS,
     DeployLog,
     HostingChanges,
 } from '@/components/workspace/hosting-details';
 import { useClipboard } from '@/hooks/use-clipboard';
+import { useOrganization } from '@/hooks/use-organization';
 import { openWorkspaceTool } from '@/lib/workspace-view';
 import { cn } from '@/lib/utils';
+import { index as apps, update as updateApp } from '@/routes/apps';
 import type { Publication, PublishTarget } from '@/types';
 
 type Visibility = 'private' | 'public';
@@ -97,6 +100,7 @@ export default function PublishMenu({
         (option) => option.target === publication.target,
     );
     const [copiedText, copy] = useClipboard();
+    const organization = useOrganization();
     const published = publication.status === 'live';
     const publishing = publication.status === 'publishing';
     const inReview = publication.status === 'review';
@@ -115,6 +119,14 @@ export default function PublishMenu({
         router.post(
             ProjectPublicationController.store.url(projectId),
             { visibility: chosenVisibility, target },
+            { preserveScroll: true },
+        );
+
+    // Show or hide it on the organization's Apps page (APPS-003).
+    const listInApps = (listed: boolean) =>
+        router.patch(
+            updateApp.url([organization.slug, projectId]),
+            { listed },
             { preserveScroll: true },
         );
 
@@ -260,6 +272,29 @@ export default function PublishMenu({
                                             className="shrink-0 rounded p-1 hover:bg-muted"
                                         >
                                             <ExternalLink className="size-3.5" />
+                                        </a>
+                                    </dd>
+                                </>
+                            )}
+                            {published && publication.apps_listed !== null && (
+                                <>
+                                    <dt className="text-muted-foreground">
+                                        Apps
+                                    </dt>
+                                    <dd className="flex items-center gap-2">
+                                        <Switch
+                                            checked={publication.apps_listed}
+                                            onChange={listInApps}
+                                            label={`List in ${organization.name}'s Apps`}
+                                            testId="publish-apps-listed"
+                                        />
+                                        <a
+                                            href={apps.url(organization.slug)}
+                                            className="text-muted-foreground underline-offset-4 hover:underline"
+                                        >
+                                            {publication.apps_listed
+                                                ? `Listed for ${organization.name}`
+                                                : 'Hidden'}
                                         </a>
                                     </dd>
                                 </>
