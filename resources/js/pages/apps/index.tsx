@@ -115,7 +115,7 @@ export default function AppsIndex({
         <>
             <Head title="Apps" />
 
-            <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6">
+            <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 p-4 md:p-6">
                 <header className="flex flex-wrap items-end justify-between gap-4">
                     <div className="space-y-0.5">
                         <h2 className="text-xl font-semibold tracking-tight">
