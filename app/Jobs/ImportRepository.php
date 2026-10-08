@@ -20,7 +20,8 @@ class ImportRepository implements ShouldQueue
     use Queueable;
 
     /** Fetching a large history takes a while. */
-    public int $timeout = 600;
+    /** Long enough for a large repository's fetch (GitRemote::FETCH_TIMEOUT) and copying it in. */
+    public int $timeout = 1500;
 
     public int $tries = 1;
 

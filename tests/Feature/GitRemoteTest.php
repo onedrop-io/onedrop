@@ -11,10 +11,14 @@ use App\Sandbox\GitException;
 use App\Sandbox\GitRemote;
 use App\Sandbox\Providers\FakeSandboxProvider;
 use App\Sandbox\SandboxProvider;
+use Illuminate\Process\Exceptions\ProcessTimedOutException;
 use Illuminate\Process\PendingProcess;
+use Illuminate\Process\ProcessResult;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\Process\Exception\ProcessTimedOutException as SymfonyTimedOut;
+use Symfony\Component\Process\Process as SymfonyProcess;
 
 beforeEach(function () {
     Storage::fake('backups');
@@ -122,6 +126,24 @@ test('pulling a branch the remote does not have yet says to push it', function (
     expect(fn () => app(GitRemote::class)->pull($this->project))
         ->toThrow(GitException::class, "The remote doesn't have this branch yet. Push it first.");
 })->group('GIT-004');
+
+test('a fetch gets 20 minutes, and one that takes longer says so instead of failing vaguely', function () {
+    $this->fakeGit = true;
+    Process::fake(function (PendingProcess $process) {
+        if (is_array($process->command) && in_array("file://{$this->remote}", $process->command, true)) {
+            $this->fetchTimeout = $process->timeout;
+            $symfony = new SymfonyProcess(['git']);
+
+            throw new ProcessTimedOutException(new SymfonyTimedOut($symfony, SymfonyTimedOut::TYPE_GENERAL), new ProcessResult($symfony));
+        }
+
+        return Process::result();
+    });
+
+    expect(fn () => app(GitRemote::class)->pull($this->project, 'main'))
+        ->toThrow(GitException::class, 'The remote took too long to answer (over 20 minutes).');
+    expect($this->fetchTimeout)->toBe(GitRemote::FETCH_TIMEOUT);
+})->group('GIT-004', 'PRJ-009');
 
 test('the token goes to the remote as a header, never in the URL, with this machine\'s git settings ignored', function () {
     $this->fakeGit = true;

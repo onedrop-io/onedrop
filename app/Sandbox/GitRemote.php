@@ -5,6 +5,7 @@ namespace App\Sandbox;
 use App\Enums\SandboxStatus;
 use App\Models\Project;
 use App\Models\Sandbox;
+use Illuminate\Process\Exceptions\ProcessTimedOutException;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
@@ -17,6 +18,12 @@ use Illuminate\Support\Str;
  */
 class GitRemote
 {
+    /** Seconds git may take for one command on the platform. */
+    public const TIMEOUT = 300;
+
+    /** Seconds a pull's fetch may take: an import brings a repository's whole history, hundreds of MB for some. */
+    public const FETCH_TIMEOUT = 1200;
+
     /** Where fetched commits are copied into the sandbox. */
     protected const PULL_DIRECTORY = '/tmp/onedrop-pull';
 
@@ -115,8 +122,8 @@ class GitRemote
 
         try {
             $this->run($project, ['git', 'init', '--bare', '-q', 'repo.git'], $directory);
-            $this->run($project, ['git', '-C', 'repo.git', 'fetch', '-q', $project->git_remote_url, "+refs/heads/{$branch}:refs/heads/{$branch}"], $directory, remote: true);
-            $this->run($project, ['git', '-C', 'repo.git', 'bundle', 'create', '-q', '../out/pull.bundle', "refs/heads/{$branch}"], $directory);
+            $this->run($project, ['git', '-C', 'repo.git', 'fetch', '-q', $project->git_remote_url, "+refs/heads/{$branch}:refs/heads/{$branch}"], $directory, remote: true, timeout: self::FETCH_TIMEOUT);
+            $this->run($project, ['git', '-C', 'repo.git', 'bundle', 'create', '-q', '../out/pull.bundle', "refs/heads/{$branch}"], $directory, timeout: self::FETCH_TIMEOUT);
 
             $this->provider->copyIn($sandbox->external_id, "{$directory}/out", self::PULL_DIRECTORY);
         } finally {
@@ -273,7 +280,7 @@ class GitRemote
      *
      * @throws GitException
      */
-    protected function run(Project $project, array $command, string $directory, bool $remote = false): string
+    protected function run(Project $project, array $command, string $directory, bool $remote = false, int $timeout = self::TIMEOUT): string
     {
         $config = ['http.followRedirects' => 'false', 'credential.helper' => ''];
 
@@ -302,7 +309,13 @@ class GitRemote
             $env["GIT_CONFIG_VALUE_{$index}"] = $config[$key];
         }
 
-        $result = Process::path($directory)->env($env)->timeout(300)->run($command);
+        try {
+            $result = Process::path($directory)->env($env)->timeout($timeout)->run($command);
+        } catch (ProcessTimedOutException) {
+            throw new GitException($remote
+                ? __('The remote took too long to answer (over :minutes minutes). Try again; a very large repository may need a faster connection.', ['minutes' => intdiv($timeout, 60)])
+                : __('Git took too long (over :minutes minutes). Try again.', ['minutes' => intdiv($timeout, 60)]));
+        }
 
         if ($result->failed()) {
             throw new GitException($this->explain($result->errorOutput()));

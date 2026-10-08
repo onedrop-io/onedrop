@@ -472,6 +472,7 @@ History, commit/discard, branches, restore, push/pull, the GitHub App, commit an
 
 ### Decisions
 
+- **2026-10-08: A pull or import fetches with up to 20 minutes (`GitRemote::FETCH_TIMEOUT`), other git commands 5, and a timeout says so (PRJ-009, GIT-004).** Importing `Pixwel/platform` (about 350 MB with its history) timed out at 5 minutes twice, and the chat only said "Something went wrong" because a timeout wasn't a git error. The whole history is still fetched, not a shallow clone: the Git tools and the agent use it, and pushing back works best with it. The import and sync jobs get 25 minutes.
 - **2026-09-29: Remotes are HTTPS only;** the local bundle steps (git's `file` transport) are exempt.
 - **2026-09-30: Commit, push and Create PR live in a split button next to Share,** so the everyday steps don't need Tools → Git. With no remote it says "Commit" and its menu offers "Connect a repository…" (opening Tools → Git).
 - **2026-09-30: There is one commit dialog,** "Commit changes", used by the header and by Tools → Git (which lost its inline message box), so reviewing and committing work the same everywhere.
