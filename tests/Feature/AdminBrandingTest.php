@@ -63,6 +63,18 @@ test('logos must be small images', function () {
         ->assertSessionHasErrors('logo');
 })->group('ADMIN-001');
 
+test('the logo is kept on the default disk, so every server sees it', function () {
+    config(['filesystems.default' => 's3']);
+    Storage::fake('s3');
+
+    $this->actingAs(User::factory()->admin()->create())
+        ->post(route('admin.general.logo.store'), ['logo' => UploadedFile::fake()->image('logo.png')]);
+
+    expect(Storage::disk('s3')->allFiles('branding'))->toHaveCount(1)
+        ->and(Storage::disk('local')->allFiles())->toBe([]);
+    $this->get(route('branding.logo'))->assertOk();
+})->group('ADMIN-001');
+
 test('non-admins cannot change the name or logo', function () {
     $user = User::factory()->create();
 

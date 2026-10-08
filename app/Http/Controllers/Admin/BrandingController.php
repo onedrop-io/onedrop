@@ -73,7 +73,7 @@ class BrandingController extends Controller
         $path = $branding->logoPath();
         abort_if($path === null, 404);
 
-        return Storage::disk('local')->response($path, null, [
+        return Storage::disk(Branding::disk())->response($path, null, [
             'Cache-Control' => 'public, max-age=31536000, immutable',
             'Content-Security-Policy' => "default-src 'none'; style-src 'unsafe-inline'; img-src data:",
             'X-Content-Type-Options' => 'nosniff',

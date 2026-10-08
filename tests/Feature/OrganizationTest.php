@@ -423,6 +423,19 @@ describe('more than one organization', function () {
         Storage::disk('local')->assertMissing($path);
     })->group('ORG-005');
 
+    test('logos are kept on the default disk, so every server sees them', function () {
+        config(['filesystems.default' => 's3']);
+        Storage::fake('s3');
+        Storage::fake('local');
+
+        $this->actingAs($this->ann)
+            ->post(route('organizations.logo.store', $this->acme), ['logo' => UploadedFile::fake()->image('logo.png')]);
+
+        Storage::disk('s3')->assertExists($this->acme->fresh()->logo_path);
+        expect(Storage::disk('local')->allFiles())->toBe([]);
+        $this->actingAs(organizationMember($this->acme))->get(route('organizations.logo', $this->acme))->assertOk();
+    })->group('ORG-005');
+
     test('platform admins see every organization\'s counts and owners, but not its projects', function () {
         $admin = organizationMember(Organization::factory()->create(['slug' => 'operator']), OrganizationRole::Owner, ['is_admin' => true]);
         Organization::factory()->create(['name' => 'Globex', 'slug' => 'globex']);

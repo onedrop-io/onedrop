@@ -206,9 +206,9 @@ class OrganizationController extends Controller
     {
         $path = ResolveOrganization::current($request)->logo_path;
 
-        abort_if($path === null || ! Storage::disk('local')->exists($path), 404);
+        abort_if($path === null || ! Storage::disk(Organization::logoDisk())->exists($path), 404);
 
-        return Storage::disk('local')->response($path, null, [
+        return Storage::disk(Organization::logoDisk())->response($path, null, [
             'Cache-Control' => 'private, max-age=31536000, immutable',
             'Content-Security-Policy' => "default-src 'none'; style-src 'unsafe-inline'; img-src data:",
             'X-Content-Type-Options' => 'nosniff',

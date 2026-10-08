@@ -25,7 +25,7 @@ use Illuminate\Support\Str;
  * @property int $id
  * @property string $name
  * @property string $slug
- * @property string|null $logo_path Its logo on the local disk (ORG-005), or null for its initial
+ * @property string|null $logo_path Its logo on the default disk (ORG-005), or null for its initial
  * @property string|null $logo_hash Changes with the logo, so browsers can cache it
  * @property string|null $ai_credits_key Its OpenRouter key for runs on AI credits (CREDIT-001), limited to its balance
  * @property string|null $ai_credits_key_hash That key's id at OpenRouter
@@ -135,13 +135,22 @@ class Organization extends Model
     }
 
     /**
+     * Where logos are kept: the default disk, which is object storage in production, since an instance's own disk
+     * isn't shared between instances and is wiped on each deploy.
+     */
+    public static function logoDisk(): string
+    {
+        return (string) config('filesystems.default');
+    }
+
+    /**
      * Replace its logo with an uploaded image (ORG-005).
      */
     public function storeLogo(UploadedFile $file): void
     {
         $this->removeLogo();
 
-        $path = $file->storeAs('organization-logos', $this->id.'-'.Str::random(8).'.'.($file->extension() === 'svg' ? 'svg' : $file->guessExtension()), 'local');
+        $path = $file->storeAs('organization-logos', $this->id.'-'.Str::random(8).'.'.($file->extension() === 'svg' ? 'svg' : $file->guessExtension()), self::logoDisk());
 
         $this->update(['logo_path' => $path, 'logo_hash' => substr((string) hash_file('sha256', $file->getRealPath()), 0, 12)]);
     }
@@ -152,7 +161,7 @@ class Organization extends Model
     public function removeLogo(): void
     {
         if ($this->logo_path !== null) {
-            Storage::disk('local')->delete($this->logo_path);
+            Storage::disk(self::logoDisk())->delete($this->logo_path);
             $this->update(['logo_path' => null, 'logo_hash' => null]);
         }
     }
