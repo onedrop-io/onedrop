@@ -72,6 +72,8 @@ pulumi=3.267.0
 railway=5.63.1
 # renovate: datasource=github-releases depName=render-oss/cli
 render=2.28.0
+# renovate: datasource=github-releases depName=rclone/rclone
+rclone=1.75.1
 # renovate: datasource=github-releases depName=aws/aws-sam-cli
 sam=1.166.2
 # renovate: datasource=github-releases depName=stripe/stripe-cli
@@ -117,6 +119,7 @@ TOOLS=(
     'pscale|pscale|PlanetScale'
     'pulumi|pulumi|Pulumi'
     'railway|railway|Railway'
+    'rclone|rclone|rclone (cloud storage: S3, R2, Google Drive, Dropbox…)'
     'render|render|Render'
     'sam|sam|AWS SAM'
     'stripe|stripe|Stripe'
@@ -238,6 +241,11 @@ install_pi() { npm_tool @mariozechner/pi-coding-agent; }
 install_pscale() { untar "https://github.com/planetscale/cli/releases/download/v$v/pscale_${v}_linux_$goarch.tar.gz" pscale; }
 install_pulumi() { untar "https://get.pulumi.com/releases/sdk/pulumi-v$v-linux-$node.tar.gz" --strip-components=1; }
 install_railway() { untar "https://github.com/railwayapp/cli/releases/download/v$v/railway-v$v-$arch-unknown-linux-musl.tar.gz" railway; }
+install_rclone() {
+    unzip_to "https://github.com/rclone/rclone/releases/download/v$v/rclone-v$v-linux-$goarch.zip" "$dir/src"
+    mv "$dir/src/rclone-v$v-linux-$goarch/rclone" "$dir/bin/rclone"
+    rm -rf "$dir/src"
+}
 install_render() {
     unzip_to "https://github.com/render-oss/cli/releases/download/v$v/cli_${v}_linux_$goarch.zip" "$dir/src"
     mv "$dir/src/cli_v$v" "$dir/bin/render"
@@ -303,6 +311,7 @@ version_command() {
         go) echo 'go version' ;;
         helm) echo 'helm version' ;;
         k9s) echo 'k9s version --short' ;;
+        rclone) echo 'rclone version' ;;
         kubectl) echo 'kubectl version --client' ;;
         terraform) echo 'terraform version' ;;
         tofu) echo 'tofu version' ;;

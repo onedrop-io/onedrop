@@ -491,7 +491,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## SBX-011: Cloud and service CLIs in the shell
 
-- User should be able to run the common cloud, hosting, database and infrastructure CLIs in the Shell tab and over SSH without installing them: `aws`, `sam`, `gcloud` (with `gsutil`, `bq`), `az`, `wrangler`, `vercel`, `netlify`, `fly`, `railway`, `render`, `doctl`, `cloud` (Laravel Cloud), `supabase`, `firebase`, `neonctl`, `turso`, `pscale`, `mongosh`, `gh`, `glab`, `stripe`, `terraform`, `tofu`, `pulumi`, `kubectl`, `helm`, `k9s`, `cloudflared`, `eas`, `bun`, `deno` and `go`. The agent can run them too.
+- User should be able to run the common cloud, hosting, database and infrastructure CLIs in the Shell tab and over SSH without installing them: `aws`, `sam`, `gcloud` (with `gsutil`, `bq`), `az`, `wrangler`, `vercel`, `netlify`, `fly`, `railway`, `render`, `doctl`, `cloud` (Laravel Cloud), `supabase`, `firebase`, `neonctl`, `turso`, `pscale`, `mongosh`, `gh`, `glab`, `stripe`, `terraform`, `tofu`, `pulumi`, `kubectl`, `helm`, `k9s`, `cloudflared`, `eas`, `rclone` (cloud storage), `bun`, `deno` and `go`. The agent can run them too.
 - The first time one is run, it should install itself (a message says so), then run with the arguments given; after that it starts straight away. Two shells running it at once install it once.
 - A failed install should say it failed and leave nothing half-installed, so the next run tries again.
 - A copy the user or the app installed (e.g. the app's own `wrangler` in `node_modules`, or a tool in `~/.local/bin`) should win over the platform's.
