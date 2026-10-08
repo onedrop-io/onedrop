@@ -19,6 +19,9 @@ class OrganizationSecrets
     /** One `NAME base64(value)` line per secret. */
     public const FILE = '/tmp/onedrop-org-secrets';
 
+    /** The tool files that read the file, which only need bash: copied into a sandbox that doesn't have them yet. */
+    public const READERS = ['org-secrets', 'bashrc'];
+
     /** Writes the file only when it changed (an empty one is left out), and says so, for a restart. */
     protected const WRITE = <<<'SH'
         umask 077
@@ -31,7 +34,7 @@ class OrganizationSecrets
         fi
         SH;
 
-    public function __construct(protected SandboxProvider $provider) {}
+    public function __construct(protected SandboxProvider $provider, protected SandboxTools $tools) {}
 
     /**
      * The secrets that reach a project, by name.
@@ -72,6 +75,11 @@ class OrganizationSecrets
 
         if (Cache::get($key, sha1('')) === sha1($contents)) {
             return;
+        }
+
+        if ($contents !== '') {
+            // What reads them in the Shell, now rather than when the sandbox's tools are next brought up to date.
+            $this->tools->ensure($this->provider, $sandbox->external_id, self::READERS);
         }
 
         $result = $this->provider->exec($sandbox->external_id, ['bash', '-c', self::WRITE, 'org-secrets', self::FILE], [

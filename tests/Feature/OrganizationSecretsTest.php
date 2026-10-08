@@ -199,6 +199,16 @@ test('a file that didn\'t change leaves the app running, and a sandbox never giv
         ->and(collect($this->provider->executed)->pluck('command'))->not->toContain(['/opt/onedrop/restart']);
 })->group('SECRET-003');
 
+test('a sandbox that doesn\'t have what reads the file yet gets it with the file', function () {
+    $sandbox = Sandbox::factory()->for($this->project)->create(['external_id' => 'ctr-1']);
+    OrganizationSecret::factory()->for($this->organization)->create();
+
+    app(OrganizationSecrets::class)->sync($sandbox);
+
+    expect(collect($this->provider->installed)->sole()['files'])->toBe(['bashrc', 'org-secrets'])
+        ->and(secretsWrite($this->provider))->not->toBeNull();
+})->group('SECRET-003');
+
 test('a person\'s computer never gets the organization\'s secrets', function () {
     $computer = ownProject($this, ['kind' => ProjectKind::Computer]);
     $sandbox = Sandbox::factory()->for($computer)->create(['external_id' => 'ctr-2']);
