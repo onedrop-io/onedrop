@@ -22,7 +22,7 @@ test('an admin renames the app, sees the providers, monitoring, server and backu
         ->assertPathIs(orgPath())
         ->click('@sidebar-menu-button')
         ->click('@settings-link')
-        ->click('[data-test="settings-modal"] a:has-text("General")')
+        ->click('[data-test="settings-modal"] a[href="/admin/general"]')
         ->assertPathIs('/admin/general')
         ->fill('@app-name-input', 'Acme Builder')
         ->press('@save-name-button')
