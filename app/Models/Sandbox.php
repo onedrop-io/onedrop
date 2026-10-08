@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Concerns\BroadcastsProjectChanges;
 use App\Enums\SandboxStatus;
 use App\Jobs\CreateSandbox;
+use App\Jobs\SyncOrganizationSecrets;
 use App\Jobs\UpdateSandbox;
 use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxProvider;
@@ -148,6 +149,11 @@ class Sandbox extends Model
         $wasAsleep = $started || $this->suspended_at !== null;
         $this->forceFill([...$addresses, 'suspended_at' => null, 'stopped_at' => null, 'last_active_at' => now()])->save();
         $this->updateWhenIdle();
+
+        if ($wasAsleep) {
+            // The organization's secrets may have changed while it slept (SECRET-003).
+            SyncOrganizationSecrets::dispatch($this->project->organization, $this);
+        }
 
         return $wasAsleep;
     }

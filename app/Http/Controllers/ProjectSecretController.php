@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\SandboxStatus;
+use App\Models\OrganizationSecret;
 use App\Models\Project;
 use App\Models\Sandbox;
 use App\Sandbox\SandboxException;
@@ -18,13 +19,16 @@ class ProjectSecretController extends Controller
     protected const NAME_RULES = ['required', 'string', 'max:100', 'regex:/^[A-Za-z_][A-Za-z0-9_]*$/'];
 
     /**
-     * The names of the app's secrets (never their values).
+     * The names of the app's secrets (never their values), and of its organization's that reach it (SECRET-003).
      */
     public function index(Project $project, WorkspaceSecrets $secrets): JsonResponse
     {
         Gate::authorize('view', $project);
 
-        return $this->fromSandbox($project, fn (Sandbox $sandbox) => ['secrets' => $secrets->names($sandbox)]);
+        return $this->fromSandbox($project, fn (Sandbox $sandbox) => [
+            'secrets' => $secrets->names($sandbox),
+            'organization' => OrganizationSecret::query()->reaching($project)->orderBy('name')->pluck('name')->all(),
+        ]);
     }
 
     /**

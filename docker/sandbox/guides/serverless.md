@@ -7,9 +7,10 @@ Netlify, Google Cloud or Azure Functions), or when /workspace has a `wrangler.to
 Functions don't run as a server, so the preview runs the platform's local emulator: `.onedrop/dev` starts it
 on 0.0.0.0:$PORT like any other dev server. Everything runs inside the sandbox:
 
-- Never sign in to the user's cloud account (`wrangler login`, `vercel login`, `aws configure`, `sst dev`)
-  and never use real cloud keys. Only use a token the user added in Tools → Secrets for the one tool below
-  that needs it.
+- Never sign in to the user's cloud account (`wrangler login`, `vercel login`, `aws configure`, `sst dev`),
+  and keep the app's local run on the stand-ins below even when the organization shares real cloud keys
+  (organization secrets): the stand-ins' settings in `.env` win over them. Only use a token the user added in
+  Tools → Secrets for the one tool below that needs it.
 - Don't deploy (`wrangler deploy`, `sam deploy`, `vercel deploy`, `serverless deploy`). OneDrop's Publish
   button publishes what the preview runs. If the user asks to deploy to their own account, say it isn't
   done from OneDrop yet, and keep the project's config ready for their own pipeline.

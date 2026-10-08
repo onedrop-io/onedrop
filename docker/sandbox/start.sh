@@ -110,7 +110,8 @@ while true; do
 
     if [ -x /workspace/.onedrop/dev ]; then
         # The log isn't a terminal, so tools would leave out their colours; the Console tab shows them.
-        FORCE_COLOR=1 CLICOLOR_FORCE=1 setsid bash -c 'cd /workspace && exec /workspace/.onedrop/dev' >>/tmp/onedrop-server.log 2>&1 &
+        # The organization's secrets (SECRET-003) are read afresh each start, so a restart picks up a change.
+        FORCE_COLOR=1 CLICOLOR_FORCE=1 setsid bash -c '[ -f /opt/onedrop/org-secrets ] && . /opt/onedrop/org-secrets; cd /workspace && exec /workspace/.onedrop/dev' >>/tmp/onedrop-server.log 2>&1 &
     else
         setsid php -S "0.0.0.0:${PORT}" /opt/onedrop/placeholder/index.php >>/tmp/onedrop-server.log 2>&1 &
     fi

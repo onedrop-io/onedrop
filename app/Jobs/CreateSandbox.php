@@ -6,6 +6,7 @@ use App\Enums\SandboxStatus;
 use App\Models\Project;
 use App\Models\Task;
 use App\Sandbox\Drive\DriveSync;
+use App\Sandbox\OrganizationSecrets;
 use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxProvider;
 use App\Sandbox\SandboxSpec;
@@ -87,6 +88,13 @@ class CreateSandbox implements ShouldQueue
             $ssh->sync($sandbox);
         } catch (SandboxException) {
             // SSH is optional; the Developer → SSH page syncs the keys again when opened.
+        }
+
+        try {
+            app(OrganizationSecrets::class)->sync($sandbox);
+        } catch (SandboxException $e) {
+            // The agent's next run tries again.
+            report($e);
         }
     }
 

@@ -4,6 +4,9 @@ cd /workspace 2>/dev/null || true
 # Settings from sandbox start on providers that can't set env at create (see RuntimeSandboxProvider).
 [ -f ~/.onedrop-env ] && set -a && . ~/.onedrop-env && set +a
 
+# The organization's secrets (SECRET-003).
+[ -f /opt/onedrop/org-secrets ] && . /opt/onedrop/org-secrets
+
 # Service CLIs that install on first use (onedrop-tool), last on PATH. The image sets this too, but SSH sessions start
 # with sshd's own PATH, and sandboxes on an older image get the stand-ins before their next new sandbox.
 [[ ":$PATH:" == *:/opt/onedrop/lazy:* ]] || PATH="$PATH:/opt/onedrop/lazy"

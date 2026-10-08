@@ -162,7 +162,7 @@ COPY guides /opt/onedrop/guides
 COPY kit /opt/onedrop/
 COPY kits /opt/onedrop/kits
 # Shell setup lives in /opt/onedrop (not the home folder, which updates carry over) so image changes reach every sandbox; ~/.bashrc only loads it.
-COPY bashrc home-bashrc starship.toml /opt/onedrop/
+COPY bashrc home-bashrc org-secrets starship.toml /opt/onedrop/
 COPY --chown=sandbox:sandbox home-bashrc /home/sandbox/.bashrc
 # sshd for Tools → Developer → SSH (key-only, as the sandbox user; see sshd_config).
 COPY sshd_config /opt/onedrop/sshd_config

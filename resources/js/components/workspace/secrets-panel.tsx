@@ -37,8 +37,11 @@ type Names = { secrets: string[] };
 const NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 const secretsApi = {
+    /** Also the names of the organization's secrets that reach the project (SECRET-003). */
     list: (projectId: number) =>
-        jsonRequest<Names>(ProjectSecretController.index.url(projectId)),
+        jsonRequest<Names & { organization: string[] }>(
+            ProjectSecretController.index.url(projectId),
+        ),
 
     value: (projectId: number, name: string) =>
         jsonRequest<{ name: string; value: string }>(
@@ -82,6 +85,7 @@ export default function SecretsPanel({
     working: boolean;
 }) {
     const [names, setNames] = useState<string[] | null>(null);
+    const [organization, setOrganization] = useState<string[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [filter, setFilter] = useState('');
@@ -95,8 +99,9 @@ export default function SecretsPanel({
         setLoading(true);
         secretsApi
             .list(projectId)
-            .then(({ secrets }) => {
+            .then(({ secrets, organization }) => {
                 setNames(secrets);
+                setOrganization(organization);
                 setError(null);
             })
             .catch((e: Error) => setError(e.message))
@@ -234,6 +239,42 @@ export default function SecretsPanel({
                         />
                     ))}
                 </ul>
+            )}
+
+            {organization.length > 0 && (
+                <div
+                    className="space-y-2 rounded-lg border border-sidebar-border/70 p-3 text-sm dark:border-sidebar-border"
+                    data-test="secrets-organization"
+                >
+                    <p className="font-medium">From your organization</p>
+                    <p className="text-muted-foreground">
+                        Your organization’s admins share these in Settings →
+                        Organization. Your app, the Shell and the agent get them
+                        as environment variables; a secret above with the same
+                        name wins.
+                    </p>
+                    <ul className="flex flex-wrap gap-1.5">
+                        {organization.map((name) => (
+                            <li key={name}>
+                                <code
+                                    className={cn(
+                                        'rounded bg-muted px-1.5 py-0.5 text-xs',
+                                        names.includes(name) &&
+                                            'text-muted-foreground line-through',
+                                    )}
+                                    title={
+                                        names.includes(name)
+                                            ? 'Replaced by this project’s own secret'
+                                            : undefined
+                                    }
+                                    data-test="secrets-organization-name"
+                                >
+                                    {name}
+                                </code>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
             )}
 
             {editing?.name === null && (

@@ -214,6 +214,16 @@ class Organization extends Model
     }
 
     /**
+     * Environment variables it shares with its projects' sandboxes (SECRET-003).
+     *
+     * @return HasMany<OrganizationSecret, $this>
+     */
+    public function secrets(): HasMany
+    {
+        return $this->hasMany(OrganizationSecret::class);
+    }
+
+    /**
      * @return HasMany<Group, $this>
      */
     public function groups(): HasMany

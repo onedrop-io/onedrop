@@ -28,7 +28,7 @@ test('it lists secret names without their values', function () {
     $this->actingAs($this->user)
         ->getJson(route('projects.secrets.index', $this->project))
         ->assertOk()
-        ->assertExactJson(['secrets' => ['APP_NAME', 'STRIPE_SECRET_KEY']])
+        ->assertExactJson(['secrets' => ['APP_NAME', 'STRIPE_SECRET_KEY'], 'organization' => []])
         ->assertDontSee('sk_live_123');
 })->group('SECRET-001');
 

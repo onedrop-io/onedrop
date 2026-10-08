@@ -11,6 +11,7 @@ use App\Models\Message;
 use App\Models\Project;
 use App\Models\Sandbox;
 use App\Models\Task;
+use App\Sandbox\OrganizationSecrets;
 use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxProvider;
 use App\Sandbox\SandboxSkills;
@@ -233,6 +234,13 @@ abstract class SandboxAgentRunner implements AgentRunner
             // On a computer the agent works the desktop for its owner, not on an app (CMP-002).
             'APP_MODE' => $conversation->ownerProject()->isComputer() ? 'computer' : 'app',
         ];
+
+        try {
+            // The organization's secrets (SECRET-003), so the agent has the latest.
+            app(OrganizationSecrets::class)->sync($sandbox);
+        } catch (SandboxException $e) {
+            report($e);
+        }
 
         app(SandboxSkills::class)->install($sandbox, $conversation->ownerProject(), $env['APP_AGENT'] ?? AgentHarness::OpenCode->value);
 

@@ -32,6 +32,7 @@ use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\OrganizationDomainController;
 use App\Http\Controllers\OrganizationHostingController;
 use App\Http\Controllers\OrganizationMemberController;
+use App\Http\Controllers\OrganizationSecretController;
 use App\Http\Controllers\ProjectAgentController;
 use App\Http\Controllers\ProjectAttachmentController;
 use App\Http\Controllers\ProjectAuthController;
@@ -403,6 +404,9 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
         Route::delete('logo', [OrganizationController::class, 'destroyLogo'])->name('organizations.logo.destroy');
         Route::put('hosting/{provider}', [OrganizationHostingController::class, 'update'])->name('organizations.hosting.update');
         Route::delete('hosting/{provider}', [OrganizationHostingController::class, 'destroy'])->name('organizations.hosting.destroy');
+        Route::post('secrets', [OrganizationSecretController::class, 'store'])->name('organizations.secrets.store');
+        Route::put('secrets/{secret}', [OrganizationSecretController::class, 'update'])->name('organizations.secrets.update');
+        Route::delete('secrets/{secret}', [OrganizationSecretController::class, 'destroy'])->name('organizations.secrets.destroy');
 
         // The organization's Apps page (APPS-001..003): open without an AI connection, like the apps themselves.
         Route::get('apps', [AppController::class, 'index'])->name('apps.index');

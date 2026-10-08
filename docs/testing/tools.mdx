@@ -52,6 +52,20 @@ Ask for "a Node app with a Docker Compose `mongo` service, a users collection an
 - [ ] Values are hidden until revealed, and never show in the chat.
 - [ ] With OpenRouter set up, pasting a secret into the chat asks **This looks like a secret. Save it in Secrets instead?** before it reaches the agent.
 
+## Organization secrets (SECRET-003)
+
+The image needs rebuilding first (`start.sh` changed): `php artisan sandbox:build-image`, then `php artisan sandbox:update`.
+
+- [ ] In Settings → Organization → Secrets, add `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_REGION` for all projects. In a project's new Shell tab, `aws sts get-caller-identity` answers with the organization's account.
+- [ ] The running app sees them (e.g. `getenv('AWS_REGION')` in a route) after the automatic restart, without a new sandbox.
+- [ ] Ask the agent "which AWS account am I using?": it runs `aws sts get-caller-identity` and doesn't print the keys. Ask it to create a bucket: it asks before doing it.
+- [ ] Add `AWS_REGION=local` in the project's Tools → Secrets: a new Shell, the app and the agent all see `local`, and Tools → Secrets shows `AWS_REGION` crossed out under **From your organization**.
+- [ ] Change a secret to **Selected projects** without this project: a new Shell no longer has it, and the app restarted without it.
+- [ ] Let a sandbox sleep, change a secret, open the project: a new Shell has the new value.
+- [ ] A Claude Code run on a Claude subscription still bills the subscription when the organization has an `ANTHROPIC_API_KEY` secret.
+- [ ] `/workspace` has no trace of the values (`grep -r AKIA /workspace`), and a published hosted app doesn't get them.
+- [ ] Your computer (CMP-001) never gets them.
+
 ## Feature Flags
 
 - [ ] Adding a flag through the agent makes it show in **Tools → Feature Flags**.

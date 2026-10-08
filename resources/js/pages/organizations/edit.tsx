@@ -18,6 +18,8 @@ import Heading from '@/components/heading';
 import HostingProviderLogo from '@/components/hosting-provider-logo';
 import InputError from '@/components/input-error';
 import { OrganizationMark } from '@/components/organization-mark';
+import OrganizationSecretsSection from '@/components/organization-secrets';
+import type { OrganizationSecrets } from '@/components/organization-secrets';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -70,13 +72,14 @@ const ROLES: { value: OrganizationRole; label: string }[] = [
     { value: 'owner', label: 'Owner' },
 ];
 
-/** An organization's name, address, computers, members, email domains, own hosting accounts and task copy limit (ORG-004, ORG-005, ORG-008, CMP-003, HOST-003, TASK-003). */
+/** An organization's name, address, computers, members, email domains, task copy limit, secrets and own hosting accounts (ORG-004, ORG-005, ORG-008, CMP-003, TASK-003, SECRET-003, HOST-003). */
 export default function OrganizationEdit({
     details,
     computers,
     members,
     domains,
     hosting,
+    secrets,
     taskCopies,
     can,
 }: {
@@ -85,6 +88,7 @@ export default function OrganizationEdit({
     members: Member[];
     domains: EmailDomain[] | null;
     hosting: HostingAccount[] | null;
+    secrets: OrganizationSecrets | null;
     taskCopies: { limit: number | null; install_limit: number | null };
     can: { update: boolean; manage_owners: boolean; remove: boolean };
 }) {
@@ -419,6 +423,13 @@ export default function OrganizationEdit({
                             )}
                         </Form>
                     </section>
+                )}
+
+                {secrets && (
+                    <OrganizationSecretsSection
+                        organization={organization.slug}
+                        secrets={secrets}
+                    />
                 )}
 
                 {hosting && (

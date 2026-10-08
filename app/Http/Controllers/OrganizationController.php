@@ -8,6 +8,7 @@ use App\Jobs\SuspendComputers;
 use App\Models\HostedService;
 use App\Models\Organization;
 use App\Models\OrganizationDomain;
+use App\Models\OrganizationSecret;
 use App\Models\User;
 use App\Sandbox\Agents\AiCredits;
 use App\Sandbox\Hosting\HostingProviders;
@@ -55,7 +56,8 @@ class OrganizationController extends Controller
     }
 
     /**
-     * Its name, address, members, email domains and own hosting accounts (ORG-004, ORG-005, ORG-008, HOST-003).
+     * Its name, address, members, email domains, own hosting accounts and secrets (ORG-004, ORG-005, ORG-008, HOST-003,
+     * SECRET-003).
      */
     public function edit(Request $request): Response
     {
@@ -93,6 +95,18 @@ class OrganizationController extends Controller
                     'txt' => $domain->txtValue(),
                 ])
                 : null,
+            // Its secrets (SECRET-003), names only, and the projects they can be given to, for the people who manage them.
+            'secrets' => $organization->isManagedBy($user) ? [
+                'items' => $organization->secrets()->with('projects:id')->orderBy('name')->get()
+                    ->map(fn (OrganizationSecret $secret): array => [
+                        'id' => $secret->id,
+                        'name' => $secret->name,
+                        'all_projects' => $secret->all_projects,
+                        'projects' => $secret->projects->pluck('id')->all(),
+                        'updated_at' => $secret->updated_at?->toIso8601String(),
+                    ]),
+                'projects' => $organization->projects()->orderBy('name')->get(['id', 'name']),
+            ] : null,
             // Most task copies one of its projects runs at once (TASK-003), and the install's own limit, if any.
             'taskCopies' => ['limit' => $organization->max_task_copies, 'install_limit' => config('sandbox.max_task_copies')],
             'can' => [
