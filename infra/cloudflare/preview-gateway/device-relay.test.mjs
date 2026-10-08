@@ -450,9 +450,11 @@ test('when the computer disconnects mid-request, everything in flight is cut off
         relayed('/port/x/7681/ws', { headers: { Upgrade: 'websocket' } }),
     );
 
-    const [first, second, third] = (await received(desktop, 4)).filter(
-        (message) => message.t && message.t !== 'end',
-    );
+    // The three requests' openings, however their bodies and ends interleave with them.
+    const opened = () =>
+        messages(desktop).filter((message) => message.t && message.t !== 'end');
+    await until(() => opened().length >= 3);
+    const [first, second, third] = opened();
     await relay.webSocketMessage(
         desktop,
         JSON.stringify({ t: 'res', id: second.id, status: 200, headers: [] }),
