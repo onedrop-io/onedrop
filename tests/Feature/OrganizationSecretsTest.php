@@ -230,8 +230,15 @@ test('a change reaches the organization\'s awake sandboxes, task copies too, but
     expect(collect($this->provider->executed)->filter(fn ($call) => isset($call['env']['ONEDROP_ORG_SECRETS']))->pluck('id')->all())->toBe(['ctr-awake']);
 })->group('SECRET-003');
 
-test('a new sandbox gets the secrets once it\'s made', function () {
+test('a new sandbox gets the secrets before it shows as running, so a Shell opened straight away has them', function () {
     OrganizationSecret::factory()->for($this->organization)->create(['name' => 'AWS_REGION', 'value' => 'us-east-1']);
+    $this->provider->execUsing = function (array $command, array $env) {
+        if (isset($env['ONEDROP_ORG_SECRETS'])) {
+            expect($this->project->sandbox()->first()->status)->not->toBe(SandboxStatus::Running);
+        }
+
+        return new ExecResult(0, '', '');
+    };
 
     CreateSandbox::dispatchSync($this->project);
 

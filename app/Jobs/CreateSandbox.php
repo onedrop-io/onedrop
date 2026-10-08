@@ -67,6 +67,15 @@ class CreateSandbox implements ShouldQueue
         try {
             $id = $provider->create($spec);
 
+            // The organization's secrets (SECRET-003) are in place before it shows as running, so a Shell opened
+            // straight away has them.
+            try {
+                app(OrganizationSecrets::class)->sync($sandbox->forceFill(['external_id' => $id]));
+            } catch (SandboxException $e) {
+                // The agent's next run tries again.
+                report($e);
+            }
+
             $sandbox->update([
                 // The provider it was made on, even when this reuses a record from another one.
                 'provider' => $providerName,
@@ -88,13 +97,6 @@ class CreateSandbox implements ShouldQueue
             $ssh->sync($sandbox);
         } catch (SandboxException) {
             // SSH is optional; the Developer → SSH page syncs the keys again when opened.
-        }
-
-        try {
-            app(OrganizationSecrets::class)->sync($sandbox);
-        } catch (SandboxException $e) {
-            // The agent's next run tries again.
-            report($e);
         }
     }
 
