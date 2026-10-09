@@ -429,6 +429,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - A move should keep the project's files (uncommitted changes too), dependencies, App Storage and the sandbox user's home folder (the agent's history, a database the agent set up), and the new sandbox should start the app; a published project is published again.
 - A move should be done in a series of short queue jobs, none longer than about a minute, so it works on Laravel Cloud's Flex queues (90 seconds a job); work that takes longer (packing and unpacking files) runs in the sandboxes in the background and is checked on every few seconds. A move of a typical project should finish in about a minute.
 - A move shouldn't start while the project's agent is working in a sandbox that answers; it waits for the turn to end.
+- A move that hasn't started yet should be called off if the toggles change back so the sandbox is where its project should run after all.
 - Sandboxes on several providers should work side by side, each driven by the provider it was created on; provider-specific behavior (renewing private preview links, the SSH notice) should follow each sandbox's own provider.
 - An admin should still be able to move every project now with `php artisan sandbox:update`, or one with `php artisan sandbox:update {project}`; it runs the same move and waits for it.
 

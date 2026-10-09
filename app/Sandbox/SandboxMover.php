@@ -334,6 +334,14 @@ class SandboxMover
     protected function begin(SandboxMove $move): bool
     {
         $sandbox = $move->sandbox;
+
+        // The toggles changed back before it started: the sandbox is where its project should run after all.
+        if ($move->reason === 'provider' && $sandbox->provider === $move->project->sandboxProvider()) {
+            $move->update(['phase' => SandboxMovePhase::Done, 'finished_at' => now()]);
+            $move->note(__('No longer needed: the project runs on :provider again.', ['provider' => $this->label($sandbox->provider)]));
+
+            return true;
+        }
         $answered = $move->from_external_id !== null && $this->answers($move->from_external_id);
         $move->update(['from_answered' => $answered]);
 

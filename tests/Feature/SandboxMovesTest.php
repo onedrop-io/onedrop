@@ -477,3 +477,15 @@ test('sandbox:update waits for the move and says how it went', function () {
     expect($this->sandbox->fresh()->provider)->toBe('blaxel')
         ->and(app(SandboxUpdater::class)->isOutdated($this->project->fresh()))->toBeFalse();
 })->group('SBX-005');
+
+test('a move that hasn\'t started is called off when the toggles change back', function () {
+    $move = app(SandboxMover::class)->start($this->sandbox, 'provider', queue: false);
+    config(['sandbox.provider' => 'runtime']);
+
+    expect(app(SandboxMover::class)->step($move))->toBeTrue()
+        ->and($move->fresh()->phase)->toBe(SandboxMovePhase::Done)
+        ->and($move->fresh()->messages)->toBe(['No longer needed: the project runs on Runtime Cloud again.'])
+        ->and($this->runtime->taken)->toBe([])
+        ->and($this->blaxel->created)->toBe([])
+        ->and($this->sandbox->fresh()->external_id)->toBe('rt-1');
+})->group('SBX-005');
