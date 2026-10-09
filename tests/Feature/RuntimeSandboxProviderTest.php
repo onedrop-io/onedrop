@@ -4,6 +4,8 @@ use App\Sandbox\AppProcesses;
 use App\Sandbox\Providers\RuntimeSandboxProvider;
 use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxSpec;
+use App\Sandbox\SandboxWaitLimit;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -527,4 +529,50 @@ test('a sandbox that stays busy says so in plain words', function () {
         ->toThrow(SandboxException::class, 'The sandbox is busy running other commands. Try again in a moment.');
 
     Http::assertSentCount(7);
+})->group('SBX-003');
+
+test('web requests wait on the sandbox provider for a limited time; commands and jobs don\'t', function () {
+    expect(app(SandboxWaitLimit::class)->secondsLeft())->toBeNull();
+
+    $this->get('/');
+
+    expect(app(SandboxWaitLimit::class)->secondsLeft())->toBeGreaterThan(14)->toBeLessThanOrEqual(15.0);
+})->group('SBX-003');
+
+test('in a web request, a command waits for Runtime only as long as the request has left', function () {
+    app(SandboxWaitLimit::class)->start(15);
+    $timeouts = [];
+    Http::fake(function (Request $request, array $options) use (&$timeouts) {
+        $timeouts[] = $options['timeout'];
+
+        return Http::response(['exitCode' => 0, 'stdout' => 'ok', 'stderr' => '', 'timedOut' => false]);
+    });
+
+    expect($this->runtime->exec(RT_ID, ['true'])->output)->toBe('ok')
+        ->and($timeouts)->toHaveCount(1)
+        ->and($timeouts[0])->toBeLessThanOrEqual(15);
+})->group('SBX-003');
+
+test('in a web request, a sandbox that never answers is not tried again once its time is up, and says so', function () {
+    Sleep::fake(syncWithCarbon: true);
+    app(SandboxWaitLimit::class)->start(15);
+    $tries = 0;
+    Http::fake(function () use (&$tries) {
+        $tries++;
+        $this->travel(15)->seconds();
+
+        throw new ConnectionException('cURL error 28: Operation timed out');
+    });
+
+    expect(fn () => $this->runtime->exec(RT_ID, ['true']))->toThrow(SandboxException::class, RuntimeSandboxProvider::NO_ANSWER)
+        ->and($tries)->toBe(1);
+})->group('SBX-003');
+
+test('in a web request with no time left, nothing is sent to Runtime', function () {
+    app(SandboxWaitLimit::class)->start(0);
+    Http::fake();
+
+    expect(fn () => $this->runtime->exec(RT_ID, ['true']))->toThrow(SandboxException::class, RuntimeSandboxProvider::NO_ANSWER);
+
+    Http::assertNothingSent();
 })->group('SBX-003');

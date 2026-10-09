@@ -7,6 +7,7 @@ use App\Sandbox\ExecResult;
 use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxProvider;
 use App\Sandbox\SandboxSpec;
+use App\Sandbox\SandboxWaitLimit;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\RequestException;
@@ -53,6 +54,9 @@ class RuntimeSandboxProvider implements SandboxProvider
 
     /** Longest wait between tries of a refused request, in milliseconds, whatever Retry-After asks. */
     public const MAX_RETRY_WAIT_MS = 10000;
+
+    /** What a web request says when the sandbox didn't answer in the time it had. */
+    public const NO_ANSWER = "The sandbox didn't answer in time. It may still be waking up; try again in a minute.";
 
     /** Longest a preview token lasts (7 days); ProjectController renews the links daily. */
     public const PREVIEW_TTL_SECONDS = 604800;
@@ -518,11 +522,25 @@ class RuntimeSandboxProvider implements SandboxProvider
         // create() waits for room itself, for longer than a request should.
         $retriesRefusals = $path !== 'sandboxes';
 
+        // In a web request, every try (and the waits between them) fits in the time it has left (`SandboxWaitLimit`).
+        // A sandbox that never answers, like one stuck waking up, would otherwise hold the request for minutes.
+        $limit = app(SandboxWaitLimit::class);
+        $left = fn (): float => $limit->secondsLeft() ?? PHP_INT_MAX;
+
+        if ($left() < 1) {
+            throw new SandboxException(self::NO_ANSWER);
+        }
+
         // A busy sandbox says when to try again (Retry-After); it gets a few more tries than other refusals.
         $client = $this->client()->timeout($timeout + ($wait ?? 0))
-            ->retry(7, fn (int $attempt, Throwable $e) => self::retryWait($attempt, $e), fn (Throwable $e) => $e instanceof ConnectionException
-                || ($e instanceof RequestException && (in_array($e->response->status(), [429, 502, 503, 504], true)
-                    || ($retriesRefusals && self::isTemporaryRefusal($e->response)))), throw: false);
+            ->withMiddleware(fn (callable $handler) => fn ($request, array $options) => $handler($request, [
+                ...$options,
+                'timeout' => max(0.5, min($options['timeout'], $left())),
+            ]))
+            ->retry(7, fn (int $attempt, Throwable $e) => (int) min(self::retryWait($attempt, $e), ($left() - 1) * 1000),
+                fn (Throwable $e) => $left() >= 2 && ($e instanceof ConnectionException
+                    || ($e instanceof RequestException && (in_array($e->response->status(), [429, 502, 503, 504], true)
+                        || ($retriesRefusals && self::isTemporaryRefusal($e->response))))), throw: false);
 
         if ($method !== 'get') {
             $client->withHeaders(['Idempotency-Key' => (string) Str::uuid()]);
@@ -535,6 +553,10 @@ class RuntimeSandboxProvider implements SandboxProvider
         try {
             return $method === 'get' ? $client->get($path, $data) : $client->asJson()->{$method}($path, (object) $data);
         } catch (ConnectionException) {
+            if ($left() < 1) {
+                throw new SandboxException(self::NO_ANSWER);
+            }
+
             throw new SandboxException("Couldn't reach Runtime Cloud. Check https://withruntime.com/status and try again.");
         }
     }

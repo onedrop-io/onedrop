@@ -4,6 +4,7 @@ use App\Http\Middleware\BlockWhileImpersonating;
 use App\Http\Middleware\EnsureAgentConnected;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\LimitSandboxWaits;
 use App\Http\Middleware\PreventRequestForgery;
 use App\Http\Middleware\ResolveOrganization;
 use App\Http\Middleware\UseBuiltAssetsForRemoteRequests;
@@ -63,6 +64,7 @@ return Application::configure(basePath: dirname(__DIR__))
             Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class => PreventRequestForgery::class,
         ], append: [
             UseDesktopToken::class,
+            LimitSandboxWaits::class,
             UseBuiltAssetsForRemoteRequests::class,
             HandleAppearance::class,
             HandleInertiaRequests::class,

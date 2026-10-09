@@ -19,6 +19,7 @@ use App\Sandbox\Publishing\FakePublisher;
 use App\Sandbox\Publishing\Publisher;
 use App\Sandbox\Publishing\TailscalePublisher;
 use App\Sandbox\SandboxProvider;
+use App\Sandbox\SandboxWaitLimit;
 use App\Sandbox\SystemConfig;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Events\Login;
@@ -50,6 +51,9 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(AgentRunner::class, fn ($app) => $app->make(config('sandbox.agent')));
 
         $this->app->bind(Gateway::class, fn () => new Gateway(config('sandbox.gateway_domain'), config('sandbox.gateway_secret')));
+
+        // A web request's limit on waiting for the sandbox provider; reset between queue jobs.
+        $this->app->scoped(SandboxWaitLimit::class);
 
         // New sandboxes go to the configured provider; each existing one keeps its own (see RoutingSandboxProvider).
         $this->app->singleton(SandboxProvider::class, function () {
