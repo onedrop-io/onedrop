@@ -92,6 +92,19 @@ With **Docker inside sandboxes** on, in a project whose compose stack has a data
 - [ ] With a service Main built itself (a `build:` section), the copy's preview comes up without building it again: `docker images` in the copy's Shell lists it, and its Console shows no build steps for it.
 - [ ] A second task loads the same image without Main saving it again (no new file under the project's `images` folder on the snapshot disk).
 
+## E2B (SBX-014)
+
+With `E2B_API_KEY` set and the template built (`SANDBOX_PROVIDER=e2b php artisan sandbox:build-image`), put E2B first in **Settings → Sandboxes**.
+
+- [ ] A new project gets a sandbox in a few seconds; the preview shows the placeholder, then the app.
+- [ ] The Shell tab connects and keeps working (it's a WebSocket through the gateway).
+- [ ] `docker info` in the Shell says `overlayfs`; importing Pixwel/platform, the agent starts its whole Compose stack (API, MongoDB, Redis, Elasticsearch, workers) and the preview shows the app.
+- [ ] Opening the preview's URL with its token removed (`https://<port>-<id>.e2b.app/`) is refused (403).
+- [ ] Left alone for 10 minutes, the sandbox shows as paused in the E2B dashboard; opening the project brings the preview back in about a second, with the Compose stack still up.
+- [ ] A long agent turn with the workspace closed isn't paused mid-turn.
+- [ ] The Files, Git and Services panels load without errors.
+- [ ] Turning E2B off (with another provider first) moves its projects off with their files, and turning it back on and first moves them back.
+
 ## Switch providers (SBX-005)
 
 Use an install with two remote providers set up (Runtime Cloud and Blaxel) and a bucket as the snapshot disk, on a Flex queue (production, or a staging environment on Laravel Cloud). Have two projects on Runtime: one with a database the agent set up in `/home/sandbox`, one with a Shell open.

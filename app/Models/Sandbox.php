@@ -107,6 +107,13 @@ class Sandbox extends Model
 
         $this->forceFill(['last_active_at' => now()])->saveQuietly();
         $this->updateWhenIdle();
+
+        // E2B pauses a sandbox by itself once nobody has used it for a while; using it puts that off (SBX-014). After
+        // the response, so a page never waits on it.
+        if ($this->provider === 'e2b' && $this->external_id !== null) {
+            $id = $this->external_id;
+            defer(fn () => rescue(fn () => app(SandboxProvider::class)->wake($id)));
+        }
     }
 
     /**

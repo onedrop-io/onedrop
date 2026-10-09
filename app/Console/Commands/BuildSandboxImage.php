@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
 
 #[Signature('sandbox:build-image')]
-#[Description('Build the image used for project sandboxes (locally with Docker, or on Blaxel or Runtime Cloud)')]
+#[Description('Build the image used for project sandboxes (locally with Docker, or on Blaxel, Runtime Cloud or E2B)')]
 class BuildSandboxImage extends Command
 {
     /**
@@ -22,6 +22,7 @@ class BuildSandboxImage extends Command
         return match (config('sandbox.provider')) {
             'blaxel' => $this->buildOnBlaxel(),
             'runtime' => $this->buildOnRuntime(),
+            'e2b' => $this->buildOnE2b(),
             default => $this->build(config('sandbox.providers.docker.image'), ['docker', 'build', '--tag', config('sandbox.providers.docker.image'), '.']),
         };
     }
@@ -60,6 +61,38 @@ class BuildSandboxImage extends Command
         } finally {
             File::deleteDirectory($directory);
         }
+    }
+
+    /**
+     * E2B makes a template of the published sandbox image (docker/sandbox, pushed to GitHub's registry by the `images`
+     * workflow once main's tests pass) with start.sh started, through its SDK (infra/e2b/build.mjs). So E2B gets
+     * docker/sandbox as it is on main, not as it is in this checkout.
+     */
+    protected function buildOnE2b(): int
+    {
+        $config = config('sandbox.providers.e2b');
+
+        if (blank($config['api_key'])) {
+            $this->components->error('Set E2B_API_KEY first (https://e2b.dev/dashboard).');
+
+            return self::FAILURE;
+        }
+
+        if (Process::path(base_path('infra/e2b'))->run(['npm', 'ci', '--silent'])->failed()) {
+            $this->components->error("Couldn't install E2B's SDK in infra/e2b (npm ci).");
+
+            return self::FAILURE;
+        }
+
+        // The key goes through the environment, never the command line.
+        return $this->build($config['image'], ['node', 'build.mjs'], base_path('infra/e2b'), [
+            'E2B_API_KEY' => $config['api_key'],
+            'E2B_TEMPLATE' => $config['image'],
+            'E2B_SOURCE_IMAGE' => $config['source_image'],
+            'E2B_CPU_COUNT' => (string) $config['vcpu'],
+            'E2B_MEMORY_MB' => (string) $config['memory_mib'],
+            'E2B_DISK_MB' => (string) $config['disk_mib'],
+        ], " on E2B (from {$config['source_image']})");
     }
 
     /**

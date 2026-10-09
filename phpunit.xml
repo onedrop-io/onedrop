@@ -38,6 +38,7 @@
         <env name="SANDBOX_PROVIDER" value="fake"/>
         <env name="SANDBOX_PUBLISHER" value="fake"/>
         <env name="SANDBOX_GATEWAY_SECRET" value=""/>
+        <env name="E2B_API_KEY" value=""/>
         <env name="OPENROUTER_API_KEY" value=""/>
         <env name="OPENROUTER_PROVISIONING_KEY" value=""/>
         <env name="AUTUMN_SECRET_KEY" value=""/>

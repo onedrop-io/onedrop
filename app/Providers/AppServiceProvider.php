@@ -12,6 +12,7 @@ use App\Sandbox\Gateway;
 use App\Sandbox\Providers\BlaxelSandboxProvider;
 use App\Sandbox\Providers\DeviceSandboxProvider;
 use App\Sandbox\Providers\DockerSandboxProvider;
+use App\Sandbox\Providers\E2bSandboxProvider;
 use App\Sandbox\Providers\FakeSandboxProvider;
 use App\Sandbox\Providers\RoutingSandboxProvider;
 use App\Sandbox\Providers\RuntimeSandboxProvider;
@@ -61,6 +62,7 @@ class AppServiceProvider extends ServiceProvider
                 'docker' => fn () => new DockerSandboxProvider(config('sandbox.providers.docker')),
                 'blaxel' => fn () => new BlaxelSandboxProvider(config('sandbox.providers.blaxel')),
                 'runtime' => fn () => new RuntimeSandboxProvider(config('sandbox.providers.runtime')),
+                'e2b' => fn () => new E2bSandboxProvider(config('sandbox.providers.e2b')),
                 // Only for projects moved to a computer (DESK-010); never an install's provider for new projects.
                 'device' => fn () => new DeviceSandboxProvider([
                     'image' => config('sandbox.providers.device.image'),
@@ -75,7 +77,7 @@ class AppServiceProvider extends ServiceProvider
             return match (true) {
                 $provider === 'fake' => new FakeSandboxProvider,
                 isset($providers[$provider]) => new RoutingSandboxProvider($providers, $provider),
-                default => throw new InvalidArgumentException("Sandbox provider [{$provider}] isn't implemented yet. Use \"docker\", \"blaxel\", \"runtime\" or add a provider in app/Sandbox/Providers."),
+                default => throw new InvalidArgumentException("Sandbox provider [{$provider}] isn't implemented yet. Use \"docker\", \"blaxel\", \"runtime\", \"e2b\" or add a provider in app/Sandbox/Providers."),
             };
         });
 

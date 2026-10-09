@@ -42,7 +42,8 @@ app's web port for the preview) and restarts the preview; add `--preview <port>`
 missing (e.g. an env file) if the stack can't start. Then use `docker compose ps`, `docker compose logs <service>`
 and `docker compose exec <service> <command>`: run the app's commands and tests inside its container, whose PHP,
 Node etc. are the app's, not the sandbox's. Edits in /workspace reach containers that mount it. If `docker` isn't
-available, tell the user to turn on Docker inside sandboxes in Settings → Sandboxes.
+available, tell the user an admin has to turn on Docker inside sandboxes in Settings → Sandboxes, on a provider
+that can run it (Runtime Cloud or E2B; Blaxel can't), and put that provider first so the project moves there.
 
 ## When something breaks
 

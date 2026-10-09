@@ -66,11 +66,11 @@ test('a provider failure marks the sandbox failed with a readable error', functi
 })->group('SBX-001');
 
 test('an unimplemented provider fails loudly', function () {
-    config(['sandbox.provider' => 'e2b']);
+    config(['sandbox.provider' => 'daytona']);
     app()->forgetInstance(SandboxProvider::class);
 
     app(SandboxProvider::class);
-})->throws(InvalidArgumentException::class, "Sandbox provider [e2b] isn't implemented yet.")->group('SBX-001');
+})->throws(InvalidArgumentException::class, "Sandbox provider [daytona] isn't implemented yet.")->group('SBX-001');
 
 test('exec results report success', function () {
     expect((new ExecResult(0, 'ok'))->successful())->toBeTrue()

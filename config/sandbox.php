@@ -83,6 +83,26 @@ return [
             'timeout' => (int) env('SANDBOX_DEVICE_TIMEOUT', 130),
         ],
 
+        // E2B (e2b.dev, SBX-014): Firecracker VMs that run Docker inside (overlayfs), the fallback for projects with their
+        // own Docker Compose. The image is the published sandbox image (docker/sandbox) made an E2B template by
+        // `php artisan sandbox:build-image` (infra/e2b/build.mjs) or the `e2b image` workflow.
+        'e2b' => [
+            'api_key' => env('E2B_API_KEY'),
+            'url' => env('E2B_API_URL', 'https://api.e2b.app'),
+            // Where sandboxes' ports answer: <port>-<id>.<domain>.
+            'domain' => env('E2B_DOMAIN', 'e2b.app'),
+            'image' => env('E2B_TEMPLATE', 'onedrop-sandbox'),
+            // What the template is built from, and the size of every sandbox made from it (set when it's built).
+            'source_image' => env('E2B_SOURCE_IMAGE', 'ghcr.io/onedrop-io/onedrop-sandbox:latest'),
+            'vcpu' => (int) env('E2B_VCPU', 2),
+            'memory_mib' => (int) env('E2B_MEMORY_MIB', 4096),
+            'disk_mib' => (int) env('E2B_DISK_MIB', 20000),
+            // A sandbox nobody has used for this long pauses (memory kept) until the next request wakes it.
+            'idle_seconds' => (int) env('E2B_IDLE_SECONDS', 600),
+            // Docker inside each sandbox (SBX-008): "on" or "off". On by default: it's why E2B is here.
+            'nested_docker' => env('E2B_NESTED_DOCKER', 'on'),
+        ],
+
         // Blaxel (blaxel.ai). The image is docker/sandbox plus docker/sandbox/blaxel, pushed by `php artisan sandbox:build-image`.
         'blaxel' => [
             'api_key' => env('BL_API_KEY'),

@@ -141,6 +141,36 @@ npx withruntime sandbox ls
 npx withruntime sandbox stop <id>
 ```
 
+## Run sandboxes on E2B
+
+[E2B](https://e2b.dev) runs each sandbox in its own Firecracker microVM, with Docker inside it (overlayfs on an ext4 disk). Use it as the fallback for projects that run their own Docker Compose stack, which Blaxel can't run. OneDrop talks to its HTTPS API, so the server needs no Docker.
+
+<Steps>
+  <Step title="Create an API key">
+    Create a key in the [E2B dashboard](https://e2b.dev/dashboard) and set it as `E2B_API_KEY`, or enter it in **Settings → Sandboxes → E2B**.
+  </Step>
+  <Step title="Build the template on E2B">
+    ```bash
+    SANDBOX_PROVIDER=e2b php artisan sandbox:build-image
+    ```
+    This makes E2B's `onedrop-sandbox` template from the published sandbox image (`ghcr.io/onedrop-io/onedrop-sandbox:latest`), with `start.sh` already running, so a new sandbox starts in about 3 seconds. It needs Node.js, and builds in about 2 minutes. The image is the one the `images` workflow published from `main`, not your working copy of `docker/sandbox/`.
+
+    To do this automatically, add an `E2B_API_KEY` secret to the GitHub repository. The **e2b image** workflow then rebuilds the template each time the `images` workflow publishes a new sandbox image.
+  </Step>
+  <Step title="Turn it on">
+    In **Settings → Sandboxes**, turn E2B on. Put it first to move projects there, or second as the fallback: turning off the provider above it moves everything to it ([Switch providers](#switch-providers)).
+  </Step>
+</Steps>
+
+How it differs from Runtime:
+
+- **Docker inside sandboxes** is on by default. Turn it off in E2B's settings if you don't need it; existing sandboxes move to new ones without it.
+- **Private previews and Shells.** A sandbox's ports answer only with its traffic token. OneDrop hands the link only to people allowed to see the project, and the gateway sends the token as E2B's header, WebSockets included.
+- **Idle sandboxes pause.** After 10 minutes with nothing happening (`E2B_IDLE_SECONDS`), a sandbox pauses with its memory and running containers kept. The next visit or command wakes it in about a second. An open workspace, the agent's events and gateway visits put the pause off.
+- **Size** is fixed by the template (`E2B_VCPU`, `E2B_MEMORY_MIB`, `E2B_DISK_MIB`: 2 vCPUs, 4 GB, 20 GB free by default). Rebuild the template after changing them.
+- **Running time.** E2B stops a sandbox that runs without a break for 24 hours on its Pro plan, or 1 hour on its free plan. Each idle pause starts the clock again.
+- **Not available:** SSH (Tools → Developer → SSH) and Tailscale publishing.
+
 ## Switch providers
 
 Each sandbox keeps running on the provider it was created on, and sandboxes on Docker, Blaxel and Runtime Cloud can run side by side. Where projects run is set in **Settings → Sandboxes**: new projects go to the first provider that's turned on and set up.

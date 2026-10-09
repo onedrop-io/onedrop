@@ -48,6 +48,7 @@ class Gateway
     public const PROVIDER_TOKENS = [
         'bl_preview_token' => 'X-Blaxel-Preview-Token',
         'runtime_preview_token' => 'X-Runtime-Preview-Token',
+        'e2b_traffic_token' => 'e2b-traffic-access-token',
     ];
 
     public function __construct(protected ?string $domain, protected ?string $secret = null) {}

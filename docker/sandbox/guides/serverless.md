@@ -36,7 +36,8 @@ exec npx wrangler dev --ip 0.0.0.0 --port "$PORT" --show-interactive-dev-session
 ## AWS Lambda with SAM
 
 SAM runs each function in a Lambda container, so it needs Docker inside the sandbox. If `docker info` fails,
-tell the user to turn on Docker inside sandboxes in Settings → Sandboxes, and wait.
+tell the user an admin has to turn on Docker inside sandboxes in Settings → Sandboxes, on a provider that can
+run it (Runtime Cloud or E2B, not Blaxel), and wait.
 
 `sam` is on PATH; it installs itself the first time it runs (a minute at most).
 

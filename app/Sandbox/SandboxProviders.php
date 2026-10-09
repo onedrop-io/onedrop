@@ -61,6 +61,17 @@ class SandboxProviders
                 'preview_visibility' => ['label' => 'Preview visibility', 'type' => 'select', 'options' => ['private', 'public'], 'help' => 'Public (paid only) lets previews show in the workspace.'],
             ],
         ],
+        'e2b' => [
+            'label' => 'E2B',
+            'description' => 'MicroVMs on e2b.dev, with Docker inside.',
+            'required' => ['api_key'],
+            'fields' => [
+                'api_key' => ['label' => 'API key', 'type' => 'secret'],
+                'image' => ['label' => 'Template', 'type' => 'text', 'help' => 'Built by php artisan sandbox:build-image, or the e2b image workflow.'],
+                'nested_docker' => ['label' => 'Docker inside sandboxes', 'type' => 'select', 'options' => ['on', 'off'], 'help' => 'For projects with their own Docker Compose.'],
+                'idle_seconds' => ['label' => 'Pause after (seconds idle)', 'type' => 'number', 'help' => 'Memory is kept; the next visit wakes it in about a second.'],
+            ],
+        ],
     ];
 
     /**
@@ -111,7 +122,7 @@ class SandboxProviders
 
     /**
      * Whether a provider's sandboxes (the active one's by default) get Docker inside them, for projects that run their
-     * own Docker Compose (SBX-008). Each provider has its own setting; Blaxel can't yet.
+     * own Docker Compose (SBX-008). Each provider has its own setting; Blaxel can't.
      */
     public function runsDocker(?string $name = null): bool
     {
@@ -120,7 +131,7 @@ class SandboxProviders
 
         return match ($name) {
             'docker' => in_array($setting, ['privileged', 'runtime'], true),
-            'runtime' => $setting === 'on',
+            'runtime', 'e2b' => $setting === 'on',
             default => false,
         };
     }

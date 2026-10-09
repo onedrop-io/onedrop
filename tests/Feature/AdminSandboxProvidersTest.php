@@ -28,7 +28,7 @@ test('admins see every provider, which is active and how many sandboxes each hol
     $this->actingAs(User::factory()->admin()->create())
         ->get(route('admin.sandboxes.index'))
         ->assertInertia(fn (AssertableInertia $page) => $page->component('admin/sandboxes')
-            ->has('providers', 3)
+            ->has('providers', 4)
             ->where('providers.0.name', 'docker')
             ->where('providers.0.active', true)
             ->where('providers.0.enabled', true)
@@ -93,7 +93,7 @@ test('new projects run on the first provider in the admin\'s order that is on an
     $admin = User::factory()->admin()->create();
     $this->actingAs($admin)->put(route('admin.sandboxes.update', 'blaxel'), ['enabled' => true, 'api_key' => 'key', 'workspace' => 'acme']);
 
-    $this->actingAs($admin)->put(route('admin.sandboxes.reorder'), ['providers' => ['blaxel', 'docker', 'runtime']])
+    $this->actingAs($admin)->put(route('admin.sandboxes.reorder'), ['providers' => ['blaxel', 'docker', 'runtime', 'e2b']])
         ->assertRedirect(route('admin.sandboxes.index'))
         ->assertInertiaFlash('toast.message', 'New projects now run on Blaxel.');
 
@@ -121,7 +121,7 @@ test('providers that are off or missing settings are skipped', function () {
     $admin = User::factory()->admin()->create();
 
     // Runtime is first but off, then on without its key: Docker keeps new projects.
-    $this->actingAs($admin)->put(route('admin.sandboxes.reorder'), ['providers' => ['runtime', 'blaxel', 'docker']]);
+    $this->actingAs($admin)->put(route('admin.sandboxes.reorder'), ['providers' => ['runtime', 'blaxel', 'docker', 'e2b']]);
     expect(config('sandbox.provider'))->toBe('docker');
 
     $this->actingAs($admin)->put(route('admin.sandboxes.update', 'runtime'), ['enabled' => true]);
@@ -141,7 +141,7 @@ test('the order must list every provider once', function (array $order) {
         ->put(route('admin.sandboxes.reorder'), ['providers' => $order])
         ->assertSessionHasErrors();
 
-    expect(app(SandboxProviders::class)->order())->toBe(['docker', 'blaxel', 'runtime']);
+    expect(app(SandboxProviders::class)->order())->toBe(['docker', 'blaxel', 'runtime', 'e2b']);
 })->with([
     'missing one' => [['blaxel', 'docker']],
     'twice' => [['docker', 'docker', 'blaxel']],
@@ -153,7 +153,7 @@ test('installs that chose an active provider before there was an order keep it f
     SystemConfig::apply();
 
     expect(config('sandbox.provider'))->toBe('runtime')
-        ->and(app(SandboxProviders::class)->order())->toBe(['runtime', 'docker', 'blaxel']);
+        ->and(app(SandboxProviders::class)->order())->toBe(['runtime', 'docker', 'blaxel', 'e2b']);
 })->group('ADMIN-002');
 
 test('the last provider that is on and set up cannot be turned off', function () {
@@ -186,7 +186,7 @@ test('non-admins cannot see or change sandbox providers', function () {
 
     $this->actingAs($user)->get(route('admin.sandboxes.index'))->assertForbidden();
     $this->actingAs($user)->put(route('admin.sandboxes.update', 'docker'), ['enabled' => true])->assertForbidden();
-    $this->actingAs($user)->put(route('admin.sandboxes.reorder'), ['providers' => ['blaxel', 'docker', 'runtime']])->assertForbidden();
+    $this->actingAs($user)->put(route('admin.sandboxes.reorder'), ['providers' => ['blaxel', 'docker', 'runtime', 'e2b']])->assertForbidden();
 })->group('ADMIN-002');
 
 test('admins can turn on Docker inside Docker sandboxes', function () {

@@ -442,6 +442,17 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - An admin should see recovered files in Settings → Sandboxes and be able to restore them into the project with one click (after a warning that changes made since the move would be replaced).
 - A move that fails should leave the project on its old sandbox with every file, and the new sandbox should be deleted; the admin should see why and be able to try again.
 
+## SBX-014: Sandboxes on E2B
+
+- An admin should be able to run sandboxes on E2B (e2b.dev) by setting its API key in Settings → Sandboxes (or `E2B_API_KEY`), as the provider for projects that run their own Docker Compose when Runtime Cloud can't: E2B's VMs run Docker inside with its fast storage driver, which Blaxel can't.
+- Each project's sandbox should start from the `onedrop-sandbox` template: the published sandbox image (docker/sandbox) with start.sh running, built by `php artisan sandbox:build-image` (`SANDBOX_PROVIDER=e2b`), and again by the `e2b image` workflow whenever a new sandbox image is published from main.
+- Docker inside sandboxes should be on for E2B unless an admin turns it off; turning it on or off moves its sandboxes to new ones (SBX-002).
+- The sandbox's settings and the user's AI credential should reach it at start without appearing in any command line.
+- User should see the preview and the Shell tab (WebSockets included) through private E2B links: a sandbox's ports answer only with its traffic token, which the app hands out only to people allowed to see the project, and the gateway sends as E2B's header.
+- A sandbox nobody has used for 10 minutes (`E2B_IDLE_SECONDS`) should pause with its memory kept, and wake by itself, in about a second, on the next visit or command; an open workspace, the agent's events and gateway visits should put the pause off.
+- Pausing, resuming, updating (files kept), snapshots, moves (SBX-005) and deleting a sandbox should work as they do on Runtime.
+- A provider that can't run Docker (Blaxel) should tell the agent so, and the agent should tell the user to have an admin put a provider that can first, not to turn on a setting that isn't there.
+
 ## SBX-006: Checkpoints and code backups
 
 - User's changes should be committed to git in `/workspace` after every agent turn (finished or stopped), whichever agent ran it, with the prompt as the commit message; a turn that changed nothing makes no commit.

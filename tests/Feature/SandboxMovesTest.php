@@ -175,7 +175,7 @@ test('turning a provider off in Settings moves its sandboxes, without a command'
     $admin = User::factory()->admin()->create();
 
     $this->actingAs($admin)->put(route('admin.sandboxes.update', 'blaxel'), ['enabled' => true]);
-    $this->actingAs($admin)->put(route('admin.sandboxes.reorder'), ['providers' => ['runtime', 'blaxel', 'docker']]);
+    $this->actingAs($admin)->put(route('admin.sandboxes.reorder'), ['providers' => ['runtime', 'blaxel', 'docker', 'e2b']]);
 
     expect(SandboxMove::query()->count())->toBe(0);
 
@@ -195,9 +195,9 @@ test('putting another provider first moves sandboxes to it at once', function ()
     config(['sandbox.provider' => 'runtime', 'sandbox.providers.runtime.api_key' => 'rt-key', 'sandbox.providers.blaxel.api_key' => 'bl-key', 'sandbox.providers.blaxel.workspace' => 'acme']);
     $admin = User::factory()->admin()->create();
     $this->actingAs($admin)->put(route('admin.sandboxes.update', 'blaxel'), ['enabled' => true]);
-    $this->actingAs($admin)->put(route('admin.sandboxes.reorder'), ['providers' => ['runtime', 'blaxel', 'docker']]);
+    $this->actingAs($admin)->put(route('admin.sandboxes.reorder'), ['providers' => ['runtime', 'blaxel', 'docker', 'e2b']]);
 
-    $this->actingAs($admin)->put(route('admin.sandboxes.reorder'), ['providers' => ['blaxel', 'runtime', 'docker']]);
+    $this->actingAs($admin)->put(route('admin.sandboxes.reorder'), ['providers' => ['blaxel', 'runtime', 'docker', 'e2b']]);
 
     expect($this->project->sandboxMoves()->sole()->to_provider)->toBe('blaxel');
 })->group('SBX-005', 'ADMIN-002');
@@ -503,9 +503,9 @@ test('a provider without its sandbox image can\'t become the one projects move t
     config(['sandbox.provider' => 'runtime', 'sandbox.providers.runtime.api_key' => 'rt-key', 'sandbox.providers.blaxel.api_key' => 'bl-key', 'sandbox.providers.blaxel.workspace' => 'acme']);
     $admin = User::factory()->admin()->create();
     $this->actingAs($admin)->put(route('admin.sandboxes.update', 'blaxel'), ['enabled' => true]);
-    $this->actingAs($admin)->put(route('admin.sandboxes.reorder'), ['providers' => ['runtime', 'blaxel', 'docker']]);
+    $this->actingAs($admin)->put(route('admin.sandboxes.reorder'), ['providers' => ['runtime', 'blaxel', 'docker', 'e2b']]);
 
-    $this->actingAs($admin)->put(route('admin.sandboxes.reorder'), ['providers' => ['blaxel', 'runtime', 'docker']])
+    $this->actingAs($admin)->put(route('admin.sandboxes.reorder'), ['providers' => ['blaxel', 'runtime', 'docker', 'e2b']])
         ->assertSessionHasErrors(['providers' => "Projects can't move to Blaxel yet: The sandbox image [onedrop-sandbox] isn't on Blaxel yet. Run `php artisan sandbox:build-image`."]);
     $this->actingAs($admin)->put(route('admin.sandboxes.update', 'runtime'), ['enabled' => false])
         ->assertSessionHasErrors('enabled');

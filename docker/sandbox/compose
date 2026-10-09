@@ -131,7 +131,7 @@ up() {
 
     until docker info >/dev/null 2>&1; do
         tries=$((tries + 1))
-        [ "$tries" -lt 60 ] || fail "Docker isn't running in this sandbox. Turn on Docker inside sandboxes in Settings → Sandboxes; its log is /tmp/onedrop-dockerd.log."
+        [ "$tries" -lt 60 ] || fail "Docker isn't running in this sandbox. An admin turns on Docker inside sandboxes in Settings → Sandboxes, on a provider that can run it (Runtime Cloud or E2B, not Blaxel), first in the list; its log is /tmp/onedrop-dockerd.log."
         sleep 1
     done
 

@@ -1,0 +1,9 @@
+{
+    "name": "onedrop-e2b-template",
+    "private": true,
+    "description": "Builds the project sandbox image as an E2B template (php artisan sandbox:build-image with SANDBOX_PROVIDER=e2b).",
+    "type": "module",
+    "dependencies": {
+        "e2b": "2.55.0"
+    }
+}
