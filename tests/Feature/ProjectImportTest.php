@@ -126,7 +126,7 @@ test('when the import fails, the chat says why and the agent never starts', func
 test('a successful import records the sync', function () {
     $project = Project::factory()->for($this->user)->create(['git_remote_url' => "file://{$this->remote}", 'git_sync_status' => GitSyncStatus::Pulling]);
     $message = $project->messages()->create(['role' => MessageRole::User, 'content' => 'go']);
-    $this->mock(GitRemote::class)->shouldReceive('pull')->once()->withArgs(fn (Project $pulled, string $branch) => $pulled->is($project) && $branch === 'main');
+    $this->mock(GitRemote::class)->shouldReceive('pullStep')->once()->withArgs(fn (Project $pulled, string $branch) => $pulled->is($project) && $branch === 'main')->andReturnTrue();
 
     ImportRepository::dispatchSync($project, $message, 'main');
 

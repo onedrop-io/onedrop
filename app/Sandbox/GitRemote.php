@@ -12,9 +12,12 @@ use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Str;
 
 /**
- * Pushes to and pulls from a project's git remote (GitHub, GitLab, Forgejo, any HTTPS git host) on the platform,
- * so the remote's token never enters the sandbox: commits leave the sandbox as the project's backup bundle
- * (ProjectBackups) and come back in as a bundle that git.php fast-forwards to.
+ * Pushes to and pulls from a project's git remote (GitHub, GitLab, Forgejo, any HTTPS git host). Pushes run on the
+ * platform, so a token that can write never enters the sandbox: commits leave the sandbox as the project's backup
+ * bundle (ProjectBackups). Pulls come back in as a bundle that git.php fast-forwards to. A GitHub App repository's
+ * pull is fetched by the sandbox itself, in the background, with a token that can only read that repository
+ * (pullStep): it holds the code anyway, and a large history takes minutes, longer than a queue job should run.
+ * Other remotes' tokens can't be narrowed like that, so they're fetched on the platform.
  */
 class GitRemote
 {
@@ -26,6 +29,61 @@ class GitRemote
 
     /** Where fetched commits are copied into the sandbox. */
     protected const PULL_DIRECTORY = '/tmp/onedrop-pull';
+
+    /** Where the sandbox keeps a fetch it runs itself: its branch, state, exit code, error and the bundle it makes. */
+    protected const FETCH_DIRECTORY = '/tmp/onedrop-fetch';
+
+    /** Marks the sandbox's fetch as started, before it runs, so the next check finds it. */
+    protected const FETCH_START = <<<'SH'
+        rm -rf "$1" && mkdir -p "$1" && printf '%s' "$2" >"$1/branch" && echo running >"$1/state"
+        SH;
+
+    /**
+     * The sandbox's fetch, in the background: the token reaches git only as a header in its environment (never its
+     * arguments or the URL), and the result is a bundle for git.php, like a pull fetched on the platform.
+     */
+    protected const FETCH = <<<'SH'
+        dir=$1
+        echo $$ >"$dir/pid"
+        export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_COUNT=3 \
+            GIT_CONFIG_KEY_0=http.followRedirects GIT_CONFIG_VALUE_0=false \
+            GIT_CONFIG_KEY_1=credential.helper GIT_CONFIG_VALUE_1= \
+            GIT_CONFIG_KEY_2=http.extraHeader GIT_CONFIG_VALUE_2="$ONEDROP_FETCH_AUTH"
+        unset ONEDROP_FETCH_AUTH
+        ref="refs/heads/$ONEDROP_FETCH_BRANCH"
+        git init --bare -q "$dir/repo.git" \
+            && timeout "$2" git -C "$dir/repo.git" fetch -q "$ONEDROP_FETCH_URL" "+$ref:$ref" 2>"$dir/error"
+        code=$?
+        if [ "$code" = 0 ]; then
+            GIT_CONFIG_COUNT=0 git -C "$dir/repo.git" bundle create -q "$dir/pull.bundle" "$ref" 2>"$dir/error"
+            code=$?
+        fi
+        rm -rf "$dir/repo.git"
+        echo "$code" >"$dir/exit"
+        [ "$code" = 0 ] && state=done || state=failed
+        echo "$state" >"$dir/state.new" && mv -f "$dir/state.new" "$dir/state"
+        SH;
+
+    /**
+     * How the sandbox's fetch is doing: its state (none, running, done, failed, or lost when it stopped without
+     * saying, e.g. the sandbox restarted), branch and exit code, one per line, then its error.
+     */
+    protected const FETCH_STATUS = <<<'SH'
+        dir=$1
+        [ -f "$dir/state" ] || { echo none; exit 0; }
+        state=$(cat "$dir/state")
+        if [ "$state" = running ]; then
+            if [ -f "$dir/pid" ]; then
+                kill -0 "$(cat "$dir/pid")" 2>/dev/null || state=$(cat "$dir/state")
+                [ "$state" = running ] && ! kill -0 "$(cat "$dir/pid")" 2>/dev/null && state=lost
+            elif [ -n "$(find "$dir/state" -mmin +2)" ]; then
+                state=lost
+            fi
+        fi
+        printf '%s\n%s\n%s\n' "$state" "$(cat "$dir/branch" 2>/dev/null)" "$(cat "$dir/exit" 2>/dev/null)"
+        head -c 2000 "$dir/error" 2>/dev/null
+        true
+        SH;
 
     public function __construct(
         protected SandboxProvider $provider,
@@ -105,6 +163,100 @@ class GitRemote
         }
 
         $this->git->pushed($sandbox, $branch, $sha);
+    }
+
+    /**
+     * Pull a step at a time, for a queue job that checks back until it's done: the first call starts the sandbox's
+     * fetch, later ones check on it, and the one that finds it finished brings the commits in and returns true.
+     * Remotes the sandbox doesn't fetch itself are pulled in one go.
+     *
+     * @throws SandboxException|GitException
+     */
+    public function pullStep(Project $project, ?string $branch = null): bool
+    {
+        if (! $this->fetchesInSandbox($project)) {
+            $this->pull($project, $branch);
+
+            return true;
+        }
+
+        $this->checkRemote($project);
+        $sandbox = $this->runningSandbox($project);
+        $fetch = $this->fetchStatus($sandbox);
+
+        if ($fetch['state'] === 'none') {
+            [$sandbox, $branch] = $this->prepare($project, importing: true, importBranch: $branch);
+            $this->startFetch($project, $sandbox, $branch);
+
+            return false;
+        }
+
+        if ($fetch['state'] === 'running') {
+            return false;
+        }
+
+        try {
+            match ($fetch['state']) {
+                'done' => $this->git->pulled($sandbox, $fetch['branch'], self::FETCH_DIRECTORY.'/pull.bundle'),
+                'lost' => throw new GitException(__('The download stopped before it finished. Try again.')),
+                default => throw new GitException($fetch['exit'] === '124'
+                    ? __('The remote took too long to answer (over :minutes minutes). Try again; a very large repository may need a faster connection.', ['minutes' => intdiv(self::FETCH_TIMEOUT, 60)])
+                    : $this->explain($fetch['error'])),
+            };
+        } finally {
+            $this->provider->exec($sandbox->external_id, ['rm', '-rf', self::FETCH_DIRECTORY]);
+        }
+
+        return true;
+    }
+
+    /**
+     * Whether the sandbox fetches this project's pulls itself: a GitHub App repository, whose token can be narrowed
+     * to reading it.
+     */
+    public function fetchesInSandbox(Project $project): bool
+    {
+        return $project->github_installation_id !== null && self::gitHubRepository((string) $project->git_remote_url) !== null;
+    }
+
+    /**
+     * Start the sandbox's fetch of $branch, in the background.
+     *
+     * @throws SandboxException|GitException
+     */
+    protected function startFetch(Project $project, Sandbox $sandbox, string $branch): void
+    {
+        $token = $this->github->repositoryReadToken($project->github_installation_id, self::gitHubRepository($project->git_remote_url));
+
+        $started = $this->provider->exec($sandbox->external_id, ['bash', '-c', self::FETCH_START, 'fetch', self::FETCH_DIRECTORY, $branch]);
+
+        if (! $started->successful()) {
+            throw new SandboxException(__('Couldn\'t start the download in the sandbox: :error', ['error' => Str::limit(trim($started->errorOutput), 200)]));
+        }
+
+        $this->provider->exec($sandbox->external_id, ['bash', '-c', self::FETCH, 'fetch', self::FETCH_DIRECTORY, (string) self::FETCH_TIMEOUT], [
+            'ONEDROP_FETCH_URL' => $project->git_remote_url,
+            'ONEDROP_FETCH_BRANCH' => $branch,
+            'ONEDROP_FETCH_AUTH' => 'Authorization: Basic '.base64_encode("x-access-token:{$token}"),
+        ], detach: true);
+    }
+
+    /**
+     * @return array{state: string, branch: string, exit: string, error: string}
+     *
+     * @throws SandboxException
+     */
+    protected function fetchStatus(Sandbox $sandbox): array
+    {
+        $result = $this->provider->exec($sandbox->external_id, ['bash', '-c', self::FETCH_STATUS, 'fetch', self::FETCH_DIRECTORY]);
+
+        if (! $result->successful()) {
+            throw new SandboxException(__('Couldn\'t check on the download in the sandbox.'));
+        }
+
+        $lines = explode("\n", $result->output, 4);
+
+        return ['state' => trim($lines[0]), 'branch' => trim($lines[1] ?? ''), 'exit' => trim($lines[2] ?? ''), 'error' => $lines[3] ?? ''];
     }
 
     /**
@@ -235,12 +387,7 @@ class GitRemote
     {
         $this->checkRemote($project);
 
-        $sandbox = $project->sandbox()->first();
-
-        if ($sandbox?->status !== SandboxStatus::Running || $sandbox->external_id === null) {
-            throw new SandboxException(__("The project's sandbox isn't running."));
-        }
-
+        $sandbox = $this->runningSandbox($project);
         $status = $this->git->status($sandbox);
 
         if ($status['head'] === null) {
@@ -256,6 +403,20 @@ class GitRemote
         }
 
         return [$sandbox, $status['branch']];
+    }
+
+    /**
+     * @throws SandboxException
+     */
+    protected function runningSandbox(Project $project): Sandbox
+    {
+        $sandbox = $project->sandbox()->first();
+
+        if ($sandbox?->status !== SandboxStatus::Running || $sandbox->external_id === null) {
+            throw new SandboxException(__("The project's sandbox isn't running."));
+        }
+
+        return $sandbox;
     }
 
     /**

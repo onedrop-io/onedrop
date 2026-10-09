@@ -10,6 +10,7 @@ use App\Sandbox\Agents\AgentQueue;
 use App\Sandbox\GitException;
 use App\Sandbox\GitRemote;
 use App\Sandbox\SandboxException;
+use DateTimeInterface;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Str;
@@ -19,16 +20,27 @@ class ImportRepository implements ShouldQueue
 {
     use Queueable;
 
-    /** Fetching a large history takes a while. */
-    /** Long enough for a large repository's fetch (GitRemote::FETCH_TIMEOUT) and copying it in. */
+    /** Long enough for a large repository's fetch on the platform (GitRemote::FETCH_TIMEOUT) and copying it in. */
     public int $timeout = 1500;
 
-    public int $tries = 1;
+    /** A fetch the sandbox runs itself is checked on every few seconds, each check a short attempt. */
+    public const CHECK_SECONDS = 5;
+
+    /** Any error other than checking back ends it. */
+    public int $maxExceptions = 1;
 
     /**
      * Create a new job instance.
      */
     public function __construct(public Project $project, public Message $message, public string $branch) {}
+
+    /**
+     * Checking back on the sandbox's fetch makes many attempts; give up once a fetch couldn't still be running.
+     */
+    public function retryUntil(): DateTimeInterface
+    {
+        return now()->addSeconds(GitRemote::FETCH_TIMEOUT + 600);
+    }
 
     /**
      * Bring the repository's branch into the new project's empty sandbox (PRJ-009) before the agent's first run.
@@ -37,7 +49,11 @@ class ImportRepository implements ShouldQueue
     public function handle(GitRemote $remote): void
     {
         try {
-            $remote->pull($this->project->fresh() ?? $this->project, $this->branch);
+            if (! $remote->pullStep($this->project->fresh() ?? $this->project, $this->branch)) {
+                $this->release(self::CHECK_SECONDS);
+
+                return;
+            }
         } catch (GitException|SandboxException $e) {
             $this->fail($e);
 

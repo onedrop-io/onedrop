@@ -7,6 +7,7 @@ use App\Models\Project;
 use App\Sandbox\GitException;
 use App\Sandbox\GitRemote;
 use App\Sandbox\SandboxException;
+use DateTimeInterface;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
@@ -16,16 +17,25 @@ class SyncGitRemote implements ShouldQueue
 {
     use Queueable;
 
-    /** Pushing or fetching a large history takes a while. */
-    /** Long enough for a large repository's fetch (GitRemote::FETCH_TIMEOUT) and copying it in. */
+    /** Long enough for a large repository's fetch on the platform (GitRemote::FETCH_TIMEOUT) and copying it in. */
     public int $timeout = 1500;
 
-    public int $tries = 1;
+    /** Any error other than checking back (or waiting for another sync of the project) ends it. */
+    public int $maxExceptions = 1;
 
     /**
      * Create a new job instance.
      */
     public function __construct(public Project $project, public GitSyncStatus $direction, public ?string $branch = null) {}
+
+    /**
+     * A pull the sandbox fetches itself is checked on every few seconds, each check a short attempt; give up once a
+     * fetch couldn't still be running.
+     */
+    public function retryUntil(): DateTimeInterface
+    {
+        return now()->addSeconds(GitRemote::FETCH_TIMEOUT + 600);
+    }
 
     /**
      * @return list<object>
@@ -44,7 +54,15 @@ class SyncGitRemote implements ShouldQueue
         $project = $this->project->fresh() ?? $this->project;
 
         try {
-            $this->direction === GitSyncStatus::Pulling ? $remote->pull($project, $this->branch) : $remote->push($project);
+            if ($this->direction === GitSyncStatus::Pulling && ! $remote->pullStep($project, $this->branch)) {
+                $this->release(ImportRepository::CHECK_SECONDS);
+
+                return;
+            }
+
+            if ($this->direction === GitSyncStatus::Pushing) {
+                $remote->push($project);
+            }
 
             $project->update(['git_sync_status' => null, 'git_sync_error' => null, 'git_synced_at' => now()]);
         } catch (GitException|SandboxException $e) {

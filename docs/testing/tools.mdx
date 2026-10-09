@@ -104,6 +104,15 @@ The image needs rebuilding first (`start.sh` changed): `php artisan sandbox:buil
 - [ ] Connecting GitHub (app or token) and pushing puts the code on GitHub; **Open a pull request** opens one.
 - [ ] Pull requests in Tools: see [Pull requests](/testing/pull-requests).
 
+### Large repositories in the sandbox (GIT-004, PRJ-009)
+
+On production (Flex queue), with GitHub connected through the GitHub App:
+
+- [ ] Starting a project from a large repository (e.g. Pixwel/platform, about 350 MB) brings it in and the agent starts, even though it takes several minutes; no "Something went wrong".
+- [ ] While it downloads, `ls /tmp/onedrop-fetch` in the Shell shows it running, and `ps` shows no token in git's arguments.
+- [ ] **Pull** on a GitHub App repository brings in new commits the same way.
+- [ ] A repository connected with a token (e.g. GitLab) still pushes and pulls.
+
 ## Agent Skills
 
 - [ ] Adding a skill and turning it on makes the agent follow it on the next turn.

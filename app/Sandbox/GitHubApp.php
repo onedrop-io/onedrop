@@ -10,6 +10,7 @@ use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use Throwable;
 
 /**
@@ -359,6 +360,26 @@ class GitHubApp
 
             return $token;
         });
+    }
+
+    /**
+     * A token that can only read one of an installation's repositories ("owner/name"), for an hour: what a sandbox
+     * gets to fetch it itself (GitRemote), since it holds that repository's code anyway.
+     *
+     * @throws GitException
+     */
+    public function repositoryReadToken(int $installationId, string $repository): string
+    {
+        $token = $this->check($this->api()->withToken($this->jwt())->post(self::API."/app/installations/{$installationId}/access_tokens", [
+            'repositories' => [Str::after($repository, '/')],
+            'permissions' => ['contents' => 'read'],
+        ]))->json('token');
+
+        if (! is_string($token)) {
+            throw new GitException(__('GitHub didn\'t give the app a token.'));
+        }
+
+        return $token;
     }
 
     /**

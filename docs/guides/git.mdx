@@ -104,7 +104,7 @@ If your OneDrop has a [GitHub App](/self-hosting/github-app) set up, click **Con
 
 The dialog opens on **New repository** when your project has commits, and on **Existing repository** when it doesn't. **Add account or organization** installs the app somewhere else.
 
-You only see repositories that both you and the app can reach. No token is stored for the project: OneDrop gets a short-lived one from GitHub each time it pushes or pulls. If your GitHub sign-in expires, the dialog asks you to reconnect.
+You only see repositories that both you and the app can reach. No token is stored for the project: OneDrop gets a short-lived one from GitHub each time it pushes or pulls. A pull, and bringing the repository in when a project starts from it, is downloaded by the project's sandbox with a token that can only read that repository and expires within an hour, so even a large repository (hundreds of MB of history) comes in. Pushes always go through OneDrop's server. If your GitHub sign-in expires, the dialog asks you to reconnect.
 
 ### Connect with a token
 
