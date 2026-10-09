@@ -305,3 +305,43 @@ test('building on E2B without a key says what to set', function () {
 
     Process::assertNothingRan();
 })->group('SBX-014');
+
+test('without the Cloudflare gateway, which alone can send the token as a header, sandboxes\' ports are public and their links carry none', function () {
+    $public = new E2bSandboxProvider(['api_key' => 'e2b-test-key', 'url' => E2B_API, 'domain' => 'e2b.app', 'image' => 'onedrop-sandbox', 'idle_seconds' => 600, 'private_previews' => false]);
+    Http::fake([
+        E2B_API.'/templates' => Http::response(e2bTemplates()),
+        E2B_API.'/v2/sandboxes' => Http::response(e2bConnected()),
+        E2B_ENVD.'/files*' => Http::response([['path' => E2bSandboxProvider::ENV_FILE]]),
+        E2B_ENVD.'/process.Process/Start' => Http::response(envdRan()),
+    ]);
+
+    $id = $public->create(new SandboxSpec('onedrop-project-1-x', [], 8000));
+
+    expect($public->previewUrl($id, 8000))->toBe('https://8000-'.E2B_ID.'.e2b.app/');
+    Http::assertSent(fn (Request $request) => $request->url() === E2B_API.'/v2/sandboxes'
+        && $request['network'] === ['allowPublicTraffic' => true]
+        && $request['metadata'][E2bSandboxProvider::PRIVATE_METADATA] === 'no');
+})->group('SBX-014');
+
+test('a sandbox made with private ports is outdated once the gateway that sends their token is gone, and the other way round', function () {
+    Http::fake([
+        E2B_API.'/templates' => Http::response(e2bTemplates()),
+        E2B_API.'/sandboxes/'.E2B_ID => Http::response(['sandboxID' => E2B_ID, 'metadata' => [E2bSandboxProvider::BUILD_METADATA => 'build-7', E2bSandboxProvider::DOCKER_METADATA => 'on', E2bSandboxProvider::PRIVATE_METADATA => 'yes']]),
+    ]);
+    $public = new E2bSandboxProvider(['api_key' => 'e2b-test-key', 'url' => E2B_API, 'domain' => 'e2b.app', 'image' => 'onedrop-sandbox', 'idle_seconds' => 600, 'private_previews' => false]);
+
+    expect($this->e2b->isOutdated(E2B_ID))->toBeFalse()
+        ->and($public->isOutdated(E2B_ID))->toBeTrue();
+})->group('SBX-014');
+
+test('the install\'s E2B previews are private only behind the Cloudflare gateway', function (array $gateway, bool $private) {
+    config(['sandbox.provider' => 'e2b', 'sandbox.providers.e2b.api_key' => 'k', ...$gateway]);
+    app()->forgetInstance(SandboxProvider::class);
+    $e2b = app(SandboxProvider::class)->provider('e2b');
+
+    expect((new ReflectionMethod($e2b, 'privatePreviews'))->invoke($e2b))->toBe($private);
+})->with([
+    'Cloudflare Worker' => [['sandbox.gateway_domain' => 'onedrop.io', 'sandbox.gateway_secret' => 's'], true],
+    'Caddy on a server' => [['sandbox.gateway_domain' => 'onedrop.example', 'sandbox.gateway_secret' => null], false],
+    'no gateway' => [['sandbox.gateway_domain' => null, 'sandbox.gateway_secret' => null], false],
+])->group('SBX-014');

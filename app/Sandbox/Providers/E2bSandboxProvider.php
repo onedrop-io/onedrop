@@ -37,6 +37,9 @@ class E2bSandboxProvider implements SandboxProvider
     /** Metadata saying whether the sandbox was made with Docker inside it (SBX-008). */
     public const DOCKER_METADATA = 'onedrop_docker';
 
+    /** Metadata saying whether the sandbox's ports answer only with its traffic token. */
+    public const PRIVATE_METADATA = 'onedrop_private';
+
     /** Each sandbox's own API: commands (envd's process service) and files. */
     public const ENVD_PORT = 49983;
 
@@ -62,7 +65,7 @@ class E2bSandboxProvider implements SandboxProvider
     protected array $tokens = [];
 
     /**
-     * @param  array{api_key: ?string, url: string, domain: string, image: string, idle_seconds: int, nested_docker?: string}  $config
+     * @param  array{api_key: ?string, url: string, domain: string, image: string, idle_seconds: int, nested_docker?: string, private_previews?: bool}  $config
      */
     public function __construct(protected array $config) {}
 
@@ -73,9 +76,10 @@ class E2bSandboxProvider implements SandboxProvider
         $sandbox = $this->send('post', 'v2/sandboxes', [
             'templateID' => $this->config['image'],
             'timeout' => $this->idleSeconds(),
-            // Commands and files need the sandbox's own token; its ports answer only with the traffic token.
+            // Commands and files need the sandbox's own token; its ports answer only with the traffic token, when the
+            // gateway can send it (privatePreviews()).
             'secure' => true,
-            'network' => ['allowPublicTraffic' => false],
+            'network' => ['allowPublicTraffic' => ! $this->privatePreviews()],
             // Idle: paused with memory kept, and woken by the next request to it.
             'autoPause' => true,
             'autoResume' => ['enabled' => true],
@@ -83,6 +87,7 @@ class E2bSandboxProvider implements SandboxProvider
                 'name' => $spec->name,
                 self::BUILD_METADATA => $build,
                 self::DOCKER_METADATA => $this->runsDocker() ? 'on' : 'off',
+                self::PRIVATE_METADATA => $this->privatePreviews() ? 'yes' : 'no',
             ],
         ]);
 
@@ -213,8 +218,11 @@ class E2bSandboxProvider implements SandboxProvider
             return null;
         }
 
-        // Private: the app hands the link (and its token) only to people who may see the project.
-        return "https://{$port}-{$id}.{$this->config['domain']}/?".http_build_query([self::TRAFFIC_TOKEN => $this->tokens($id)['traffic']]);
+        $url = "https://{$port}-{$id}.{$this->config['domain']}/";
+
+        // Either way the app hands the link only to people who may see the project. A private one carries the token
+        // the gateway sends as E2B's header; a public one is the sandbox's own long, random address.
+        return $this->privatePreviews() ? $url.'?'.http_build_query([self::TRAFFIC_TOKEN => $this->tokens($id)['traffic']]) : $url;
     }
 
     public function checkImage(): void
@@ -234,9 +242,11 @@ class E2bSandboxProvider implements SandboxProvider
 
         $metadata = $sandbox->json('metadata') ?? [];
 
-        // Docker inside sandboxes turned on or off (SBX-008): recreate it with (or without) its own Docker.
+        // Docker inside sandboxes turned on or off (SBX-008), or the gateway that sends private previews' token came or
+        // went: recreate it to match.
         return ($metadata[self::BUILD_METADATA] ?? null) !== ($template['buildID'] ?? null)
-            || ($metadata[self::DOCKER_METADATA] ?? 'off') !== ($this->runsDocker() ? 'on' : 'off');
+            || ($metadata[self::DOCKER_METADATA] ?? 'off') !== ($this->runsDocker() ? 'on' : 'off')
+            || ($metadata[self::PRIVATE_METADATA] ?? 'yes') !== ($this->privatePreviews() ? 'yes' : 'no');
     }
 
     public function copyOut(string $id, string $path, string $directory): void
@@ -312,6 +322,16 @@ class E2bSandboxProvider implements SandboxProvider
     protected function runsDocker(): bool
     {
         return ($this->config['nested_docker'] ?? 'on') === 'on';
+    }
+
+    /**
+     * Whether a sandbox's ports answer only with its traffic token. E2B takes it only as a header, which only the
+     * Cloudflare Worker gateway can add (Gateway::viaWorker()); a browser opening the link itself (no gateway, or
+     * Caddy's on a server) can't send it.
+     */
+    protected function privatePreviews(): bool
+    {
+        return (bool) ($this->config['private_previews'] ?? true);
     }
 
     protected function idleSeconds(): int

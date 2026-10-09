@@ -62,7 +62,8 @@ class AppServiceProvider extends ServiceProvider
                 'docker' => fn () => new DockerSandboxProvider(config('sandbox.providers.docker')),
                 'blaxel' => fn () => new BlaxelSandboxProvider(config('sandbox.providers.blaxel')),
                 'runtime' => fn () => new RuntimeSandboxProvider(config('sandbox.providers.runtime')),
-                'e2b' => fn () => new E2bSandboxProvider(config('sandbox.providers.e2b')),
+                // Private previews need the Cloudflare Worker gateway, which sends their token as E2B's header.
+                'e2b' => fn () => new E2bSandboxProvider([...config('sandbox.providers.e2b'), 'private_previews' => filled(config('sandbox.gateway_domain')) && filled(config('sandbox.gateway_secret'))]),
                 // Only for projects moved to a computer (DESK-010); never an install's provider for new projects.
                 'device' => fn () => new DeviceSandboxProvider([
                     'image' => config('sandbox.providers.device.image'),
