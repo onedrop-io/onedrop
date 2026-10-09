@@ -102,6 +102,14 @@ class RoutingSandboxProvider implements SandboxProvider
         return $this->for($id)->installFiles($id, $directory, $path);
     }
 
+    /**
+     * Whether new sandboxes can be made on the configured provider.
+     */
+    public function checkImage(): void
+    {
+        $this->provider($this->default)->checkImage();
+    }
+
     public function destroy(string $id): void
     {
         $this->for($id)->destroy($id);

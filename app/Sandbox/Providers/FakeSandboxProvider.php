@@ -3,6 +3,7 @@
 namespace App\Sandbox\Providers;
 
 use App\Sandbox\ExecResult;
+use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxProvider;
 use App\Sandbox\SandboxSpec;
 use Illuminate\Support\Facades\File;
@@ -120,6 +121,16 @@ class FakeSandboxProvider implements SandboxProvider
         $this->installed[] = ['id' => $id, 'path' => $path, 'files' => $files];
 
         return true;
+    }
+
+    /** What checkImage() says is missing, if anything. */
+    public ?string $missingImage = null;
+
+    public function checkImage(): void
+    {
+        if ($this->missingImage !== null) {
+            throw new SandboxException($this->missingImage);
+        }
     }
 
     public function destroy(string $id): void

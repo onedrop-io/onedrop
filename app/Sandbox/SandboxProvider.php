@@ -94,6 +94,13 @@ interface SandboxProvider
     public function installFiles(string $id, string $directory, string $path): bool;
 
     /**
+     * Check that new sandboxes can be made: the sandbox image is built where they'd run (SBX-005).
+     *
+     * @throws SandboxException saying what's missing
+     */
+    public function checkImage(): void;
+
+    /**
      * Permanently delete a sandbox. Deleting one that doesn't exist is not an error.
      *
      * @throws SandboxException

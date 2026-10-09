@@ -342,6 +342,11 @@ class SandboxMover
 
             return true;
         }
+        // Nothing is snapshotted, or woken, for a move whose new sandbox couldn't be made (no image built there).
+        if ($move->to_provider !== 'device') {
+            $this->provider->checkImage();
+        }
+
         $answered = $move->from_external_id !== null && $this->answers($move->from_external_id);
         $move->update(['from_answered' => $answered]);
 

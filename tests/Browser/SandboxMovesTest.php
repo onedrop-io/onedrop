@@ -20,6 +20,7 @@ beforeEach(function () {
     // Moves run in the queue; here they're only started.
     Queue::fake();
     config(['sandbox.provider' => 'docker', 'sandbox.providers.blaxel.api_key' => null, 'sandbox.providers.blaxel.workspace' => null]);
+    fakeSandboxImages();
 });
 
 test('an admin turns a provider off, sees its projects moving, tries a failed move again and restores recovered files', function () {

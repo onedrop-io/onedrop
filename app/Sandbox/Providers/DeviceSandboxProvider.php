@@ -128,6 +128,11 @@ class DeviceSandboxProvider implements SandboxProvider
         return self::SCHEME."{$device}/{$container}:{$port}";
     }
 
+    /**
+     * The desktop app pulls the image itself.
+     */
+    public function checkImage(): void {}
+
     public function isOutdated(string $id): bool
     {
         ['device' => $device, 'container' => $container] = self::parse($id);

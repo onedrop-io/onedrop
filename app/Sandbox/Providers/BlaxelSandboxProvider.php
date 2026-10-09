@@ -215,6 +215,11 @@ class BlaxelSandboxProvider implements SandboxProvider
         return rtrim($url, '/').'/?'.http_build_query(['bl_preview_token' => $token['spec']['token'] ?? '']);
     }
 
+    public function checkImage(): void
+    {
+        $this->currentImage();
+    }
+
     public function isOutdated(string $id): bool
     {
         $sandbox = $this->request('get', "sandboxes/{$id}");

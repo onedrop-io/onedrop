@@ -19,6 +19,7 @@ beforeEach(function () {
         'sandbox.providers.blaxel.workspace' => null,
         'sandbox.providers.runtime.api_key' => null,
     ]);
+    fakeSandboxImages();
 });
 
 test('admins see every provider, which is active and how many sandboxes each holds', function () {

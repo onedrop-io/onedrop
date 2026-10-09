@@ -223,6 +223,11 @@ class RuntimeSandboxProvider implements SandboxProvider
         return $preview['urlWithToken'] ?? null;
     }
 
+    public function checkImage(): void
+    {
+        $this->imageId();
+    }
+
     public function isOutdated(string $id): bool
     {
         $sandbox = $this->request('get', "sandboxes/{$id}");

@@ -12,6 +12,7 @@ beforeEach(function () {
     Storage::fake('local');
     Process::fake(['*docker*system*df*' => Process::result('{"Active":"1","Reclaimable":"0B (0%)","Size":"1.5GB","TotalCount":"3","Type":"Images"}')]);
     config(['sandbox.provider' => 'docker', 'sandbox.providers.blaxel.api_key' => null, 'sandbox.providers.blaxel.workspace' => null]);
+    fakeSandboxImages();
 });
 
 test('an admin renames the app, sees the providers, monitoring, server and backups pages', function () {

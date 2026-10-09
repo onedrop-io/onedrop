@@ -28,11 +28,13 @@ use App\Sandbox\Publishing\Publisher;
 use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxMover;
 use App\Sandbox\SandboxProvider;
+use App\Sandbox\SandboxProviders;
 use App\Sandbox\SandboxSpec;
 use App\Sandbox\SandboxTools;
 use App\Sandbox\SandboxUpdater;
 use App\Sandbox\SandboxWaitLimit;
 use App\Sandbox\TemporarySandboxException;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Sleep;
@@ -168,6 +170,7 @@ test('a sandbox on a provider that is no longer where its project runs moves at 
 
 test('turning a provider off in Settings moves its sandboxes, without a command', function () {
     Queue::fake();
+    fakeSandboxImages();
     config(['sandbox.provider' => 'runtime', 'sandbox.providers.runtime.api_key' => 'rt-key', 'sandbox.providers.blaxel.api_key' => 'bl-key', 'sandbox.providers.blaxel.workspace' => 'acme']);
     $admin = User::factory()->admin()->create();
 
@@ -188,6 +191,7 @@ test('turning a provider off in Settings moves its sandboxes, without a command'
 
 test('putting another provider first moves sandboxes to it at once', function () {
     Queue::fake();
+    fakeSandboxImages();
     config(['sandbox.provider' => 'runtime', 'sandbox.providers.runtime.api_key' => 'rt-key', 'sandbox.providers.blaxel.api_key' => 'bl-key', 'sandbox.providers.blaxel.workspace' => 'acme']);
     $admin = User::factory()->admin()->create();
     $this->actingAs($admin)->put(route('admin.sandboxes.update', 'blaxel'), ['enabled' => true]);
@@ -488,4 +492,35 @@ test('a move that hasn\'t started is called off when the toggles change back', f
         ->and($this->runtime->taken)->toBe([])
         ->and($this->blaxel->created)->toBe([])
         ->and($this->sandbox->fresh()->external_id)->toBe('rt-1');
+})->group('SBX-005');
+
+test('a provider without its sandbox image can\'t become the one projects move to', function () {
+    Queue::fake();
+    Http::fake([
+        '*/images/sandbox/*' => Http::response(['error' => 'not found'], 404),
+        '*/images/resolve*' => Http::response(['id' => 'img-1']),
+    ]);
+    config(['sandbox.provider' => 'runtime', 'sandbox.providers.runtime.api_key' => 'rt-key', 'sandbox.providers.blaxel.api_key' => 'bl-key', 'sandbox.providers.blaxel.workspace' => 'acme']);
+    $admin = User::factory()->admin()->create();
+    $this->actingAs($admin)->put(route('admin.sandboxes.update', 'blaxel'), ['enabled' => true]);
+    $this->actingAs($admin)->put(route('admin.sandboxes.reorder'), ['providers' => ['runtime', 'blaxel', 'docker']]);
+
+    $this->actingAs($admin)->put(route('admin.sandboxes.reorder'), ['providers' => ['blaxel', 'runtime', 'docker']])
+        ->assertSessionHasErrors(['providers' => "Projects can't move to Blaxel yet: The sandbox image [onedrop-sandbox] isn't on Blaxel yet. Run `php artisan sandbox:build-image`."]);
+    $this->actingAs($admin)->put(route('admin.sandboxes.update', 'runtime'), ['enabled' => false])
+        ->assertSessionHasErrors('enabled');
+
+    expect(config('sandbox.provider'))->toBe('runtime')
+        ->and(app(SandboxProviders::class)->enabled())->toBe(['runtime', 'blaxel'])
+        ->and(SandboxMove::query()->count())->toBe(0);
+})->group('SBX-005', 'ADMIN-002');
+
+test('a move whose new sandbox couldn\'t be made fails before waking or snapshotting the old one', function () {
+    $this->blaxel->missingImage = "The sandbox image [onedrop-sandbox] isn't on Blaxel yet.";
+
+    app(SandboxMover::class)->moveMisplaced();
+
+    expect($this->project->sandboxMoves()->sole()->error)->toBe("The sandbox image [onedrop-sandbox] isn't on Blaxel yet.")
+        ->and($this->runtime->executed)->toBe([])
+        ->and($this->runtime->paused)->toBe([]);
 })->group('SBX-005');

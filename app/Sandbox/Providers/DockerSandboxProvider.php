@@ -263,6 +263,13 @@ class DockerSandboxProvider implements SandboxProvider
         return in_array($appHost, ['localhost', '127.0.0.1'], true) ? $appHost : '127.0.0.1';
     }
 
+    public function checkImage(): void
+    {
+        if (Process::timeout(15)->run(['docker', 'image', 'inspect', '--format', '{{.Id}}', $this->config['image']])->failed()) {
+            throw new SandboxException("The sandbox image [{$this->config['image']}] isn't built yet. Run `php artisan sandbox:build-image`.");
+        }
+    }
+
     public function isOutdated(string $id): bool
     {
         $current = Process::timeout(15)->run(['docker', 'image', 'inspect', '--format', '{{.Id}}', $this->config['image']]);

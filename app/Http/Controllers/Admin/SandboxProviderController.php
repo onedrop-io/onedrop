@@ -4,8 +4,12 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Sandbox;
+use App\Models\SystemSetting;
+use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxMover;
+use App\Sandbox\SandboxProvider;
 use App\Sandbox\SandboxProviders;
+use App\Sandbox\SystemConfig;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -70,7 +74,9 @@ class SandboxProviderController extends Controller
         }
 
         $active = $providers->active();
+        $saved = SystemSetting::group(SandboxProviders::SETTING);
         $providers->update($provider, $validated['enabled'], $validated);
+        $this->undoUnlessItCanMakeSandboxes($providers, $active, $saved, 'enabled');
 
         $this->toast($providers, $active, __(':provider saved.', ['provider' => SandboxProviders::PROVIDERS[$provider]['label']]), $mover->moveMisplaced());
 
@@ -89,11 +95,42 @@ class SandboxProviderController extends Controller
         ]);
 
         $active = $providers->active();
+        $saved = SystemSetting::group(SandboxProviders::SETTING);
         $providers->reorder($validated['providers']);
+        $this->undoUnlessItCanMakeSandboxes($providers, $active, $saved, 'providers');
 
         $this->toast($providers, $active, __('Order saved.'), $mover->moveMisplaced());
 
         return to_route('admin.sandboxes.index');
+    }
+
+    /**
+     * New projects, and every move (SBX-005), go to the first provider that's on: put the settings back as they were
+     * if it can't make sandboxes yet (its image isn't built there), rather than have them all fail.
+     *
+     * @param  array<string, mixed>  $saved  the settings before the change
+     *
+     * @throws ValidationException
+     */
+    protected function undoUnlessItCanMakeSandboxes(SandboxProviders $providers, string $before, array $saved, string $field): void
+    {
+        $after = $providers->active();
+
+        if ($after === $before || ! isset(SandboxProviders::PROVIDERS[$after])) {
+            return;
+        }
+
+        try {
+            app(SandboxProvider::class)->checkImage();
+        } catch (SandboxException $e) {
+            SystemSetting::put(SandboxProviders::SETTING, $saved);
+            SystemConfig::saved();
+
+            throw ValidationException::withMessages([$field => __('Projects can\'t move to :provider yet: :reason', [
+                'provider' => SandboxProviders::PROVIDERS[$after]['label'],
+                'reason' => $e->getMessage(),
+            ])]);
+        }
     }
 
     /**

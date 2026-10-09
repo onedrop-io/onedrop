@@ -454,3 +454,16 @@ function appMachineRequest(): ?array
 
     return $sent->last()[0] ?? null ? $sent->last()[0]->data() : null;
 }
+
+/**
+ * Every provider has its sandbox image built (SBX-005): Blaxel's and Runtime's image lookups answer, and Docker's image
+ * is there. For tests that make a real provider the first one.
+ */
+function fakeSandboxImages(): void
+{
+    Http::fake([
+        '*/images/sandbox/*' => Http::response(['spec' => ['tags' => [['name' => 'v1', 'createdAt' => '2026-10-01T00:00:00Z']]]]),
+        '*/images/resolve*' => Http::response(['id' => 'img-1']),
+    ]);
+    Process::fake(['docker image inspect *' => Process::result('sha256:abc')]);
+}
