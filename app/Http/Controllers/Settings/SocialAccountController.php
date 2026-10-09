@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SyncOrganizationSecrets;
 use App\Models\SocialAccount;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -26,6 +27,11 @@ class SocialAccountController extends Controller
         }
 
         $socialAccount->delete();
+
+        if ($socialAccount->canReadPackages()) {
+            // Their projects' sandboxes stop using it (GIT-016).
+            SyncOrganizationSecrets::dispatch($user);
+        }
 
         // Its picture goes with it; fall back to another connected provider's.
         if ($user->avatar !== null && $user->avatar === $socialAccount->avatar) {

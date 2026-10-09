@@ -37,9 +37,12 @@ type Names = { secrets: string[] };
 const NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 const secretsApi = {
-    /** Also the names of the organization's secrets that reach the project (SECRET-003). */
+    /**
+     * Also the names of the organization's secrets that reach the project (SECRET-003), and whose GitHub token it has
+     * as GITHUB_TOKEN (GIT-016).
+     */
     list: (projectId: number) =>
-        jsonRequest<Names & { organization: string[] }>(
+        jsonRequest<Names & { organization: string[]; github: string | null }>(
             ProjectSecretController.index.url(projectId),
         ),
 
@@ -86,6 +89,7 @@ export default function SecretsPanel({
 }) {
     const [names, setNames] = useState<string[] | null>(null);
     const [organization, setOrganization] = useState<string[]>([]);
+    const [github, setGithub] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [filter, setFilter] = useState('');
@@ -99,9 +103,10 @@ export default function SecretsPanel({
         setLoading(true);
         secretsApi
             .list(projectId)
-            .then(({ secrets, organization }) => {
+            .then(({ secrets, organization, github }) => {
                 setNames(secrets);
                 setOrganization(organization);
+                setGithub(github);
                 setError(null);
             })
             .catch((e: Error) => setError(e.message))
@@ -274,6 +279,29 @@ export default function SecretsPanel({
                             </li>
                         ))}
                     </ul>
+                </div>
+            )}
+
+            {github !== null && (
+                <div
+                    className="space-y-2 rounded-lg border border-sidebar-border/70 p-3 text-sm dark:border-sidebar-border"
+                    data-test="secrets-github"
+                >
+                    <p className="font-medium">From {github}’s GitHub</p>
+                    <p className="text-muted-foreground">
+                        Docker and npm use it to download the private GitHub
+                        packages {github} can see, like in a codespace. A secret
+                        above with the same name wins.
+                    </p>
+                    <code
+                        className={cn(
+                            'rounded bg-muted px-1.5 py-0.5 text-xs',
+                            names.includes('GITHUB_TOKEN') &&
+                                'text-muted-foreground line-through',
+                        )}
+                    >
+                        GITHUB_TOKEN
+                    </code>
                 </div>
             )}
 

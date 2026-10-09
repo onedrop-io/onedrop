@@ -128,6 +128,6 @@ class SocialLoginController extends Controller
     {
         $driver = Socialite::driver($provider->driver());
 
-        return $driver instanceof AbstractProvider ? $driver->redirectUrl(route('social.callback', $provider)) : $driver;
+        return $driver instanceof AbstractProvider ? $driver->redirectUrl(route('social.callback', $provider))->scopes($provider->scopes()) : $driver;
     }
 }

@@ -134,3 +134,21 @@ Without the GitHub App, or for another git host (**Other git host**), connect wi
 <Note>
     The token is stored encrypted by OneDrop and never shown again. It never goes into the sandbox: pushes and pulls run on OneDrop's server, which carries commits in and out of the sandbox. Remotes must use HTTPS, and on the public internet unless your admin allows private networks (see [configuration](/self-hosting/configuration)).
 </Note>
+
+## Private GitHub packages
+
+Projects can download the private GitHub packages you can see, like a codespace does: Docker images on `ghcr.io` and npm packages on `npm.pkg.github.com`. No personal access token needed.
+
+1. Go to **Settings → Security**. Under **Connected accounts**, GitHub says whether your projects can download your private packages.
+2. Click **Connect** (or **Reconnect** if you connected GitHub before), and allow OneDrop to read your packages.
+
+Every sandbox of a project you own, task copies too, then has your GitHub token as `GITHUB_TOKEN`, in the Shell, the app and the agent. Docker is signed in to `ghcr.io` with it, and npm to `npm.pkg.github.com`, so `docker compose up`, `docker pull ghcr.io/…` and `npm install` just work. **Tools → Secrets** shows it under **From (your name)’s GitHub**.
+
+- If npm looks for a `@scope` package on npmjs.org, point the scope at GitHub once: `npm config set @scope:registry https://npm.pkg.github.com`. The agent does this when it needs to.
+- It downloads as you, so your GitHub account must be able to see the packages.
+- An organization secret or a project secret named `GITHUB_TOKEN` wins over yours, so an admin can share one token instead.
+- **Disconnect** in Settings → Security, or leaving the organization, takes it out of your projects' sandboxes.
+
+<Note>
+    Only package reading (`read:packages`) is asked for, not access to your repositories. The token never goes into the project's files or your home folder, so it doesn't end up in commits, hosted apps, snapshots or remixes. Your organization's owners and admins, who can open your projects' Shell, could read it there. Your admin needs a GitHub OAuth app for this (see [social login](/self-hosting/social-login)).
+</Note>

@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\AgentConnection;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Laravel\Socialite\Facades\Socialite;
@@ -62,3 +63,32 @@ test('a person sees an error when GitHub sign-in is cancelled', function () {
         ->assertSee('GitHub sign-in was cancelled. Try again.')
         ->assertNoJavaScriptErrors();
 })->group('AUTH-003');
+
+test('the dev user reconnects GitHub to let their projects download private packages', function () {
+    config(['services.github_app.client_id' => 'github-app-id']);
+    $dev = User::where('email', 'dev@example.com')->sole();
+    AgentConnection::factory()->for($dev)->create();
+    // Signed in with GitHub only, so Settings → Security doesn't ask to confirm a password (sessions don't last here).
+    $dev->forceFill(['password' => null])->save();
+    $dev->socialAccounts()->create(['provider' => 'github', 'provider_id' => 'gh-dev', 'email' => 'dev@github.test']);
+    $this->actingAs($dev);
+
+    visit('/settings/security')
+        ->assertSeeIn('@social-account-github', 'Reconnect to let your projects download your private GitHub packages')
+        ->assertNoJavaScriptErrors();
+
+    Socialite::fake('github', SocialiteUser::fake([
+        'id' => 'gh-dev',
+        'email' => 'dev@github.test',
+        'token' => 'gho_dev',
+        'approvedScopes' => ['read:packages', 'user:email'],
+    ]));
+
+    visit('/login/github/callback?code=abc')
+        ->assertPathIs('/settings/security')
+        ->assertSee('GitHub connected.')
+        ->assertSeeIn('@social-account-github', 'Your projects can download your private GitHub packages')
+        ->assertNoJavaScriptErrors();
+
+    expect($dev->socialAccounts()->sole()->canReadPackages())->toBeTrue();
+})->group('GIT-016');

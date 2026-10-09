@@ -1327,6 +1327,17 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - After each push the task's chat should say how the checks went ("Checks passed on abc1234", "2 checks failed on abc1234"), and the board and the task's page show the checks' state.
 - The agent should be asked to fix the root cause and not skip, delete or loosen tests, or add sleeps or longer timeouts.
 
+## GIT-016: Download private GitHub packages as yourself
+
+- When GitHub sign-in is a GitHub OAuth app (`GITHUB_CLIENT_ID`), signing in or connecting GitHub should ask GitHub for `read:packages`, so the person's projects can download the private packages they can see on GitHub, like a codespace does.
+- User should see in Settings → Security whether their GitHub connection can download packages, and be able to connect (or reconnect) GitHub to allow it.
+- Every sandbox of a project (task copies too) should have its owner's GitHub token as `GITHUB_TOKEN` in the Shell, the running app and the agent, with Docker logged in to `ghcr.io` and npm to `npm.pkg.github.com` with it, so `docker pull ghcr.io/…`, `docker compose up` and `npm install` of a private `@scope` package work without a personal access token.
+- The token should never be written into the project's files or the sandbox user's home, so it doesn't go into commits, hosted apps, snapshots or remixes.
+- Connecting, reconnecting or disconnecting GitHub should update the owner's running sandboxes within moments; a sleeping one gets it when it wakes. The token stops reaching a project once its owner leaves its organization.
+- An organization secret or a project secret named `GITHUB_TOKEN` should win over the owner's token.
+- User should see `GITHUB_TOKEN` in Tools → Secrets, marked as coming from the owner's GitHub.
+- When a private GitHub package won't download and there's no `GITHUB_TOKEN`, the agent should tell the user to connect GitHub in Settings → Security (or, if the package needs someone else's access, add a token as an organization secret), not ask for a personal access token in the chat.
+
 ## STORE-001: App Storage
 
 - User should see an App Storage section under Tools for files the app keeps, like uploaded photos, videos and documents, organized in buckets.

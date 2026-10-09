@@ -6,6 +6,7 @@ use App\Enums\SandboxStatus;
 use App\Models\OrganizationSecret;
 use App\Models\Project;
 use App\Models\Sandbox;
+use App\Sandbox\OrganizationSecrets;
 use App\Sandbox\SandboxException;
 use App\Sandbox\SecretsException;
 use App\Sandbox\WorkspaceSecrets;
@@ -19,15 +20,22 @@ class ProjectSecretController extends Controller
     protected const NAME_RULES = ['required', 'string', 'max:100', 'regex:/^[A-Za-z_][A-Za-z0-9_]*$/'];
 
     /**
-     * The names of the app's secrets (never their values), and of its organization's that reach it (SECRET-003).
+     * The names of the app's secrets (never their values), of its organization's that reach it (SECRET-003), and
+     * whose GitHub token it has as GITHUB_TOKEN, unless one of those has the name (GIT-016).
      */
-    public function index(Project $project, WorkspaceSecrets $secrets): JsonResponse
+    public function index(Project $project, WorkspaceSecrets $secrets, OrganizationSecrets $organizationSecrets): JsonResponse
     {
         Gate::authorize('view', $project);
 
+        $organization = OrganizationSecret::query()->reaching($project)->orderBy('name')->pluck('name')->all();
+        $github = ! in_array(OrganizationSecrets::GITHUB_TOKEN, $organization, true) && $organizationSecrets->ownerGitHubToken($project) !== null
+            ? $project->user->name
+            : null;
+
         return $this->fromSandbox($project, fn (Sandbox $sandbox) => [
             'secrets' => $secrets->names($sandbox),
-            'organization' => OrganizationSecret::query()->reaching($project)->orderBy('name')->pluck('name')->all(),
+            'organization' => $organization,
+            'github' => $github,
         ]);
     }
 

@@ -67,7 +67,7 @@ test('an owner adds a secret for all projects; its value is kept encrypted and n
 
     expect($secret->value)->toBe('wJalrXUtnFEMI/K7MDENG')
         ->and(DB::table('organization_secrets')->value('value'))->not->toContain('wJalrXUtnFEMI');
-    Queue::assertPushed(SyncOrganizationSecrets::class, fn (SyncOrganizationSecrets $job) => $job->organization->is($this->organization) && $job->sandbox === null);
+    Queue::assertPushed(SyncOrganizationSecrets::class, fn (SyncOrganizationSecrets $job) => $job->for->is($this->organization) && $job->sandbox === null);
 
     $this->get(route('organizations.secrets.index', $this->organization))
         ->assertDontSee('wJalrXUtnFEMI')
@@ -205,7 +205,7 @@ test('a sandbox that doesn\'t have what reads the file yet gets it with the file
 
     app(OrganizationSecrets::class)->sync($sandbox);
 
-    expect(collect($this->provider->installed)->sole()['files'])->toBe(['bashrc', 'org-secrets'])
+    expect(collect($this->provider->installed)->sole()['files'])->toBe(['bashrc', 'lazy/docker-credential-onedrop', 'org-secrets'])
         ->and(secretsWrite($this->provider))->not->toBeNull();
 })->group('SECRET-003');
 
@@ -284,7 +284,7 @@ test('Tools → Secrets lists the names of the organization\'s secrets that reac
     $this->actingAs($this->owner)
         ->getJson(route('projects.secrets.index', $this->project))
         ->assertOk()
-        ->assertExactJson(['secrets' => ['AWS_REGION'], 'organization' => ['AWS_ACCESS_KEY_ID', 'AWS_REGION']])
+        ->assertExactJson(['secrets' => ['AWS_REGION'], 'organization' => ['AWS_ACCESS_KEY_ID', 'AWS_REGION'], 'github' => null])
         ->assertDontSee('us-east-1');
 })->group('SECRET-003');
 

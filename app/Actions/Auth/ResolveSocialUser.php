@@ -4,6 +4,7 @@ namespace App\Actions\Auth;
 
 use App\Enums\SocialProvider;
 use App\Http\Controllers\AcceptInvitationController;
+use App\Jobs\SyncOrganizationSecrets;
 use App\Models\Invitation;
 use App\Models\SocialAccount;
 use App\Models\User;
@@ -12,6 +13,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Laravel\Fortify\Features;
 use Laravel\Socialite\Contracts\User as SocialiteUser;
+use Laravel\Socialite\Two\User as TwoUser;
 
 class ResolveSocialUser
 {
@@ -75,8 +77,13 @@ class ResolveSocialUser
 
         $account = $user->socialAccounts()->updateOrCreate(
             ['provider' => $provider],
-            ['provider_id' => (string) $identity->getId(), 'email' => $identity->getEmail(), 'avatar' => $identity->getAvatar() ?: null],
+            ['provider_id' => (string) $identity->getId(), 'email' => $identity->getEmail(), 'avatar' => $identity->getAvatar() ?: null, ...$this->token($provider, $identity)],
         );
+
+        if ($provider === SocialProvider::GitHub) {
+            // The person's projects download their private packages with it (GIT-016).
+            SyncOrganizationSecrets::dispatch($user);
+        }
 
         // Use the picture when the user has none, and keep it current when it came from this provider.
         if ($account->avatar && ($user->avatar === null || $user->avatar === $previousAvatar)) {
@@ -84,6 +91,23 @@ class ResolveSocialUser
         }
 
         return $account;
+    }
+
+    /**
+     * The token to keep: only GitHub's, and only when it was granted package access (GIT-016). A sign-in through the
+     * GitHub App, or one where the person declined, keeps none.
+     *
+     * @return array{token: string|null, scopes: string|null}
+     */
+    protected function token(SocialProvider $provider, SocialiteUser $identity): array
+    {
+        $scopes = $identity instanceof TwoUser ? $identity->approvedScopes : [];
+
+        if ($provider !== SocialProvider::GitHub || ! in_array(SocialProvider::GITHUB_PACKAGES_SCOPE, $scopes, true) || blank($identity->token ?? null)) {
+            return ['token' => null, 'scopes' => null];
+        }
+
+        return ['token' => $identity->token, 'scopes' => implode(',', $scopes)];
     }
 
     /**

@@ -27,6 +27,7 @@ Run these against the provider you changed. Locally that's Docker; for Runtime C
 - [ ] Opening the project wakes it; the preview is back in under a second when paused, a few seconds when stopped.
 - [ ] A sandbox whose agent is working is never suspended.
 - [ ] A published URL wakes a suspended sandbox when someone opens it.
+- [ ] SBX-007: with the workspace open and visible, `docker stop` its container (as the idle check does): within about 20 seconds, without touching the page, the container is running again and the preview reloads to the app.
 
 ## Updates
 
@@ -65,6 +66,21 @@ With **Docker inside sandboxes** on for the provider:
 
 - [ ] A project with its own `docker-compose.yml` starts its stack, and **Services** shows it.
 - [ ] Turning the setting off and on updates existing sandboxes the next time their projects are opened.
+
+## Private GitHub packages (GIT-016)
+
+With a GitHub OAuth app set (`GITHUB_CLIENT_ID`), as someone whose GitHub account can see a private `ghcr.io` image and a private npm package:
+
+- [ ] **Settings → Security** says **Reconnect to let your projects download your private GitHub packages**; **Reconnect** shows GitHub's consent screen asking to read packages, and afterwards says **Your projects can download your private GitHub packages**.
+- [ ] Within a minute, a new Shell in one of your running projects has `GITHUB_TOKEN`; `cat ~/.docker/config.json ~/.npmrc` shows `"ghcr.io": "onedrop"` and `${GITHUB_TOKEN}`, never the token itself.
+- [ ] `docker pull ghcr.io/<owner>/<private image>` works, and so does `docker compose up` in a project that uses it (e.g. Pixwel/platform).
+- [ ] `npm config set @<scope>:registry https://npm.pkg.github.com && npm view @<scope>/<private package> version` works.
+- [ ] Asking the agent to start a project that pulls them works without it asking for a token.
+- [ ] **Tools → Secrets** shows `GITHUB_TOKEN` under **From (your name)'s GitHub**.
+- [ ] A sleeping project gets it when it wakes; a task's copy has it too.
+- [ ] **Disconnect** GitHub: a new Shell has no `GITHUB_TOKEN`, the two config entries are gone, and `docker pull` of the private image is refused.
+- [ ] With an organization secret named `GITHUB_TOKEN`, the Shell has the secret's value instead.
+- [ ] Without a connection, asking the agent to start Pixwel/platform ends with it pointing you to **Settings → Security**, not asking for a token in the chat.
 
 ## Task copies (TASK-003)
 

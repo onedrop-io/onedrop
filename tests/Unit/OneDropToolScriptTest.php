@@ -35,7 +35,8 @@ afterEach(function () {
 test('every command has a stand-in on PATH that runs it through onedrop-tool, and every stand-in is a command', function () {
     $commands = collect(preg_split('/\R/', trim(($this->tool)('commands')->throw()->output())))
         ->map(fn (string $line) => explode(' ', $line)[1]);
-    $standIns = collect(File::files($this->source.'/lazy'))->map->getFilename()->reject('onedrop-tool');
+    // Docker's credential helper for ghcr.io (GIT-016) is on PATH the same way, but isn't a tool.
+    $standIns = collect(File::files($this->source.'/lazy'))->map->getFilename()->reject(fn (string $name) => in_array($name, ['onedrop-tool', 'docker-credential-onedrop'], true));
 
     expect($commands)->toContain('aws', 'sam', 'gcloud', 'az', 'wrangler', 'supabase', 'gh', 'fly')
         ->and($standIns->sort()->values()->all())->toBe($commands->sort()->values()->all());

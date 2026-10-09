@@ -64,16 +64,18 @@ where `{provider}` is `google`, `microsoft`, `github`, `gitlab`, or `oidc`.
     <Tab title="GitHub">
         If you've set up the [GitHub App](/self-hosting/github-app) for Tools → Git, you're nearly done: add `https://onedrop.example.com/login/github/callback` as a Callback URL and the **Email addresses: Read-only** account permission, and the button appears. No extra settings needed.
 
-        To use a separate OAuth app instead:
+        To use a separate OAuth app instead (needed for [private GitHub packages](/guides/git#private-github-packages): a GitHub App can't be given package access):
 
         1. In GitHub, go to **Settings → Developer settings → OAuth Apps → New OAuth App**.
-        2. Set the authorization callback URL to `https://onedrop.example.com/login/github/callback`.
+        2. Set the authorization callback URL to `https://onedrop.example.com/login/github/callback`. Leave **Enable Device Flow** off.
         3. Generate a client secret and add the credentials to `.env`:
 
         ```bash
         GITHUB_CLIENT_ID=...
         GITHUB_CLIENT_SECRET=...
         ```
+
+        With an OAuth app, signing in or connecting GitHub also asks for `read:packages`, so people's projects can download their private packages. People who signed in through the GitHub App keep their account and click **Reconnect** in Settings → Security to allow it. If your GitHub organization restricts third-party OAuth apps, an owner approves the app once. The GitHub App keeps doing Tools → Git.
     </Tab>
     <Tab title="GitLab">
         1. In GitLab, go to **Preferences → Applications → Add new application**.

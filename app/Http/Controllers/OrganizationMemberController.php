@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\OrganizationRole;
 use App\Http\Middleware\ResolveOrganization;
+use App\Jobs\SyncOrganizationSecrets;
 use App\Models\Organization;
 use App\Models\OrganizationDomain;
 use App\Models\User;
@@ -103,6 +104,9 @@ class OrganizationMemberController extends Controller
         }
 
         $organization->removeMember($user);
+
+        // Their GitHub token stops reaching the projects they leave behind (GIT-016).
+        SyncOrganizationSecrets::dispatch($user);
 
         if ($leaving) {
             Inertia::flash('toast', ['type' => 'success', 'message' => __('You left :organization.', ['organization' => $organization->name])]);

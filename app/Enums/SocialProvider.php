@@ -17,6 +17,9 @@ enum SocialProvider: string
     case GitLab = 'gitlab';
     case Oidc = 'oidc';
 
+    /** What GitHub is asked for on top of sign-in, so the person's projects can download their private packages (GIT-016). */
+    public const GITHUB_PACKAGES_SCOPE = 'read:packages';
+
     /**
      * Human-readable name.
      */
@@ -40,6 +43,26 @@ enum SocialProvider: string
             self::Oidc => 'openidconnect',
             default => $this->value,
         };
+    }
+
+    /**
+     * What to ask for beyond the driver's own sign-in scopes. A GitHub App ignores scopes, so with no separate OAuth
+     * app (`GITHUB_CLIENT_ID`) GitHub sign-in still only signs in.
+     *
+     * @return list<string>
+     */
+    public function scopes(): array
+    {
+        return $this === self::GitHub ? [self::GITHUB_PACKAGES_SCOPE] : [];
+    }
+
+    /**
+     * Whether GitHub sign-in is its own OAuth app, which can be granted package access; the GitHub App it otherwise
+     * shares can't be (GIT-016).
+     */
+    public static function gitHubCanGrantPackages(): bool
+    {
+        return self::GitHub->isConfigured() && config('services.github.client_id') !== config('services.github_app.client_id');
     }
 
     /**

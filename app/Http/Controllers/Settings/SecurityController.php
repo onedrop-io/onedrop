@@ -56,9 +56,10 @@ class SecurityController extends Controller
     }
 
     /**
-     * Each provider the user can connect or has connected.
+     * Each provider the user can connect or has connected, and for GitHub whether it lets their projects download
+     * their private packages (GIT-016): granted, or available by connecting or reconnecting.
      *
-     * @return list<array{provider: string, label: string, account: array{id: int, email: string|null}|null}>
+     * @return list<array{provider: string, label: string, account: array{id: int, email: string|null}|null, packages: 'granted'|'reconnect'|'connect'|null}>
      */
     protected function socialAccounts(User $user): array
     {
@@ -72,8 +73,21 @@ class SecurityController extends Controller
                 'account' => $accounts->has($provider->value)
                     ? ['id' => $accounts[$provider->value]->id, 'email' => $accounts[$provider->value]->email]
                     : null,
+                'packages' => $provider === SocialProvider::GitHub ? $this->packages($accounts->get($provider->value)) : null,
             ])
             ->all());
+    }
+
+    /**
+     * @return 'granted'|'reconnect'|'connect'|null
+     */
+    protected function packages(?SocialAccount $account): ?string
+    {
+        return match (true) {
+            (bool) $account?->canReadPackages() => 'granted',
+            ! SocialProvider::gitHubCanGrantPackages() => null,
+            default => $account ? 'reconnect' : 'connect',
+        };
     }
 
     /**

@@ -8,6 +8,15 @@ import { destroy } from '@/routes/social-accounts';
 import { redirect } from '@/routes/social';
 import type { SocialAccountRow } from '@/types/auth';
 
+/** What GitHub's connection means for the person's private packages (GIT-016). */
+const PACKAGES: Record<NonNullable<SocialAccountRow['packages']>, string> = {
+    granted: 'Your projects can download your private GitHub packages',
+    reconnect:
+        'Reconnect to let your projects download your private GitHub packages',
+    connect:
+        'Connect to let your projects download your private GitHub packages',
+};
+
 type Props = {
     socialAccounts: SocialAccountRow[];
     loginMethodCount: number;
@@ -41,55 +50,78 @@ export default function ManageSocialAccounts({
             />
 
             <div className="overflow-hidden rounded-lg border border-border">
-                {socialAccounts.map(({ provider, label, account }) => (
-                    <div
-                        key={provider}
-                        className="flex items-center justify-between border-b p-4 last:border-b-0"
-                        data-test={`social-account-${provider}`}
-                    >
-                        <div className="flex items-center gap-4">
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted">
-                                <SocialProviderIcon
-                                    provider={provider}
-                                    className="h-5 w-5"
-                                />
+                {socialAccounts.map(
+                    ({ provider, label, account, packages }) => (
+                        <div
+                            key={provider}
+                            className="flex items-center justify-between border-b p-4 last:border-b-0"
+                            data-test={`social-account-${provider}`}
+                        >
+                            <div className="flex items-center gap-4">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted">
+                                    <SocialProviderIcon
+                                        provider={provider}
+                                        className="h-5 w-5"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <p className="font-medium tracking-tight">
+                                        {label}
+                                    </p>
+                                    <p className="text-sm text-muted-foreground">
+                                        {account
+                                            ? (account.email ?? 'Connected')
+                                            : 'Not connected'}
+                                    </p>
+                                    {packages && (
+                                        <p
+                                            className="text-sm text-muted-foreground"
+                                            data-test="github-packages"
+                                        >
+                                            {PACKAGES[packages]}
+                                        </p>
+                                    )}
+                                </div>
                             </div>
-                            <div className="space-y-1">
-                                <p className="font-medium tracking-tight">
-                                    {label}
-                                </p>
-                                <p className="text-sm text-muted-foreground">
-                                    {account
-                                        ? (account.email ?? 'Connected')
-                                        : 'Not connected'}
-                                </p>
-                            </div>
-                        </div>
 
-                        {account ? (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={
-                                    loginMethodCount <= 1 ||
-                                    disconnecting === account.id
-                                }
-                                title={
-                                    loginMethodCount <= 1
-                                        ? 'Set a password or connect another account first'
-                                        : undefined
-                                }
-                                onClick={() => disconnect(account.id)}
-                            >
-                                Disconnect
-                            </Button>
-                        ) : (
-                            <Button variant="outline" size="sm" asChild>
-                                <a href={redirect.url(provider)}>Connect</a>
-                            </Button>
-                        )}
-                    </div>
-                ))}
+                            {account ? (
+                                <div className="flex shrink-0 gap-2">
+                                    {packages === 'reconnect' && (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            asChild
+                                        >
+                                            <a href={redirect.url(provider)}>
+                                                Reconnect
+                                            </a>
+                                        </Button>
+                                    )}
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={
+                                            loginMethodCount <= 1 ||
+                                            disconnecting === account.id
+                                        }
+                                        title={
+                                            loginMethodCount <= 1
+                                                ? 'Set a password or connect another account first'
+                                                : undefined
+                                        }
+                                        onClick={() => disconnect(account.id)}
+                                    >
+                                        Disconnect
+                                    </Button>
+                                </div>
+                            ) : (
+                                <Button variant="outline" size="sm" asChild>
+                                    <a href={redirect.url(provider)}>Connect</a>
+                                </Button>
+                            )}
+                        </div>
+                    ),
+                )}
             </div>
 
             <InputError message={errors.social} />

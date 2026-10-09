@@ -26,4 +26,12 @@ class SocialAccountFactory extends Factory
             'email' => fake()->safeEmail(),
         ];
     }
+
+    /**
+     * A GitHub connection whose token can download the person's private packages (GIT-016).
+     */
+    public function withPackages(string $token = 'gho_packages'): static
+    {
+        return $this->state(fn () => ['provider' => SocialProvider::GitHub, 'token' => $token, 'scopes' => 'read:packages,user:email']);
+    }
 }

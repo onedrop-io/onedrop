@@ -45,4 +45,6 @@ export type SocialAccountRow = {
     provider: string;
     label: string;
     account: { id: number; email: string | null } | null;
+    /** GitHub only: whether the person's projects can download their private packages (GIT-016). */
+    packages: 'granted' | 'reconnect' | 'connect' | null;
 };

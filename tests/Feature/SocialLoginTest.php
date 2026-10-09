@@ -228,10 +228,10 @@ test('the security page lists providers and their connections', function () {
         ->assertInertia(fn (Assert $page) => $page
             ->where('hasPassword', true)
             ->where('socialAccounts', [
-                ['provider' => 'google', 'label' => 'Google', 'account' => null],
-                ['provider' => 'microsoft', 'label' => 'Microsoft', 'account' => null],
-                ['provider' => 'github', 'label' => 'GitHub', 'account' => ['id' => $account->id, 'email' => 'ada@github.test']],
-                ['provider' => 'gitlab', 'label' => 'GitLab', 'account' => null],
+                ['provider' => 'google', 'label' => 'Google', 'account' => null, 'packages' => null],
+                ['provider' => 'microsoft', 'label' => 'Microsoft', 'account' => null, 'packages' => null],
+                ['provider' => 'github', 'label' => 'GitHub', 'account' => ['id' => $account->id, 'email' => 'ada@github.test'], 'packages' => 'reconnect'],
+                ['provider' => 'gitlab', 'label' => 'GitLab', 'account' => null, 'packages' => null],
             ]));
 })->group('AUTH-003');
 
