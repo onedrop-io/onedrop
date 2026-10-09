@@ -11,6 +11,7 @@ use App\Models\Sandbox;
 use App\Models\SandboxMove;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 
 beforeEach(function () {
@@ -84,10 +85,10 @@ test('an admin turns a provider off, sees its projects moving, tries a failed mo
 
 test('an admin sees E2B\'s sandbox image building after changing its size, then built', function () {
     config(['sandbox.providers.e2b.api_key' => 'e2b-key']);
-    Illuminate\Support\Facades\Http::fake([
-        'api.e2b.app/v3/templates' => Illuminate\Support\Facades\Http::response(['templateID' => 'tpl1', 'buildID' => 'build-9']),
-        'api.e2b.app/v2/templates/tpl1/builds/build-9' => Illuminate\Support\Facades\Http::response('', 202),
-        'api.e2b.app/templates/tpl1/builds/build-9/status*' => Illuminate\Support\Facades\Http::sequence()
+    Http::fake([
+        'api.e2b.app/v3/templates' => Http::response(['templateID' => 'tpl1', 'buildID' => 'build-9']),
+        'api.e2b.app/v2/templates/tpl1/builds/build-9' => Http::response('', 202),
+        'api.e2b.app/templates/tpl1/builds/build-9/status*' => Http::sequence()
             ->push(['status' => 'building'])->push(['status' => 'ready']),
     ]);
     // Starting the build runs at once here.
