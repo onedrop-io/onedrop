@@ -465,5 +465,5 @@ function fakeSandboxImages(): void
         '*/images/sandbox/*' => Http::response(['spec' => ['tags' => [['name' => 'v1', 'createdAt' => '2026-10-01T00:00:00Z']]]]),
         '*/images/resolve*' => Http::response(['id' => 'img-1']),
     ]);
-    Process::fake(['docker image inspect *' => Process::result('sha256:abc')]);
+    Process::fake(['*docker*image*inspect*' => Process::result('sha256:abc')]);
 }
