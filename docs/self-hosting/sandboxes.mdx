@@ -143,21 +143,37 @@ npx withruntime sandbox stop <id>
 
 ## Switch providers
 
-Each sandbox keeps running on the provider it was created on, so you can change `SANDBOX_PROVIDER` at any time without breaking existing projects. Sandboxes on Docker, Blaxel and Runtime Cloud can run side by side, as long as each provider's settings stay in place.
+Each sandbox keeps running on the provider it was created on, and sandboxes on Docker, Blaxel and Runtime Cloud can run side by side. Where projects run is set in **Settings → Sandboxes**: new projects go to the first provider that's turned on and set up.
 
-After a switch:
+To move projects to another provider, change the toggles there. There's no command to run:
 
-- New projects get sandboxes on the new provider.
-- An existing project counts as outdated while its sandbox is on another provider, so it moves the next time someone opens it, or before the agent's next run. A move works like an update: the files, App Storage and home folder are copied to the new provider, and the old sandbox is removed only once the new one has them.
-- Deleting a project, or the account that owns it, removes its sandbox from the provider it's on, even if that's no longer the configured one. On Runtime Cloud, which has no delete, the sandbox is stopped.
-- To move every project now, or one:
+- **Turn a provider off** to move every sandbox off it, for example when it's down or you're leaving it.
+- **Drag another provider first** to move every sandbox to it.
 
-  ```bash
-  php artisan sandbox:update
-  php artisan sandbox:update 12
-  ```
+Each sandbox that's no longer where its project should run starts moving at once, in the queue. That includes projects, computers and tasks' copies. The toast says how many are moving, and the **Moves** list on the same page shows each one: what it's doing, why one failed (with **Try again**), and files recovered from a provider that had stopped answering (with **Restore**).
 
-Build the image on the new provider first (`php artisan sandbox:build-image` with the new `SANDBOX_PROVIDER`). Moves copy files through your queue workers, so give them enough time: a timeout of 900 seconds, and on Laravel Cloud managed queues a visibility timeout above that.
+A move keeps the project's files (uncommitted changes too), dependencies, App Storage and the sandbox user's home folder, which holds the agent's history and any database the agent set up. Where the files come from depends on whether the old sandbox answers within 20 seconds:
+
+| Old sandbox                     | The new sandbox gets                                                       | The old sandbox                                                            |
+| ------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Answers                         | A fresh [snapshot](#project-snapshots), taken once the agent's turn ends   | Deleted once the new one has every file                                    |
+| Doesn't answer                  | The project's latest snapshot, or its [code backup](#code-backups) without one | Kept, and checked on every 15 minutes for 7 days                       |
+| Doesn't answer, nothing stored  | Nothing: the move fails and the project stays where it is                  | Kept                                                                       |
+
+When a project comes back from an earlier snapshot, its chat says from when. If the old sandbox answers again later, its files are saved as a *recovered* snapshot (only if they're newer than what the project got) and the old sandbox is deleted. An admin can then restore them from **Settings → Sandboxes**, which replaces whatever changed since the move, or dismiss them.
+
+Moves are made of short queue jobs, each under a minute, so they run on Laravel Cloud's Flex queues (90 seconds a job). Packing and unpacking files happens inside the sandboxes in the background, and a job checks on it every 5 seconds. A typical project moves in about a minute. Messages sent to the agent while its sandbox moves start in the new sandbox once it's ready. A move that's still not done after an hour is given up, and the project stays on its old sandbox.
+
+Build the image on the new provider before moving anything to it (`php artisan sandbox:build-image`). Moves need a [snapshot disk](#project-snapshots) both providers can reach, which means a bucket for remote providers. With a local disk and a remote provider, the files are copied through the platform instead, which can take longer than a Flex queue job allows.
+
+Deleting a project, or the account that owns it, removes its sandbox from the provider it's on, even if that's no longer the configured one.
+
+`SANDBOX_PROVIDER` in `.env` only applies until providers are saved in Settings. To move every project now from a terminal, or just one, and wait for it:
+
+```bash
+php artisan sandbox:update
+php artisan sandbox:update 12
+```
 
 ## How the app's dev server runs
 
@@ -172,7 +188,7 @@ The guides the agent follows, the tools behind panels like Database and Growth, 
 - **Tool files** (everything the Dockerfile copies into `/opt/onedrop`, such as guides, scripts and the proxy) are copied into the running sandbox, only the ones that changed. Processes that load them once, like the proxy, restart in about a second. Nothing else in the sandbox changes, and you don't need to rebuild the image for these.
 - **Base files** (`Dockerfile`, `start.sh`, `dockerd`, `shell-keys.js`) need a rebuilt image (`php artisan sandbox:build-image`; the server deploy script does this when `docker/sandbox/` changes). Each sandbox then moves to a new one from that image, keeping its files.
 
-Updates run once a project has gone unused for 10 minutes, then the sandbox is suspended again. They never run while someone has the project open or its agent is working, and a sandbox nobody uses isn't woken for one; it's updated after its next use. Before each agent run, changed tool files are copied in first (a second or two) so the agent has the current guides. The preview shows **Updating sandbox…** only while a new sandbox is being made.
+Updates run once a project has gone unused for 10 minutes, then the sandbox is suspended again. A new sandbox is made the same way as in a [provider switch](#switch-providers): short queue jobs, the files carried by a fresh snapshot. They never run while someone has the project open or its agent is working, and a sandbox nobody uses isn't woken for one; it's updated after its next use. Before each agent run, changed tool files are copied in first (a second or two) so the agent has the current guides. The preview shows **Updating sandbox…** only while a new sandbox is being made.
 
 On Blaxel, tool files can't be copied in (its sandbox API can't write `/opt/onedrop`), so a rebuilt image moves each sandbox to a new one instead.
 
@@ -203,7 +219,7 @@ After every agent turn, `/opt/onedrop/checkpoint` commits the workspace to git (
 
 Checkpoints never include `node_modules`, `vendor`, `.cache` or `.env` files (except `.env.example`), and a repository in the middle of a merge or rebase is left alone. Backups hold code and its history only; App Storage buckets and databases outside git aren't in them.
 
-When a sandbox is replaced without its files, the backup is cloned into the new one, with every branch, and the app starts. That covers a sandbox that's broken or gone, including one on a provider you've stopped using: if a [provider switch](#switch-providers) can't copy files out of the old sandbox, run `php artisan sandbox:recreate <project>` to start the project on the new provider from its backup. Deleting a project deletes its backup.
+When a sandbox is replaced without its files, the backup is cloned into the new one, with every branch, and the app starts. That covers a sandbox that's broken or gone, including one on a provider that stopped answering and a project with no [snapshot](#project-snapshots) yet: a [provider switch](#switch-providers) falls back to the backup by itself. Deleting a project deletes its backup.
 
 <Tip>
     In production, keep backups on object storage so they outlive the server: an `s3` disk in `config/filesystems.php`, set as `FILESYSTEM_DISK` or `SANDBOX_BACKUP_DISK`. On Laravel Cloud, attach a bucket to the environment as its default disk.
@@ -220,9 +236,9 @@ Besides the git backup, OneDrop keeps each project's whole state outside its san
 | `home`      | `/home/sandbox` without caches: the agent's history, and a database or tools the agent set up there |
 | `storage`   | App Storage                                                                                         |
 
-Snapshots are taken after every agent turn, before an update moves a project to a new sandbox, and daily at 04:00 for projects used that day (`php artisan sandbox:snapshot`). Each layer is fingerprinted in the sandbox first, and only layers that changed are packed and stored again. The app's processes are frozen while the stateful layers are packed (usually well under a second), so a database is captured in a consistent state. Layers are compressed with zstd, or gzip on images without it.
+Snapshots are taken after every agent turn, once a project has gone unused for 10 minutes (so work done only in the Shell or by the app itself is kept too), before an update or a move gives a project a new sandbox, and daily at 04:00 for projects used that day (`php artisan sandbox:snapshot`). Each layer is fingerprinted in the sandbox first, and only layers that changed are packed and stored again. With a bucket, the sandbox packs and uploads them in the background, and a queue job checks on it every few seconds, so no job runs long however large the project. The app's processes are frozen while the stateful layers are packed (usually well under a second), so a database is captured in a consistent state. Layers are compressed with zstd, or gzip on images without it.
 
-Updates restore the new sandbox from a snapshot instead of copying files through the platform. A sandbox that's gone gets its latest snapshot back with `php artisan sandbox:recreate <project> --keep-files`.
+Updates and moves restore the new sandbox from a snapshot instead of copying files through the platform. A sandbox that's gone, or doesn't answer, gets its latest snapshot back with `php artisan sandbox:recreate <project> --keep-files`; one that doesn't answer is kept and checked on, as in a [provider switch](#switch-providers).
 
 Snapshots go to the disk named by `SANDBOX_SNAPSHOT_DISK`, or the backup disk when that isn't set:
 
@@ -233,7 +249,7 @@ Snapshots go to the disk named by `SANDBOX_SNAPSHOT_DISK`, or the backup disk wh
     A local disk keeps snapshots on the same disk as the sandboxes. They cover a broken sandbox or a failed update, not losing the server. Point `SANDBOX_SNAPSHOT_DISK` at an off-site bucket (Backblaze B2, Cloudflare R2, Hetzner Object Storage) for real backups.
 </Warning>
 
-OneDrop keeps the latest 10 snapshots of each project and the newest of each of the last 7 days, and deletes stored layers no kept snapshot uses. To list a project's snapshots, or give it a new sandbox from one of them:
+OneDrop keeps the latest 10 snapshots of each project and the newest of each of the last 7 days, plus recovered snapshots for 30 days, and deletes stored layers no kept snapshot uses. To list a project's snapshots, or give it a new sandbox from one of them:
 
 ```bash
 php artisan sandbox:restore 12 --list

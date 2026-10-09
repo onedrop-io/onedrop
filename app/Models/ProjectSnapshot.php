@@ -15,17 +15,30 @@ use Illuminate\Support\Carbon;
  *
  * @property int $id
  * @property int $project_id
+ * @property int|null $task_id
  * @property string $reason
+ * @property string $status
+ * @property string|null $external_id
  * @property array<string, array{path: string, fingerprint: string, compression: string, size: int}> $layers
  * @property int $size
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['reason', 'layers', 'size'])]
+#[Fillable(['task_id', 'reason', 'status', 'external_id', 'layers', 'size'])]
 class ProjectSnapshot extends Model
 {
     /** @use HasFactory<ProjectSnapshotFactory> */
     use HasFactory;
+
+    /** Being packed and uploaded by its sandbox, in the background. */
+    public const PENDING = 'pending';
+
+    public const READY = 'ready';
+
+    public const FAILED = 'failed';
+
+    /** Files of a sandbox that had stopped answering, saved when it came back (SBX-013); never restored by itself. */
+    public const RECOVERED = 'recovered';
 
     /**
      * Get the attributes that should be cast.
@@ -46,5 +59,18 @@ class ProjectSnapshot extends Model
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
+    }
+
+    /**
+     * @return BelongsTo<Task, $this>
+     */
+    public function task(): BelongsTo
+    {
+        return $this->belongsTo(Task::class);
+    }
+
+    public function isPending(): bool
+    {
+        return $this->status === self::PENDING;
     }
 }

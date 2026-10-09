@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Enums\SandboxStatus;
 use App\Models\Project;
+use App\Models\Sandbox;
 use App\Models\Task;
 use App\Sandbox\Drive\DriveSync;
 use App\Sandbox\OrganizationSecrets;
@@ -36,33 +37,7 @@ class CreateSandbox implements ShouldQueue
             'status' => SandboxStatus::Creating,
         ]);
 
-        $port = config('sandbox.port');
-        $connection = $this->project->user->agentConnections()->firstWhere('is_default', true);
-
-        $spec = new SandboxSpec(
-            name: ($this->project->isComputer() ? 'onedrop-computer-' : 'onedrop-project-')."{$this->project->id}-".($this->task ? "task-{$this->task->id}-" : '').strtolower(str()->random(6)),
-            env: [
-                'APP_PROJECT_NAME' => $this->project->name,
-                // Where the file watcher reports added, removed or renamed files (FILE-004).
-                'APP_FILES_CHANGED_URL' => rtrim(config('sandbox.callback_url'), '/').URL::signedRoute('sandbox-events.files', $sandbox, absolute: false),
-                // Where `ask` in the shell gets the project's AI for each question (SBX-012).
-                'ONEDROP_AI_URL' => rtrim(config('sandbox.callback_url'), '/').URL::signedRoute('sandbox-ai.show', $sandbox, absolute: false),
-                ...($connection?->sandboxEnvironment() ?? []),
-                // Keeps the sandbox's copy of Drive in step (DRIVE-003, DRIVE-004).
-                ...DriveSync::environment($sandbox, $this->project),
-                // A computer runs a desktop (CMP-001).
-                ...($this->project->isComputer() ? ['ONEDROP_DESKTOP' => '1'] : []),
-            ],
-            port: $port,
-            shellPort: config('sandbox.shell_port'),
-            proxyPort: config('sandbox.proxy_port'),
-            sshPort: config('sandbox.ssh_port'),
-            // A task's copy keeps its App Storage buckets apart from Main's.
-            storageKey: "project-{$this->project->id}".($this->task ? "-task-{$this->task->id}" : ''),
-            // One Claude sign-in for all of the owner's sandboxes; only they (and site admins) can open a project (AI-005).
-            claudeLoginKey: "user-{$this->project->user_id}",
-            deviceId: $this->project->device_id,
-        );
+        $spec = $this->spec($sandbox);
 
         try {
             $id = $provider->create($spec);
@@ -98,6 +73,41 @@ class CreateSandbox implements ShouldQueue
         } catch (SandboxException) {
             // SSH is optional; the Developer → SSH page syncs the keys again when opened.
         }
+    }
+
+    /**
+     * What the sandbox for this record is made with: the owner's AI credential and the addresses it reports to. A
+     * move (SandboxMover) makes the record's next sandbox with it too.
+     */
+    public function spec(Sandbox $sandbox): SandboxSpec
+    {
+        $port = config('sandbox.port');
+        $connection = $this->project->user->agentConnections()->firstWhere('is_default', true);
+
+        return new SandboxSpec(
+            name: ($this->project->isComputer() ? 'onedrop-computer-' : 'onedrop-project-')."{$this->project->id}-".($this->task ? "task-{$this->task->id}-" : '').strtolower(str()->random(6)),
+            env: [
+                'APP_PROJECT_NAME' => $this->project->name,
+                // Where the file watcher reports added, removed or renamed files (FILE-004).
+                'APP_FILES_CHANGED_URL' => rtrim(config('sandbox.callback_url'), '/').URL::signedRoute('sandbox-events.files', $sandbox, absolute: false),
+                // Where `ask` in the shell gets the project's AI for each question (SBX-012).
+                'ONEDROP_AI_URL' => rtrim(config('sandbox.callback_url'), '/').URL::signedRoute('sandbox-ai.show', $sandbox, absolute: false),
+                ...($connection?->sandboxEnvironment() ?? []),
+                // Keeps the sandbox's copy of Drive in step (DRIVE-003, DRIVE-004).
+                ...DriveSync::environment($sandbox, $this->project),
+                // A computer runs a desktop (CMP-001).
+                ...($this->project->isComputer() ? ['ONEDROP_DESKTOP' => '1'] : []),
+            ],
+            port: $port,
+            shellPort: config('sandbox.shell_port'),
+            proxyPort: config('sandbox.proxy_port'),
+            sshPort: config('sandbox.ssh_port'),
+            // A task's copy keeps its App Storage buckets apart from Main's.
+            storageKey: "project-{$this->project->id}".($this->task ? "-task-{$this->task->id}" : ''),
+            // One Claude sign-in for all of the owner's sandboxes; only they (and site admins) can open a project (AI-005).
+            claudeLoginKey: "user-{$this->project->user_id}",
+            deviceId: $this->project->device_id,
+        );
     }
 
     /**

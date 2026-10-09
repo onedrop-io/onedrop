@@ -433,6 +433,16 @@ class Project extends Model implements Conversation
     }
 
     /**
+     * Its sandboxes' moves to new ones (SBX-005), oldest first.
+     *
+     * @return HasMany<SandboxMove, $this>
+     */
+    public function sandboxMoves(): HasMany
+    {
+        return $this->hasMany(SandboxMove::class);
+    }
+
+    /**
      * Its deployments to hosting, oldest first (HOST-001).
      *
      * @return HasMany<Deployment, $this>

@@ -3,6 +3,7 @@
 namespace App\Sandbox\Providers;
 
 use App\Models\Sandbox;
+use App\Models\SandboxMove;
 use App\Sandbox\ExecResult;
 use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxProvider;
@@ -107,13 +108,18 @@ class RoutingSandboxProvider implements SandboxProvider
     }
 
     /**
-     * The provider that owns a sandbox: the one that created it here, else its record's, else the configured one.
+     * The provider that owns a sandbox: the one that created it here, else its record's or its move's, else the configured one.
      *
      * @throws SandboxException
      */
     protected function for(string $id): SandboxProvider
     {
-        $this->owners[$id] ??= Sandbox::query()->where('external_id', $id)->value('provider') ?? $this->default;
+        // A sandbox a move is making, or one a project moved off (kept while it may hold newer files, SBX-013), has no
+        // record of its own; its move knows where it is.
+        $this->owners[$id] ??= Sandbox::query()->where('external_id', $id)->value('provider')
+            ?? SandboxMove::query()->where('to_external_id', $id)->latest('id')->value('to_provider')
+            ?? SandboxMove::query()->where('from_external_id', $id)->latest('id')->value('from_provider')
+            ?? $this->default;
 
         return $this->provider($this->owners[$id]);
     }

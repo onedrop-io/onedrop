@@ -8,6 +8,7 @@ use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxProvider;
 use App\Sandbox\SandboxSpec;
 use App\Sandbox\SandboxWaitLimit;
+use App\Sandbox\TemporarySandboxException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\RequestException;
@@ -528,7 +529,7 @@ class RuntimeSandboxProvider implements SandboxProvider
         $left = fn (): float => $limit->secondsLeft() ?? PHP_INT_MAX;
 
         if ($left() < 1) {
-            throw new SandboxException(self::NO_ANSWER);
+            throw new TemporarySandboxException(self::NO_ANSWER);
         }
 
         // A busy sandbox says when to try again (Retry-After); it gets a few more tries than other refusals.
@@ -554,7 +555,7 @@ class RuntimeSandboxProvider implements SandboxProvider
             return $method === 'get' ? $client->get($path, $data) : $client->asJson()->{$method}($path, (object) $data);
         } catch (ConnectionException) {
             if ($left() < 1) {
-                throw new SandboxException(self::NO_ANSWER);
+                throw new TemporarySandboxException(self::NO_ANSWER);
             }
 
             throw new SandboxException("Couldn't reach Runtime Cloud. Check https://withruntime.com/status and try again.");
@@ -590,11 +591,11 @@ class RuntimeSandboxProvider implements SandboxProvider
         ]);
 
         if (self::isTemporaryRefusal($response)) {
-            throw new SandboxException(trim("Runtime has no room for the sandbox right now ({$message}). Try again in a moment."));
+            throw new TemporarySandboxException(trim("Runtime has no room for the sandbox right now ({$message}). Try again in a moment."));
         }
 
         if (($error['code'] ?? null) === self::BUSY) {
-            throw new SandboxException(__('The sandbox is busy running other commands. Try again in a moment.'));
+            throw new TemporarySandboxException(__('The sandbox is busy running other commands. Try again in a moment.'));
         }
 
         throw new SandboxException(trim("Runtime: {$message} ".($error['hint'] ?? '').(isset($error['requestId']) ? " ({$error['requestId']})" : '')));

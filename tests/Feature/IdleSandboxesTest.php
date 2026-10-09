@@ -3,10 +3,12 @@
 use App\Console\Commands\SuspendIdleSandboxes;
 use App\Enums\ProjectStatus;
 use App\Enums\PublishStatus;
+use App\Enums\SandboxMovePhase;
 use App\Enums\SandboxStatus;
 use App\Models\AgentConnection;
 use App\Models\Project;
 use App\Models\Sandbox;
+use App\Models\SandboxMove;
 use App\Models\Task;
 use App\Models\User;
 use App\Sandbox\ExecResult;
@@ -14,7 +16,6 @@ use App\Sandbox\Gateway;
 use App\Sandbox\Providers\FakeSandboxProvider;
 use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxProvider;
-use App\Sandbox\SandboxUpdater;
 
 beforeEach(function () {
     // Docker is the configured provider, so its sandboxes don't count as outdated (SBX-005) when a project opens.
@@ -62,7 +63,7 @@ test('a sandbox whose agent is working, whose app is published, or that is updat
 })->with([
     'agent working' => [fn (Project $project) => $project->update(['status' => ProjectStatus::Working])],
     'published' => [fn (Project $project) => $project->update(['publish_status' => PublishStatus::Live])],
-    'updating' => [fn (Project $project) => SandboxUpdater::markUpdating($project)],
+    'updating' => [fn (Project $project) => SandboxMove::query()->create(['project_id' => $project->id, 'sandbox_id' => $project->sandbox->id, 'reason' => 'update', 'phase' => SandboxMovePhase::Restoring])],
 ])->group('SBX-007');
 
 test('an idle task copy is suspended unless its task is working', function (bool $working, array $suspended) {

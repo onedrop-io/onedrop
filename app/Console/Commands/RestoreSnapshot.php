@@ -4,6 +4,8 @@ namespace App\Console\Commands;
 
 use App\Enums\SandboxStatus;
 use App\Models\Project;
+use App\Models\ProjectSnapshot;
+use App\Sandbox\ProjectSnapshots;
 use App\Sandbox\SandboxUpdater;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
@@ -16,20 +18,20 @@ class RestoreSnapshot extends Command
     /**
      * Execute the console command.
      */
-    public function handle(SandboxUpdater $updater): int
+    public function handle(SandboxUpdater $updater, ProjectSnapshots $snapshots): int
     {
         $project = Project::findOrFail($this->argument('project'));
 
         if ($this->option('list')) {
-            $this->table(['Id', 'Taken', 'Reason', 'Size (MB)'], $project->snapshots()->latest('id')->get()
-                ->map(fn ($snapshot) => [$snapshot->id, $snapshot->created_at?->toDateTimeString(), $snapshot->reason, number_format($snapshot->size / 1048576, 1)]));
+            $this->table(['Id', 'Taken', 'Reason', 'Status', 'Size (MB)'], $project->snapshots()->whereNull('task_id')->latest('id')->get()
+                ->map(fn ($snapshot) => [$snapshot->id, $snapshot->created_at?->toDateTimeString(), $snapshot->reason, $snapshot->status, number_format($snapshot->size / 1048576, 1)]));
 
             return self::SUCCESS;
         }
 
         $snapshot = $this->argument('snapshot')
-            ? $project->snapshots()->findOrFail($this->argument('snapshot'))
-            : $project->snapshots()->latest('id')->first();
+            ? $project->snapshots()->whereNull('task_id')->where('status', ProjectSnapshot::READY)->findOrFail($this->argument('snapshot'))
+            : $snapshots->latest($project);
 
         if ($snapshot === null) {
             $this->components->error("Project {$project->id} has no snapshots.");

@@ -70,7 +70,7 @@ test('when copying files out fails, the old sandbox starts again and stays', fun
     $provider->outdated = ['old-ctr'];
     app()->instance(SandboxProvider::class, $provider);
 
-    expect(fn () => app(SandboxUpdater::class)->updateIfOutdated($this->project))->toThrow(SandboxException::class, 'disk full');
+    expect(fn () => app(SandboxUpdater::class)->updateIfOutdated($this->project, wait: true))->toThrow(SandboxException::class, 'disk full');
 
     expect($provider->paused)->toBe(['old-ctr'])
         ->and($provider->started)->toBe(['old-ctr'])
@@ -90,7 +90,8 @@ test('any failure while copying files out starts the old sandbox again', functio
     $provider->outdated = ['old-ctr'];
     app()->instance(SandboxProvider::class, $provider);
 
-    expect(fn () => app(SandboxUpdater::class)->updateIfOutdated($this->project))->toThrow(RuntimeException::class, 'Connection reset');
+    // Not a provider's own error, so it isn't shown as it is.
+    expect(fn () => app(SandboxUpdater::class)->updateIfOutdated($this->project, wait: true))->toThrow(SandboxException::class, 'Something went wrong');
 
     expect($provider->started)->toBe(['old-ctr'])
         ->and($this->sandbox->fresh()->external_id)->toBe('old-ctr')
@@ -144,7 +145,7 @@ test('an update cut off while copying files in goes back to the old sandbox with
     $this->sandbox->update(['preview_url' => 'https://old.preview.test']);
     $provider = orderedProvider(failCopyIn: true);
 
-    expect(fn () => app(SandboxUpdater::class)->updateIfOutdated($this->project))->toThrow(RuntimeException::class, 'Worker killed');
+    expect(fn () => app(SandboxUpdater::class)->updateIfOutdated($this->project, wait: true))->toThrow(SandboxException::class, 'Something went wrong');
 
     $sandbox = $this->sandbox->fresh();
 
@@ -168,11 +169,13 @@ test('a new sandbox that fails to start leaves the project on the old one', func
     $provider->outdated = ['old-ctr'];
     app()->instance(SandboxProvider::class, $provider);
 
-    expect(fn () => app(SandboxUpdater::class)->updateIfOutdated($this->project))->toThrow(SandboxException::class, 'no capacity');
+    expect(fn () => app(SandboxUpdater::class)->updateIfOutdated($this->project, wait: true))->toThrow(SandboxException::class, 'no capacity');
 
+    // Its files were never copied, so it was never stopped.
     expect($this->sandbox->fresh()->external_id)->toBe('old-ctr')
         ->and($this->sandbox->fresh()->status)->toBe(SandboxStatus::Running)
-        ->and($provider->started)->toBe(['old-ctr']);
+        ->and($provider->paused)->toBe([])
+        ->and($this->project->sandboxMoves()->sole()->error)->toBe('Blaxel: no capacity');
 })->group('SBX-002');
 
 test('a batch update suspends each sandbox it updated, so they don\'t all keep running', function () {
@@ -252,13 +255,13 @@ test('the update waits while the project is in use or its agent works', function
     $this->sandbox->forceFill(['last_active_at' => now()->subMinutes(2)])->save();
 
     $job = (new UpdateSandbox($this->project))->withFakeQueueInteractions();
-    $job->handle(app(SandboxUpdater::class), $this->provider);
+    app()->call([$job, 'handle']);
     $job->assertReleased(delay: UpdateSandbox::IDLE_SECONDS - 120);
 
     $this->sandbox->forceFill(['last_active_at' => now()->subMinutes(30)])->save();
     $this->project->update(['status' => ProjectStatus::Working]);
     $job = (new UpdateSandbox($this->project))->withFakeQueueInteractions();
-    $job->handle(app(SandboxUpdater::class), $this->provider);
+    app()->call([$job, 'handle']);
     $job->assertReleased();
 
     expect($this->sandbox->fresh()->external_id)->toBe('old-ctr')
@@ -270,7 +273,7 @@ test('a sandbox nobody has used for a while is updated, then suspended again', f
     $this->sandbox->forceFill(['last_active_at' => now()->subMinutes(11), 'stopped_at' => now()->subMinutes(5)])->save();
 
     $job = (new UpdateSandbox($this->project))->withFakeQueueInteractions();
-    $job->handle(app(SandboxUpdater::class), $this->provider);
+    app()->call([$job, 'handle']);
     $job->assertNotReleased();
 
     $sandbox = $this->sandbox->fresh();

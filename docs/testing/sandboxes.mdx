@@ -92,7 +92,29 @@ With **Docker inside sandboxes** on, in a project whose compose stack has a data
 - [ ] With a service Main built itself (a `build:` section), the copy's preview comes up without building it again: `docker images` in the copy's Shell lists it, and its Console shows no build steps for it.
 - [ ] A second task loads the same image without Main saving it again (no new file under the project's `images` folder on the snapshot disk).
 
-## Switch providers
+## Switch providers (SBX-005)
 
-- [ ] Changing the provider in **Settings → Sandboxes** moves each project to the new provider when it's next opened, with its files.
-- [ ] A project whose old sandbox is gone starts from its backup with `php artisan sandbox:recreate`.
+Use an install with two remote providers set up (Runtime Cloud and Blaxel) and a bucket as the snapshot disk, on a Flex queue (production, or a staging environment on Laravel Cloud). Have two projects on Runtime: one with a database the agent set up in `/home/sandbox`, one with a Shell open.
+
+1. In **Settings → Sandboxes**, turn Blaxel on, then drag it first.
+
+- [ ] The toast says **Moving 2 sandboxes to Blaxel.**, and **Moves** lists both, going through **Taking a snapshot**, **Making the new sandbox**, **Restoring files** to **Moved**.
+- [ ] Each move takes about a minute, and the queue shows no job running longer than 90 seconds and none failed.
+- [ ] Each project's preview comes back on Blaxel with its files, uncommitted changes, `node_modules`, App Storage, the database's data, and the agent's conversation (the next message continues it).
+- [ ] `npx withruntime sandbox ls` no longer lists the old sandboxes.
+- [ ] A message sent while a project was moving runs once it's on Blaxel.
+- [ ] A project whose agent was mid-turn moves after the turn ends.
+- [ ] Turning Runtime off and back on doesn't move anything back; dragging Runtime first again does.
+
+## A provider that stops answering (SBX-013)
+
+1. On a project on Runtime, type a few lines into a file from the Shell, wait 10 minutes without touching it (an idle snapshot), then change the file again.
+2. Make its sandbox stop answering commands: in its Shell, find Runtime's command agent with `ps aux` and freeze it with `sudo kill -STOP <pid>` (the Shell goes too). A sandbox stuck in Runtime's `resuming` state, as project 45 was on 2026-10-09, is the real case.
+3. Turn Runtime off.
+
+- [ ] The project moves to Blaxel within about 2 minutes, with the file as it was at the idle snapshot (not the later change).
+- [ ] Its chat says Runtime stopped answering, and from which snapshot the files came. A turn stuck on **Thinking…** is over.
+- [ ] **Moves** says the old sandbox is kept and checked on every 15 minutes.
+- [ ] After it answers again (stop and restart it in Runtime, which keeps its disk), within 15 minutes **Moves** says its newer files were saved, and the old sandbox is gone from Runtime.
+- [ ] **Restore** asks first, then brings the later change back. **Dismiss** removes the entry and leaves the project as it is.
+- [ ] A project with no snapshot and no code backup on a provider that doesn't answer fails with that reason, stays where it is, and **Try again** works once the provider answers.

@@ -3,11 +3,13 @@
 namespace App\Sandbox;
 
 use Carbon\CarbonImmutable;
+use Closure;
 
 /**
- * How long the current web request may still wait on the sandbox provider, retries included. Laravel Cloud gives up
- * on a request after 20 seconds (a 504) while PHP carries on waiting, so a sandbox that never answers would hold a
- * worker for minutes. Started for web requests only (`LimitSandboxWaits`); queue jobs and commands have no limit.
+ * How long the current web request, or a move's queue job, may still wait on the sandbox provider, retries included.
+ * Laravel Cloud gives up on a request after 20 seconds (a 504) and on a Flex queue job after 90, while PHP would carry
+ * on waiting, so a sandbox that never answers would hold a worker for minutes. Started for web requests by
+ * `LimitSandboxWaits` and by jobs that move sandboxes (SBX-005); other jobs and commands have no limit.
  */
 class SandboxWaitLimit
 {
@@ -24,5 +26,26 @@ class SandboxWaitLimit
     public function secondsLeft(): ?float
     {
         return $this->until === null ? null : max(0, CarbonImmutable::now()->diffInMilliseconds($this->until, false) / 1000);
+    }
+
+    /**
+     * Run $callback with at most $seconds to wait (less if the limit is nearer), then put the limit back.
+     *
+     * @template T
+     *
+     * @param  Closure(): T  $callback
+     * @return T
+     */
+    public function within(int $seconds, Closure $callback): mixed
+    {
+        $before = $this->until;
+        $narrower = CarbonImmutable::now()->addSeconds($seconds);
+        $this->until = $before !== null && $before->lt($narrower) ? $before : $narrower;
+
+        try {
+            return $callback();
+        } finally {
+            $this->until = $before;
+        }
     }
 }

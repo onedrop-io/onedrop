@@ -9,6 +9,7 @@ use App\Models\Project;
 use App\Sandbox\Agents\AgentQueue;
 use App\Sandbox\Agents\AgentRunner;
 use App\Sandbox\SandboxException;
+use App\Sandbox\SandboxMover;
 use App\Sandbox\SandboxUpdater;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -33,6 +34,13 @@ class RunAgentTask implements ShouldQueue
     public function handle(AgentRunner $agent, SandboxUpdater $updater): void
     {
         $conversation = $this->message->conversation();
+
+        // Whatever it did in a sandbox being moved would miss the new one: it starts there once the move is done.
+        if (($sandbox = $conversation->agentSandbox()) && SandboxMover::isMoving($sandbox)) {
+            self::dispatch($this->project, $this->message)->delay(now()->addSeconds(MoveProjectSandbox::CHECK_SECONDS));
+
+            return;
+        }
         $conversation->update(['status' => ProjectStatus::Working]);
 
         try {

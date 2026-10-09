@@ -5,6 +5,14 @@
 #   snapshot pack LAYER... DIR       freeze the app, pack each layer to DIR/LAYER.tar.zst (or .tar.gz), thaw; deps after
 #   snapshot put FILE                upload FILE to $ONEDROP_SNAPSHOT_URL (headers in $ONEDROP_SNAPSHOT_HEADERS), then delete it
 #   snapshot restore LAYER SOURCE    unpack a layer from SOURCE: a file, or a URL ($ONEDROP_SNAPSHOT_URL when SOURCE is "url")
+#   snapshot compression             the compression packed layers get: zst, or gz on images without zstd
+#   snapshot begin DIR               mark background work as started in DIR, before it runs, so the next status finds it
+#   snapshot take DIR LAYER...       pack the layers, then upload each to $ONEDROP_SNAPSHOT_URL_<LAYER> (headers in
+#                                    $ONEDROP_SNAPSHOT_HEADERS_<LAYER>); meant to run in the background, progress in DIR
+#   snapshot unpack DIR LAYER...     restore each layer from $ONEDROP_SNAPSHOT_URL_<LAYER> ($ONEDROP_SNAPSHOT_COMPRESSION_<LAYER>);
+#                                    meant to run in the background, progress in DIR
+#   snapshot status DIR              the background work's state (none, running, done, failed, or lost when it stopped
+#                                    without saying), then what it printed, then a "::error::" line and its errors
 #
 # Layers: workspace (/workspace without dependency folders), deps (node_modules and vendor, keyed by the lockfiles),
 # home (/home/sandbox without caches) and storage (App Storage). Depends only on bash, coreutils, find, tar and curl,
@@ -91,12 +99,23 @@ tar_layer() {
 FROZEN=()
 WATCHDOG=
 
+# This process and every one above it.
+ancestors() {
+    local pid=$$
+    while [ -n "$pid" ] && [ "$pid" -gt 1 ]; do
+        printf '%s ' "$pid"
+        pid="$(awk '{print $4}' "/proc/$pid/stat" 2>/dev/null)" || break
+    done
+}
+
 # Stop the sandbox user's processes (the app, its database) so their files are at rest; a watchdog thaws them if this
 # never gets to (killed mid-copy).
 freeze() {
-    local pid
+    local pid keep
+    # Never this script or whatever started it (in the background, the provider's process runner may be several up).
+    keep=" $(ancestors) $BASHPID "
     for pid in $(pgrep -u "$(id -u)"); do
-        [ "$pid" = $$ ] || [ "$pid" = "$PPID" ] || [ "$pid" = "$BASHPID" ] || { kill -STOP "$pid" 2>/dev/null && FROZEN+=("$pid"); } || true
+        [[ "$keep" == *" $pid "* ]] || { kill -STOP "$pid" 2>/dev/null && FROZEN+=("$pid"); } || true
     done
     (sleep 120; kill -CONT "${FROZEN[@]}" 2>/dev/null) </dev/null >/dev/null 2>&1 &
     WATCHDOG=$!
@@ -106,6 +125,44 @@ thaw() {
     [ "${#FROZEN[@]}" -gt 0 ] && kill -CONT "${FROZEN[@]}" 2>/dev/null || true
     [ -n "$WATCHDOG" ] && kill "$WATCHDOG" 2>/dev/null || true
     FROZEN=()
+}
+
+# A layer's setting for background work, e.g. ONEDROP_SNAPSHOT_URL_WORKSPACE.
+layer_setting() {
+    local name="ONEDROP_SNAPSHOT_${1}_${2^^}"
+    printf '%s' "${!name:-}"
+}
+
+take_layers() {
+    local dir="$1" layer ext
+    shift
+    ext="$(compressor)"
+    "$0" pack "$@" "$dir/out" >"$dir/output" || return $?
+    for layer in "$@"; do
+        ONEDROP_SNAPSHOT_URL="$(layer_setting URL "$layer")" ONEDROP_SNAPSHOT_HEADERS="$(layer_setting HEADERS "$layer")" \
+            "$0" put "$dir/out/$layer.tar.$ext" || return $?
+    done
+    rm -rf "$dir/out"
+}
+
+unpack_layers() {
+    local layer
+    shift
+    for layer in "$@"; do
+        ONEDROP_SNAPSHOT_URL="$(layer_setting URL "$layer")" ONEDROP_SNAPSHOT_COMPRESSION="$(layer_setting COMPRESSION "$layer")" \
+            "$0" restore "$layer" url || return $?
+    done
+}
+
+# Run background work, recording how it ended in DIR for `status`.
+in_background() {
+    local dir="$1" code=0
+    shift
+    echo $$ >"$dir/pid"
+    "$@" 2>"$dir/error" || code=$?
+    echo "$code" >"$dir/exit"
+    if [ "$code" = 0 ]; then echo done >"$dir/state.new"; else echo failed >"$dir/state.new"; fi
+    mv -f "$dir/state.new" "$dir/state"
 }
 
 curl_headers() {
@@ -156,8 +213,34 @@ case "${1:-}" in
         "${fetch[@]}" | "${decompress[@]}" | tar -x -C "$dir" --no-same-owner
         [ "$source" = url ] || rm -f "$source"
         ;;
+    compression)
+        compressor
+        ;;
+    begin)
+        rm -rf "$2" && mkdir -p "$2" && echo running >"$2/state"
+        ;;
+    take)
+        dir="$2"
+        shift 2
+        in_background "$dir" take_layers "$dir" "$@"
+        ;;
+    unpack)
+        dir="$2"
+        shift 2
+        in_background "$dir" unpack_layers "$dir" "$@"
+        ;;
+    status)
+        dir="$2"
+        state="$(cat "$dir/state" 2>/dev/null || echo none)"
+        # Started but no longer running, and it never said how it ended (the sandbox restarted, say).
+        if [ "$state" = running ] && [ -f "$dir/pid" ] && ! kill -0 "$(cat "$dir/pid")" 2>/dev/null; then state=lost; fi
+        echo "$state"
+        cat "$dir/output" 2>/dev/null || true
+        echo "::error::"
+        tail -c 2000 "$dir/error" 2>/dev/null || true
+        ;;
     *)
-        echo "Usage: snapshot fingerprint | pack LAYER... DIR | put FILE | restore LAYER SOURCE" >&2
+        echo "Usage: snapshot fingerprint | pack LAYER... DIR | put FILE | restore LAYER SOURCE | compression | begin DIR | take DIR LAYER... | unpack DIR LAYER... | status DIR" >&2
         exit 2
         ;;
 esac

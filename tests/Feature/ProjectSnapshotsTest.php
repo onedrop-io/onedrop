@@ -41,6 +41,9 @@ function snapshotProvider(): FakeSandboxProvider
 
         public bool $failRestore = false;
 
+        /** @var array<string, string> background work's status output, by directory */
+        public array $work = [];
+
         public function exec(string $id, array $command, array $env = [], bool $detach = false, bool $root = false): ExecResult
         {
             $this->executed[] = ['id' => $id, 'command' => $command, 'env' => $env, 'detach' => $detach];
@@ -52,6 +55,10 @@ function snapshotProvider(): FakeSandboxProvider
                 $command === [$tool, 'fingerprint'] => new ExecResult(0, collect($this->fingerprints)->map(fn ($hash, $layer) => "{$layer} {$hash}")->implode("\n")),
                 ($command[0] ?? null) === $tool && $command[1] === 'pack' => $this->pack(array_slice($command, 2, -1)),
                 ($command[0] ?? null) === $tool && $command[1] === 'restore' => $this->restore($command[2], $command[3]),
+                ($command[0] ?? null) === $tool && $command[1] === 'compression' => new ExecResult(0, "zst\n"),
+                ($command[0] ?? null) === $tool && $command[1] === 'take' => $this->inBackground($command[2], $this->pack(array_slice($command, 3))),
+                ($command[0] ?? null) === $tool && $command[1] === 'unpack' => $this->inBackground($command[2], $this->unpack(array_slice($command, 3), $env)),
+                ($command[0] ?? null) === $tool && $command[1] === 'status' => new ExecResult(0, $this->work[$command[2]] ?? "none\n::error::\n"),
                 default => new ExecResult(0, ''),
             };
         }
@@ -73,6 +80,30 @@ function snapshotProvider(): FakeSandboxProvider
             $this->packed[] = $layers;
 
             return new ExecResult(0, collect($layers)->map(fn ($layer) => "{$layer} zst 1048576")->implode("\n"));
+        }
+
+        protected function inBackground(string $directory, ExecResult $result): ExecResult
+        {
+            $this->work[$directory] = ($result->successful() ? 'done' : 'failed')."\n".$result->output."\n::error::\n".$result->errorOutput;
+
+            return new ExecResult(0, '');
+        }
+
+        /**
+         * @param  list<string>  $layers
+         * @param  array<string, string>  $env
+         */
+        protected function unpack(array $layers, array $env): ExecResult
+        {
+            foreach ($layers as $layer) {
+                $result = $this->restore($layer, $env['ONEDROP_SNAPSHOT_URL_'.strtoupper($layer)] ?? 'missing');
+
+                if (! $result->successful()) {
+                    return $result;
+                }
+            }
+
+            return new ExecResult(0, '');
         }
 
         protected function restore(string $layer, string $source): ExecResult
@@ -139,15 +170,18 @@ test('with an S3-compatible disk, the sandbox uploads its layers itself through 
     Storage::fake('local', ['serve' => true]);
     Storage::disk('local')->buildTemporaryUploadUrlsUsing(fn (string $path) => ['url' => "https://bucket.test/{$path}?signed", 'headers' => ['Content-Type' => 'application/zstd']]);
 
-    app(ProjectSnapshots::class)->take($this->project, 'turn');
+    $snapshot = app(ProjectSnapshots::class)->take($this->project, 'turn');
 
-    $puts = collect($this->provider->executed)->filter(fn ($run) => ($run['command'][1] ?? null) === 'put');
+    $take = collect($this->provider->executed)->sole(fn ($run) => ($run['command'][1] ?? null) === 'take');
 
-    expect($puts)->toHaveCount(4)
+    expect($take['detach'])->toBeTrue() // packed and uploaded in the background, however long it takes
+        ->and(array_slice($take['command'], 3))->toBe(ProjectSnapshots::LAYERS)
         ->and($this->provider->copied)->toBe([]) // nothing went through the platform
-        ->and($puts->first()['env']['ONEDROP_SNAPSHOT_URL'])->toStartWith("https://bucket.test/project-snapshots/{$this->project->id}/layers/workspace-w1")
-        ->and($puts->first()['env']['ONEDROP_SNAPSHOT_HEADERS'])->toBe('Content-Type: application/zstd')
-        ->and(collect($puts->pluck('command'))->flatten()->implode(' '))->not->toContain('signed'); // never on a command line
+        ->and($take['env']['ONEDROP_SNAPSHOT_URL_WORKSPACE'])->toStartWith("https://bucket.test/project-snapshots/{$this->project->id}/layers/workspace-w1")
+        ->and($take['env']['ONEDROP_SNAPSHOT_HEADERS_WORKSPACE'])->toBe('Content-Type: application/zstd')
+        ->and(collect($take['command'])->implode(' '))->not->toContain('signed') // never on a command line
+        ->and($snapshot->fresh()->status)->toBe(ProjectSnapshot::READY)
+        ->and($snapshot->fresh()->size)->toBe(4 * 1048576);
 })->group('SBX-009');
 
 test('a remote sandbox with a local snapshot disk takes no snapshot', function () {
@@ -238,7 +272,7 @@ test('old snapshots are pruned, keeping the latest ten and one a day for a week,
 })->group('SBX-009');
 
 test('a snapshot is taken after every turn, with the code backup', function () {
-    (new BackupProject($this->project))->handle(app(ProjectBackups::class), app(ProjectSnapshots::class), app(HostingChanges::class));
+    (new BackupProject($this->project))->handle(app(ProjectBackups::class), app(HostingChanges::class));
 
     expect($this->project->snapshots()->sole()->reason)->toBe('turn');
 })->group('SBX-009');

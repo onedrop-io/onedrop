@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Sandbox;
+use App\Sandbox\SandboxMover;
 use App\Sandbox\SandboxProviders;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,20 +15,21 @@ use Inertia\Response;
 
 /**
  * Turn sandbox providers on and off, configure them, and put them in order: new projects run on the first one that's
- * on and set up (ADMIN-002).
+ * on and set up (ADMIN-002), and existing ones move there at once (SBX-005).
  */
 class SandboxProviderController extends Controller
 {
     /**
      * Show every provider.
      */
-    public function index(SandboxProviders $providers): Response
+    public function index(SandboxProviders $providers, SandboxMover $mover): Response
     {
         return Inertia::render('admin/sandboxes', [
             'providers' => $providers->describe(
                 Sandbox::query()->selectRaw('provider, COUNT(*) as count')->groupBy('provider')->pluck('count', 'provider')->map(fn ($count) => (int) $count)->all(),
             ),
             'maxTaskCopies' => config('sandbox.max_task_copies'),
+            'moves' => $mover->overview(),
         ]);
     }
 
@@ -48,7 +50,7 @@ class SandboxProviderController extends Controller
     /**
      * Turn a provider on or off and save its settings.
      */
-    public function update(Request $request, SandboxProviders $providers, string $provider): RedirectResponse
+    public function update(Request $request, SandboxProviders $providers, SandboxMover $mover, string $provider): RedirectResponse
     {
         abort_unless(isset(SandboxProviders::PROVIDERS[$provider]), 404);
 
@@ -70,15 +72,15 @@ class SandboxProviderController extends Controller
         $active = $providers->active();
         $providers->update($provider, $validated['enabled'], $validated);
 
-        $this->toast($providers, $active, __(':provider saved.', ['provider' => SandboxProviders::PROVIDERS[$provider]['label']]));
+        $this->toast($providers, $active, __(':provider saved.', ['provider' => SandboxProviders::PROVIDERS[$provider]['label']]), $mover->moveMisplaced());
 
         return to_route('admin.sandboxes.index');
     }
 
     /**
-     * Put the providers in order; existing projects move to the new first one when they're next opened.
+     * Put the providers in order; existing projects move to the new first one now (SBX-005).
      */
-    public function reorder(Request $request, SandboxProviders $providers): RedirectResponse
+    public function reorder(Request $request, SandboxProviders $providers, SandboxMover $mover): RedirectResponse
     {
         $names = array_keys(SandboxProviders::PROVIDERS);
         $validated = $request->validate([
@@ -89,20 +91,26 @@ class SandboxProviderController extends Controller
         $active = $providers->active();
         $providers->reorder($validated['providers']);
 
-        $this->toast($providers, $active, __('Order saved.'));
+        $this->toast($providers, $active, __('Order saved.'), $mover->moveMisplaced());
 
         return to_route('admin.sandboxes.index');
     }
 
     /**
-     * Say where new projects run when that changed, otherwise the given message.
+     * Say where new projects run when that changed, and how many sandboxes started moving; otherwise the given message.
      */
-    protected function toast(SandboxProviders $providers, string $before, string $message): void
+    protected function toast(SandboxProviders $providers, string $before, string $message, int $moving): void
     {
         $after = $providers->active();
+        $label = SandboxProviders::PROVIDERS[$after]['label'] ?? $after;
+        $message = $after !== $before && isset(SandboxProviders::PROVIDERS[$after])
+            ? __('New projects now run on :provider.', ['provider' => $label])
+            : $message;
 
-        Inertia::flash('toast', ['type' => 'success', 'message' => $after !== $before && isset(SandboxProviders::PROVIDERS[$after])
-            ? __('New projects now run on :provider.', ['provider' => SandboxProviders::PROVIDERS[$after]['label']])
-            : $message]);
+        if ($moving > 0) {
+            $message .= ' '.trans_choice('{1} Moving 1 sandbox to :provider.|[2,*] Moving :count sandboxes to :provider.', $moving, ['provider' => $label]);
+        }
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => $message]);
     }
 }

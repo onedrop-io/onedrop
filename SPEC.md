@@ -393,7 +393,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Updating keeps the app's files, App Storage, the agent's history, and everything in the sandbox user's home folder (such as a database or tools the agent installed there); the app restarts, and a published project is published again.
 - Updated sandboxes should get the image's current shell setup (banner, prompt, aliases, prompt theme) even though the home folder is kept; lines the user added to `~/.bashrc` below the loader line, and a `~/.config/starship.toml` the user made, stay.
 - User should see "Updating sandbox…" in the preview only while a new sandbox is actually being made (never the browser's "unable to connect" page from the old sandbox's address, and never while an update only waits in the queue), then the app again.
-- An update that fails or is cut off partway (a deploy, a queue timeout) should leave the project on its old sandbox with every file; the old sandbox is only removed once the new one has them all.
+- An update that fails or is cut off partway (a deploy, a queue timeout) should leave the project on its old sandbox with every file; the old sandbox is only removed once the new one has them all. A new sandbox is made the same way a provider move is (SBX-005): short queue jobs, the files carried by a fresh snapshot.
 - Two updates of the same sandbox should never run at once.
 - An admin should be able to update outdated sandboxes now with `php artisan sandbox:update` (all, or one project).
 - A sandbox updated by `php artisan sandbox:update` should be suspended once it's done (memory kept, woken by the next visit), so a batch of updates doesn't keep every new sandbox running at once.
@@ -425,11 +425,20 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## SBX-005: Switch sandbox providers
 
-- An admin should be able to switch where new sandboxes run by changing `SANDBOX_PROVIDER`, without breaking existing projects: each sandbox keeps being driven by the provider it was created on.
-- Sandboxes on several providers should work side by side.
-- A project whose sandbox is on another provider than the configured one should count as outdated, so it moves to the configured provider the way SBX-002 updates do (files, App Storage and home folder kept; the old sandbox removed only once the new one has them).
-- An admin should be able to move every project now with `php artisan sandbox:update`, or one with `php artisan sandbox:update {project}`.
-- Provider-specific behavior (renewing private preview links, the SSH notice) should follow each sandbox's own provider.
+- An admin should be able to move every project to another provider by turning providers on and off, or putting them in another order, in Settings → Sandboxes (ADMIN-002): no command to run. Each sandbox (projects, computers, and tasks' copies) whose provider is off, or isn't the first one that's on and set up, should start moving at once, in the queue.
+- A move should keep the project's files (uncommitted changes too), dependencies, App Storage and the sandbox user's home folder (the agent's history, a database the agent set up), and the new sandbox should start the app; a published project is published again.
+- A move should be done in a series of short queue jobs, none longer than about a minute, so it works on Laravel Cloud's Flex queues (90 seconds a job); work that takes longer (packing and unpacking files) runs in the sandboxes in the background and is checked on every few seconds. A move of a typical project should finish in about a minute.
+- A move shouldn't start while the project's agent is working in a sandbox that answers; it waits for the turn to end.
+- Sandboxes on several providers should work side by side, each driven by the provider it was created on; provider-specific behavior (renewing private preview links, the SSH notice) should follow each sandbox's own provider.
+- An admin should still be able to move every project now with `php artisan sandbox:update`, or one with `php artisan sandbox:update {project}`; it runs the same move and waits for it.
+
+## SBX-013: Sandboxes survive a provider that stops answering
+
+- When a sandbox's provider doesn't answer (down, or the sandbox stuck), turning that provider off should still move its projects: the new sandbox gets the project's latest snapshot (SBX-009), or, without one, its code backup (SBX-006).
+- User should see in the workspace that the project was moved from an earlier snapshot, and from when, so they know changes made after it may be missing.
+- A sandbox that didn't answer should never be deleted while it may hold newer files. The platform should keep checking on it (every 15 minutes, for 7 days); when it answers again, its files should be saved as a "recovered" snapshot (only if they differ from what the project got), and then it should be deleted.
+- An admin should see recovered files in Settings → Sandboxes and be able to restore them into the project with one click (after a warning that changes made since the move would be replaced).
+- A move that fails should leave the project on its old sandbox with every file, and the new sandbox should be deleted; the admin should see why and be able to try again.
 
 ## SBX-006: Checkpoints and code backups
 
@@ -471,7 +480,8 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 ## SBX-009: Project snapshots
 
 - Each project's whole state should be kept outside every sandbox provider, on the snapshot disk (`SANDBOX_SNAPSHOT_DISK`, the backup disk by default): its workspace with uncommitted changes and git history, its installed dependencies (every `node_modules` and the top-level `vendor`), the sandbox user's home folder without caches (a database the agent set up, tools, the agent's history), and App Storage.
-- A snapshot should be taken after every agent turn, before an update moves the project to a new sandbox, and daily for projects whose sandbox was used that day; a sandbox nobody used isn't woken for one.
+- A snapshot should be taken after every agent turn, once the project has gone unused for 10 minutes (so work done only in the Shell or the app is kept too), before an update or move gives the project a new sandbox, and daily for projects whose sandbox was used that day; a sandbox nobody used isn't woken for one.
+- Taking and restoring a snapshot should run in the sandbox in the background, checked on every few seconds, so no queue job runs longer than about a minute however large the project.
 - A layer that hasn't changed since the previous snapshot shouldn't be packed or stored again; dependencies are stored again only when a lockfile or the set of dependency folders changes.
 - The app's processes should be frozen while the workspace, home folder and App Storage are packed, so a database is captured in a consistent state, and carry on where they were afterwards (also if packing is cut off).
 - On an S3-compatible disk (Laravel Cloud, AWS, any bucket), sandboxes should upload and download their layers straight to and from it through signed links that last 30 minutes, never through the platform's servers, and never holding storage credentials; links never appear in a command line.
@@ -1606,7 +1616,8 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 ## ADMIN-002: Sandbox providers
 
 - Admin should see every sandbox provider (Docker, Blaxel, Runtime Cloud) in Settings → Sandboxes as a list, each with an on/off switch and how many sandboxes it holds, next to a details pane for the selected one.
-- Admin should be able to put the providers in order by dragging them (or with the arrow keys on a provider's handle); new projects run on the first provider that is turned on and has the settings it needs, marked Active. Existing projects move to it the next time they're opened (their files kept), as when SANDBOX_PROVIDER changes.
+- Admin should be able to put the providers in order by dragging them (or with the arrow keys on a provider's handle); new projects run on the first provider that is turned on and has the settings it needs, marked Active. Existing projects move to it right away, their files kept (SBX-005), and the toast says how many are moving.
+- Admin should see the moves under way (project, from and to, what each is doing), ones that failed with why and a Try again button, and files recovered from a provider that had stopped answering, with a Restore button (SBX-013).
 - Admin should be able to change a provider's settings in the details pane (image, CPU and memory, idle timeouts, region, and its API key); keys are stored encrypted and never shown again, and leaving a key blank keeps the saved one.
 - Admin should see what a turned-on provider still needs (an API key, and a workspace for Blaxel) before new projects can run on it.
 - Admin should not be able to turn off the last provider that is on and set up.

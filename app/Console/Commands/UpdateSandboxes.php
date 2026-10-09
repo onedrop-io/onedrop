@@ -35,7 +35,7 @@ class UpdateSandboxes extends Command
             }
 
             try {
-                if ($updater->updateIfOutdated($project)) {
+                if ($updater->updateIfOutdated($project, wait: true, options: ['suspend' => true])) {
                     $updated++;
                     $this->components->info("Updated project {$project->id}.");
 
@@ -56,7 +56,9 @@ class UpdateSandboxes extends Command
 
     protected function suspend(SandboxProvider $provider, Project $project): void
     {
-        $id = $project->sandbox()->value('external_id');
+        $sandbox = $project->sandbox()->first();
+        // A move to a new sandbox suspends it itself.
+        $id = $sandbox?->suspended_at === null ? $sandbox?->external_id : null;
 
         try {
             if ($id) {

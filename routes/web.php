@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\BrandingController;
 use App\Http\Controllers\Admin\DatabaseBackupController;
 use App\Http\Controllers\Admin\HostingProviderController;
 use App\Http\Controllers\Admin\OrganizationController as AdminOrganizationController;
+use App\Http\Controllers\Admin\SandboxMoveController;
 use App\Http\Controllers\Admin\SandboxProviderController;
 use App\Http\Controllers\Admin\ServerController;
 use App\Http\Controllers\Admin\ServerMonitoringController;
@@ -478,6 +479,9 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
         Route::get('sandboxes', [SandboxProviderController::class, 'index'])->name('sandboxes.index');
         Route::put('sandboxes/order', [SandboxProviderController::class, 'reorder'])->name('sandboxes.reorder');
         Route::put('sandboxes/task-copies', [SandboxProviderController::class, 'taskCopies'])->name('sandboxes.task-copies');
+        Route::post('sandboxes/moves/{move}/retry', [SandboxMoveController::class, 'retry'])->name('sandboxes.moves.retry');
+        Route::post('sandboxes/moves/{move}/restore', [SandboxMoveController::class, 'restore'])->name('sandboxes.moves.restore');
+        Route::delete('sandboxes/moves/{move}', [SandboxMoveController::class, 'dismiss'])->name('sandboxes.moves.dismiss');
         Route::put('sandboxes/{provider}', [SandboxProviderController::class, 'update'])->name('sandboxes.update');
 
         Route::get('hosting', [HostingProviderController::class, 'index'])->name('hosting.index');

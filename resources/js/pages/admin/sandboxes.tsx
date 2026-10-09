@@ -1,12 +1,28 @@
-import { Form, Head, router, useForm, usePage } from '@inertiajs/react';
+import {
+    Form,
+    Head,
+    router,
+    useForm,
+    usePage,
+    usePoll,
+} from '@inertiajs/react';
 import { GripVertical } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { FormEvent, KeyboardEvent } from 'react';
+import SandboxMoveController from '@/actions/App/Http/Controllers/Admin/SandboxMoveController';
 import SandboxProviderController from '@/actions/App/Http/Controllers/Admin/SandboxProviderController';
 import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -33,15 +49,54 @@ type Provider = {
     fields: Field[];
 };
 
+type Move = {
+    id: number;
+    project: { id: number; name: string | null };
+    task: string | null;
+    reason: string;
+    from: string | null;
+    to: string | null;
+    phase:
+        | 'starting'
+        | 'snapshotting'
+        | 'creating'
+        | 'restoring'
+        | 'finishing'
+        | 'done'
+        | 'failed';
+    source: 'fresh' | 'snapshot' | 'copy' | 'backup' | 'none' | null;
+    snapshot_at: string | null;
+    old_status: 'removed' | 'waiting' | 'recovered' | 'gone' | null;
+    recovered_at: string | null;
+    error: string | null;
+    message: string | null;
+    started_at: string | null;
+    finished_at: string | null;
+};
+
 const DRAG_TYPE = 'application/x-onedrop-provider';
+
+const PHASES: Record<Move['phase'], string> = {
+    starting: 'Starting',
+    snapshotting: 'Taking a snapshot',
+    creating: 'Making the new sandbox',
+    restoring: 'Restoring files',
+    finishing: 'Finishing',
+    done: 'Moved',
+    failed: 'Failed',
+};
+
+const formatDate = (iso: string) => new Date(iso).toLocaleString();
 
 /** Turn sandbox providers on and off, put them in order, and configure them (ADMIN-002); cap task copies (TASK-003). */
 export default function Sandboxes({
     providers,
     maxTaskCopies,
+    moves,
 }: {
     providers: Provider[];
     maxTaskCopies: number | null;
+    moves: Move[];
 }) {
     const { errors } = usePage().props as { errors: Record<string, string> };
     // Reordering shows at once; the server's order replaces it when the page reloads.
@@ -88,7 +143,7 @@ export default function Sandboxes({
                 <Heading
                     variant="small"
                     title="Sandbox providers"
-                    description="Where each project's code runs. New projects run on the first provider that's on and set up; drag to change the order. Existing projects move to it (files kept) the next time they're opened."
+                    description="Where each project's code runs. New projects run on the first provider that's on and set up; drag to change the order. Existing projects move to it right away, with their files; turn a provider off to move everything off it."
                 />
 
                 <InputError message={errors.enabled ?? errors.providers} />
@@ -212,6 +267,8 @@ export default function Sandboxes({
                 </div>
             </div>
 
+            {moves.length > 0 && <Moves moves={moves} />}
+
             <div className="space-y-6">
                 <Heading
                     variant="small"
@@ -257,6 +314,197 @@ export default function Sandboxes({
                 </Form>
             </div>
         </>
+    );
+}
+
+/** Sandboxes moving to new ones, failed moves, and files recovered from a provider that stopped answering (SBX-005, SBX-013). */
+function Moves({ moves }: { moves: Move[] }) {
+    const active = moves.some(
+        (move) => move.phase !== 'done' && move.phase !== 'failed',
+    );
+    const { start, stop } = usePoll(
+        3000,
+        { only: ['moves', 'providers'] },
+        { autoStart: false },
+    );
+
+    useEffect(() => {
+        if (active) {
+            start();
+        } else {
+            stop();
+        }
+
+        return stop;
+    }, [active, start, stop]);
+
+    const [restoring, setRestoring] = useState<Move | null>(null);
+
+    return (
+        <div className="space-y-4">
+            <Dialog
+                open={restoring !== null}
+                onOpenChange={(open) => !open && setRestoring(null)}
+            >
+                <DialogContent data-test="restore-recovered-dialog">
+                    <DialogHeader>
+                        <DialogTitle>Restore the recovered files?</DialogTitle>
+                        <DialogDescription>
+                            {restoring?.project.name ?? 'The project'} gets a
+                            new sandbox with the files saved from its old one on{' '}
+                            {restoring?.from}. Anything changed in the project
+                            since it moved will be replaced.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button
+                            variant="ghost"
+                            onClick={() => setRestoring(null)}
+                            autoFocus
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={() => {
+                                if (restoring) {
+                                    router.post(
+                                        SandboxMoveController.restore.url(
+                                            restoring.id,
+                                        ),
+                                        {},
+                                        { preserveScroll: true },
+                                    );
+                                }
+
+                                setRestoring(null);
+                            }}
+                            data-test="restore-recovered-confirm"
+                        >
+                            Restore files
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Heading
+                variant="small"
+                title="Moves"
+                description="Sandboxes moving to the provider their project should run on, with their files. A sandbox that doesn't answer is moved from its latest snapshot, and kept until it answers again."
+            />
+
+            <ul
+                className="divide-y rounded-xl border"
+                data-test="sandbox-moves"
+            >
+                {moves.map((move) => (
+                    <li
+                        key={move.id}
+                        className="flex flex-col gap-2 p-4 sm:flex-row sm:items-start sm:justify-between"
+                        data-test={`sandbox-move-${move.id}`}
+                    >
+                        <div className="min-w-0 space-y-1">
+                            <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                                <span className="truncate">
+                                    {move.project.name ??
+                                        `Project ${move.project.id}`}
+                                    {move.task && ` · ${move.task}`}
+                                </span>
+                                <Badge
+                                    variant={
+                                        move.phase === 'failed'
+                                            ? 'destructive'
+                                            : 'outline'
+                                    }
+                                >
+                                    {PHASES[move.phase]}
+                                </Badge>
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                                {move.from ?? 'No sandbox'} → {move.to}
+                                {move.started_at &&
+                                    ` · started ${formatDate(move.started_at)}`}
+                            </p>
+                            {move.phase === 'failed' && move.error && (
+                                <p className="text-sm text-destructive">
+                                    {move.error}
+                                </p>
+                            )}
+                            {move.phase !== 'failed' && move.message && (
+                                <p className="text-sm text-muted-foreground">
+                                    {move.message}
+                                </p>
+                            )}
+                            {move.old_status === 'waiting' && (
+                                <p className="text-sm text-amber-600 dark:text-amber-400">
+                                    {move.from} didn't answer
+                                    {move.source === 'snapshot' &&
+                                        move.snapshot_at &&
+                                        `, so the project got its snapshot from ${formatDate(move.snapshot_at)}`}
+                                    . The old sandbox is kept and checked on
+                                    every 15 minutes; newer files in it are
+                                    saved when it answers.
+                                </p>
+                            )}
+                            {move.old_status === 'recovered' &&
+                                move.recovered_at && (
+                                    <p className="text-sm">
+                                        {move.from} answered again: its newer
+                                        files were saved on{' '}
+                                        {formatDate(move.recovered_at)}.
+                                    </p>
+                                )}
+                        </div>
+
+                        <div className="flex shrink-0 gap-2">
+                            {move.phase === 'failed' && (
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() =>
+                                        router.post(
+                                            SandboxMoveController.retry.url(
+                                                move.id,
+                                            ),
+                                            {},
+                                            { preserveScroll: true },
+                                        )
+                                    }
+                                    data-test={`sandbox-move-${move.id}-retry`}
+                                >
+                                    Try again
+                                </Button>
+                            )}
+                            {move.old_status === 'recovered' && (
+                                <>
+                                    <Button
+                                        size="sm"
+                                        onClick={() => setRestoring(move)}
+                                        data-test={`sandbox-move-${move.id}-restore`}
+                                    >
+                                        Restore
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() =>
+                                            router.delete(
+                                                SandboxMoveController.dismiss.url(
+                                                    move.id,
+                                                ),
+                                                { preserveScroll: true },
+                                            )
+                                        }
+                                        data-test={`sandbox-move-${move.id}-dismiss`}
+                                    >
+                                        Dismiss
+                                    </Button>
+                                </>
+                            )}
+                        </div>
+                    </li>
+                ))}
+            </ul>
+        </div>
     );
 }
 
