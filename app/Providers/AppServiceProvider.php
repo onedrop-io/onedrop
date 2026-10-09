@@ -31,6 +31,7 @@ use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
@@ -91,6 +92,7 @@ class AppServiceProvider extends ServiceProvider
         // Settings admins saved in the app win over `.env` (ADMIN-001, ADMIN-002).
         SystemSetting::flush();
         SystemConfig::apply();
+        Queue::before(fn () => SystemConfig::refresh());
 
         // `/o/{organization}` addresses (ORG-002). Bound explicitly: controllers take it from ResolveOrganization.
         Route::model('organization', Organization::class);

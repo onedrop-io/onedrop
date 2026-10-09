@@ -608,6 +608,7 @@ One-line install on a computer or a server; AWS via Pulumi; Laravel Cloud; admin
 
 ### Decisions
 
+- **2026-10-08: Queue workers re-read the saved admin settings before every job (`SystemConfig::refresh()`), not only when `queue:restart` asks (ADMIN-001, ADMIN-002, ADMIN-007).** Laravel Cloud's managed queue workers don't act on `queue:restart`, so after the Runtime disk was raised to 40 GB in Settings → Sandboxes, sandboxes made by the workers still got 20 GB, twice. Reading them costs one small query per job. The sandbox provider is only rebuilt when its settings changed, so a job keeps the provider it was given.
 - **2026-09-29: The Docker install is one FrankenPHP container** (app and queue worker) with SQLite in a volume; projects run in sibling sandbox containers through the Docker socket.
 - **2026-09-29: A server install only publishes 80/443;** previews and shells are `preview-<id>.<domain>` / `shell-<id>.<domain>` behind the gateway's sign-in check.
 - **2026-09-30: Admin settings saved in the app win over `.env`,** and queue workers pick them up without a restart.

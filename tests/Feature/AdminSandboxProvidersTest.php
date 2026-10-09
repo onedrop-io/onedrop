@@ -219,3 +219,14 @@ test('admins can limit task copies per project, or clear the limit; it wins over
     $this->actingAs($admin)->put(route('admin.sandboxes.task-copies'), ['max_task_copies' => 0])->assertSessionHasErrors('max_task_copies');
     $this->actingAs(User::factory()->create())->put(route('admin.sandboxes.task-copies'), ['max_task_copies' => 1])->assertForbidden();
 })->group('TASK-003', 'ADMIN-002');
+
+test('a queue job uses the settings saved since its worker started, such as a bigger Runtime disk', function () {
+    config(['queue.default' => 'sync', 'sandbox.providers.runtime.disk_mib' => 20480]);
+
+    // Saved by the web app; this "worker" read its settings before.
+    SystemSetting::put(SandboxProviders::SETTING, ['providers' => ['runtime' => ['disk_mib' => 40960]]]);
+
+    dispatch(fn () => cache()->put('disk-seen-by-job', config('sandbox.providers.runtime.disk_mib')));
+
+    expect(cache('disk-seen-by-job'))->toBe(40960);
+})->group('ADMIN-002');

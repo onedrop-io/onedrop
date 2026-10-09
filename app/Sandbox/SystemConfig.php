@@ -17,6 +17,8 @@ class SystemConfig
      */
     public static function apply(): void
     {
+        $sandbox = config('sandbox');
+
         // The name from `.env`, kept for when an admin clears theirs.
         config(['app.default_name' => config('app.default_name', config('app.name'))]);
         $name = SystemSetting::group(Branding::SETTING)['name'] ?? null;
@@ -58,13 +60,26 @@ class SystemConfig
             }
         }
 
-        // Built from config when first used; make it again with the new settings.
-        app()->forgetInstance(SandboxProvider::class);
+        // Built from config when first used; make it again when its settings changed.
+        if (config('sandbox') !== $sandbox) {
+            app()->forgetInstance(SandboxProvider::class);
+        }
     }
 
     /**
-     * Apply settings that were just saved here, and have queue workers (long-running, their config read at start)
-     * restart after their current job so they use them too.
+     * Apply what's saved now, for a queue worker before each job: workers run for a long time, and Laravel Cloud's
+     * managed queue workers don't act on `queue:restart`, so they'd otherwise keep the settings they started with
+     * (a new disk size never reached the sandboxes they create).
+     */
+    public static function refresh(): void
+    {
+        SystemSetting::flush();
+        static::apply();
+    }
+
+    /**
+     * Apply settings that were just saved here, and have queue workers restart after their current job so they use
+     * them too (workers that don't also re-read them before each job, refresh()).
      */
     public static function saved(): void
     {
