@@ -7,6 +7,8 @@ use App\Sandbox\ExecResult;
 use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxProvider;
 use App\Sandbox\SandboxSpec;
+use App\Sandbox\SandboxWaitLimit;
+use App\Sandbox\TemporarySandboxException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\RequestException;
@@ -478,12 +480,29 @@ class BlaxelSandboxProvider implements SandboxProvider
      */
     protected function call(PendingRequest $client, string $method, string $path, array $data, int $timeout): Response
     {
-        $client->timeout($timeout)->retry(3, fn (int $attempt) => min(8000, 500 * 2 ** $attempt), fn (Throwable $e) => $e instanceof ConnectionException
-            || ($e instanceof RequestException && in_array($e->response->status(), [429, 502, 503, 504], true)), throw: false);
+        // In a web request or a move's job, every try fits in the time it has left (SandboxWaitLimit), as on Runtime.
+        $limit = app(SandboxWaitLimit::class);
+        $left = fn (): float => $limit->secondsLeft() ?? PHP_INT_MAX;
+
+        if ($left() < 1) {
+            throw new TemporarySandboxException(RuntimeSandboxProvider::NO_ANSWER);
+        }
+
+        $client->timeout($timeout)
+            ->withMiddleware(fn (callable $handler) => fn ($request, array $options) => $handler($request, [
+                ...$options,
+                'timeout' => max(0.5, min($options['timeout'], $left())),
+            ]))
+            ->retry(3, fn (int $attempt) => (int) min(8000, 500 * 2 ** $attempt, ($left() - 1) * 1000), fn (Throwable $e) => $left() >= 2 && ($e instanceof ConnectionException
+                || ($e instanceof RequestException && in_array($e->response->status(), [429, 502, 503, 504], true))), throw: false);
 
         try {
             return in_array($method, ['get', 'delete'], true) ? $client->{$method}($path, $data) : $client->asJson()->{$method}($path, $data);
         } catch (ConnectionException) {
+            if ($left() < 1) {
+                throw new TemporarySandboxException(RuntimeSandboxProvider::NO_ANSWER);
+            }
+
             throw new SandboxException("Couldn't reach Blaxel. Check https://status.blaxel.ai and try again.");
         }
     }

@@ -2,8 +2,11 @@
 
 use App\Sandbox\AppProcesses;
 use App\Sandbox\Providers\BlaxelSandboxProvider;
+use App\Sandbox\Providers\RuntimeSandboxProvider;
 use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxSpec;
+use App\Sandbox\SandboxWaitLimit;
+use App\Sandbox\TemporarySandboxException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
@@ -278,4 +281,26 @@ test('copying in uploads an archive to an absolute path and unpacks it', functio
     Http::assertSent(fn (Request $request) => str_contains($request->url(), '/filesystem-multipart/initiate//tmp/onedrop-copy-'));
     Http::assertSent(fn (Request $request) => str_ends_with($request->url(), '/complete') && $request['parts'] === []);
     Http::assertSent(fn (Request $request) => $request->url() === BL_SBX.'/process' && str_contains($request['command'], "'/workspace'"));
+})->group('SBX-004');
+
+test('in a web request, a command waits for Blaxel only as long as the request has left', function () {
+    app(SandboxWaitLimit::class)->start(15);
+    $timeouts = [];
+    Http::fake(function (Request $request, array $options) use (&$timeouts) {
+        $timeouts[] = $options['timeout'];
+
+        return str_ends_with($request->url(), '/process') ? Http::response(blaxelProcess(0, 'ok')) : Http::response(blaxelSandbox());
+    });
+
+    expect($this->blaxel->exec('onedrop-project-1-x', ['true'])->output)->toBe('ok')
+        ->and(max($timeouts))->toBeLessThanOrEqual(15);
+})->group('SBX-004');
+
+test('in a web request with no time left, nothing is sent to Blaxel', function () {
+    app(SandboxWaitLimit::class)->start(0);
+    Http::fake();
+
+    expect(fn () => $this->blaxel->exec('onedrop-project-1-x', ['true']))->toThrow(TemporarySandboxException::class, RuntimeSandboxProvider::NO_ANSWER);
+
+    Http::assertNothingSent();
 })->group('SBX-004');
