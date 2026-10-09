@@ -103,7 +103,7 @@ class ResolveSocialUser
     {
         $scopes = $identity instanceof TwoUser ? $identity->approvedScopes : [];
 
-        if ($provider !== SocialProvider::GitHub || ! in_array(SocialProvider::GITHUB_PACKAGES_SCOPE, $scopes, true) || blank($identity->token ?? null)) {
+        if ($provider !== SocialProvider::GitHub || ! in_array(SocialProvider::GITHUB_PACKAGES_SCOPE, $scopes, true) || blank($identity->token)) {
             return ['token' => null, 'scopes' => null];
         }
 

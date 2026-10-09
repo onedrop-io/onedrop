@@ -65,17 +65,16 @@ class SecurityController extends Controller
     {
         $accounts = $user->socialAccounts()->get()->keyBy(fn (SocialAccount $account) => $account->provider->value);
 
-        return array_values(collect(SocialProvider::cases())
-            ->filter(fn (SocialProvider $provider) => $provider->isConfigured() || $accounts->has($provider->value))
-            ->map(fn (SocialProvider $provider) => [
-                'provider' => $provider->value,
-                'label' => $provider->label(),
-                'account' => $accounts->has($provider->value)
-                    ? ['id' => $accounts[$provider->value]->id, 'email' => $accounts[$provider->value]->email]
-                    : null,
-                'packages' => $provider === SocialProvider::GitHub ? $this->packages($accounts->get($provider->value)) : null,
-            ])
-            ->all());
+        $providers = array_filter(SocialProvider::cases(), fn (SocialProvider $provider) => $provider->isConfigured() || $accounts->has($provider->value));
+
+        return array_values(array_map(fn (SocialProvider $provider) => [
+            'provider' => $provider->value,
+            'label' => $provider->label(),
+            'account' => $accounts->has($provider->value)
+                ? ['id' => $accounts[$provider->value]->id, 'email' => $accounts[$provider->value]->email]
+                : null,
+            'packages' => $provider === SocialProvider::GitHub ? $this->packages($accounts->get($provider->value)) : null,
+        ], $providers));
     }
 
     /**
