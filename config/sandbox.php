@@ -18,7 +18,7 @@ return [
     'provider' => env('SANDBOX_PROVIDER', 'docker'),
 
     // Seconds a web request may wait on the sandbox provider in all, retries included, before saying the sandbox
-    // didn't answer (Runtime Cloud only). Laravel Cloud gives up on a request after 20 seconds; 0 means no limit.
+    // didn't answer (Runtime Cloud and Blaxel). Laravel Cloud gives up on a request after 20 seconds; 0 means no limit.
     'web_wait_seconds' => (int) env('SANDBOX_WEB_WAIT_SECONDS', 15),
 
     'providers' => [

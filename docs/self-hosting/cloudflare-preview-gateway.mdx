@@ -49,6 +49,13 @@ You need your domain's DNS on Cloudflare, with a proxied wildcard record (`*.<do
     npx wrangler secret put GATEWAY_SECRET
     ```
   </Step>
+  <Step title="Block names that aren't yours">
+    The wildcard record sends every name under your domain to the Worker, including ones bots make up (`analytics.<domain>`, `kanban.<domain>`), and each counts against the Workers free plan's 100,000 requests a day. When it runs out, every preview and Shell answers error 1027 until midnight UTC. Add a WAF custom rule (**Security → WAF → Custom rules**) with the action **Block**, which runs before the Worker, so blocked requests don't count:
+    ```txt
+    (ends_with(http.host, ".<domain>") and not (http.host in {"www.<domain>" "relay.<domain>" "domains.<domain>" "docs.<domain>"} or starts_with(http.host, "preview-") or starts_with(http.host, "shell-") or http.host wildcard "*-*.<domain>"))
+    ```
+    Add any other subdomain you use to the list.
+  </Step>
   <Step title="Turn it on in OneDrop">
     On Laravel Cloud, set `SANDBOX_GATEWAY_DOMAIN` to your domain and `SANDBOX_GATEWAY_SECRET` to the same secret (as a Secrets Manager secret), then redeploy.
   </Step>
