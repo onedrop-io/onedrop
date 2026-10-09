@@ -336,6 +336,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be able to type `owner/name`, paste a GitHub link (a `/tree/<branch>` link imports that branch), or any HTTPS git URL, and send it to create a project from that repository.
 - When they've connected GitHub (the GitHub App), user should see their repositories (across their installations, most recently pushed first, private ones marked, empty ones left out) suggested as they type, and be able to pick one.
 - When the GitHub App is set up but they haven't connected it, user should see "Connect GitHub" to import private repositories, which comes back to the new-project page with the Repository field open.
+- Once connected, user should see "Add it on GitHub" to install the app on another account or give it more repositories, when the one they want isn't suggested.
 - The prompt should be optional with a repository; left blank, the agent is asked to get the imported app running in the preview.
 - The project should be named after the repository, connected to it as its remote (through the GitHub App when the user can reach it that way, no token kept; otherwise without a token), and the repository's branch (its default one unless the link names another) should be brought into the sandbox before the agent starts.
 - A repository that can't be reached (private without GitHub connected, or missing), has no commits, or isn't HTTPS should be refused with the reason, and no project made.

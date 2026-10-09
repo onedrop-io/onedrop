@@ -166,7 +166,18 @@ export default function RepositoryPicker({
                         to import your private ones.
                     </>
                 ) : github.signed_in ? (
-                    'Pick one of your repositories, or paste any public repository’s link.'
+                    <>
+                        Pick one of your repositories, or paste any public
+                        repository’s link. Missing one?{' '}
+                        <a
+                            href={github.connect_url ?? undefined}
+                            className="text-foreground underline underline-offset-2"
+                            data-test="repository-add-github"
+                        >
+                            Add it on GitHub
+                        </a>
+                        .
+                    </>
                 ) : (
                     'Paste a public repository’s link.'
                 )}
