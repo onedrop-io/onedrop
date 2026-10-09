@@ -48,7 +48,12 @@ class MoveSandbox implements ShouldBeUnique, ShouldQueue
 
     public function handle(SandboxUpdater $updater, ?SandboxWaitLimit $limit = null): void
     {
-        $limit?->start(MoveProjectSandbox::WAIT_SECONDS);
+        // Provider calls end in time for a Flex queue job, even one run inside a request or another job (a sync queue).
+        ($limit ?? new SandboxWaitLimit)->during(MoveProjectSandbox::WAIT_SECONDS, fn () => $this->move($updater));
+    }
+
+    protected function move(SandboxUpdater $updater): void
+    {
         Cache::forget("sandbox-move-error:{$this->project->id}");
 
         try {

@@ -70,6 +70,10 @@ class AppServiceProvider extends ServiceProvider
                     'image' => config('sandbox.providers.e2b.image'),
                     'idle_seconds' => config('sandbox.providers.e2b.idle_seconds'),
                     'nested_docker' => config('sandbox.providers.e2b.nested_docker'),
+                    'source_image' => config('sandbox.providers.e2b.source_image'),
+                    'vcpu' => config('sandbox.providers.e2b.vcpu'),
+                    'memory_mib' => config('sandbox.providers.e2b.memory_mib'),
+                    'disk_mib' => config('sandbox.providers.e2b.disk_mib'),
                     'private_previews' => filled(config('sandbox.gateway_domain')) && filled(config('sandbox.gateway_secret')),
                 ]),
                 // Only for projects moved to a computer (DESK-010); never an install's provider for new projects.

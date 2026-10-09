@@ -45,8 +45,13 @@ class UpdateSandbox implements ShouldBeUnique, ShouldQueue
 
     public function handle(SandboxUpdater $updater, SandboxWaitLimit $limit): void
     {
+        // Provider calls end in time for a Flex queue job, even one run inside a request or another job (a sync queue).
+        $limit->during(MoveProjectSandbox::WAIT_SECONDS, fn () => $this->run($updater));
+    }
+
+    protected function run(SandboxUpdater $updater): void
+    {
         // A sandbox that stopped answering can't hold this job past a Flex queue's 90 seconds.
-        $limit->start(MoveProjectSandbox::WAIT_SECONDS);
         $project = $this->project->fresh();
         $sandbox = $project?->sandbox()->first();
 

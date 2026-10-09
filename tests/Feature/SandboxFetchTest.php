@@ -1,6 +1,8 @@
 <?php
 
+use App\Enums\GitSyncStatus;
 use App\Jobs\ImportRepository;
+use App\Jobs\RunAgentTask;
 use App\Models\AgentConnection;
 use App\Models\Message;
 use App\Models\Project;
@@ -15,6 +17,8 @@ use Illuminate\Http\Client\Request as HttpRequest;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Str;
 
 /*
  * A GitHub App repository's pull is fetched by the sandbox itself, in the background (GIT-004, PRJ-009). The fake
@@ -48,6 +52,7 @@ beforeEach(function () {
     chmod("{$this->root}/bin/timeout", 0755);
 
     $this->runInBackground = true;
+    $this->doneUrl = null;
     $this->gitRequests = [];
     $this->provider = new FakeSandboxProvider;
     $this->provider->execUsing = function (array $command, array $env) {
@@ -67,6 +72,12 @@ beforeEach(function () {
 
         if ($command[0] !== 'bash' || ($command[3] ?? null) !== 'fetch') {
             return new ExecResult(0, '');
+        }
+
+        // Where it says it's done: noted here, called by the test (the script would POST to it).
+        if (isset($env['ONEDROP_FETCH_DONE_URL'])) {
+            $this->doneUrl = $env['ONEDROP_FETCH_DONE_URL'];
+            unset($env['ONEDROP_FETCH_DONE_URL']);
         }
 
         // The background fetch: run now, or leave it "still running".
@@ -137,15 +148,47 @@ test('a fetch that ran out of time, or stopped without finishing, says so', func
     'stopped' => ['running', '', 'The download stopped before it finished.'],
 ])->group('GIT-004');
 
-test('an import checks back every few seconds while the sandbox downloads, in short attempts', function () {
+test('an import doesn\'t check back while the sandbox downloads: the sandbox says when it\'s done, and the chain waits for it', function () {
+    Queue::fake();
     $this->runInBackground = false;
+    $this->project->update(['git_sync_status' => GitSyncStatus::Pulling]);
     $message = Message::factory()->for($this->project)->create();
-    $job = (new ImportRepository($this->project, $message, 'main'))->withFakeQueueInteractions();
+    $job = (new ImportRepository($this->project, $message, 'main'))->chain([new RunAgentTask($this->project, $message)])->withFakeQueueInteractions();
 
     $job->handle(app(GitRemote::class));
 
-    $job->assertReleased(delay: ImportRepository::CHECK_SECONDS);
-    expect($job->retryUntil()->getTimestamp())->toBeGreaterThan(now()->addMinutes(20)->getTimestamp());
+    // Not put back to check again; the agent's run waits with the message, and one safety check is queued.
+    $job->assertNotReleased();
+    expect($job->chained)->toBe([])
+        ->and($message->fresh()->meta['import_chain'])->toHaveCount(1)
+        ->and($this->doneUrl)->toContain("/sandbox-events/projects/{$this->project->id}/fetched");
+    Queue::assertPushed(ImportRepository::class, fn (ImportRepository $next) => $next->check === 1 && $next->delay !== null);
+
+    // The sandbox finishes and says so: the import carries on, and so does the chain.
+    $fetch = collect($this->provider->executed)->last(fn ($run) => $run['detach']);
+    $this->runInBackground = true;
+    $this->provider->exec('ctr-1', $fetch['command'], $fetch['env'], detach: true);
+    $this->post(Str::after($this->doneUrl, rtrim((string) config('sandbox.callback_url'), '/')))->assertNoContent();
+
+    Queue::assertPushed(ImportRepository::class, fn (ImportRepository $next) => $next->check === ImportRepository::CALLED_BACK);
+    $calledBack = (new ImportRepository($this->project, $message, 'main', ImportRepository::CALLED_BACK))->withFakeQueueInteractions();
+    $calledBack->handle(app(GitRemote::class));
+
+    expect($calledBack->chained)->toHaveCount(1)
+        ->and($message->fresh()->meta)->not->toHaveKey('import_chain')
+        ->and($this->project->fresh()->git_sync_status)->toBeNull();
+})->group('PRJ-009');
+
+test('an import whose sandbox never says it\'s done fails at the last safety check', function () {
+    $this->runInBackground = false;
+    $this->project->update(['git_sync_status' => GitSyncStatus::Pulling]);
+    $message = Message::factory()->for($this->project)->create();
+    app(GitRemote::class)->pullStep($this->project, 'main');
+
+    $job = (new ImportRepository($this->project, $message, 'main', ImportRepository::LAST_CHECK))->withFakeQueueInteractions();
+    $job->handle(app(GitRemote::class));
+
+    $job->assertFailed();
 })->group('PRJ-009');
 
 test('remotes whose token can\'t be narrowed are still fetched on the platform', function () {

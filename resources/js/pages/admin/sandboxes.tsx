@@ -49,6 +49,12 @@ type Provider = {
     fields: Field[];
 };
 
+type TemplateBuild = {
+    status: 'building' | 'ready' | 'error';
+    reason: string | null;
+    started_at: string | null;
+};
+
 type Move = {
     id: number;
     project: { id: number; name: string | null };
@@ -93,10 +99,12 @@ export default function Sandboxes({
     providers,
     maxTaskCopies,
     moves,
+    templateBuilds,
 }: {
     providers: Provider[];
     maxTaskCopies: number | null;
     moves: Move[];
+    templateBuilds: Record<string, TemplateBuild>;
 }) {
     const { errors } = usePage().props as { errors: Record<string, string> };
     // Reordering shows at once; the server's order replaces it when the page reloads.
@@ -262,6 +270,7 @@ export default function Sandboxes({
                         <ProviderDetails
                             key={provider.name}
                             provider={provider}
+                            build={templateBuilds[provider.name] ?? null}
                         />
                     )}
                 </div>
@@ -508,7 +517,13 @@ function Moves({ moves }: { moves: Move[] }) {
     );
 }
 
-function ProviderDetails({ provider }: { provider: Provider }) {
+function ProviderDetails({
+    provider,
+    build,
+}: {
+    provider: Provider;
+    build: TemplateBuild | null;
+}) {
     const form = useForm<Record<string, string | number | boolean>>(
         Object.fromEntries(
             provider.fields.map((field) => [
@@ -551,6 +566,25 @@ function ProviderDetails({ provider }: { provider: Provider }) {
                     {provider.description}
                 </p>
             </div>
+
+            {build && (
+                <p
+                    className={cn(
+                        'text-sm',
+                        build.status === 'error'
+                            ? 'text-destructive'
+                            : 'text-muted-foreground',
+                    )}
+                    data-test={`provider-${provider.name}-build`}
+                >
+                    {build.status === 'building' &&
+                        'Building the sandbox image (about 2 minutes). New projects can run here once it’s ready; reload to check.'}
+                    {build.status === 'ready' &&
+                        `Sandbox image built${build.started_at ? ` ${new Date(build.started_at).toLocaleString()}` : ''}. Sandboxes move to it once their projects sit unused.`}
+                    {build.status === 'error' &&
+                        `The sandbox image didn’t build: ${build.reason ?? 'no reason given'}. Save again to retry.`}
+                </p>
+            )}
 
             {provider.missing.length > 0 && (
                 <p className="text-sm text-amber-600 dark:text-amber-400">

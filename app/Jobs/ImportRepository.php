@@ -9,8 +9,8 @@ use App\Models\Project;
 use App\Sandbox\Agents\AgentQueue;
 use App\Sandbox\GitException;
 use App\Sandbox\GitRemote;
+use App\Sandbox\ProjectSnapshots;
 use App\Sandbox\SandboxException;
-use DateTimeInterface;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Str;
@@ -23,24 +23,20 @@ class ImportRepository implements ShouldQueue
     /** Long enough for a large repository's fetch on the platform (GitRemote::FETCH_TIMEOUT) and copying it in. */
     public int $timeout = 1500;
 
-    /** A fetch the sandbox runs itself is checked on every few seconds, each check a short attempt. */
-    public const CHECK_SECONDS = 5;
+    /** The safety checks on a fetch the sandbox runs itself: after 15 minutes, and the last after 30. */
+    public const LAST_CHECK = 2;
 
-    /** Any error other than checking back ends it. */
-    public int $maxExceptions = 1;
+    /** Queued by the sandbox's own call that the fetch is over, not by a safety check. */
+    public const CALLED_BACK = 3;
+
+    public const CHECK_MINUTES = 15;
+
+    public int $tries = 1;
 
     /**
-     * Create a new job instance.
+     * @param  int  $check  0 for the import itself, 1..LAST_CHECK for a safety check, CALLED_BACK when the sandbox said it's done
      */
-    public function __construct(public Project $project, public Message $message, public string $branch) {}
-
-    /**
-     * Checking back on the sandbox's fetch makes many attempts; give up once a fetch couldn't still be running.
-     */
-    public function retryUntil(): DateTimeInterface
-    {
-        return now()->addSeconds(GitRemote::FETCH_TIMEOUT + 600);
-    }
+    public function __construct(public Project $project, public Message $message, public string $branch, public int $check = 0) {}
 
     /**
      * Bring the repository's branch into the new project's empty sandbox (PRJ-009) before the agent's first run.
@@ -48,19 +44,58 @@ class ImportRepository implements ShouldQueue
      */
     public function handle(GitRemote $remote): void
     {
-        try {
-            if (! $remote->pullStep($this->project->fresh() ?? $this->project, $this->branch)) {
-                $this->release(self::CHECK_SECONDS);
+        $project = $this->project->fresh() ?? $this->project;
 
-                return;
-            }
+        // A safety check or the sandbox's call, after the import was already brought in (or failed).
+        if ($this->check > 0 && $project->git_sync_status !== GitSyncStatus::Pulling) {
+            return;
+        }
+
+        try {
+            $done = $remote->pullStep($project, $this->branch, ProjectSnapshots::callbackUrl('sandbox-events.fetched', [
+                'project' => $project, 'job' => 'import', 'message' => $this->message->id, 'branch' => $this->branch,
+            ]));
         } catch (GitException|SandboxException $e) {
             $this->fail($e);
 
             return;
         }
 
-        $this->project->update(['git_sync_status' => null, 'git_sync_error' => null, 'git_synced_at' => now()]);
+        if (! $done) {
+            $this->waitForTheSandbox();
+
+            return;
+        }
+
+        // Carry on with the rest of the chain (the agent's first run), set aside while the sandbox fetched.
+        $meta = $this->message->fresh()->meta ?? [];
+
+        if (isset($meta['import_chain'])) {
+            $this->chained = $meta['import_chain'];
+            unset($meta['import_chain']);
+            $this->message->update(['meta' => $meta]);
+        }
+
+        $project->update(['git_sync_status' => null, 'git_sync_error' => null, 'git_synced_at' => now()]);
+    }
+
+    /**
+     * The sandbox fetches in the background and says when it's done (SandboxWorkController queues this again). Until
+     * then the rest of the chain waits with the message, so the agent never starts on an empty project; a safety
+     * check after 15 and 30 minutes catches a call that never arrives.
+     */
+    protected function waitForTheSandbox(): void
+    {
+        if ($this->chained !== []) {
+            $this->message->update(['meta' => [...($this->message->fresh()->meta ?? []), 'import_chain' => $this->chained]]);
+            $this->chained = [];
+        }
+
+        if ($this->check < self::LAST_CHECK) {
+            self::dispatch($this->project, $this->message, $this->branch, $this->check + 1)->delay(now()->addMinutes(self::CHECK_MINUTES));
+        } elseif ($this->check === self::LAST_CHECK) {
+            $this->fail(new GitException(__('The download didn\'t finish in time. Try again.')));
+        }
     }
 
     /**

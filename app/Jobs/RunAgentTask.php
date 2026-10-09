@@ -35,10 +35,8 @@ class RunAgentTask implements ShouldQueue
     {
         $conversation = $this->message->conversation();
 
-        // Whatever it did in a sandbox being moved would miss the new one: it starts there once the move is done.
-        if (($sandbox = $conversation->agentSandbox()) && SandboxMover::isMoving($sandbox)) {
-            self::dispatch($this->project, $this->message)->delay(now()->addSeconds(MoveProjectSandbox::CHECK_SECONDS));
-
+        // Whatever it did in a sandbox being moved would miss the new one: the move runs it once it's over.
+        if (($sandbox = $conversation->agentSandbox()) && ($move = SandboxMover::moving($sandbox)) && app(SandboxMover::class)->defer($move, $this->message)) {
             return;
         }
         $conversation->update(['status' => ProjectStatus::Working]);

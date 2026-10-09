@@ -149,13 +149,10 @@ npx withruntime sandbox stop <id>
   <Step title="Create an API key">
     Create a key in the [E2B dashboard](https://e2b.dev/dashboard) and set it as `E2B_API_KEY`, or enter it in **Settings → Sandboxes → E2B**.
   </Step>
-  <Step title="Build the template on E2B">
-    ```bash
-    SANDBOX_PROVIDER=e2b php artisan sandbox:build-image
-    ```
-    This makes E2B's `onedrop-sandbox` template from the published sandbox image (`ghcr.io/onedrop-io/onedrop-sandbox:latest`), with `start.sh` already running, so a new sandbox starts in about 3 seconds. It needs Node.js, and builds in about 2 minutes. The image is the one the `images` workflow published from `main`, not your working copy of `docker/sandbox/`.
+  <Step title="Let it build its image">
+    Saving E2B's key in **Settings → Sandboxes** has E2B build the `onedrop-sandbox` template from the published sandbox image (`ghcr.io/onedrop-io/onedrop-sandbox:latest`), with `start.sh` already running, so a new sandbox starts in about 3 seconds. It takes about 2 minutes; E2B's panel says when it's ready (open it again to check), and E2B can't be put first until then. To start a build from a terminal instead: `SANDBOX_PROVIDER=e2b php artisan sandbox:build-image`.
 
-    To do this automatically, add an `E2B_API_KEY` secret to the GitHub repository. The **e2b image** workflow then rebuilds the template each time the `images` workflow publishes a new sandbox image.
+    The image is the one the `images` workflow published from `main`, not your working copy of `docker/sandbox/`. After each new one, the **sandbox image** workflow tells OneDrop, which has E2B build again at your size. It proves it's your repository's workflow with a GitHub OIDC token, so there's nothing to set up for it; set a repository variable `ONEDROP_URL` if your install isn't at `https://onedrop.io`, and `SANDBOX_IMAGES_REPOSITORY` in OneDrop if your repository isn't `onedrop-io/onedrop`.
   </Step>
   <Step title="Turn it on">
     In **Settings → Sandboxes**, turn E2B on. Put it first to move projects there, or second as the fallback: turning off the provider above it moves everything to it ([Switch providers](#switch-providers)).
@@ -167,7 +164,7 @@ How it differs from Runtime:
 - **Docker inside sandboxes** is on by default. Turn it off in E2B's settings if you don't need it; existing sandboxes move to new ones without it.
 - **Previews and Shells.** OneDrop hands the link only to people allowed to see the project. Behind the [Cloudflare gateway](/self-hosting/cloudflare-preview-gateway) they're private: a sandbox's ports answer only with its traffic token, which the Worker sends as E2B's header, WebSockets included. Without it (no gateway, or Caddy on a server) they're public, at the sandbox's long random address, because a browser can't send that header.
 - **Idle sandboxes pause.** After 10 minutes with nothing happening (`E2B_IDLE_SECONDS`), a sandbox pauses with its memory and running containers kept. The next visit or command wakes it in about a second. An open workspace, the agent's events and gateway visits put the pause off.
-- **Size** is fixed by the template (`E2B_VCPU`, `E2B_MEMORY_MIB`, `E2B_DISK_MIB`: 2 vCPUs, 4 GB, 20 GB free by default). Rebuild the template after changing them.
+- **Size.** Set vCPUs, memory and free disk in E2B's settings (4 vCPUs, 8 GB and 20 GB by default; E2B allows up to 8 vCPUs and 8 GB). Saving a new size builds the image again, and sandboxes move to the new size once their projects sit unused for 10 minutes.
 - **Running time.** E2B stops a sandbox that runs without a break for 24 hours on its Pro plan, or 1 hour on its free plan. Each idle pause starts the clock again.
 - **Not available:** SSH (Tools → Developer → SSH) and Tailscale publishing.
 
@@ -187,12 +184,12 @@ A move keeps the project's files (uncommitted changes too), dependencies, App St
 | Old sandbox                     | The new sandbox gets                                                       | The old sandbox                                                            |
 | ------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
 | Answers                         | A fresh [snapshot](#project-snapshots), taken once the agent's turn ends   | Deleted once the new one has every file                                    |
-| Doesn't answer                  | The project's latest snapshot, or its [code backup](#code-backups) without one | Kept, and checked on every 15 minutes for 7 days                       |
+| Doesn't answer                  | The project's latest snapshot, or its [code backup](#code-backups) without one | Kept, and checked on when you open Settings → Sandboxes, for 7 days     |
 | Doesn't answer, nothing stored  | Nothing: the move fails and the project stays where it is                  | Kept                                                                       |
 
 When a project comes back from an earlier snapshot, its chat says from when. If the old sandbox answers again later, its files are saved as a *recovered* snapshot (only if they're newer than what the project got) and the old sandbox is deleted. An admin can then restore them from **Settings → Sandboxes**, which replaces whatever changed since the move, or dismiss them.
 
-Moves are made of short queue jobs, each under a minute, so they run on Laravel Cloud's Flex queues (90 seconds a job). Packing and unpacking files happens inside the sandboxes in the background, and a job checks on it every 5 seconds. A typical project moves in about a minute. Messages sent to the agent while its sandbox moves start in the new sandbox once it's ready. A move that's still not done after an hour is given up, and the project stays on its old sandbox.
+Moves are made of short queue jobs, each under a minute, so they run on Laravel Cloud's Flex queues (90 seconds a job). Packing and unpacking files happens inside the sandboxes in the background, and each sandbox calls OneDrop when it's done, so nothing waits or checks back (a safety check after 15 and 30 minutes catches a call that never arrives). A typical project moves in about a minute. Messages sent to the agent while its sandbox moves start in the new sandbox once it's ready. A move that's still not done after an hour is given up, and the project stays on its old sandbox.
 
 Build the image on the new provider before moving anything to it (`php artisan sandbox:build-image`). Moves need a [snapshot disk](#project-snapshots) both providers can reach, which means a bucket for remote providers. With a local disk and a remote provider, the files are copied through the platform instead, which can take longer than a Flex queue job allows.
 
@@ -266,7 +263,7 @@ Besides the git backup, OneDrop keeps each project's whole state outside its san
 | `home`      | `/home/sandbox` without caches: the agent's history, and a database or tools the agent set up there |
 | `storage`   | App Storage                                                                                         |
 
-Snapshots are taken after every agent turn, once a project has gone unused for 10 minutes (so work done only in the Shell or by the app itself is kept too), before an update or a move gives a project a new sandbox, and daily at 04:00 for projects used that day (`php artisan sandbox:snapshot`). Each layer is fingerprinted in the sandbox first, and only layers that changed are packed and stored again. With a bucket, the sandbox packs and uploads them in the background, and a queue job checks on it every few seconds, so no job runs long however large the project. The app's processes are frozen while the stateful layers are packed (usually well under a second), so a database is captured in a consistent state. Layers are compressed with zstd, or gzip on images without it.
+Snapshots are taken after every agent turn, once a project has gone unused for 10 minutes (so work done only in the Shell or by the app itself is kept too), before an update or a move gives a project a new sandbox, and daily at 04:00 for projects used that day (`php artisan sandbox:snapshot`). Each layer is fingerprinted in the sandbox first, and only layers that changed are packed and stored again. With a bucket, the sandbox packs and uploads them in the background and calls OneDrop when it's done, so no job waits on it however large the project. The app's processes are frozen while the stateful layers are packed (usually well under a second), so a database is captured in a consistent state. Layers are compressed with zstd, or gzip on images without it.
 
 Updates and moves restore the new sandbox from a snapshot instead of copying files through the platform. A sandbox that's gone, or doesn't answer, gets its latest snapshot back with `php artisan sandbox:recreate <project> --keep-files`; one that doesn't answer is kept and checked on, as in a [provider switch](#switch-providers).
 

@@ -1,20 +1,28 @@
 <?php
 
+use App\Jobs\BuildSandboxTemplate;
 use App\Models\Sandbox;
+use App\Models\SystemSetting;
+use App\Models\User;
 use App\Sandbox\Gateway;
+use App\Sandbox\GitHubActionsToken;
 use App\Sandbox\Providers\E2bSandboxProvider;
 use App\Sandbox\Providers\FakeSandboxProvider;
 use App\Sandbox\Providers\RuntimeSandboxProvider;
 use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxProvider;
 use App\Sandbox\SandboxSpec;
+use App\Sandbox\SandboxTemplates;
 use App\Sandbox\SandboxWaitLimit;
 use App\Sandbox\TemporarySandboxException;
+use Firebase\JWT\JWT;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Sleep;
+use Inertia\Testing\AssertableInertia;
 
 const E2B_API = 'https://api.e2b.app';
 const E2B_ID = 'i3orqfjc7ynxe7bus57zo';
@@ -283,27 +291,81 @@ test('using a sandbox on E2B keeps it awake; other providers\' sandboxes aren\'t
     expect($provider->touched)->toBe(['e2b-1']);
 })->group('SBX-014');
 
-test('building on E2B makes a template of the published sandbox image, with the key in the environment', function () {
-    config(['sandbox.provider' => 'e2b', 'sandbox.providers.e2b.api_key' => 'e2b-secret']);
-    Process::fake();
+test('building on E2B asks E2B to make the template from the published sandbox image, at the configured size', function () {
+    config(['sandbox.provider' => 'e2b', 'sandbox.providers.e2b.api_key' => 'e2b-secret', 'sandbox.providers.e2b.vcpu' => 4, 'sandbox.providers.e2b.memory_mib' => 8192]);
+    Http::fake([
+        E2B_API.'/v3/templates' => Http::response(['templateID' => 'tpl1', 'buildID' => 'build-8']),
+        E2B_API.'/v2/templates/tpl1/builds/build-8' => Http::response('', 202),
+    ]);
 
-    $this->artisan('sandbox:build-image')->assertSuccessful();
+    $this->artisan('sandbox:build-image')->assertSuccessful()->expectsOutputToContain('E2B is building onedrop-sandbox');
 
-    Process::assertRan(fn ($process) => $process->command === ['npm', 'ci', '--silent'] && str_ends_with($process->path, 'infra/e2b'));
-    Process::assertRan(fn ($process) => $process->command === ['node', 'build.mjs']
-        && $process->environment['E2B_API_KEY'] === 'e2b-secret'
-        && $process->environment['E2B_TEMPLATE'] === 'onedrop-sandbox'
-        && $process->environment['E2B_SOURCE_IMAGE'] === 'ghcr.io/onedrop-io/onedrop-sandbox:latest'
-        && $process->environment['E2B_MEMORY_MB'] === '4096');
+    Http::assertSent(fn (Request $request) => $request->url() === E2B_API.'/v3/templates'
+        && $request->hasHeader('X-API-Key', 'e2b-secret')
+        && $request['name'] === 'onedrop-sandbox' && $request['cpuCount'] === 4 && $request['memoryMB'] === 8192);
+    Http::assertSent(fn (Request $request) => $request->url() === E2B_API.'/v2/templates/tpl1/builds/build-8'
+        && $request['fromImage'] === 'ghcr.io/onedrop-io/onedrop-sandbox:latest'
+        && $request['startCmd'] === '/opt/onedrop/start.sh'
+        && $request['steps'][0] === ['type' => 'USER', 'args' => ['sandbox'], 'force' => false]);
+    expect(SystemSetting::group(SandboxTemplates::SETTING)['e2b']['build_id'])->toBe('build-8');
+})->group('SBX-014');
+
+test('saving a new E2B size builds its image again; saving the same doesn\'t; Settings shows how the build is doing', function () {
+    Queue::fake([BuildSandboxTemplate::class]);
+    fakeSandboxImages();
+    config(['sandbox.provider' => 'runtime', 'sandbox.providers.runtime.api_key' => 'rt-key']);
+    // This file stops requests nothing fakes; the page would otherwise ask Vite's SSR server.
+    config(['inertia.ssr.enabled' => false]);
+    $admin = User::factory()->admin()->create();
+
+    $this->actingAs($admin)->put(route('admin.sandboxes.update', 'e2b'), ['enabled' => true, 'api_key' => 'e2b-key', 'vcpu' => 4, 'memory_mib' => 8192]);
+    Queue::assertPushed(BuildSandboxTemplate::class, fn ($job) => $job->provider === 'e2b');
+
+    // Built with these settings: saving them again builds nothing.
+    SystemSetting::put(SandboxTemplates::SETTING, ['e2b' => ['template_id' => 'tpl1', 'build_id' => 'build-8', 'status' => 'building', 'settings' => (fn () => $this->settings('e2b'))->call(app(SandboxTemplates::class))]]);
+    Queue::fake([BuildSandboxTemplate::class]);
+    $this->actingAs($admin)->put(route('admin.sandboxes.update', 'e2b'), ['enabled' => true, 'vcpu' => 4, 'memory_mib' => 8192]);
+    Queue::assertNotPushed(BuildSandboxTemplate::class);
+
+    Http::fake([E2B_API.'/templates/tpl1/builds/build-8/status*' => Http::response(['status' => 'error', 'reason' => ['message' => 'cpuCount above your plan']])]);
+    $this->actingAs($admin)->get(route('admin.sandboxes.index'))
+        ->assertInertia(fn (AssertableInertia $page) => $page->where('templateBuilds.e2b.status', 'error')->where('templateBuilds.e2b.reason', 'cpuCount above your plan'));
+
+    // A failed build is tried again by saving.
+    $this->actingAs($admin)->put(route('admin.sandboxes.update', 'e2b'), ['enabled' => true]);
+    Queue::assertPushed(BuildSandboxTemplate::class);
+})->group('SBX-014', 'ADMIN-002');
+
+test('GitHub\'s workflow saying a sandbox image was published builds E2B\'s again, if it proves it\'s this repository\'s', function () {
+    Queue::fake([BuildSandboxTemplate::class]);
+    config(['sandbox.providers.e2b.api_key' => 'e2b-key', 'app.url' => 'https://onedrop.test', 'sandbox.images_repository' => 'onedrop-io/onedrop']);
+    $key = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+    openssl_pkey_export($key, $pem);
+    $public = openssl_pkey_get_details($key)['rsa'];
+    $b64 = fn (string $bytes) => rtrim(strtr(base64_encode($bytes), '+/', '-_'), '=');
+    Http::fake([GitHubActionsToken::ISSUER.'/.well-known/jwks' => Http::response(['keys' => [['kty' => 'RSA', 'alg' => 'RS256', 'use' => 'sig', 'kid' => 'k1', 'n' => $b64($public['n']), 'e' => $b64($public['e'])]]])]);
+    $token = fn (array $claims) => JWT::encode([
+        'iss' => GitHubActionsToken::ISSUER, 'aud' => 'https://onedrop.test', 'repository' => 'onedrop-io/onedrop', 'ref' => 'refs/heads/main', 'exp' => time() + 300, 'iat' => time(), ...$claims,
+    ], $pem, 'RS256', 'k1');
+
+    $this->postJson(route('api.sandbox-images.published'), [], ['Authorization' => 'Bearer '.$token([])])
+        ->assertAccepted()->assertJson(['building' => ['e2b']]);
+    Queue::assertPushed(BuildSandboxTemplate::class, 1);
+
+    foreach ([['repository' => 'someone/fork'], ['ref' => 'refs/heads/feature'], ['aud' => 'https://elsewhere.test']] as $claims) {
+        $this->postJson(route('api.sandbox-images.published'), [], ['Authorization' => 'Bearer '.$token($claims)])->assertUnauthorized();
+    }
+
+    $this->postJson(route('api.sandbox-images.published'))->assertUnauthorized();
+    Queue::assertPushed(BuildSandboxTemplate::class, 1);
 })->group('SBX-014');
 
 test('building on E2B without a key says what to set', function () {
     config(['sandbox.provider' => 'e2b', 'sandbox.providers.e2b.api_key' => null]);
-    Process::fake();
 
     $this->artisan('sandbox:build-image')->assertFailed()->expectsOutputToContain('E2B_API_KEY');
 
-    Process::assertNothingRan();
+    Http::assertNothingSent();
 })->group('SBX-014');
 
 test('without the Cloudflare gateway, which alone can send the token as a header, sandboxes\' ports are public and their links carry none', function () {

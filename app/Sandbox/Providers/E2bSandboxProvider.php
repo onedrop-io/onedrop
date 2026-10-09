@@ -65,7 +65,7 @@ class E2bSandboxProvider implements SandboxProvider
     protected array $tokens = [];
 
     /**
-     * @param  array{api_key: ?string, url: string, domain: string, image: string, idle_seconds: int, nested_docker?: string, private_previews?: bool}  $config
+     * @param  array{api_key: ?string, url: string, domain: string, image: string, idle_seconds: int, nested_docker?: string, private_previews?: bool, source_image?: string, vcpu?: int, memory_mib?: int, disk_mib?: int}  $config
      */
     public function __construct(protected array $config) {}
 
@@ -223,6 +223,61 @@ class E2bSandboxProvider implements SandboxProvider
         // Either way the app hands the link only to people who may see the project. A private one carries the token
         // the gateway sends as E2B's header; a public one is the sandbox's own long, random address.
         return $this->privatePreviews() ? $url.'?'.http_build_query([self::TRAFFIC_TOKEN => $this->tokens($id)['traffic']]) : $url;
+    }
+
+    /**
+     * Start building the sandbox template from the published sandbox image (docker/sandbox, pushed to GitHub's registry
+     * by the `images` workflow), at the configured size, with start.sh started so a new sandbox starts from it running.
+     * E2B builds it by itself (about two minutes); the template's name moves to the new build once it's ready, so
+     * nothing waits on it.
+     *
+     * @return array{templateID: string, buildID: string}
+     *
+     * @throws SandboxException
+     */
+    public function buildTemplate(): array
+    {
+        $build = $this->send('post', 'v3/templates', [
+            'name' => $this->config['image'],
+            'cpuCount' => (int) ($this->config['vcpu'] ?? 4),
+            'memoryMB' => (int) ($this->config['memory_mib'] ?? 8192),
+            'minFreeDiskMb' => (int) ($this->config['disk_mib'] ?? 20000),
+        ]);
+
+        $templateId = (string) ($build['templateID'] ?? '');
+        $buildId = (string) ($build['buildID'] ?? '');
+
+        if ($templateId === '' || $buildId === '') {
+            throw new SandboxException("E2B didn't start a build of the sandbox template.");
+        }
+
+        $this->send('post', "v2/templates/{$templateId}/builds/{$buildId}", [
+            'fromImage' => $this->config['source_image'] ?? 'ghcr.io/onedrop-io/onedrop-sandbox:latest',
+            'steps' => [
+                ['type' => 'USER', 'args' => ['sandbox'], 'force' => false],
+                ['type' => 'WORKDIR', 'args' => ['/workspace'], 'force' => false],
+            ],
+            // start.sh serves a placeholder on PORT until the project's own settings arrive (written at create).
+            'startCmd' => '/opt/onedrop/start.sh',
+            'readyCmd' => '[ -n "$(ss -Htuln sport = :'.(int) config('sandbox.port').')" ]',
+            'force' => false,
+        ]);
+
+        return ['templateID' => $templateId, 'buildID' => $buildId];
+    }
+
+    /**
+     * How a template build is doing: building, ready or error, with E2B's reason for an error.
+     *
+     * @return array{status: string, reason: ?string}
+     *
+     * @throws SandboxException
+     */
+    public function buildStatus(string $templateId, string $buildId): array
+    {
+        $build = $this->send('get', "templates/{$templateId}/builds/{$buildId}/status", ['logsOffset' => 0]);
+
+        return ['status' => (string) ($build['status'] ?? 'building'), 'reason' => $build['reason']['message'] ?? null];
     }
 
     public function checkImage(): void

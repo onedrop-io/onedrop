@@ -8,9 +8,10 @@
 #   snapshot compression             the compression packed layers get: zst, or gz on images without zstd
 #   snapshot begin DIR               mark background work as started in DIR, before it runs, so the next status finds it
 #   snapshot take DIR LAYER...       pack the layers, then upload each to $ONEDROP_SNAPSHOT_URL_<LAYER> (headers in
-#                                    $ONEDROP_SNAPSHOT_HEADERS_<LAYER>); meant to run in the background, progress in DIR
+#                                    $ONEDROP_SNAPSHOT_HEADERS_<LAYER>); meant to run in the background, progress in DIR,
+#                                    and POSTs to $ONEDROP_DONE_URL (if set) once it's over
 #   snapshot unpack DIR LAYER...     restore each layer from $ONEDROP_SNAPSHOT_URL_<LAYER> ($ONEDROP_SNAPSHOT_COMPRESSION_<LAYER>);
-#                                    meant to run in the background, progress in DIR
+#                                    meant to run in the background, progress in DIR, and POSTs to $ONEDROP_DONE_URL
 #   snapshot status DIR              the background work's state (none, running, done, failed, or lost when it stopped
 #                                    without saying), then what it printed, then a "::error::" line and its errors
 #
@@ -163,6 +164,10 @@ in_background() {
     echo "$code" >"$dir/exit"
     if [ "$code" = 0 ]; then echo done >"$dir/state.new"; else echo failed >"$dir/state.new"; fi
     mv -f "$dir/state.new" "$dir/state"
+    # Tell the app it's over, so it carries on now instead of checking back (it reads the outcome with `status`).
+    if [ -n "${ONEDROP_DONE_URL:-}" ]; then
+        curl -fsS -m 30 --retry 5 --retry-all-errors -X POST "$ONEDROP_DONE_URL" >/dev/null 2>&1 || true
+    fi
 }
 
 curl_headers() {

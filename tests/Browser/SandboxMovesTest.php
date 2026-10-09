@@ -81,3 +81,32 @@ test('an admin turns a provider off, sees its projects moving, tries a failed mo
         ->and(SandboxMove::query()->where('project_id', $blog->id)->count())->toBe(2);
     Queue::assertPushed(MoveProjectSandbox::class, 3);
 })->group('SBX-005', 'SBX-013', 'ADMIN-002');
+
+test('an admin sees E2B\'s sandbox image building after changing its size, then built', function () {
+    config(['sandbox.providers.e2b.api_key' => 'e2b-key']);
+    Illuminate\Support\Facades\Http::fake([
+        'api.e2b.app/v3/templates' => Illuminate\Support\Facades\Http::response(['templateID' => 'tpl1', 'buildID' => 'build-9']),
+        'api.e2b.app/v2/templates/tpl1/builds/build-9' => Illuminate\Support\Facades\Http::response('', 202),
+        'api.e2b.app/templates/tpl1/builds/build-9/status*' => Illuminate\Support\Facades\Http::sequence()
+            ->push(['status' => 'building'])->push(['status' => 'ready']),
+    ]);
+    // Starting the build runs at once here.
+    Queue::fake([MoveProjectSandbox::class]);
+
+    visit('/login')
+        ->fill('email', 'dev@example.com')
+        ->fill('password', 'password')
+        ->press('@login-button')
+        ->assertPathIs(orgPath())
+        ->navigate('/admin/sandboxes')
+        ->click('@provider-e2b-select')
+        ->fill('#e2b-vcpu', '4')
+        ->fill('#e2b-memory_mib', '8192')
+        ->press('@provider-e2b-save')
+        ->assertSee('E2B saved.')
+        ->assertSeeIn('@provider-e2b-build', 'Building the sandbox image')
+        ->navigate('/admin/sandboxes')
+        ->click('@provider-e2b-select')
+        ->assertSeeIn('@provider-e2b-build', 'Sandbox image built')
+        ->assertNoJavaScriptErrors();
+})->group('SBX-014', 'ADMIN-002');

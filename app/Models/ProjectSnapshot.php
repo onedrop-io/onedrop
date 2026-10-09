@@ -19,12 +19,13 @@ use Illuminate\Support\Carbon;
  * @property string $reason
  * @property string $status
  * @property string|null $external_id
+ * @property bool $suspend_after
  * @property array<string, array{path: string, fingerprint: string, compression: string, size: int}> $layers
  * @property int $size
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['task_id', 'reason', 'status', 'external_id', 'layers', 'size'])]
+#[Fillable(['task_id', 'reason', 'status', 'external_id', 'suspend_after', 'layers', 'size'])]
 class ProjectSnapshot extends Model
 {
     /** @use HasFactory<ProjectSnapshotFactory> */
@@ -50,6 +51,7 @@ class ProjectSnapshot extends Model
         return [
             'layers' => 'array',
             'size' => 'integer',
+            'suspend_after' => 'boolean',
         ];
     }
 

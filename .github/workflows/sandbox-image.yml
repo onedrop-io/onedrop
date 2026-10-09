@@ -1,0 +1,33 @@
+name: sandbox image
+
+# Tells the app a new sandbox image was published, once the `images` workflow has pushed
+# ghcr.io/onedrop-io/onedrop-sandbox:latest from main. The app then builds the images it makes from it again (E2B's
+# template, SBX-014), at the size set in Settings → Sandboxes. It proves it's this repository's workflow with a GitHub
+# OIDC token for the app's address (the ONEDROP_URL repository variable, https://onedrop.io by default): nothing to
+# set up, no secret. Sandboxes get changed tool files copied in without a new image; a changed base moves each to a
+# sandbox from the new one once its project sits unused (SBX-002).
+
+on:
+  workflow_run:
+    workflows: [images]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  notify:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    env:
+      ONEDROP_URL: ${{ vars.ONEDROP_URL || 'https://onedrop.io' }}
+    steps:
+      - name: Tell the app a new sandbox image was published
+        run: |
+          token=$(curl -fsS -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$ONEDROP_URL" | jq -r .value)
+          curl -fsS -X POST -H "Authorization: Bearer $token" -H "Accept: application/json" \
+            "$ONEDROP_URL/api/v1/sandbox-images/published"

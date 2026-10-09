@@ -4,15 +4,18 @@ namespace App\Sandbox\Agents;
 
 use App\Enums\MessageRole;
 use App\Enums\ProjectStatus;
+use App\Enums\SandboxMovePhase;
 use App\Enums\SandboxStatus;
 use App\Enums\TaskStage;
 use App\Enums\TaskSyncStatus;
 use App\Jobs\BackupProject;
 use App\Jobs\ForkTaskSandbox;
+use App\Jobs\MoveProjectSandbox;
 use App\Jobs\RunAgentTask;
 use App\Jobs\UpdateProjectIcon;
 use App\Models\Attachment;
 use App\Models\Message;
+use App\Models\SandboxMove;
 use App\Models\Task;
 use App\Sandbox\ProjectIcons;
 use Closure;
@@ -82,6 +85,12 @@ class AgentQueue
 
         [$next, $attachments] = DB::transaction(function () use ($conversation) {
             $conversation->update(['status' => ProjectStatus::Idle]);
+
+            // A move of its sandbox that waited for this turn to end goes ahead now (SBX-005).
+            if ($sandbox = $conversation->agentSandbox()) {
+                SandboxMove::query()->active()->where('sandbox_id', $sandbox->id)->where('phase', SandboxMovePhase::Starting)
+                    ->each(fn (SandboxMove $move) => MoveProjectSandbox::dispatch($move)->afterCommit());
+            }
 
             $next = $conversation->queuedMessages()->lockForUpdate()->first();
             $attachments = $next?->attachments()->get() ?? collect();

@@ -6,6 +6,7 @@ use App\Enums\OldSandboxStatus;
 use App\Enums\ProjectStatus;
 use App\Enums\SandboxMovePhase;
 use App\Enums\SandboxStatus;
+use App\Jobs\FinishSnapshot;
 use App\Jobs\MoveProjectSandbox;
 use App\Jobs\RecoverSandbox;
 use App\Jobs\RunAgentTask;
@@ -18,6 +19,7 @@ use App\Models\Sandbox;
 use App\Models\SandboxMove;
 use App\Models\Task;
 use App\Models\User;
+use App\Sandbox\Agents\AgentQueue;
 use App\Sandbox\ExecResult;
 use App\Sandbox\ProjectBackups;
 use App\Sandbox\ProjectSnapshots;
@@ -38,6 +40,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Sleep;
+use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia;
 
 /**
@@ -69,6 +72,9 @@ function movingProvider(): FakeSandboxProvider
         /** @var list<string> */
         public array $destroyed = [];
 
+        /** @var list<string> where background work said it was done (ONEDROP_DONE_URL), not yet delivered */
+        public array $callbacks = [];
+
         public function exec(string $id, array $command, array $env = [], bool $detach = false, bool $root = false): ExecResult
         {
             if (in_array($id, $this->dead, true)) {
@@ -88,12 +94,12 @@ function movingProvider(): FakeSandboxProvider
                 'fingerprint' => new ExecResult(0, collect($this->fingerprints)->map(fn ($hash, $layer) => "{$layer} {$hash}")->implode("\n")),
                 'compression' => new ExecResult(0, "zst\n"),
                 'begin' => tap(new ExecResult(0, ''), fn () => $this->work[$command[2]] = "running\n::error::\n"),
-                'take' => $this->background($command[2], function () use ($id, $command) {
+                'take' => $this->background($command[2], $env, function () use ($id, $command) {
                     $this->taken[] = [$id, array_slice($command, 3)];
 
                     return collect(array_slice($command, 3))->map(fn ($layer) => "{$layer} zst 1048576")->implode("\n");
                 }),
-                'unpack' => $this->background($command[2], function () use ($id, $command) {
+                'unpack' => $this->background($command[2], $env, function () use ($id, $command) {
                     $this->unpacked[] = [$id, array_slice($command, 3)];
 
                     return '';
@@ -106,10 +112,17 @@ function movingProvider(): FakeSandboxProvider
         /**
          * @param  Closure(): string  $work
          */
-        protected function background(string $directory, Closure $work): ExecResult
+        /**
+         * @param  array<string, string>  $env
+         */
+        protected function background(string $directory, array $env, Closure $work): ExecResult
         {
             if (! $this->stuck) {
                 $this->work[$directory] = "done\n".$work()."\n::error::\n";
+
+                if (isset($env['ONEDROP_DONE_URL'])) {
+                    $this->callbacks[] = $env['ONEDROP_DONE_URL'];
+                }
             }
 
             return new ExecResult(0, '');
@@ -121,6 +134,25 @@ function movingProvider(): FakeSandboxProvider
             parent::destroy($id);
         }
     };
+}
+
+/**
+ * The sandboxes' background work calls the app back, as a real sandbox does once it's done; each call may start more.
+ */
+function sandboxesCallBack(FakeSandboxProvider ...$providers): void
+{
+    do {
+        $urls = [];
+
+        foreach ($providers as $provider) {
+            array_push($urls, ...$provider->callbacks);
+            $provider->callbacks = [];
+        }
+
+        foreach ($urls as $url) {
+            test()->post(Str::after($url, rtrim((string) config('sandbox.callback_url'), '/')))->assertNoContent();
+        }
+    } while ($urls !== []);
 }
 
 beforeEach(function () {
@@ -145,7 +177,11 @@ beforeEach(function () {
 });
 
 test('a sandbox on a provider that is no longer where its project runs moves at once, through a fresh snapshot', function () {
-    expect(app(SandboxMover::class)->moveMisplaced())->toBe(1);
+    expect(app(SandboxMover::class)->moveMisplaced())->toBe(1)
+        // Waiting on the new sandbox to unpack the files, which says when it's done.
+        ->and($this->project->sandboxMoves()->sole()->phase)->toBe(SandboxMovePhase::Restoring);
+
+    sandboxesCallBack($this->runtime, $this->blaxel);
 
     $move = $this->project->sandboxMoves()->sole();
     $sandbox = $this->sandbox->fresh();
@@ -202,23 +238,27 @@ test('putting another provider first moves sandboxes to it at once', function ()
     expect($this->project->sandboxMoves()->sole()->to_provider)->toBe('blaxel');
 })->group('SBX-005', 'ADMIN-002');
 
-test('each attempt works for under a minute, then puts itself back while the sandbox works in the background', function () {
+test('a move doesn\'t check back on the sandbox\'s background work: the sandbox says when it\'s done', function () {
     $this->runtime->stuck = true;
     $move = app(SandboxMover::class)->start($this->sandbox, 'provider', queue: false);
     $job = (new MoveProjectSandbox($move))->withFakeQueueInteractions();
 
     app()->call([$job, 'handle']);
 
-    $job->assertReleased(delay: MoveProjectSandbox::CHECK_SECONDS);
+    // Not put back to check again: nothing happens until the sandbox calls.
+    $job->assertNotReleased();
     expect($move->fresh()->phase)->toBe(SandboxMovePhase::Snapshotting)
         ->and(collect($this->runtime->executed)->where('command.1', 'take')->sole()['detach'])->toBeTrue()
-        ->and(MoveProjectSandbox::STEP_SECONDS + 2 * MoveProjectSandbox::CHECK_SECONDS)->toBeLessThan(90)
+        ->and(collect($this->runtime->executed)->where('command.1', 'take')->sole()['env']['ONEDROP_DONE_URL'])->toContain('/sandbox-events/snapshots/')
+        ->and(MoveProjectSandbox::WAIT_SECONDS)->toBeLessThan($job->timeout)
+        ->and($job->timeout)->toBeLessThan(90)
         ->and($this->sandbox->fresh()->external_id)->toBe('rt-1');
 
-    // The sandbox finishes; the next attempt carries on from there.
+    // The sandbox finishes and calls; the move carries on from there, and the new sandbox calls once it has the files.
     $this->runtime->stuck = false;
     $this->runtime->work = array_map(fn ($status) => "done\nworkspace zst 1\ndeps zst 1\nhome zst 1\nstorage zst 1\n::error::\n", $this->runtime->work);
-    app()->call([(new MoveProjectSandbox($move))->withFakeQueueInteractions(), 'handle']);
+    $this->runtime->callbacks[] = collect($this->runtime->executed)->where('command.1', 'take')->sole()['env']['ONEDROP_DONE_URL'];
+    sandboxesCallBack($this->runtime, $this->blaxel);
 
     expect($move->fresh()->phase)->toBe(SandboxMovePhase::Done)
         ->and($this->sandbox->fresh()->provider)->toBe('blaxel');
@@ -228,25 +268,33 @@ test('a move waits for the agent to finish its turn in a sandbox that answers', 
     $this->project->update(['status' => ProjectStatus::Working]);
     $move = app(SandboxMover::class)->start($this->sandbox, 'provider', queue: false);
 
-    expect(app(SandboxMover::class)->step($move))->toBeFalse()
+    expect(app(SandboxMover::class)->step($move))->toBe(SandboxMover::WAIT)
         ->and($move->fresh()->phase)->toBe(SandboxMovePhase::Starting)
         ->and($move->fresh()->messages)->toBe(['Waiting for the agent to finish its turn.'])
         ->and($this->runtime->taken)->toBe([]);
 
-    $this->project->update(['status' => ProjectStatus::Idle]);
+    // The turn ending starts it again: nothing checks back.
+    app(AgentQueue::class)->finished($this->project);
+    sandboxesCallBack($this->runtime, $this->blaxel);
 
-    expect(app(SandboxMover::class)->run($move)->phase)->toBe(SandboxMovePhase::Done);
+    expect($move->fresh()->phase)->toBe(SandboxMovePhase::Done);
 })->group('SBX-005');
 
 test('a message sent while its sandbox moves runs once the move is done', function () {
     Queue::fake();
-    SandboxMove::query()->create(['project_id' => $this->project->id, 'sandbox_id' => $this->sandbox->id, 'reason' => 'provider', 'phase' => SandboxMovePhase::Restoring]);
+    $move = SandboxMove::query()->create(['project_id' => $this->project->id, 'sandbox_id' => $this->sandbox->id, 'reason' => 'provider', 'phase' => SandboxMovePhase::Restoring]);
     $message = $this->project->messages()->create(['role' => MessageRole::User, 'content' => 'Add a page']);
 
     app()->call([new RunAgentTask($this->project, $message), 'handle']);
 
-    expect($this->project->fresh()->status)->not->toBe(ProjectStatus::Working);
-    Queue::assertPushed(RunAgentTask::class, fn (RunAgentTask $job) => $job->message->is($message) && $job->delay !== null);
+    // Held by the move, not put back to check again.
+    expect($this->project->fresh()->status)->not->toBe(ProjectStatus::Working)
+        ->and($move->fresh()->options['deferred_messages'])->toBe([$message->id]);
+    Queue::assertNotPushed(RunAgentTask::class);
+
+    app(SandboxMover::class)->fail($move, new SandboxException('Blaxel: quota exceeded'));
+
+    Queue::assertPushed(RunAgentTask::class, fn (RunAgentTask $job) => $job->message->is($message));
 })->group('SBX-005');
 
 test('a sandbox that doesn\'t answer moves from the latest snapshot, and is kept and checked on', function () {
@@ -256,6 +304,7 @@ test('a sandbox that doesn\'t answer moves from the latest snapshot, and is kept
     $this->project->update(['status' => ProjectStatus::Working]);
 
     app(SandboxMover::class)->moveMisplaced();
+    sandboxesCallBack($this->runtime, $this->blaxel);
 
     $move = $this->project->sandboxMoves()->sole();
     $sandbox = $this->sandbox->fresh();
@@ -273,7 +322,13 @@ test('a sandbox that doesn\'t answer moves from the latest snapshot, and is kept
         ->and($this->project->fresh()->status)->toBe(ProjectStatus::Idle)
         ->and($this->project->messages()->latest('id')->first()->content)->toContain('Runtime Cloud stopped answering')
         ->and($this->project->messages()->latest('id')->first()->content)->toContain('the snapshot from');
-    Queue::assertPushed(RecoverSandbox::class, fn (RecoverSandbox $job) => $job->move->is($move) && $job->delay !== null);
+
+    // No timer checks on it: an admin opening Settings → Sandboxes does (at most every 10 minutes).
+    Queue::assertNotPushed(RecoverSandbox::class);
+    $admin = User::factory()->admin()->create();
+    $this->actingAs($admin)->get(route('admin.sandboxes.index'));
+    $this->actingAs($admin)->get(route('admin.sandboxes.index'));
+    Queue::assertPushedTimes(RecoverSandbox::class, 1);
 })->group('SBX-013');
 
 test('without a snapshot, a sandbox that doesn\'t answer moves with its code backup; with neither it stays', function () {
@@ -304,19 +359,21 @@ test('without a snapshot, a sandbox that doesn\'t answer moves with its code bac
 })->group('SBX-013');
 
 test('when the old sandbox answers again, its newer files are saved and it is deleted; an admin can restore them', function () {
-    Queue::fake([RecoverSandbox::class]);
     ProjectSnapshot::factory()->for($this->project)->create(['layers' => collect(ProjectSnapshots::LAYERS)->mapWithKeys(fn ($layer) => [$layer => ['path' => "p/{$layer}", 'fingerprint' => "{$layer[0]}1", 'compression' => 'zst', 'size' => 1]])->all()]);
     $this->runtime->dead = ['rt-1'];
     app(SandboxMover::class)->moveMisplaced();
+    sandboxesCallBack($this->runtime, $this->blaxel);
     $move = $this->project->sandboxMoves()->sole();
 
-    // Still down: checked again in 15 minutes.
-    expect(app(SandboxMover::class)->recover($move))->toBe(RecoverSandbox::CHECK_MINUTES * 60);
+    // Still down: nothing to do.
+    app(SandboxMover::class)->recover($move);
+    expect($move->fresh()->old_status)->toBe(OldSandboxStatus::Waiting);
 
+    // It answers, with newer files: their snapshot is taken in the background, and its call finishes the recovery.
     $this->runtime->dead = [];
     $this->runtime->fingerprints['workspace'] = 'w2';
-
-    expect(app(SandboxMover::class)->recover($move->fresh()))->toBeNull();
+    app(SandboxMover::class)->recover($move->fresh());
+    sandboxesCallBack($this->runtime, $this->blaxel);
 
     $move->refresh();
 
@@ -332,6 +389,7 @@ test('when the old sandbox answers again, its newer files are saved and it is de
         ->assertInertia(fn (AssertableInertia $page) => $page->where('moves.0.id', $move->id)->where('moves.0.old_status', 'recovered'));
 
     $this->actingAs($admin)->post(route('admin.sandboxes.moves.restore', $move))->assertRedirect(route('admin.sandboxes.index'));
+    sandboxesCallBack($this->runtime, $this->blaxel);
 
     $restore = $this->project->sandboxMoves()->latest('id')->first();
 
@@ -344,16 +402,16 @@ test('when the old sandbox answers again, its newer files are saved and it is de
 })->group('SBX-013');
 
 test('an old sandbox that answers again with nothing newer is just deleted', function () {
-    Queue::fake([RecoverSandbox::class]);
     ProjectSnapshot::factory()->for($this->project)->create(['layers' => collect(ProjectSnapshots::LAYERS)->mapWithKeys(fn ($layer) => [$layer => ['path' => "p/{$layer}", 'fingerprint' => "{$layer[0]}1", 'compression' => 'zst', 'size' => 1]])->all()]);
     $this->runtime->dead = ['rt-1'];
     app(SandboxMover::class)->moveMisplaced();
+    sandboxesCallBack($this->runtime, $this->blaxel);
     $this->runtime->dead = [];
 
     $move = $this->project->sandboxMoves()->sole();
+    app(SandboxMover::class)->recover($move);
 
-    expect(app(SandboxMover::class)->recover($move))->toBeNull()
-        ->and($move->fresh()->old_status)->toBe(OldSandboxStatus::Removed)
+    expect($move->fresh()->old_status)->toBe(OldSandboxStatus::Removed)
         ->and($move->fresh()->recovered_snapshot_id)->toBeNull()
         ->and($this->runtime->taken)->toBe([])
         ->and($this->runtime->destroyed)->toBe(['rt-1']);
@@ -389,6 +447,7 @@ test('a move that fails leaves the project on its old sandbox, and an admin can 
     app()->instance(SandboxProvider::class, new RoutingSandboxProvider(['runtime' => fn () => $this->runtime, 'blaxel' => fn () => $blaxel], 'blaxel'));
     app()->forgetInstance(SandboxMover::class);
     $this->actingAs($admin)->post(route('admin.sandboxes.moves.retry', $move))->assertRedirect();
+    sandboxesCallBack($this->runtime, $blaxel);
 
     expect($this->sandbox->fresh()->provider)->toBe('blaxel')
         ->and($this->project->sandboxMoves()->latest('id')->first()->phase)->toBe(SandboxMovePhase::Done);
@@ -409,12 +468,13 @@ test('a provider that is full is waited on, not failed', function () {
     app()->forgetInstance(SandboxMover::class);
     $move = app(SandboxMover::class)->start($this->sandbox, 'provider', queue: false);
 
-    expect(app(SandboxMover::class)->step($move))->toBeFalse()
+    // Tried again in a while: a full provider clears by itself.
+    expect(app(SandboxMover::class)->step($move))->toBe(SandboxMover::RETRY_SECONDS)
         ->and($move->fresh()->phase)->toBe(SandboxMovePhase::Creating);
 
     $this->travel(SandboxMover::GIVE_UP_MINUTES + 1)->minutes();
 
-    expect(app(SandboxMover::class)->step($move->fresh()))->toBeTrue()
+    expect(app(SandboxMover::class)->step($move->fresh()))->toBeNull()
         ->and($move->fresh()->phase)->toBe(SandboxMovePhase::Failed);
 })->group('SBX-005');
 
@@ -422,7 +482,8 @@ test('a step makes a sandbox only with enough time left for it', function () {
     $move = app(SandboxMover::class)->start($this->sandbox, 'provider', queue: false);
     app(SandboxWaitLimit::class)->start(SandboxMover::CREATE_SECONDS - 5);
 
-    expect(app(SandboxMover::class)->step($move))->toBeFalse()
+    // A fresh job's time, right away.
+    expect(app(SandboxMover::class)->step($move))->toBe(1)
         ->and($move->fresh()->phase)->toBe(SandboxMovePhase::Creating)
         ->and($this->blaxel->created)->toBe([]);
 })->group('SBX-005');
@@ -432,6 +493,7 @@ test('a task\'s copy moves too, through a snapshot of its own that is deleted af
     $copy = Sandbox::factory()->for($this->project)->create(['task_id' => $task->id, 'provider' => 'runtime', 'external_id' => 'rt-copy']);
 
     expect(app(SandboxMover::class)->moveMisplaced())->toBe(2);
+    sandboxesCallBack($this->runtime, $this->blaxel);
 
     $move = SandboxMove::query()->where('sandbox_id', $copy->id)->sole();
 
@@ -453,24 +515,48 @@ test('a project going unused gets a snapshot, so work done only in the Shell is 
     Queue::assertPushed(TakeSnapshot::class, fn (TakeSnapshot $job) => $job->reason === 'idle' && $job->suspendAfter);
 })->group('SBX-009');
 
-test('a snapshot job checks on the sandbox\'s background work and puts itself back until it\'s done', function () {
+test('a snapshot job only starts it: the sandbox says when it\'s done, and the sandbox is suspended then', function () {
     config(['sandbox.provider' => 'runtime']);
     $this->runtime->stuck = true;
     $job = (new TakeSnapshot($this->project, 'idle', suspendAfter: true))->withFakeQueueInteractions();
 
     app()->call([$job, 'handle']);
 
-    $job->assertReleased();
+    $job->assertNotReleased();
     $pending = $this->project->snapshots()->sole();
     expect($pending->status)->toBe(ProjectSnapshot::PENDING)
+        ->and($pending->suspend_after)->toBeTrue()
         ->and($this->runtime->suspended)->toBe([]);
 
+    $this->runtime->stuck = false;
     $this->runtime->work = array_map(fn () => "done\nworkspace zst 5\n::error::\n", $this->runtime->work);
-    app()->call([(new TakeSnapshot($this->project, 'idle', suspendAfter: true))->withFakeQueueInteractions(), 'handle']);
+    $this->runtime->callbacks[] = collect($this->runtime->executed)->where('command.1', 'take')->sole()['env']['ONEDROP_DONE_URL'];
+    sandboxesCallBack($this->runtime);
 
     expect($pending->fresh()->status)->toBe(ProjectSnapshot::READY)
-        ->and($this->project->snapshots()->count())->toBe(1) // the same one, not a second
+        ->and($this->project->snapshots()->count())->toBe(1)
         ->and($this->runtime->suspended)->toBe(['rt-1']);
+})->group('SBX-009');
+
+test('a sandbox whose call never comes is found out by the safety checks', function () {
+    config(['sandbox.provider' => 'runtime']);
+    Queue::fake([FinishSnapshot::class]);
+    $this->runtime->stuck = true;
+
+    app()->call([(new TakeSnapshot($this->project, 'turn'))->withFakeQueueInteractions(), 'handle']);
+
+    $pending = $this->project->snapshots()->sole();
+    Queue::assertPushed(FinishSnapshot::class, fn ($job) => $job->snapshot->is($pending) && $job->check === 1 && $job->delay !== null);
+
+    // Still at it after 15 minutes: one more check, after which it's given up on.
+    Queue::fake([FinishSnapshot::class]);
+    app()->call([new FinishSnapshot($pending, 1), 'handle']);
+    Queue::assertPushed(FinishSnapshot::class, fn ($job) => $job->check === 2);
+
+    $this->travel(31)->minutes();
+    app()->call([new FinishSnapshot($pending, 2), 'handle']);
+
+    expect($pending->fresh()->status)->toBe(ProjectSnapshot::FAILED);
 })->group('SBX-009');
 
 test('sandbox:update waits for the move and says how it went', function () {
@@ -486,7 +572,7 @@ test('a move that hasn\'t started is called off when the toggles change back', f
     $move = app(SandboxMover::class)->start($this->sandbox, 'provider', queue: false);
     config(['sandbox.provider' => 'runtime']);
 
-    expect(app(SandboxMover::class)->step($move))->toBeTrue()
+    expect(app(SandboxMover::class)->step($move))->toBeNull()
         ->and($move->fresh()->phase)->toBe(SandboxMovePhase::Done)
         ->and($move->fresh()->messages)->toBe(['No longer needed: the project runs on Runtime Cloud again.'])
         ->and($this->runtime->taken)->toBe([])

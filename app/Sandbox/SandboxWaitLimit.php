@@ -29,6 +29,27 @@ class SandboxWaitLimit
     }
 
     /**
+     * Run $callback with $seconds to wait, whatever the limit was, then put it back: a queue job's own time, even when
+     * it runs inside a web request or another job (a sync queue).
+     *
+     * @template T
+     *
+     * @param  Closure(): T  $callback
+     * @return T
+     */
+    public function during(int $seconds, Closure $callback): mixed
+    {
+        $before = $this->until;
+        $this->until = CarbonImmutable::now()->addSeconds($seconds);
+
+        try {
+            return $callback();
+        } finally {
+            $this->until = $before;
+        }
+    }
+
+    /**
      * Run $callback with at most $seconds to wait (less if the limit is nearer), then put the limit back.
      *
      * @template T

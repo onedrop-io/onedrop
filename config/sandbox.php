@@ -21,6 +21,10 @@ return [
     // didn't answer (Runtime Cloud and Blaxel). Laravel Cloud gives up on a request after 20 seconds; 0 means no limit.
     'web_wait_seconds' => (int) env('SANDBOX_WEB_WAIT_SECONDS', 15),
 
+    // The GitHub repository whose `sandbox image` workflow may tell the app a new sandbox image was published, so it
+    // builds the images it makes from it again (E2B, SBX-014). Checked through GitHub's OIDC token, no shared secret.
+    'images_repository' => env('SANDBOX_IMAGES_REPOSITORY', 'onedrop-io/onedrop'),
+
     'providers' => [
         'docker' => [
             'image' => env('SANDBOX_DOCKER_IMAGE', 'onedrop-sandbox:latest'),
@@ -92,10 +96,11 @@ return [
             // Where sandboxes' ports answer: <port>-<id>.<domain>.
             'domain' => env('E2B_DOMAIN', 'e2b.app'),
             'image' => env('E2B_TEMPLATE', 'onedrop-sandbox'),
-            // What the template is built from, and the size of every sandbox made from it (set when it's built).
+            // What the template is built from, and the size of every sandbox made from it. Changing the size in
+            // Settings → Sandboxes builds the template again; sandboxes move to the new size once unused (SBX-002).
             'source_image' => env('E2B_SOURCE_IMAGE', 'ghcr.io/onedrop-io/onedrop-sandbox:latest'),
-            'vcpu' => (int) env('E2B_VCPU', 2),
-            'memory_mib' => (int) env('E2B_MEMORY_MIB', 4096),
+            'vcpu' => (int) env('E2B_VCPU', 4),
+            'memory_mib' => (int) env('E2B_MEMORY_MIB', 8192),
             'disk_mib' => (int) env('E2B_DISK_MIB', 20000),
             // A sandbox nobody has used for this long pauses (memory kept) until the next request wakes it.
             'idle_seconds' => (int) env('E2B_IDLE_SECONDS', 600),

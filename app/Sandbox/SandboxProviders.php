@@ -67,9 +67,12 @@ class SandboxProviders
             'required' => ['api_key'],
             'fields' => [
                 'api_key' => ['label' => 'API key', 'type' => 'secret'],
-                'image' => ['label' => 'Template', 'type' => 'text', 'help' => 'Built by php artisan sandbox:build-image, or the e2b image workflow.'],
                 'nested_docker' => ['label' => 'Docker inside sandboxes', 'type' => 'select', 'options' => ['on', 'off'], 'help' => 'For projects with their own Docker Compose.'],
+                'vcpu' => ['label' => 'vCPUs', 'type' => 'number', 'help' => 'Up to 8. Changing the size builds the image again.'],
+                'memory_mib' => ['label' => 'Memory (MB)', 'type' => 'number', 'help' => 'Up to 8192.'],
+                'disk_mib' => ['label' => 'Free disk (MB)', 'type' => 'number'],
                 'idle_seconds' => ['label' => 'Pause after (seconds idle)', 'type' => 'number', 'help' => 'Memory is kept; the next visit wakes it in about a second.'],
+                'image' => ['label' => 'Template', 'type' => 'text', 'help' => 'Built by OneDrop from the published sandbox image.'],
             ],
         ],
     ];

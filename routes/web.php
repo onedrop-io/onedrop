@@ -68,6 +68,7 @@ use App\Http\Controllers\SandboxActivityController;
 use App\Http\Controllers\SandboxAiController;
 use App\Http\Controllers\SandboxEventController;
 use App\Http\Controllers\SandboxGatewayController;
+use App\Http\Controllers\SandboxWorkController;
 use App\Http\Controllers\ShareController;
 use App\Http\Controllers\SkillController;
 use App\Http\Controllers\SocialLoginController;
@@ -141,6 +142,14 @@ Route::post('sandbox-events/{sandbox}/tasks/{task}', [SandboxEventController::cl
 Route::post('sandbox-events/{sandbox}/files', [SandboxEventController::class, 'filesChanged'])
     ->middleware(['signed:relative', 'throttle:600,1'])
     ->name('sandbox-events.files');
+
+// Called by background work in a sandbox once it's over (a snapshot, a move's files, a git fetch), so the app carries on
+// without checking back; each gets its signed address when it starts.
+Route::middleware(['signed:relative', 'throttle:600,1'])->group(function () {
+    Route::post('sandbox-events/snapshots/{snapshot}/done', [SandboxWorkController::class, 'snapshot'])->name('sandbox-events.snapshots.done');
+    Route::post('sandbox-events/moves/{move}/done', [SandboxWorkController::class, 'move'])->name('sandbox-events.moves.done');
+    Route::post('sandbox-events/projects/{project}/fetched', [SandboxWorkController::class, 'fetched'])->name('sandbox-events.fetched');
+});
 
 // Called by a hosting deploy's builder machine with its log (HOST-001); it gets this signed address when it starts.
 Route::post('sandbox-events/deployments/{deployment}/log', [ProjectHostingController::class, 'log'])

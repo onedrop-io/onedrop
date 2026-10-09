@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Sandbox\Providers\RuntimeSandboxProvider;
 use App\Sandbox\SandboxException;
+use App\Sandbox\SandboxTemplates;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -64,35 +65,28 @@ class BuildSandboxImage extends Command
     }
 
     /**
-     * E2B makes a template of the published sandbox image (docker/sandbox, pushed to GitHub's registry by the `images`
-     * workflow once main's tests pass) with start.sh started, through its SDK (infra/e2b/build.mjs). So E2B gets
-     * docker/sandbox as it is on main, not as it is in this checkout.
+     * E2B makes a template of the published sandbox image (docker/sandbox as main last published it, not this
+     * checkout), at the size set in Settings → Sandboxes (SBX-014). This only starts it; E2B builds it by itself.
      */
     protected function buildOnE2b(): int
     {
-        $config = config('sandbox.providers.e2b');
-
-        if (blank($config['api_key'])) {
+        if (blank(config('sandbox.providers.e2b.api_key'))) {
             $this->components->error('Set E2B_API_KEY first (https://e2b.dev/dashboard).');
 
             return self::FAILURE;
         }
 
-        if (Process::path(base_path('infra/e2b'))->run(['npm', 'ci', '--silent'])->failed()) {
-            $this->components->error("Couldn't install E2B's SDK in infra/e2b (npm ci).");
+        try {
+            app(SandboxTemplates::class)->build('e2b');
+        } catch (SandboxException $e) {
+            $this->components->error($e->getMessage());
 
             return self::FAILURE;
         }
 
-        // The key goes through the environment, never the command line.
-        return $this->build($config['image'], ['node', 'build.mjs'], base_path('infra/e2b'), [
-            'E2B_API_KEY' => $config['api_key'],
-            'E2B_TEMPLATE' => $config['image'],
-            'E2B_SOURCE_IMAGE' => $config['source_image'],
-            'E2B_CPU_COUNT' => (string) $config['vcpu'],
-            'E2B_MEMORY_MB' => (string) $config['memory_mib'],
-            'E2B_DISK_MB' => (string) $config['disk_mib'],
-        ], " on E2B (from {$config['source_image']})");
+        $this->components->info('E2B is building '.config('sandbox.providers.e2b.image').' from '.config('sandbox.providers.e2b.source_image').' (about 2 minutes). Settings → Sandboxes shows when it\'s ready.');
+
+        return self::SUCCESS;
     }
 
     /**

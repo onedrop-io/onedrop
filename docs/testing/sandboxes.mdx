@@ -104,6 +104,9 @@ With `E2B_API_KEY` set and the template built (`SANDBOX_PROVIDER=e2b php artisan
 - [ ] A long agent turn with the workspace closed isn't paused mid-turn.
 - [ ] The Files, Git and Services panels load without errors.
 - [ ] Turning E2B off (with another provider first) moves its projects off with their files, and turning it back on and first moves them back.
+- [ ] Changing E2B's vCPUs or memory in Settings shows **Building the sandbox image**, then **built** after about 2 minutes (reopen the page); the project moves to the new size once it sits unused for 10 minutes, and `nproc` in its Shell shows the new count.
+- [ ] After a merge to `main` that changes `docker/sandbox`, the **sandbox image** workflow runs after **images** and Settings shows a new E2B build.
+- [ ] During a move, the queue shows no job waiting or re-running every few seconds: the move's next step starts when the sandbox calls back.
 
 ## Switch providers (SBX-005)
 
@@ -127,7 +130,7 @@ Use an install with two remote providers set up (Runtime Cloud and Blaxel) and a
 
 - [ ] The project moves to Blaxel within about 2 minutes, with the file as it was at the idle snapshot (not the later change).
 - [ ] Its chat says Runtime stopped answering, and from which snapshot the files came. A turn stuck on **Thinking…** is over.
-- [ ] **Moves** says the old sandbox is kept and checked on every 15 minutes.
+- [ ] **Moves** says the old sandbox is kept and checked on when Settings → Sandboxes is opened.
 - [ ] After it answers again (stop and restart it in Runtime, which keeps its disk), within 15 minutes **Moves** says its newer files were saved, and the old sandbox is gone from Runtime.
 - [ ] **Restore** asks first, then brings the later change back. **Dismiss** removes the entry and leaves the project as it is.
 - [ ] A project with no snapshot and no code backup on a provider that doesn't answer fails with that reason, stays where it is, and **Try again** works once the provider answers.

@@ -9,28 +9,24 @@ use App\Sandbox\ProjectSnapshots;
 use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxProvider;
 use App\Sandbox\SandboxWaitLimit;
-use DateTimeInterface;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
-use Illuminate\Support\Sleep;
 
 /**
- * Takes a snapshot of a project's main sandbox (SBX-009): after an agent turn, and once it has gone unused. The sandbox
- * packs and uploads it in the background; each attempt checks on it for up to STEP_SECONDS, then puts itself back,
- * so no attempt nears a Flex queue job's 90 seconds however large the project.
+ * Takes a snapshot of a project's main sandbox (SBX-009): after an agent turn, and once it has gone unused. It only
+ * starts it: the sandbox packs and uploads it in the background and says when it's done (FinishSnapshot), which also
+ * suspends the sandbox when it went unused.
  */
 #[DeleteWhenMissingModels]
 class TakeSnapshot implements ShouldBeUnique, ShouldQueue
 {
     use Queueable;
 
-    public const STEP_SECONDS = 50;
-
     public int $timeout = 85;
 
-    public int $maxExceptions = 1;
+    public int $tries = 2;
 
     /**
      * @param  bool  $suspendAfter  suspend the sandbox once it's taken (it went unused; SBX-007)
@@ -42,15 +38,14 @@ class TakeSnapshot implements ShouldBeUnique, ShouldQueue
         return (string) $this->project->id;
     }
 
-    public function retryUntil(): DateTimeInterface
-    {
-        return now()->addMinutes(45);
-    }
-
     public function handle(ProjectSnapshots $snapshots, SandboxWaitLimit $limit, SandboxProvider $provider): void
     {
-        $limit->start(MoveProjectSandbox::WAIT_SECONDS);
-        $until = now()->addSeconds(self::STEP_SECONDS);
+        // Provider calls end in time for a Flex queue job, even one run inside a request or another job (a sync queue).
+        $limit->during(MoveProjectSandbox::WAIT_SECONDS, fn () => $this->run($snapshots, $provider));
+    }
+
+    protected function run(ProjectSnapshots $snapshots, SandboxProvider $provider): void
+    {
         $sandbox = $this->project->sandbox()->first();
 
         // A move takes its own (SBX-005).
@@ -61,21 +56,22 @@ class TakeSnapshot implements ShouldBeUnique, ShouldQueue
         try {
             // The one already under way, if any.
             $snapshot = $snapshots->begin($sandbox, $this->reason);
-
-            while ($snapshot?->isPending() && ! $snapshots->check($snapshot)) {
-                if (now()->addSeconds(MoveProjectSandbox::CHECK_SECONDS)->gt($until)) {
-                    $this->release(MoveProjectSandbox::CHECK_SECONDS);
-
-                    return;
-                }
-
-                Sleep::for(MoveProjectSandbox::CHECK_SECONDS)->seconds();
-            }
         } catch (SandboxException $e) {
             // The next turn, or the next time it goes unused, tries again.
             report($e);
+
+            return;
         }
 
+        if ($snapshot?->isPending()) {
+            if ($this->suspendAfter) {
+                $snapshot->update(['suspend_after' => true]);
+            }
+
+            return;
+        }
+
+        // Nothing changed since the last one (or it was taken on the spot): suspend now.
         if ($this->suspendAfter) {
             try {
                 $provider->suspend($sandbox->external_id);

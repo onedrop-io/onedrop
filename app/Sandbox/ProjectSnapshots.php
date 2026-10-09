@@ -3,6 +3,7 @@
 namespace App\Sandbox;
 
 use App\Enums\SandboxStatus;
+use App\Jobs\FinishSnapshot;
 use App\Models\Project;
 use App\Models\ProjectSnapshot;
 use App\Models\Sandbox;
@@ -11,6 +12,7 @@ use Illuminate\Http\File as LocalFile;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Sleep;
 use Illuminate\Support\Str;
 
@@ -80,7 +82,7 @@ class ProjectSnapshots
 
     /**
      * Start a snapshot of a running sandbox (the project's main one, or a task's copy), packed and uploaded by the
-     * sandbox in the background. Returns it pending (see check()), or ready: on a local disk it's taken on the spot,
+     * sandbox in the background, which says when it's done (FinishSnapshot). Returns it pending (see check()), or ready: on a local disk it's taken on the spot,
      * and when no layer changed since $basis (the latest by default) that is returned. A snapshot already under way
      * in the sandbox is returned instead of starting a second. Null when it can't be taken (see take()).
      *
@@ -143,7 +145,10 @@ class ProjectSnapshots
 
                 $directory = $this->workDirectory('snapshot', $snapshot);
                 $this->run($sandbox, [self::SCRIPT, 'begin', $directory], [], "Couldn't start the project's snapshot");
+                // The sandbox says when it's done (FinishSnapshot); a safety check finds out if it never does.
+                $env['ONEDROP_DONE_URL'] = self::callbackUrl('sandbox-events.snapshots.done', $snapshot);
                 $this->provider->exec($sandbox->external_id, [self::SCRIPT, 'take', $directory, ...$changed], $env, detach: true);
+                FinishSnapshot::dispatch($snapshot, 1)->delay(now()->addMinutes(FinishSnapshot::CHECK_MINUTES));
             } catch (SandboxException $e) {
                 $snapshot->update(['status' => ProjectSnapshot::FAILED]);
 
@@ -239,12 +244,12 @@ class ProjectSnapshots
 
     /**
      * Start unpacking a snapshot into a sandbox: the project's files, dependencies, home folder and App Storage as
-     * they were. With signed links the sandbox downloads and unpacks them in the background (see restored()), and this
-     * returns false; on a local disk they're unpacked on the spot, and it returns true.
+     * they were. With signed links the sandbox downloads and unpacks them in the background (see restored()), POSTs
+     * to $doneUrl once it's over, and this returns false; on a local disk they're unpacked on the spot, and it returns true.
      *
      * @throws SandboxException
      */
-    public function startRestore(Sandbox $sandbox, ProjectSnapshot $snapshot): bool
+    public function startRestore(Sandbox $sandbox, ProjectSnapshot $snapshot, ?string $doneUrl = null): bool
     {
         $layers = collect(self::LAYERS)->filter(fn (string $layer) => isset($snapshot->layers[$layer]));
 
@@ -254,6 +259,10 @@ class ProjectSnapshots
             foreach ($layers as $layer) {
                 $env['ONEDROP_SNAPSHOT_URL_'.strtoupper($layer)] = $this->disk()->temporaryUrl($snapshot->layers[$layer]['path'], now()->addMinutes(self::LINK_MINUTES));
                 $env['ONEDROP_SNAPSHOT_COMPRESSION_'.strtoupper($layer)] = $snapshot->layers[$layer]['compression'];
+            }
+
+            if ($doneUrl !== null) {
+                $env['ONEDROP_DONE_URL'] = $doneUrl;
             }
 
             $directory = $this->workDirectory('restore', $snapshot);
@@ -559,6 +568,14 @@ class ProjectSnapshots
     public function path(int $projectId): string
     {
         return "project-snapshots/{$projectId}";
+    }
+
+    /**
+     * The address background work in a sandbox POSTs to once it's over (SandboxWorkController).
+     */
+    public static function callbackUrl(string $route, mixed $parameters): string
+    {
+        return rtrim((string) config('sandbox.callback_url'), '/').URL::signedRoute($route, $parameters, absolute: false);
     }
 
     /**

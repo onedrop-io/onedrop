@@ -2,68 +2,85 @@
 
 namespace App\Jobs;
 
+use App\Enums\SandboxMovePhase;
 use App\Models\SandboxMove;
 use App\Sandbox\SandboxMover;
 use App\Sandbox\SandboxWaitLimit;
 use DateTimeInterface;
-use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
-use Illuminate\Support\Sleep;
+use Illuminate\Support\Facades\Cache;
 use RuntimeException;
 use Throwable;
 
 /**
- * Advances a sandbox's move (SBX-005) for up to STEP_SECONDS, then puts itself back to carry on, so no attempt comes
- * near Laravel Cloud's 90 seconds for a Flex queue job however long the move takes.
+ * Advances a sandbox's move (SBX-005) as far as it can go now, well within a Flex queue job's 90 seconds. Nothing
+ * checks back on it: it's queued again when what it waits on says so (the sandbox's background work calls back, the
+ * agent's turn ends), or after a refusal that clears by itself. A safety check after 15 and 30 minutes catches a call
+ * that never arrives.
  */
-class MoveProjectSandbox implements ShouldBeUnique, ShouldQueue
+class MoveProjectSandbox implements ShouldQueue
 {
     use Queueable;
 
-    /** How long one attempt works on the move before putting itself back. */
-    public const STEP_SECONDS = 50;
-
-    /** How often background work in a sandbox is checked on. */
-    public const CHECK_SECONDS = 5;
-
     /** Every call to a provider ends by then (SandboxWaitLimit), so an attempt never nears 90 seconds. */
     public const WAIT_SECONDS = 75;
+
+    /** The safety checks on background work: after 15 minutes, and the last after 30. */
+    public const LAST_CHECK = 2;
+
+    public const CHECK_MINUTES = 15;
 
     public int $timeout = 85;
 
     /** A crash in the job itself (not a provider refusing, which fails the move) gets two more tries. */
     public int $maxExceptions = 3;
 
-    public function __construct(public SandboxMove $move) {}
-
-    public function uniqueId(): string
-    {
-        return (string) $this->move->id;
-    }
+    public function __construct(public SandboxMove $move, public int $check = 0) {}
 
     /**
-     * Checking back makes many attempts; give up once the move would have been given up on anyway.
+     * Retries and put-backs stop once the move would have been given up on anyway.
      */
     public function retryUntil(): DateTimeInterface
     {
-        return $this->move->created_at->addMinutes(SandboxMover::GIVE_UP_MINUTES + 15);
+        return now()->addMinutes(SandboxMover::GIVE_UP_MINUTES + 15);
     }
 
     public function handle(SandboxMover $mover, SandboxWaitLimit $limit): void
     {
-        $limit->start(self::WAIT_SECONDS);
-        $until = now()->addSeconds(self::STEP_SECONDS);
-        $move = $this->move->fresh();
+        // Provider calls end in time for a Flex queue job, even one run inside a request or another job (a sync queue).
+        $limit->during(self::WAIT_SECONDS, fn () => $this->run($mover));
+    }
 
-        while ($move?->phase->isActive() && ! $mover->step($move)) {
-            if (now()->addSeconds(self::CHECK_SECONDS)->gt($until)) {
-                $this->release(self::CHECK_SECONDS);
+    protected function run(SandboxMover $mover): void
+    {
+        $lock = Cache::lock("sandbox-move-step:{$this->move->id}", $this->timeout + 5);
 
+        // Another step of the same move is running: this one goes right after it.
+        if (! $lock->get()) {
+            $this->release(5);
+
+            return;
+        }
+
+        try {
+
+            $move = $this->move->fresh();
+
+            if (! $move?->phase->isActive()) {
                 return;
             }
 
-            Sleep::for(self::CHECK_SECONDS)->seconds();
+            $wait = $mover->step($move);
+
+            if ($wait !== null && $wait > SandboxMover::WAIT) {
+                $this->release($wait);
+            } elseif ($wait === SandboxMover::WAIT && $this->check > 0 && $this->check < self::LAST_CHECK && $move->phase === SandboxMovePhase::Restoring) {
+                // A safety check found the sandbox still at it: one more, then it's given up on.
+                self::dispatch($move, $this->check + 1)->delay(now()->addMinutes(self::CHECK_MINUTES));
+            }
+        } finally {
+            $lock->release();
         }
     }
 

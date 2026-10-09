@@ -14,12 +14,15 @@ use App\Jobs\CreateSandbox;
 use App\Jobs\MoveProjectSandbox;
 use App\Jobs\PublishProject;
 use App\Jobs\RecoverSandbox;
+use App\Jobs\RunAgentTask;
+use App\Models\Message;
 use App\Models\ProjectSnapshot;
 use App\Models\Sandbox;
 use App\Models\SandboxMove;
 use App\Sandbox\Agents\AgentQueue;
 use App\Sandbox\Publishing\Publishers;
 use Closure;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
@@ -41,11 +44,23 @@ class SandboxMover
     /** A move still not done after this long is given up on. */
     public const GIVE_UP_MINUTES = 60;
 
+    /** How long a sandbox that didn't answer is checked on (each time an admin opens Settings → Sandboxes). */
+    public const RECOVER_DAYS = 7;
+
     /** How long the old sandbox gets to answer before the move goes on without it. */
     public const ANSWER_SECONDS = 20;
 
     /** Least time a step needs left to make a sandbox, so a provider that's slow to make one isn't cut off. */
     public const CREATE_SECONDS = 45;
+
+    /** step(): waiting on something that says when it's done. */
+    public const WAIT = 0;
+
+    /** How long a refusal that clears by itself (no room, busy) waits before the step is tried again. */
+    public const RETRY_SECONDS = 30;
+
+    /** Longest unpacking a snapshot into the new sandbox may take. */
+    public const RESTORE_MINUTES = 30;
 
     public function __construct(
         protected SandboxProvider $provider,
@@ -115,7 +130,8 @@ class SandboxMover
     }
 
     /**
-     * Take a move all the way, waiting on the background work (for commands). $report gets each new note.
+     * Take a move all the way, waiting on the background work (for commands, which have no one to call them back).
+     * $report gets each new note.
      *
      * @param  (Closure(string): void)|null  $report
      */
@@ -124,7 +140,7 @@ class SandboxMover
         $reported = 0;
 
         do {
-            $over = $this->step($move);
+            $wait = $this->step($move);
 
             foreach (array_slice($move->messages ?? [], $reported) as $message) {
                 $report?->__invoke($message);
@@ -132,23 +148,25 @@ class SandboxMover
 
             $reported = count($move->messages ?? []);
 
-            if (! $over) {
-                Sleep::for(2)->seconds();
+            if ($wait !== null) {
+                Sleep::for(max(2, $wait))->seconds();
             }
-        } while (! $over);
+        } while ($wait !== null);
 
         return $move;
     }
 
     /**
-     * Advance the move as far as it can go now. Returns true once it's over (done or failed), false while it waits on
-     * something (background work, the agent's turn, a provider that's full): check again in a few seconds.
+     * Advance the move as far as it can go now. Returns null once it's over (done or failed); WAIT while it waits on
+     * something that says when it's done (the sandbox's background work calls back, the agent's turn ending starts it
+     * again: MoveProjectSandbox); or the seconds to wait before trying again (a provider that's full, a step that needs
+     * a fresh queue job's time).
      */
-    public function step(SandboxMove $move): bool
+    public function step(SandboxMove $move): ?int
     {
         while ($move->phase->isActive()) {
             try {
-                $advanced = match ($move->phase) {
+                $wait = match ($move->phase) {
                     SandboxMovePhase::Starting => $this->begin($move),
                     SandboxMovePhase::Snapshotting => $this->snapshotted($move),
                     SandboxMovePhase::Creating => $this->create($move),
@@ -159,22 +177,22 @@ class SandboxMover
                 if ($move->created_at->lt(now()->subMinutes(self::GIVE_UP_MINUTES))) {
                     $this->fail($move, $e);
 
-                    return true;
+                    return null;
                 }
 
-                return false;
+                return self::RETRY_SECONDS;
             } catch (Throwable $e) {
                 $this->fail($move, $e);
 
-                return true;
+                return null;
             }
 
-            if (! $advanced) {
-                return false;
+            if ($wait !== null) {
+                return $wait;
             }
         }
 
-        return true;
+        return null;
     }
 
     /**
@@ -215,19 +233,65 @@ class SandboxMover
             'work' => null,
             'finished_at' => now(),
         ]);
+
+        $this->runDeferredMessages($move);
     }
 
     /**
-     * Check on a sandbox a project moved off while it didn't answer (SBX-013). When it answers, files newer than what
-     * the project got are saved as a recovered snapshot, and then it's deleted. Returns how many seconds to wait before
-     * checking again, or null when there's nothing more to do.
+     * Hold a message sent while its sandbox moves, to run once the move is over (on the old sandbox if it failed).
+     * False when the move is already over: run it now.
+     */
+    public function defer(SandboxMove $move, Message $message): bool
+    {
+        return Cache::lock("sandbox-move-deferred:{$move->id}", 10)->block(10, function () use ($move, $message) {
+            $move->refresh();
+
+            if (! $move->phase->isActive()) {
+                return false;
+            }
+
+            $move->update(['options' => [...($move->options ?? []), 'deferred_messages' => [...($move->options['deferred_messages'] ?? []), $message->id]]]);
+
+            return true;
+        });
+    }
+
+    /**
+     * Run the messages sent while the move ran.
+     */
+    protected function runDeferredMessages(SandboxMove $move): void
+    {
+        $ids = Cache::lock("sandbox-move-deferred:{$move->id}", 10)->block(10, function () use ($move) {
+            $move->refresh();
+            $ids = $move->options['deferred_messages'] ?? [];
+            $move->update(['options' => array_diff_key($move->options ?? [], ['deferred_messages' => true])]);
+
+            return $ids;
+        });
+
+        Message::query()->whereKey($ids)->orderBy('id')->each(fn (Message $message) => RunAgentTask::dispatch($move->project, $message));
+    }
+
+    /**
+     * The move a sandbox is going through now (not just queued, or waiting for the agent's turn), if any.
+     */
+    public static function moving(Sandbox $sandbox): ?SandboxMove
+    {
+        return SandboxMove::query()->active()->where('sandbox_id', $sandbox->id)->where('phase', '!=', SandboxMovePhase::Starting)->first();
+    }
+
+    /**
+     * Check on a sandbox a project moved off while it didn't answer (SBX-013), when an admin opens Settings →
+     * Sandboxes (overview()). When it answers, files newer than what the project got are saved as a recovered snapshot
+     * (its sandbox says when that's done: FinishSnapshot calls this again), and then it's deleted. One that hasn't
+     * answered within RECOVER_DAYS is given up on.
      *
      * @throws SandboxException
      */
-    public function recover(SandboxMove $move): ?int
+    public function recover(SandboxMove $move): void
     {
         if ($move->old_status !== OldSandboxStatus::Waiting || $move->from_external_id === null) {
-            return null;
+            return;
         }
 
         $old = $this->oldSandbox($move);
@@ -235,7 +299,11 @@ class SandboxMover
 
         if ($pending === null) {
             if (! $this->answers($move->from_external_id)) {
-                return RecoverSandbox::CHECK_MINUTES * 60;
+                if ($move->finished_at?->lt(now()->subDays(self::RECOVER_DAYS))) {
+                    $move->update(['old_status' => OldSandboxStatus::Gone]);
+                }
+
+                return;
             }
 
             // Compared with what the project got, so only newer files make a snapshot.
@@ -245,21 +313,19 @@ class SandboxMover
                 $move->note(__('The old sandbox answered again, with nothing newer than what the project got; it was deleted.'));
                 $this->removeOld($move);
 
-                return null;
+                return;
             }
 
             $move->update(['work' => ['recovering' => $pending->id]]);
         }
 
         if (! $this->snapshots->check($pending)) {
-            return MoveProjectSandbox::CHECK_SECONDS;
+            return;
         }
 
         $move->update(['recovered_snapshot_id' => $pending->id, 'old_status' => OldSandboxStatus::Recovered, 'work' => null]);
         $move->note(__('The old sandbox answered again; its newer files were saved, and can be restored from Settings → Sandboxes.'));
         $this->removeOld($move, OldSandboxStatus::Recovered);
-
-        return null;
     }
 
     /**
@@ -270,6 +336,13 @@ class SandboxMover
      */
     public function overview(): array
     {
+        // Sandboxes that didn't answer are checked on now, at most every 10 minutes: no timer does it (SBX-013).
+        SandboxMove::query()->where('old_status', OldSandboxStatus::Waiting)->each(function (SandboxMove $move) {
+            if (Cache::add("sandbox-recover-check:{$move->id}", true, 600)) {
+                RecoverSandbox::dispatch($move);
+            }
+        });
+
         $moves = SandboxMove::query()
             ->with(['project:id,name', 'sandbox.task:id,title', 'snapshot:id,created_at', 'recoveredSnapshot:id,created_at'])
             ->where(fn ($query) => $query->active()
@@ -323,7 +396,7 @@ class SandboxMover
      */
     public static function isMoving(Sandbox $sandbox): bool
     {
-        return SandboxMove::query()->active()->where('sandbox_id', $sandbox->id)->where('phase', '!=', SandboxMovePhase::Starting)->exists();
+        return self::moving($sandbox) !== null;
     }
 
     /**
@@ -331,7 +404,7 @@ class SandboxMover
      *
      * @throws SandboxException
      */
-    protected function begin(SandboxMove $move): bool
+    protected function begin(SandboxMove $move): ?int
     {
         $sandbox = $move->sandbox;
 
@@ -340,7 +413,7 @@ class SandboxMover
             $move->update(['phase' => SandboxMovePhase::Done, 'finished_at' => now()]);
             $move->note(__('No longer needed: the project runs on :provider again.', ['provider' => $this->label($sandbox->provider)]));
 
-            return true;
+            return null;
         }
         // Nothing is snapshotted, or woken, for a move whose new sandbox couldn't be made (no image built there).
         if ($move->to_provider !== 'device') {
@@ -357,7 +430,7 @@ class SandboxMover
                 $move->note(__('Waiting for the agent to finish its turn.'));
             }
 
-            return false;
+            return self::WAIT;
         }
 
         $move->work = null;
@@ -366,13 +439,13 @@ class SandboxMover
             $source = $sandbox->task_id === null && $this->backups->exists($move->project) ? MoveSource::Backup : MoveSource::None;
             $move->update(['source' => $source, 'phase' => SandboxMovePhase::Creating]);
 
-            return true;
+            return null;
         }
 
         if ($move->snapshot_id !== null) {
             $move->update(['source' => MoveSource::Snapshot, 'phase' => SandboxMovePhase::Creating]);
 
-            return true;
+            return null;
         }
 
         if (! $answered) {
@@ -395,13 +468,13 @@ class SandboxMover
             // No snapshots here (a local disk and a remote sandbox): the files go through the platform.
             $move->update(['source' => MoveSource::Copy, 'phase' => SandboxMovePhase::Creating]);
 
-            return true;
+            return null;
         }
 
         $move->update(['source' => MoveSource::Fresh, 'snapshot_id' => $snapshot->id, 'phase' => SandboxMovePhase::Snapshotting]);
         $move->note(__('Taking a snapshot of the old sandbox.'));
 
-        return true;
+        return null;
     }
 
     /**
@@ -409,11 +482,11 @@ class SandboxMover
      *
      * @throws SandboxException
      */
-    protected function snapshotted(SandboxMove $move): bool
+    protected function snapshotted(SandboxMove $move): ?int
     {
         try {
             if (! $this->snapshots->check($move->snapshot)) {
-                return false;
+                return self::WAIT;
             }
         } catch (TemporarySandboxException $e) {
             throw $e;
@@ -433,7 +506,7 @@ class SandboxMover
 
         $move->update(['phase' => SandboxMovePhase::Creating]);
 
-        return true;
+        return null;
     }
 
     /**
@@ -442,7 +515,7 @@ class SandboxMover
      *
      * @throws SandboxException
      */
-    protected function useEarlierFiles(SandboxMove $move, string $why): bool
+    protected function useEarlierFiles(SandboxMove $move, string $why): ?int
     {
         $sandbox = $move->sandbox;
         $latest = $sandbox->task_id === null ? $this->snapshots->latest($move->project) : null;
@@ -451,14 +524,14 @@ class SandboxMover
             $move->update(['source' => MoveSource::Snapshot, 'snapshot_id' => $latest->id, 'phase' => SandboxMovePhase::Creating]);
             $move->note(trim($why.' '.__('Using its latest snapshot, from :time.', ['time' => $latest->created_at->toDayDateTimeString().' UTC'])));
 
-            return true;
+            return null;
         }
 
         if ($sandbox->task_id === null && $this->backups->exists($move->project)) {
             $move->update(['source' => MoveSource::Backup, 'snapshot_id' => null, 'phase' => SandboxMovePhase::Creating]);
             $move->note(trim($why.' '.__('There\'s no snapshot of it, so only its code comes back, from its backup.')));
 
-            return true;
+            return null;
         }
 
         throw new SandboxException(trim($why.' '.__('There\'s no snapshot or backup of its files to move, so it stays where it is until it answers.')));
@@ -469,11 +542,11 @@ class SandboxMover
      *
      * @throws SandboxException
      */
-    protected function create(SandboxMove $move): bool
+    protected function create(SandboxMove $move): ?int
     {
         if ($move->to_external_id === null) {
             if (($this->limit->secondsLeft() ?? PHP_INT_MAX) < self::CREATE_SECONDS) {
-                return false;
+                return 1;
             }
 
             $sandbox = $move->sandbox;
@@ -491,7 +564,7 @@ class SandboxMover
 
         $move->update(['phase' => SandboxMovePhase::Restoring]);
 
-        return true;
+        return null;
     }
 
     /**
@@ -499,7 +572,7 @@ class SandboxMover
      *
      * @throws SandboxException
      */
-    protected function restore(SandboxMove $move): bool
+    protected function restore(SandboxMove $move): ?int
     {
         $new = $this->newSandbox($move);
 
@@ -511,14 +584,21 @@ class SandboxMover
                         throw new SandboxException(__('The new sandbox can\'t get the project\'s snapshot.'));
                     }
 
-                    $done = $this->snapshots->startRestore($new, $move->snapshot);
-                    $move->update(['work' => ['restoring' => true]]);
+                    // The new sandbox says when it's done; a safety check finds out if it never does.
+                    $done = $this->snapshots->startRestore($new, $move->snapshot, ProjectSnapshots::callbackUrl('sandbox-events.moves.done', $move));
+                    $move->update(['work' => ['restoring' => true, 'restoring_at' => now()->toIso8601String()]]);
 
                     if (! $done) {
-                        return false;
+                        MoveProjectSandbox::dispatch($move, 1)->delay(now()->addMinutes(MoveProjectSandbox::CHECK_MINUTES));
+
+                        return self::WAIT;
                     }
                 } elseif (! $this->snapshots->restored($new, $move->snapshot)) {
-                    return false;
+                    if (Carbon::parse($move->work['restoring_at'] ?? 'now')->lt(now()->subMinutes(self::RESTORE_MINUTES))) {
+                        throw new SandboxException(__('Restoring the project\'s snapshot took longer than :minutes minutes.', ['minutes' => self::RESTORE_MINUTES]));
+                    }
+
+                    return self::WAIT;
                 }
 
                 $this->startApp($move);
@@ -549,7 +629,7 @@ class SandboxMover
 
         $move->update(['phase' => SandboxMovePhase::Finishing, 'work' => null]);
 
-        return true;
+        return null;
     }
 
     /**
@@ -557,7 +637,7 @@ class SandboxMover
      *
      * @throws SandboxException
      */
-    protected function finish(SandboxMove $move): bool
+    protected function finish(SandboxMove $move): ?int
     {
         $sandbox = $move->sandbox;
         $project = $move->project;
@@ -603,8 +683,8 @@ class SandboxMover
             if ($move->from_answered) {
                 $this->removeOld($move);
             } else {
+                // Checked on whenever an admin opens Settings → Sandboxes (recover()).
                 $move->update(['old_status' => OldSandboxStatus::Waiting]);
-                RecoverSandbox::dispatch($move)->delay(now()->addMinutes(RecoverSandbox::CHECK_MINUTES));
                 $this->tellAboutEarlierFiles($move);
             }
         }
@@ -616,8 +696,9 @@ class SandboxMover
         $this->suspendIfUnused($move, $sandbox->fresh());
         $move->update(['phase' => SandboxMovePhase::Done, 'work' => null, 'finished_at' => now()]);
         $move->note(__('Moved to the new sandbox.'));
+        $this->runDeferredMessages($move);
 
-        return true;
+        return null;
     }
 
     /**

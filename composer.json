@@ -11,6 +11,7 @@
     "require": {
         "php": "^8.3",
         "aws/aws-sdk-php": "^3.398",
+        "firebase/php-jwt": "^7.0",
         "inertiajs/inertia-laravel": "^3.0",
         "laravel/chisel": "^0.1.0",
         "laravel/fortify": "^1.37.2",

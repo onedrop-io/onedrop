@@ -62,6 +62,8 @@ class GitRemote
         echo "$code" >"$dir/exit"
         [ "$code" = 0 ] && state=done || state=failed
         echo "$state" >"$dir/state.new" && mv -f "$dir/state.new" "$dir/state"
+        # Tell the app it's over, so it carries on now instead of checking back.
+        [ -z "${ONEDROP_FETCH_DONE_URL:-}" ] || curl -fsS -m 30 --retry 5 --retry-all-errors -X POST "$ONEDROP_FETCH_DONE_URL" >/dev/null 2>&1 || true
         SH;
 
     /**
@@ -166,13 +168,13 @@ class GitRemote
     }
 
     /**
-     * Pull a step at a time, for a queue job that checks back until it's done: the first call starts the sandbox's
-     * fetch, later ones check on it, and the one that finds it finished brings the commits in and returns true.
-     * Remotes the sandbox doesn't fetch itself are pulled in one go.
+     * Pull a step at a time, for a queue job: the first call starts the sandbox's fetch, which POSTs to $doneUrl once
+     * it's over, and the call that finds it finished brings the commits in and returns true. Remotes the sandbox
+     * doesn't fetch itself are pulled in one go.
      *
      * @throws SandboxException|GitException
      */
-    public function pullStep(Project $project, ?string $branch = null): bool
+    public function pullStep(Project $project, ?string $branch = null, ?string $doneUrl = null): bool
     {
         if (! $this->fetchesInSandbox($project)) {
             $this->pull($project, $branch);
@@ -186,7 +188,7 @@ class GitRemote
 
         if ($fetch['state'] === 'none') {
             [$sandbox, $branch] = $this->prepare($project, importing: true, importBranch: $branch);
-            $this->startFetch($project, $sandbox, $branch);
+            $this->startFetch($project, $sandbox, $branch, $doneUrl);
 
             return false;
         }
@@ -224,7 +226,7 @@ class GitRemote
      *
      * @throws SandboxException|GitException
      */
-    protected function startFetch(Project $project, Sandbox $sandbox, string $branch): void
+    protected function startFetch(Project $project, Sandbox $sandbox, string $branch, ?string $doneUrl = null): void
     {
         $token = $this->github->repositoryReadToken($project->github_installation_id, self::gitHubRepository($project->git_remote_url));
 
@@ -238,6 +240,8 @@ class GitRemote
             'ONEDROP_FETCH_URL' => $project->git_remote_url,
             'ONEDROP_FETCH_BRANCH' => $branch,
             'ONEDROP_FETCH_AUTH' => 'Authorization: Basic '.base64_encode("x-access-token:{$token}"),
+            // Where the sandbox says the fetch is over, so the job carries on without checking back.
+            ...($doneUrl ? ['ONEDROP_FETCH_DONE_URL' => $doneUrl] : []),
         ], detach: true);
     }
 

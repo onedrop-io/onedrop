@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\BuildSandboxTemplate;
 use App\Models\Sandbox;
 use App\Models\SystemSetting;
 use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxMover;
 use App\Sandbox\SandboxProvider;
 use App\Sandbox\SandboxProviders;
+use App\Sandbox\SandboxTemplates;
 use App\Sandbox\SystemConfig;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -34,6 +36,8 @@ class SandboxProviderController extends Controller
             ),
             'maxTaskCopies' => config('sandbox.max_task_copies'),
             'moves' => $mover->overview(),
+            // The images the app builds itself, as each provider's last build is doing (SBX-014).
+            'templateBuilds' => collect(SandboxTemplates::PROVIDERS)->mapWithKeys(fn (string $name) => [$name => app(SandboxTemplates::class)->status($name)])->filter()->all(),
         ]);
     }
 
@@ -76,6 +80,13 @@ class SandboxProviderController extends Controller
         $active = $providers->active();
         $saved = SystemSetting::group(SandboxProviders::SETTING);
         $providers->update($provider, $validated['enabled'], $validated);
+
+        // A new size, or a provider just set up, needs its image built first (SBX-014); new projects can't go there
+        // until it's ready.
+        if (app(SandboxTemplates::class)->needsBuild($provider)) {
+            BuildSandboxTemplate::dispatch($provider);
+        }
+
         $this->undoUnlessItCanMakeSandboxes($providers, $active, $saved, 'enabled');
 
         $this->toast($providers, $active, __(':provider saved.', ['provider' => SandboxProviders::PROVIDERS[$provider]['label']]), $mover->moveMisplaced());
