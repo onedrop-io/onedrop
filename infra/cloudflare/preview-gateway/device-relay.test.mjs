@@ -147,8 +147,11 @@ async function received(socket, count) {
     return messages(socket);
 }
 
+/** Wait up to two seconds for the condition: the relay's crypto runs off the event loop, so a slow machine needs time, not turns. */
 async function until(condition) {
-    for (let i = 0; i < 100; i++) {
+    const deadline = Date.now() + 2000;
+
+    while (Date.now() < deadline) {
         if (condition()) {
             return;
         }
@@ -450,11 +453,15 @@ test('when the computer disconnects mid-request, everything in flight is cut off
         relayed('/port/x/7681/ws', { headers: { Upgrade: 'websocket' } }),
     );
 
-    // The three requests' openings, however their bodies and ends interleave with them.
+    // The three requests' openings, in whatever order they reach the computer and however their bodies interleave.
     const opened = () =>
         messages(desktop).filter((message) => message.t && message.t !== 'end');
     await until(() => opened().length >= 3);
-    const [first, second, third] = opened();
+    const first = opened().find((message) => message.path?.includes('exec'));
+    const second = opened().find((message) =>
+        message.path?.includes('copy-out'),
+    );
+    const third = opened().find((message) => message.t === 'ws');
     await relay.webSocketMessage(
         desktop,
         JSON.stringify({ t: 'res', id: second.id, status: 200, headers: [] }),
