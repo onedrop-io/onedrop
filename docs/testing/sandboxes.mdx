@@ -103,7 +103,7 @@ With `E2B_API_KEY` set and the template built (`SANDBOX_PROVIDER=e2b php artisan
 - [ ] Opening the preview's URL with its token removed (`https://<port>-<id>.e2b.app/`) is refused (403).
 - [ ] In a project whose owner connected GitHub with packages (GIT-016), the Shell's `echo $PATH` ends in `/opt/onedrop/lazy`, and asking the agent to `docker pull` a private `ghcr.io` image of theirs works.
 - [ ] Left alone for 10 minutes, the sandbox shows as paused in the E2B dashboard; opening the project brings the preview back in about a second, with the Compose stack still up.
-- [ ] SBX-014: switch to another browser tab (or close the workspace) with no agent working: the sandbox shows as paused in the E2B dashboard within about a minute and a half. Come back within a minute: it stays running.
+- [ ] SBX-014: switch to another browser tab (or close the workspace) with no agent working: the sandbox shows as paused in the E2B dashboard within about a minute and a half. Come back within a minute: it stays running. Stay away 2 minutes with the Preview and a Shell open: it pauses and stays paused (its E2B events show no `resumed` until you return); coming back reloads the preview and the Shell is on the same session.
 - [ ] SBX-014: ask the agent for something with a long, silent step (`sleep 900 && echo done` in the Shell tool, or a big install) and close the tab: the sandbox stays running until the run ends, then pauses within about a minute and a half.
 - [ ] A long agent turn with the workspace closed isn't paused mid-turn.
 - [ ] The Files, Git and Services panels load without errors.

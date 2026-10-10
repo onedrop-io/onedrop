@@ -454,6 +454,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - A sandbox nobody has used for 10 minutes (`E2B_IDLE_SECONDS`) should pause with its memory kept, and wake by itself, in about a second, on the next visit or command; an open workspace and gateway visits should put the pause off.
 - A sandbox should never pause while its agent works, however long a step goes without output (up to E2B's one-hour limit on a continuous run on its free plan).
 - When the workspace is hidden or closed, or left untouched for 15 minutes, and no agent is working, the sandbox should pause within about a minute; coming back puts the usual pause back at once. When a run ends with nobody watching (no workspace open, no gateway visit in the last minute), it should pause within about a minute too.
+- A workspace that has been hidden or left for 50 seconds should unload its preview and Shell frames, so their reconnecting doesn't wake the paused sandbox straight away; coming back loads them again (the Shell on the same session).
 - Keeping a sandbox awake should cost at most one E2B call a minute while someone uses it, plus one when a run starts, one when it ends and one when the workspace is left; the app never polls E2B.
 - Pausing, resuming, updating (files kept), snapshots, moves (SBX-005) and deleting a sandbox should work as they do on Runtime.
 - A provider that can't run Docker (Blaxel) should tell the agent so, and the agent should tell the user to have an admin put a provider that can first, not to turn on a setting that isn't there.

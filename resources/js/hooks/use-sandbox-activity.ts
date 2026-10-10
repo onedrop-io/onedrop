@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import SandboxActivityController from '@/actions/App/Http/Controllers/SandboxActivityController';
 import { jsonRequest } from '@/lib/json-request';
 
@@ -11,6 +11,9 @@ const ACTIVITY_MS = 5_000;
 // A visible page nobody has touched for this long (a window left open) stops keeping the sandbox awake.
 const UNUSED_MS = 15 * 60_000;
 
+// A little under the minute a sandbox nobody's watching has before it pauses (SBX-014).
+const AWAY_MS = 50_000;
+
 // Using the page. Clicks inside the preview or shell frame never reach it, but focus moving into the frame does
 // (the window blurs with the frame as the active element).
 const ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'wheel'] as const;
@@ -21,6 +24,9 @@ const ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'wheel'] as const;
  * untouched for 15 minutes stops counting. When the page is hidden, closed or left untouched, it says so, so the
  * sandbox can pause within a minute (SBX-014). `task` is a task whose own copy of the app is shown.
  *
+ * Returns whether the page has been away long enough for the sandbox to pause: frames connected to it (the preview,
+ * the Shell) should be unloaded until it's back, or reconnecting would wake it straight away.
+ *
  * @param onReturn Called when the tab comes back, or when using the page or the open workspace's own ping woke the
  * sandbox; `woke` says it had been asleep (its preview is stale).
  */
@@ -28,8 +34,9 @@ export function useSandboxActivity(
     projectId: number,
     task: number | null,
     onReturn: (woke: boolean) => void,
-): void {
+): boolean {
     const latest = useRef(onReturn);
+    const [away, setAway] = useState(false);
 
     useEffect(() => {
         latest.current = onReturn;
@@ -39,6 +46,7 @@ export function useSandboxActivity(
         let lastPing = 0;
         let lastUsed = Date.now();
         let gone = false;
+        let awayTimer: number | undefined;
 
         // Typing in the preview or shell frame never reaches the page, so a focused frame counts as use.
         const inUse = () =>
@@ -49,6 +57,8 @@ export function useSandboxActivity(
         const ping = async (): Promise<boolean> => {
             lastPing = Date.now();
             gone = false;
+            window.clearTimeout(awayTimer);
+            setAway(false);
 
             const { woke } = await jsonRequest<{ woke: boolean }>(
                 SandboxActivityController.store.url(projectId),
@@ -71,6 +81,7 @@ export function useSandboxActivity(
                 'POST',
                 { keepalive: true },
             ).catch(() => {});
+            awayTimer = window.setTimeout(() => setAway(true), AWAY_MS);
         };
 
         // A sandbox can fall asleep with the tab still visible (the computer slept): the ping that wakes it reloads the
@@ -127,6 +138,11 @@ export function useSandboxActivity(
         // Moving the mouse over the page counts as use, without a ping of its own.
         const onMove = () => {
             lastUsed = Date.now();
+
+            // Back at a page left untouched: bring its frames back now, not at the next ping.
+            if (gone && document.visibilityState === 'visible') {
+                onActivity();
+            }
         };
 
         const onBlur = () => {
@@ -159,6 +175,9 @@ export function useSandboxActivity(
             window.removeEventListener('blur', onBlur);
             window.removeEventListener('pagehide', leave);
             leave();
+            window.clearTimeout(awayTimer);
         };
     }, [projectId, task]);
+
+    return away;
 }

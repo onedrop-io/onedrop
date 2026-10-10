@@ -74,3 +74,31 @@ test('hiding the workspace says nobody is watching, so an E2B sandbox can pause 
 
     expect($provider->released)->toBe([['e2b-1', true]]);
 })->group('SBX-014');
+
+test('a workspace away long enough for its sandbox to pause unloads the preview, and brings it back on return', function () {
+    $provider = new class extends FakeSandboxProvider
+    {
+        public function previewUrl(string $id, int $port): ?string
+        {
+            return "http://127.0.0.1:{$port}/";
+        }
+    };
+    app()->instance(SandboxProvider::class, $provider);
+    $user = User::factory()->has(AgentConnection::factory())->create();
+    $project = Project::factory()->for($user)->create();
+    Sandbox::factory()->for($project)->create(['external_id' => 'ctr', 'preview_url' => 'http://127.0.0.1:'.config('sandbox.proxy_port').'/']);
+    $this->actingAs($user);
+
+    $page = visit("/projects/{$project->id}")
+        ->click('@tab-preview')
+        ->assertPresent('@preview-frame');
+
+    // The 50 seconds away pass at once.
+    $page->script('const realTimeout = window.setTimeout; window.setTimeout = (run, ms, ...args) => realTimeout(run, ms === 50_000 ? 50 : ms, ...args)');
+    $page->script("Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true }); document.dispatchEvent(new Event('visibilitychange'))");
+    $page->wait(1);
+    $page->assertMissing('@preview-frame');
+
+    $page->script("Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true }); document.dispatchEvent(new Event('visibilitychange'))");
+    $page->assertPresent('@preview-frame');
+})->group('SBX-014');

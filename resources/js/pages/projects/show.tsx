@@ -349,14 +349,19 @@ export default function ShowProject({
     // Bumped when the tab comes back to a sandbox that had been asleep: the preview reloads (SBX-007).
     const [wakes, setWakes] = useState(0);
     // Keeps the sandbox awake while the workspace is open, and wakes it when the tab comes back (SBX-007). Coming
-    // back also catches up on anything missed meanwhile, without moving the chat.
-    useSandboxActivity(project.id, task?.own_copy ? task.id : null, (woke) => {
-        reloadLive();
+    // back also catches up on anything missed meanwhile, without moving the chat. Away long enough for the sandbox to
+    // pause, the frames connected to it are unloaded so they don't wake it again (SBX-014).
+    const away = useSandboxActivity(
+        project.id,
+        task?.own_copy ? task.id : null,
+        (woke) => {
+            reloadLive();
 
-        if (woke) {
-            setWakes((count) => count + 1);
-        }
-    });
+            if (woke) {
+                setWakes((count) => count + 1);
+            }
+        },
+    );
     // Bumped when the sandbox's files come or go (FILE-004): the Files panel checks whether they're its own.
     const [filesChanges, setFilesChanges] = useState(0);
     // The file open in the editor, which the chat sends along for the agent (AGT-015).
@@ -486,6 +491,7 @@ export default function ShowProject({
                     live={live}
                     filesChanges={filesChanges}
                     wakes={wakes}
+                    away={away}
                     chatOpen={chatOpen}
                     onToggleChat={toggleChat}
                     onShowChat={showChat}
@@ -929,6 +935,7 @@ function WorkspacePanel({
     live,
     filesChanges,
     wakes,
+    away,
     chatOpen,
     onToggleChat,
     onShowChat,
@@ -955,6 +962,8 @@ function WorkspacePanel({
     filesChanges: number;
     /** Changes when the tab came back to the sandbox asleep: the preview reloads (SBX-007). */
     wakes: number;
+    /** Away long enough for the sandbox to pause: the preview and Shell frames are unloaded until it's back (SBX-014). */
+    away: boolean;
     /** The chat is showing next to the workspace (LAYOUT-001). */
     chatOpen: boolean;
     onToggleChat: () => void;
@@ -2566,32 +2575,34 @@ function WorkspacePanel({
                                         'overflow-auto bg-muted p-4',
                                 )}
                             >
-                                <iframe
-                                    ref={previewFrame}
-                                    key={reloadKey}
-                                    // A page that (re)loads has lost the inspector and what was picked (AGT-014).
-                                    onLoad={() => {
-                                        setInspecting(false);
-                                        setPreviewLoading(false);
-                                    }}
-                                    src={previewUrlAt(
-                                        url,
-                                        previewStart,
-                                        sandbox?.shell_via_gateway ?? false,
-                                    )}
-                                    title="App preview"
-                                    data-test="preview-frame"
-                                    style={{
-                                        width:
-                                            PREVIEW_SIZES[previewSize].width ??
-                                            undefined,
-                                    }}
-                                    className={cn(
-                                        'flex-1 bg-white',
-                                        PREVIEW_SIZES[previewSize].width &&
-                                            'mx-auto shrink-0 rounded-md border shadow-sm',
-                                    )}
-                                />
+                                {!away && (
+                                    <iframe
+                                        ref={previewFrame}
+                                        key={reloadKey}
+                                        // A page that (re)loads has lost the inspector and what was picked (AGT-014).
+                                        onLoad={() => {
+                                            setInspecting(false);
+                                            setPreviewLoading(false);
+                                        }}
+                                        src={previewUrlAt(
+                                            url,
+                                            previewStart,
+                                            sandbox?.shell_via_gateway ?? false,
+                                        )}
+                                        title="App preview"
+                                        data-test="preview-frame"
+                                        style={{
+                                            width:
+                                                PREVIEW_SIZES[previewSize]
+                                                    .width ?? undefined,
+                                        }}
+                                        className={cn(
+                                            'flex-1 bg-white',
+                                            PREVIEW_SIZES[previewSize].width &&
+                                                'mx-auto shrink-0 rounded-md border shadow-sm',
+                                        )}
+                                    />
+                                )}
                                 {!working &&
                                     previewErrors.errors.length > 0 && (
                                         <PreviewErrorBar
@@ -2767,8 +2778,9 @@ function WorkspacePanel({
                 {shells.map((shell) =>
                     content(
                         shell,
-                        shellReady && shellStarts[shell] ? (
-                            // Stays mounted while the tab is open so the session survives tab switches and moves.
+                        shellReady && shellStarts[shell] && !away ? (
+                            // Stays mounted while the tab is open so the session survives tab switches and moves (unloaded
+                            // while the page is away, then back on the same session).
                             <iframe
                                 ref={(frame) => {
                                     if (frame) {
