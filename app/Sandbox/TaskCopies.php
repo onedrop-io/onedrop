@@ -387,7 +387,7 @@ class TaskCopies
         $local = storage_path('framework/task-bundle-'.uniqid());
 
         try {
-            $this->run($from, ['bash', '-c', 'mkdir -p "$1" && /opt/onedrop/fork bundle "$1/branch.bundle" "$2"', 'bundle', $dir, $commitMessage]);
+            $this->run($from, ['bash', '-c', 'mkdir -p "$1" && /opt/onedrop/fork bundle "$1/branch.bundle" "$2"', 'bundle', $dir, $commitMessage], $this->forkEnv($from));
 
             File::ensureDirectoryExists($local);
             $this->provider->copyOut($from->external_id, $dir, $local);
@@ -412,7 +412,7 @@ class TaskCopies
      */
     protected function mergeIn(Sandbox $to, string $bundle, string $mergeMessage): array
     {
-        $result = $this->provider->exec($to->external_id, ['/opt/onedrop/fork', 'merge', $bundle, $mergeMessage]);
+        $result = $this->provider->exec($to->external_id, ['/opt/onedrop/fork', 'merge', $bundle, $mergeMessage], $this->forkEnv($to));
 
         if ($result->exitCode === 3) {
             return array_values(array_filter(array_map('trim', explode("\n", $result->output))));
@@ -512,9 +512,23 @@ class TaskCopies
      *
      * @throws SandboxException
      */
-    protected function run(Sandbox $sandbox, array $command): string
+    /**
+     * Main leaves its changes uncommitted when the project doesn't commit each turn (SCM-003): then the fork tool
+     * carries its files without committing them, and applies a task's work as uncommitted changes.
+     *
+     * @return array<string, string>
+     */
+    protected function forkEnv(Sandbox $sandbox): array
     {
-        $result = $this->provider->exec($sandbox->external_id, $command);
+        return $sandbox->task_id === null && $sandbox->project?->commit_turns === false ? ['ONEDROP_COMMIT_TURNS' => '0'] : [];
+    }
+
+    /**
+     * @param  array<string, string>  $env
+     */
+    protected function run(Sandbox $sandbox, array $command, array $env = []): string
+    {
+        $result = $this->provider->exec($sandbox->external_id, $command, $env);
 
         if (! $result->successful()) {
             throw new SandboxException(strtok(trim($result->errorOutput), "\n") ?: 'Command failed: '.implode(' ', $command));

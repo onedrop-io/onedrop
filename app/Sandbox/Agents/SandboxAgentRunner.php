@@ -233,6 +233,9 @@ abstract class SandboxAgentRunner implements AgentRunner
             'APP_REQUIREMENTS' => $conversation->ownerProject()->track_requirements && ! $conversation->ownerProject()->isComputer() ? '1' : '',
             // On a computer the agent works the desktop for its owner, not on an app (CMP-002).
             'APP_MODE' => $conversation->ownerProject()->isComputer() ? 'computer' : 'app',
+            // Main commits each turn unless the project leaves its changes for the user (SCM-003); a task's own copy
+            // always does, since its branch only reaches Main through Apply to Main.
+            'APP_COMMIT_TURNS' => $sandbox->task_id === null && ! $conversation->ownerProject()->commit_turns ? '0' : '1',
         ];
 
         try {

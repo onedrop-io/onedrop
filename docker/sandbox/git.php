@@ -1,9 +1,9 @@
 <?php
 
 /**
- * Git tool behind the workspace's Tools → Git panel: the app's branch, uncommitted changes and history (and each
- * commit's files and diffs),
- * committing, discarding, switching branches, and restoring an earlier version (as a new commit).
+ * Git tool behind the workspace's Source Control tab: the app's branch, staged and unstaged changes, history (and each
+ * commit's files and diffs), staging files, hunks and lines, committing, discarding, switching branches, restoring an
+ * earlier version (as a new commit), and the agent's private checkpoints (the Timeline) and restoring one.
  *
  * Remotes are handled by the platform, never here: pushes and pulls travel as git bundles, so the remote's
  * credentials stay out of the sandbox. This only records what the platform pushed or fetched.
@@ -29,6 +29,8 @@ const COMPARE_COMMITS_MAX = 100;
 const COMBINE_COMMITS_MAX = 200;
 const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
 const AGENT_NAME = 'OneDrop';
+const CHECKPOINTS = 'refs/onedrop/checkpoints';
+const CHECKPOINTS_MAX = 100;
 const BRANCH_PATTERN = '/^(?!-)(?!.*\.\.)(?!.*\/\/)(?!.*@\{)[A-Za-z0-9._\/-]{1,100}(?<!\.lock)(?<![\/.])$/';
 
 final class ToolError extends RuntimeException {}
@@ -149,111 +151,148 @@ function authorEnv(array $request): array
 }
 
 /**
- * Commit everything, or only $paths, through /opt/onedrop/checkpoint (so dependencies and secrets stay out). Returns
- * whether it committed.
+ * Run /opt/onedrop/checkpoint with $mode (--commit, --snapshot or --prepare) and $message on stdin. Returns what it
+ * printed.
+ *
+ * @param  array<string, string>  $env
  */
-function checkpoint(string $message, array $author, ?array $paths = null, string $parts = ''): bool
+function checkpointScript(string $mode, string $message = '', array $env = []): string
 {
-    $before = head();
     $script = getenv('APP_CHECKPOINT') ?: '/opt/onedrop/checkpoint';
-    $pathsFile = null;
-    $partsFile = null;
-    $env = [...getenv(), 'ONEDROP_WORKSPACE' => workspace(), ...$author];
-
-    // Only these paths: the checkpoint reads them NUL-separated from a file.
-    if ($paths !== null) {
-        $pathsFile = tempnam(sys_get_temp_dir(), 'onedrop-paths-');
-        file_put_contents($pathsFile, implode("\0", $paths));
-        $env['ONEDROP_GIT_PATHS_FILE'] = $pathsFile;
-    }
-
-    // And parts of files, as a patch it applies on top.
-    if ($parts !== '') {
-        $partsFile = tempnam(sys_get_temp_dir(), 'onedrop-parts-');
-        file_put_contents($partsFile, $parts);
-        $env['ONEDROP_GIT_PATCH_FILE'] = $partsFile;
-    }
-
-    $process = proc_open([$script], [0 => ['pipe', 'r'], 1 => ['file', '/dev/null', 'w'], 2 => ['file', '/dev/null', 'w']], $pipes, workspace(), $env);
+    $process = proc_open([$script, $mode], [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['file', '/dev/null', 'w']], $pipes, workspace(), [...getenv(), 'ONEDROP_WORKSPACE' => workspace(), ...$env]);
 
     if (! is_resource($process)) {
-        throw new ToolError('Could not commit.');
+        throw new ToolError('Could not run git.');
     }
 
     fwrite($pipes[0], $message);
     fclose($pipes[0]);
-    $code = proc_close($process);
+    $output = (string) stream_get_contents($pipes[1]);
+    fclose($pipes[1]);
+    proc_close($process);
 
-    foreach ([$pathsFile, $partsFile] as $file) {
-        if ($file !== null) {
-            @unlink($file);
-        }
-    }
+    return trim($output);
+}
 
-    if ($code === 3) {
-        throw new ToolError('This file changed. Review it again.');
-    }
+/**
+ * Start the repository if there's none, and keep dependencies and secrets out of it.
+ */
+function prepare(): void
+{
+    checkpointScript('--prepare');
+}
+
+/**
+ * Commit everything (dependencies and secrets stay out). Returns whether it committed.
+ *
+ * @param  array<string, string>  $author
+ */
+function commitAll(string $message, array $author): bool
+{
+    $before = head();
+    checkpointScript('--commit', $message, $author);
 
     return head() !== $before;
 }
 
 /**
- * Uncommitted changes: path, a one-letter state (M modified, A added, D deleted, R renamed, U conflicted, ? new),
- * the lines added and removed (null for binary files and new folders), and for renames the path it came from.
+ * Save every file as a private checkpoint (refs/onedrop/checkpoints) when anything changed since the last one; returns
+ * the newest checkpoint, or the branch's commit when there's none.
+ */
+function snapshot(string $message, string $kind = 'edits'): ?string
+{
+    $sha = checkpointScript('--snapshot', $message, ['ONEDROP_CHECKPOINT_KIND' => $kind]);
+
+    return preg_match('/^[0-9a-f]{40}$/', $sha) ? $sha : null;
+}
+
+/**
+ * Staged and unstaged changes: path, a one-letter state (M modified, A added, D deleted, R renamed, U conflicted,
+ * ? new), the lines added and removed (null for binary files and new folders), and for renames the path it came from.
+ * A file staged and then edited again is in both lists. Conflicted and new files are unstaged.
  *
- * @return array{list<array{path: string, status: string, additions: ?int, deletions: ?int, binary: bool, from?: string}>, bool}
+ * @return array{list<array{path: string, status: string, additions: ?int, deletions: ?int, binary: bool, from?: string}>, list<array{path: string, status: string, additions: ?int, deletions: ?int, binary: bool, from?: string}>, bool}
  */
 function changes(): array
 {
-    $output = gitOrFail(['status', '--porcelain=v1', '-z']);
+    $output = gitOrFail(['status', '--porcelain=v1', '-z', '--untracked-files=normal']);
     $entries = $output === '' ? [] : explode("\0", rtrim($output, "\0"));
-    $changes = [];
+    $staged = [];
+    $unstaged = [];
 
     for ($i = 0; $i < count($entries); $i++) {
         $entry = $entries[$i];
-        $code = substr($entry, 0, 2);
+        [$index, $worktree] = [$entry[0], $entry[1]];
         $path = substr($entry, 3);
         $from = null;
 
         // Renames and copies are followed by their original path.
-        if ($code[0] === 'R' || $code[0] === 'C') {
+        if ($index === 'R' || $index === 'C') {
             $from = $entries[++$i] ?? null;
         }
 
-        $status = match (true) {
-            $code === '??' => '?',
-            str_contains($code, 'U') || $code === 'AA' || $code === 'DD' => 'U',
-            str_contains($code, 'R') => 'R',
-            str_contains($code, 'D') => 'D',
-            str_contains($code, 'A') => 'A',
-            default => 'M',
-        };
+        if ($index === '?') {
+            $unstaged[] = ['path' => $path, 'status' => '?'];
 
-        $changes[] = ['path' => $path, 'status' => $status, ...($status === 'R' && $from !== null ? ['from' => $from] : [])];
+            continue;
+        }
+
+        if ($index === 'U' || $worktree === 'U' || ($index === 'A' && $worktree === 'A') || ($index === 'D' && $worktree === 'D')) {
+            $unstaged[] = ['path' => $path, 'status' => 'U'];
+
+            continue;
+        }
+
+        if ($index !== ' ') {
+            $status = match ($index) {
+                'R' => 'R',
+                'C', 'A' => 'A',
+                'D' => 'D',
+                default => 'M',
+            };
+            $staged[] = ['path' => $path, 'status' => $status, ...($status === 'R' && $from !== null ? ['from' => $from] : [])];
+        }
+
+        if ($worktree !== ' ') {
+            $unstaged[] = ['path' => $path, 'status' => $worktree === 'D' ? 'D' : 'M'];
+        }
     }
 
-    $shown = array_slice($changes, 0, CHANGES_MAX);
-
-    return [withLineCounts($shown), count($changes) > CHANGES_MAX];
+    return [
+        withLineCounts(array_slice($staged, 0, CHANGES_MAX), staged: true),
+        withLineCounts(array_slice($unstaged, 0, CHANGES_MAX), staged: false),
+        count($staged) > CHANGES_MAX || count($unstaged) > CHANGES_MAX,
+    ];
 }
 
 /**
- * Add each change's lines added and removed since the last commit.
+ * Every change, staged or not, once per file: what committing everything would commit.
+ *
+ * @return list<array{path: string, status: string, additions: ?int, deletions: ?int, binary: bool, from?: string}>
+ */
+function allChanges(): array
+{
+    [$staged, $unstaged] = changes();
+
+    return array_values(array_column([...$unstaged, ...$staged], null, 'path'));
+}
+
+/**
+ * Add each change's lines added and removed: staged ones since the last commit, unstaged ones since they were staged.
  *
  * @param  list<array{path: string, status: string, from?: string}>  $changes
  * @return list<array{path: string, status: string, additions: ?int, deletions: ?int, binary: bool, from?: string}>
  */
-function withLineCounts(array $changes): array
+function withLineCounts(array $changes, bool $staged): array
 {
     if ($changes === []) {
         return [];
     }
 
-    // Before the first commit, everything counts as added (against the empty tree).
-    $base = head() ?? EMPTY_TREE;
     $counts = [];
+    $args = $staged ? ['diff', '--cached', '--numstat', '-z', '--no-renames', ...(head() === null ? [] : ['HEAD'])] : ['diff', '--numstat', '-z', '--no-renames'];
 
-    foreach (array_filter(explode("\0", git(['diff', '--numstat', '-z', '--no-renames', $base])[1])) as $line) {
+    foreach (array_filter(explode("\0", git($args)[1])) as $line) {
         [$added, $removed, $path] = array_pad(explode("\t", $line, 3), 3, '');
         $counts[$path] = $added === '-' ? [null, null, true] : [(int) $added, (int) $removed, false];
     }
@@ -312,11 +351,11 @@ function tracking(?string $branch): ?array
 function status(): array
 {
     if (! isRepository()) {
-        return ['initialized' => false, 'branch' => null, 'branches' => [], 'head' => null, 'changes' => [], 'more_changes' => false, 'tracking' => null, 'state' => null];
+        return ['initialized' => false, 'branch' => null, 'branches' => [], 'head' => null, 'staged' => [], 'changes' => [], 'more_changes' => false, 'tracking' => null, 'state' => null];
     }
 
     $branch = currentBranch();
-    [$changes, $more] = changes();
+    [$staged, $changes, $more] = changes();
     $branches = array_values(array_filter(explode("\n", trim(gitOrFail(['for-each-ref', '--format=%(refname:short)', 'refs/heads'])))));
 
     $state = match (true) {
@@ -331,6 +370,7 @@ function status(): array
         'branch' => $branch,
         'branches' => $branches,
         'head' => head(),
+        'staged' => $staged,
         'changes' => $changes,
         'more_changes' => $more,
         'tracking' => tracking($branch),
@@ -446,7 +486,7 @@ function showCommit(array $request): array
     return [
         'sha' => $full,
         'subject' => $subject,
-        'body' => trim($body),
+        'body' => trim(preg_replace('/^Onedrop-[A-Za-z]+: .*$/m', '', $body)),
         'author' => $author,
         'email' => $email,
         'date' => $date,
@@ -474,7 +514,8 @@ function diff(array $request): array
 }
 
 /**
- * Commit every change, or only those at "paths" (from the list of changes), as the user.
+ * Commit what's staged as the user, or every change when nothing is (dependencies and secrets stay out). Mid-merge,
+ * committing what's staged finishes the merge.
  */
 function commit(array $request): array
 {
@@ -488,32 +529,184 @@ function commit(array $request): array
         throw new ToolError('That message is too long.');
     }
 
-    $parts = chosenParts($request);
-    $paths = chosenPaths($request, allowNone: $parts !== '');
+    prepare();
+    $author = authorEnv($request);
+    [$staged] = changes();
 
-    if ($paths === [] && $parts === '') {
-        throw new ToolError('Pick at least one file to commit.');
+    if ($staged === [] && status()['state'] !== null) {
+        throw new ToolError('Stage the files you\'ve resolved, then commit.');
     }
 
-    if (! checkpoint($message, authorEnv($request), $paths, $parts)) {
-        throw new ToolError('There\'s nothing to commit.');
+    if ($staged === []) {
+        if (! commitAll($message, $author)) {
+            throw new ToolError('There\'s nothing to commit.');
+        }
+
+        return status();
+    }
+
+    [$code, $error] = commitStaged($message, $author);
+
+    if ($code !== 0) {
+        throw new ToolError(str_contains($error, 'unmerged')
+            ? 'Some files still have conflicts. Resolve and stage them, then commit.'
+            : 'Could not commit: '.trim(preg_replace('/^(fatal|error): /m', '', $error)));
     }
 
     return status();
 }
 
 /**
- * Put one hunk of an edited file back as it was in the last commit, checking the file is still as it was shown.
+ * Commit what's staged with $message, as $author. Returns [exit code, git's error].
+ *
+ * @param  array<string, string>  $author
+ * @return array{int, string}
+ */
+function commitStaged(string $message, array $author): array
+{
+    [$code, , $error] = git(['-c', 'commit.gpgsign=false', 'commit', '-q', '--no-verify', '-m', $message], [
+        'GIT_AUTHOR_NAME' => $author['ONEDROP_GIT_AUTHOR_NAME'],
+        'GIT_AUTHOR_EMAIL' => $author['ONEDROP_GIT_AUTHOR_EMAIL'],
+        'GIT_COMMITTER_NAME' => $author['ONEDROP_GIT_AUTHOR_NAME'],
+        'GIT_COMMITTER_EMAIL' => $author['ONEDROP_GIT_AUTHOR_EMAIL'],
+    ]);
+
+    return [$code, $error];
+}
+
+/**
+ * The paths a request names ("paths"; null for every change), each with where a staged rename came from.
+ *
+ * @param  list<array{path: string, status: string, from?: string}>  $changes
+ * @return list<string>|null
+ */
+function chosenPaths(array $request, array $changes): ?array
+{
+    $paths = $request['paths'] ?? null;
+
+    if ($paths === null) {
+        return null;
+    }
+
+    if (! is_array($paths) || $paths === []) {
+        throw new ToolError('Pick at least one file.');
+    }
+
+    $byPath = array_column($changes, null, 'path');
+    $chosen = [];
+
+    foreach ($paths as $path) {
+        if (! is_string($path) || ! isset($byPath[$path])) {
+            throw new ToolError('Some of those files have no changes.');
+        }
+
+        $chosen[] = $path;
+
+        if (isset($byPath[$path]['from'])) {
+            $chosen[] = $byPath[$path]['from'];
+        }
+    }
+
+    return array_values(array_unique($chosen));
+}
+
+/**
+ * Stage unstaged changes: the files at "paths", or every one.
+ */
+function stage(array $request): array
+{
+    prepare();
+    [, $unstaged] = changes();
+
+    if (in_array('U', array_column($unstaged, 'status'), true) && ($request['paths'] ?? null) === null) {
+        // Staging a conflicted file marks it resolved; only when it's picked on purpose.
+        $unstaged = array_values(array_filter($unstaged, fn (array $change) => $change['status'] !== 'U'));
+
+        if ($unstaged === []) {
+            throw new ToolError('Only conflicted files are left. Resolve each one, then stage it.');
+        }
+
+        $paths = array_column($unstaged, 'path');
+    } else {
+        $paths = chosenPaths($request, $unstaged) ?? ['.'];
+    }
+
+    gitOrFail(['add', '-A', '--', ...$paths]);
+
+    return status();
+}
+
+/**
+ * Unstage staged changes: the files at "paths", or every one. The files themselves don't change.
+ */
+function unstage(array $request): array
+{
+    [$staged] = changes();
+    $paths = chosenPaths($request, $staged) ?? ['.'];
+
+    if (head() === null) {
+        gitOrFail(['rm', '-r', '-q', '--cached', '--ignore-unmatch', '--', ...$paths]);
+    } else {
+        gitOrFail(['restore', '--staged', '--', ...$paths]);
+    }
+
+    return status();
+}
+
+/**
+ * Stage or unstage ("staged": true unstages) one hunk ("hunk") or chosen lines ("lines", indexes in the patch) of an
+ * edited file, checking its diff is still the one shown ("hash").
+ */
+function stageLines(array $request): array
+{
+    $staged = ($request['staged'] ?? false) === true;
+    $change = changeAt($request['path'] ?? null, $staged);
+
+    if ($change['status'] !== 'M' || $change['binary']) {
+        throw new ToolError('Only parts of edited text files can be staged.');
+    }
+
+    $patch = changePatch($change, $staged);
+
+    if (! is_string($request['hash'] ?? null) || ! hash_equals(sha1($patch), $request['hash'])) {
+        throw new ToolError('This file changed. Review it again.');
+    }
+
+    $hunk = is_int($request['hunk'] ?? null) ? $request['hunk'] : null;
+    $lines = is_array($request['lines'] ?? null) ? array_values(array_filter($request['lines'], 'is_int')) : null;
+
+    if ($hunk === null && $lines === null) {
+        throw new ToolError('Pick a part of the file.');
+    }
+
+    $part = partialPatch($patch, $lines === null ? [] : unchosenLines($patch, $lines), onlyHunk: $hunk, reverse: $staged);
+
+    if ($part === '') {
+        throw new ToolError('That part has no changes.');
+    }
+
+    [$code] = git(['apply', '--cached', ...($staged ? ['-R'] : []), '--recount', '--whitespace=nowarn', '-'], input: $part);
+
+    if ($code !== 0) {
+        throw new ToolError('This file changed. Review it again.');
+    }
+
+    return status();
+}
+
+/**
+ * Put one hunk of an edited file back as it was staged (or in the last commit), checking the file is still as it
+ * was shown.
  */
 function discardHunk(array $request): array
 {
-    $change = uncommittedChange($request['path'] ?? null);
+    $change = changeAt($request['path'] ?? null, false);
 
     if ($change['status'] !== 'M' || $change['binary']) {
         throw new ToolError('Only parts of edited text files can be discarded.');
     }
 
-    $patch = changePatch($change);
+    $patch = changePatch($change, false);
 
     if (! is_string($request['hash'] ?? null) || ! hash_equals(sha1($patch), $request['hash'])) {
         throw new ToolError('This file changed. Review it again.');
@@ -525,6 +718,7 @@ function discardHunk(array $request): array
         throw new ToolError('That part has no changes.');
     }
 
+    snapshot('Before discarding a change');
     [$code] = git(['apply', '-R', '--recount', '--whitespace=nowarn', '-'], input: $hunk);
 
     if ($code !== 0) {
@@ -532,42 +726,6 @@ function discardHunk(array $request): array
     }
 
     return status();
-}
-
-/**
- * The paths a request picked out of the uncommitted changes (with where renamed files came from), or null for all.
- *
- * @return list<string>|null
- */
-function chosenPaths(array $request, bool $allowNone = false): ?array
-{
-    $paths = $request['paths'] ?? null;
-
-    if ($paths === null) {
-        return $allowNone ? [] : null;
-    }
-
-    if (! is_array($paths) || ($paths === [] && ! $allowNone)) {
-        throw new ToolError('Pick at least one file to commit.');
-    }
-
-    [$changes] = isRepository() ? changes() : [[]];
-    $byPath = array_column($changes, null, 'path');
-    $chosen = [];
-
-    foreach ($paths as $path) {
-        if (! is_string($path) || ! isset($byPath[$path])) {
-            throw new ToolError('Some of those files have no changes to commit.');
-        }
-
-        $chosen[] = $path;
-
-        if (isset($byPath[$path]['from'])) {
-            $chosen[] = $byPath[$path]['from'];
-        }
-    }
-
-    return array_values(array_unique($chosen));
 }
 
 /**
@@ -651,10 +809,10 @@ function combine(array $request): array
         throw new ToolError('Write a message for the commit.');
     }
 
-    [$changes] = changes();
+    [$staged] = changes();
 
-    if ($changes !== []) {
-        throw new ToolError('Commit or discard your changes first.');
+    if ($staged !== []) {
+        throw new ToolError('Commit or unstage your staged changes first.');
     }
 
     if (status()['state'] !== null) {
@@ -664,8 +822,12 @@ function combine(array $request): array
     [, $base] = unpushedCommits();
     $before = head();
     gitOrFail(['reset', '--soft', '-q', $base]);
+    $author = authorEnv($request);
 
-    if (! checkpoint($message, authorEnv($request))) {
+    // Only what the commits held is staged now; unstaged changes stay as they are.
+    [$code, $error] = commitStaged($message, $author);
+
+    if ($code !== 0) {
         // Nothing came of it (the commits cancelled each other out, or the commit failed): put them back.
         gitOrFail(['reset', '--soft', '-q', $before]);
 
@@ -750,35 +912,36 @@ function compare(array $request): array
 }
 
 /**
- * The uncommitted change at "path" (from the list of changes).
+ * The staged or unstaged change at "path".
  *
  * @return array{path: string, status: string, additions: ?int, deletions: ?int, binary: bool, from?: string}
  */
-function uncommittedChange(mixed $path): array
+function changeAt(mixed $path, bool $staged): array
 {
     $path = validPath($path);
-    [$changes] = isRepository() ? changes() : [[]];
-    $change = array_column($changes, null, 'path')[$path] ?? null;
+    [$stagedChanges, $unstaged] = isRepository() ? changes() : [[], []];
+    $change = array_column($staged ? $stagedChanges : $unstaged, null, 'path')[$path] ?? null;
 
     if ($change === null) {
-        throw new ToolError('That file has no uncommitted changes.');
+        throw new ToolError($staged ? 'That file has no staged changes.' : 'That file has no unstaged changes.');
     }
 
     return $change;
 }
 
 /**
- * A text change's whole patch since the last commit. A new file's is all added lines, with the header git needs
- * to apply it.
+ * A text change's whole patch: a staged one's since the last commit, an unstaged one's since it was staged. A new
+ * file's is all added lines, with the header git needs to apply it.
  */
-function changePatch(array $change): string
+function changePatch(array $change, bool $staged): string
 {
     $path = $change['path'];
 
     if ($change['status'] !== '?') {
         $paths = isset($change['from']) ? [$change['from'], $path] : [$path];
+        $args = $staged ? ['diff', '--cached', ...(head() === null ? [] : ['HEAD'])] : ['diff'];
 
-        return git(['diff', '--no-color', '--no-ext-diff', '--no-renames', head() ?? EMPTY_TREE, '--', ...$paths])[1];
+        return git([...$args, '--no-color', '--no-ext-diff', '--no-renames', '--', ...$paths])[1];
     }
 
     $full = workspace().'/'.$path;
@@ -792,17 +955,18 @@ function changePatch(array $change): string
 }
 
 /**
- * One uncommitted change's patch since the last commit, cut short when it's very large, with a hash of the whole
- * patch (so picking parts of it can check it's still what was shown). Binary files are only marked, and a new
- * folder lists its files instead.
+ * One change's patch ("staged": its staged part, otherwise its unstaged part), cut short when it's very large, with a
+ * hash of the whole patch (so staging parts of it can check it's still what was shown). Binary files are only marked,
+ * and a new folder lists its files instead.
  *
- * @return array{path: string, patch: string, hash: ?string, truncated: bool, binary: bool, files: list<string>|null}
+ * @return array{path: string, staged: bool, patch: string, hash: ?string, truncated: bool, binary: bool, files: list<string>|null}
  */
 function changeDiff(array $request): array
 {
-    $change = uncommittedChange($request['path'] ?? null);
+    $staged = ($request['staged'] ?? false) === true;
+    $change = changeAt($request['path'] ?? null, $staged);
     $path = $change['path'];
-    $result = ['path' => $path, 'patch' => '', 'hash' => null, 'truncated' => false, 'binary' => false, 'files' => null];
+    $result = ['path' => $path, 'staged' => $staged, 'patch' => '', 'hash' => null, 'truncated' => false, 'binary' => false, 'files' => null];
 
     if ($change['status'] === '?' && is_dir(workspace().'/'.rtrim($path, '/'))) {
         $files = array_values(array_filter(explode("\0", git(['ls-files', '-z', '--others', '--exclude-standard', '--', $path])[1])));
@@ -814,7 +978,7 @@ function changeDiff(array $request): array
         return [...$result, 'binary' => true];
     }
 
-    // A very large new file: show its start, without reading it all (it can't be committed in parts).
+    // A very large new file: show its start, without reading it all.
     if ($change['status'] === '?' && filesize(workspace().'/'.$path) > DIFF_BYTES_MAX) {
         $start = explode("\n", (string) file_get_contents(workspace().'/'.$path, length: DIFF_BYTES_MAX));
         array_pop($start);
@@ -822,19 +986,44 @@ function changeDiff(array $request): array
         return [...$result, 'truncated' => true, 'patch' => '@@ -0,0 +1,'.count($start)." @@\n".implode('', array_map(fn (string $line) => "+{$line}\n", $start))];
     }
 
-    $patch = changePatch($change);
+    $patch = changePatch($change, $staged);
 
     return [...$result, 'patch' => substr($patch, 0, DIFF_BYTES_MAX), 'hash' => sha1($patch), 'truncated' => strlen($patch) > DIFF_BYTES_MAX];
 }
 
 /**
+ * The indexes of a patch's added and removed lines that aren't in $chosen.
+ *
+ * @param  list<int>  $chosen
+ * @return list<int>
+ */
+function unchosenLines(string $patch, array $chosen): array
+{
+    $chosen = array_flip($chosen);
+    $inHunk = false;
+    $unchosen = [];
+
+    foreach (explode("\n", $patch) as $index => $line) {
+        $inHunk = $inHunk || str_starts_with($line, '@@');
+
+        if ($inHunk && ($line[0] ?? '') !== '' && in_array($line[0], ['+', '-'], true) && ! isset($chosen[$index])) {
+            $unchosen[] = $index;
+        }
+    }
+
+    return $unchosen;
+}
+
+/**
  * A patch with some of its lines left out (their indexes in the patch's lines): a left-out added line is dropped,
- * and a left-out removed line stays as it was. With $onlyHunk, every hunk but that one is left out. Hunks with no
- * changes left are dropped; '' when none are left. Line counts are left to `git apply --recount`.
+ * and a left-out removed line stays as it was. With $reverse (for applying it backwards, to unstage), the other way
+ * round: a left-out removed line is dropped and a left-out added line stays. With $onlyHunk, every hunk but that one
+ * is left out. Hunks with no changes left are dropped; '' when none are left. Line counts are left to
+ * `git apply --recount`.
  *
  * @param  list<int>  $excluded
  */
-function partialPatch(string $patch, array $excluded, ?int $onlyHunk = null): string
+function partialPatch(string $patch, array $excluded, ?int $onlyHunk = null, bool $reverse = false): string
 {
     $lines = explode("\n", $patch);
 
@@ -882,13 +1071,13 @@ function partialPatch(string $patch, array $excluded, ?int $onlyHunk = null): st
 
             $dropped = false;
 
-            if (isset($excluded[$index]) && $kind === '+') {
+            if (isset($excluded[$index]) && $kind === ($reverse ? '-' : '+')) {
                 $dropped = true;
 
                 continue;
             }
 
-            if (isset($excluded[$index]) && $kind === '-') {
+            if (isset($excluded[$index]) && $kind === ($reverse ? '+' : '-')) {
                 $body[] = ' '.substr($line, 1);
 
                 continue;
@@ -908,98 +1097,67 @@ function partialPatch(string $patch, array $excluded, ?int $onlyHunk = null): st
 }
 
 /**
- * The parts of files a commit takes ("partials": each a path, the hash of the patch that was shown, and the
- * indexes of the lines left out), as one patch. Refused when a file changed since it was shown.
+ * What committing would commit (what's staged, or every change when nothing is), cut short for a model to
+ * summarize: the tracked files' diff and the new files' names.
  */
-function chosenParts(array $request): string
-{
-    $partials = $request['partials'] ?? [];
-
-    if (! is_array($partials)) {
-        throw new ToolError('Invalid request.');
-    }
-
-    $patches = '';
-
-    foreach ($partials as $partial) {
-        $change = uncommittedChange($partial['path'] ?? null);
-
-        if (! in_array($change['status'], ['M', 'A', '?'], true) || $change['binary'] || isset($change['from'])) {
-            throw new ToolError('Only parts of edited or new text files can be committed.');
-        }
-
-        $patch = changePatch($change);
-
-        if (! is_string($partial['hash'] ?? null) || ! hash_equals(sha1($patch), $partial['hash'])) {
-            throw new ToolError('This file changed. Review it again.');
-        }
-
-        $patches .= partialPatch($patch, array_values(array_filter((array) ($partial['excluded'] ?? []), 'is_int')));
-    }
-
-    return $patches;
-}
-
-/**
- * What the uncommitted changes (or only those at "paths") would commit, cut short for a model to summarize:
- * the tracked files' diff and the new files' names.
- */
-function changesDiff(array $request): array
+function changesDiff(): array
 {
     if (! isRepository()) {
         return ['patch' => '', 'new_files' => [], 'truncated' => false];
     }
 
-    $paths = chosenPaths($request);
-    [$changes] = changes();
-    $patch = git(['diff', '--no-color', '--no-ext-diff', '--no-renames', head() ?? EMPTY_TREE, '--', ...($paths ?? ['.'])])[1];
-    $newFiles = array_values(array_map(
-        fn (array $change) => $change['path'],
-        array_filter($changes, fn (array $change) => $change['status'] === '?' && ($paths === null || in_array($change['path'], $paths, true))),
-    ));
+    [$staged, $unstaged] = changes();
+    $base = head() === null ? [] : ['HEAD'];
+    $patch = $staged !== []
+        ? git(['diff', '--cached', ...$base, '--no-color', '--no-ext-diff', '--no-renames'])[1]
+        : git(['diff', ...($base === [] ? ['--cached'] : $base), '--no-color', '--no-ext-diff', '--no-renames'])[1];
+    $newFiles = $staged !== []
+        ? array_column(array_filter($staged, fn (array $change) => $change['status'] === 'A'), 'path')
+        : array_column(array_filter($unstaged, fn (array $change) => $change['status'] === '?'), 'path');
 
     return [
         'patch' => substr($patch, 0, CHANGES_DIFF_BYTES_MAX),
-        'new_files' => $newFiles,
+        'new_files' => array_values($newFiles),
         'truncated' => strlen($patch) > CHANGES_DIFF_BYTES_MAX,
     ];
 }
 
+/**
+ * Throw away unstaged changes, to the files at "paths" or every one: each goes back to how it's staged (or to the last
+ * commit), and new files are deleted. Staged changes and ignored files (node_modules, .env) stay. The files as they
+ * were are saved as a checkpoint first.
+ */
 function discard(array $request): array
 {
     if (! isRepository()) {
         throw new ToolError('There\'s nothing to discard.');
     }
 
-    $path = $request['path'] ?? null;
-    $hasHead = head() !== null;
+    [, $unstaged] = changes();
+    $paths = chosenPaths($request, $unstaged);
+    $chosen = $paths === null ? $unstaged : array_values(array_filter($unstaged, fn (array $change) => in_array($change['path'], $paths, true)));
 
-    if ($path === null) {
-        if ($hasHead) {
-            gitOrFail(['reset', '--hard', '-q']);
-        } else {
-            gitOrFail(['rm', '-r', '-q', '--cached', '--ignore-unmatch', '.']);
+    if (in_array('U', array_column($chosen, 'status'), true)) {
+        if ($paths !== null) {
+            throw new ToolError('Resolve the conflict in that file, or ask the agent to.');
         }
 
-        // Untracked files go too; ignored ones (node_modules, .env) stay.
-        gitOrFail(['clean', '-f', '-d', '-q']);
-
-        return status();
+        $chosen = array_values(array_filter($chosen, fn (array $change) => $change['status'] !== 'U'));
     }
 
-    validPath($path);
+    // The Timeline keeps what's thrown away.
+    prepare();
+    snapshot('Before discarding changes');
 
-    [$tracked] = git(['ls-files', '--error-unmatch', '--', $path]);
-    [$inHead] = $hasHead ? git(['cat-file', '-e', "HEAD:{$path}"]) : [1];
+    $new = array_column(array_filter($chosen, fn (array $change) => $change['status'] === '?'), 'path');
+    $tracked = array_column(array_filter($chosen, fn (array $change) => $change['status'] !== '?'), 'path');
 
-    if ($inHead === 0) {
-        gitOrFail(['restore', '--source=HEAD', '--staged', '--worktree', '--', $path]);
-    } elseif ($tracked === 0) {
-        // Added since the last commit: unstage it and remove it.
-        gitOrFail(['rm', '-r', '-q', '--cached', '--', $path]);
-        gitOrFail(['clean', '-f', '-d', '-q', '--', $path]);
-    } else {
-        gitOrFail(['clean', '-f', '-d', '-q', '--', $path]);
+    if ($tracked !== []) {
+        gitOrFail(['restore', '--worktree', '--', ...$tracked]);
+    }
+
+    if ($new !== []) {
+        gitOrFail(['clean', '-f', '-d', '-q', '--', ...$new]);
     }
 
     return status();
@@ -1019,8 +1177,8 @@ function switchBranch(array $request): array
 }
 
 /**
- * Make the workspace match an earlier commit, as a new commit on top (nothing is lost): uncommitted changes
- * are committed first, then every tracked file is put back as it was.
+ * Make the workspace match an earlier commit, as a new commit on top (nothing is lost): uncommitted changes are saved
+ * as a private checkpoint first (the Timeline has them), then every file is put back as it was.
  */
 function restore(array $request): array
 {
@@ -1033,9 +1191,17 @@ function restore(array $request): array
     $short = substr($sha, 0, 7);
     $author = authorEnv($request);
 
-    checkpoint("Changes before restoring {$short}", $author);
+    prepare();
+    snapshot("Before restoring {$short}");
+    // New files are staged first, so restoring removes the ones the commit didn't have.
+    gitOrFail(['add', '-A', '.']);
     gitOrFail(['restore', "--source={$sha}", '--staged', '--worktree', '--', ':/']);
-    checkpoint("Restore \"{$subject}\" ({$short})", $author);
+
+    [$code, $error] = commitStaged("Restore \"{$subject}\" ({$short})", $author);
+
+    if ($code !== 0) {
+        throw new ToolError(str_contains($error, 'nothing') ? 'The files are already as they were then.' : 'Could not commit: '.trim($error));
+    }
 
     return status();
 }
@@ -1091,12 +1257,117 @@ function pulled(array $request): array
     [$code, , $error] = git(['merge', '--ff-only', '-q', "refs/remotes/origin/{$branch}"]);
 
     if ($code !== 0) {
-        throw new ToolError(str_contains($error, 'Not possible to fast-forward') || str_contains($error, 'diverging')
-            ? 'This branch and the remote both have new commits. Ask the agent to merge them.'
-            : 'Could not bring in the remote\'s changes: '.trim(preg_replace('/^(fatal|error): /m', '', $error)));
+        throw new ToolError(match (true) {
+            str_contains($error, 'Not possible to fast-forward') || str_contains($error, 'diverging') => 'This branch and the remote both have new commits. Ask the agent to merge them.',
+            str_contains($error, 'would be overwritten') => 'Your uncommitted changes to some of the same files would be overwritten. Commit or discard them, then pull again.',
+            default => 'Could not bring in the remote\'s changes: '.trim(preg_replace('/^(fatal|error): /m', '', $error)),
+        });
     }
 
     return status();
+}
+
+/**
+ * The private checkpoints (refs/onedrop/checkpoints), newest first, a page at a time ("offset"): each agent turn,
+ * edits made outside the agent, restores and applied tasks, with the files they changed.
+ */
+function checkpoints(array $request): array
+{
+    if (! isRepository() || git(['rev-parse', '--verify', '-q', CHECKPOINTS])[0] !== 0) {
+        return ['checkpoints' => [], 'more' => false];
+    }
+
+    $offset = max(0, min(100_000, (int) ($request['offset'] ?? 0)));
+    $output = gitOrFail(['log', '--first-parent', '--shortstat', '--skip='.$offset, '--max-count='.(CHECKPOINTS_MAX + 1), '--format=%x1e%H%x1f%s%x1f%aI%x1f%(trailers:key=Onedrop-Kind,valueonly,separator=)%x1f%P', CHECKPOINTS]);
+    $checkpoints = [];
+
+    foreach (array_filter(explode("\x1e", $output), fn (string $record) => trim($record) !== '') as $record) {
+        [$header, $stat] = array_pad(explode("\n", trim($record, "\n"), 2), 2, '');
+        [$sha, $subject, $date, $kind, $parents] = explode("\x1f", $header);
+
+        // The first checkpoint's parent is the branch's commit: the history before it isn't the Timeline's.
+        if (trim($kind) === '') {
+            break;
+        }
+
+        preg_match('/(\d+) files? changed/', $stat, $files);
+        preg_match('/(\d+) insertions?/', $stat, $added);
+        preg_match('/(\d+) deletions?/', $stat, $removed);
+
+        $checkpoints[] = [
+            'sha' => $sha,
+            'subject' => $subject,
+            'date' => $date,
+            'kind' => trim($kind),
+            'files' => (int) ($files[1] ?? 0),
+            'additions' => (int) ($added[1] ?? 0),
+            'deletions' => (int) ($removed[1] ?? 0),
+            'restorable_before' => trim($parents) !== '',
+        ];
+    }
+
+    return ['checkpoints' => array_slice($checkpoints, 0, CHECKPOINTS_MAX), 'more' => count($checkpoints) > CHECKPOINTS_MAX];
+}
+
+/**
+ * Put every file back as it was at a checkpoint ("sha"), or just before it ("before"). Nothing is committed and what's
+ * staged stays staged: the difference shows as unstaged changes. The files as they were are saved first, so the
+ * restore can itself be undone from the Timeline.
+ */
+function restoreCheckpoint(array $request): array
+{
+    $sha = validCommit($request['sha'] ?? null);
+    $kind = trim(gitOrFail(['log', '-1', '--format=%(trailers:key=Onedrop-Kind,valueonly,separator=)', $sha]));
+
+    if ($kind === '') {
+        throw new ToolError('That isn\'t one of the project\'s checkpoints.');
+    }
+
+    $before = ($request['before'] ?? false) === true;
+    $target = $sha;
+
+    if ($before) {
+        [$code, $parent] = git(['rev-parse', '--verify', '-q', "{$sha}^"]);
+
+        if ($code !== 0) {
+            throw new ToolError('Nothing came before that checkpoint.');
+        }
+
+        $target = trim($parent);
+    }
+
+    $subject = trim(gitOrFail(['log', '-1', '--format=%s', $sha]));
+    $current = snapshot('Before restoring a checkpoint');
+
+    if ($current === null) {
+        throw new ToolError('Could not save the files as they are.');
+    }
+
+    putTree($current, $target);
+    snapshot(($before ? 'Restore before "' : 'Restore "').mb_strimwidth($subject, 0, 60, '…').'"', 'restore');
+
+    return status();
+}
+
+/**
+ * Make the files go from commit $from to commit $to: write $to's files, and remove those $from has and $to doesn't.
+ * The index (what's staged) and ignored files are untouched.
+ */
+function putTree(string $from, string $to): void
+{
+    $index = workspace().'/.git/onedrop-put-index';
+    @unlink($index);
+
+    try {
+        gitOrFail(['read-tree', $to], ['GIT_INDEX_FILE' => $index]);
+        gitOrFail(['checkout-index', '-a', '-f'], ['GIT_INDEX_FILE' => $index]);
+    } finally {
+        @unlink($index);
+    }
+
+    foreach (array_filter(explode("\0", gitOrFail(['diff', '--name-only', '-z', '--no-renames', '--diff-filter=D', $from, $to]))) as $path) {
+        @unlink(workspace().'/'.$path);
+    }
 }
 
 try {
@@ -1112,7 +1383,10 @@ try {
         'show' => showCommit($request),
         'diff' => diff($request),
         'commit' => commit($request),
-        'changes_diff' => changesDiff($request),
+        'stage' => stage($request),
+        'unstage' => unstage($request),
+        'stage_lines' => stageLines($request),
+        'changes_diff' => changesDiff(),
         'change_diff' => changeDiff($request),
         'discard_hunk' => discardHunk($request),
         'compare' => compare($request),
@@ -1122,6 +1396,8 @@ try {
         'discard' => discard($request),
         'switch' => switchBranch($request),
         'restore' => restore($request),
+        'checkpoints' => checkpoints($request),
+        'restore_checkpoint' => restoreCheckpoint($request),
         'pushed' => pushed($request),
         'pulled' => pulled($request),
         default => throw new ToolError('Unknown operation.'),

@@ -11,7 +11,11 @@
 #                               bundle's HEAD (the pull request's newest commit). Ignored files (dependencies, .env, databases)
 #                               stay. Prints the commit.
 #   fork bundle OUT MESSAGE     Commit everything (as MESSAGE), then write the current branch's history to the git bundle OUT.
+#                               With ONEDROP_COMMIT_TURNS=0 (Main leaves its changes uncommitted), the branch isn't
+#                               touched: the files go as one commit on top of it, only in the bundle.
 #   fork merge BUNDLE MESSAGE   Commit everything, then merge the bundle's branch into the current one.
+#                               With ONEDROP_COMMIT_TURNS=0 nothing is committed: the merged files land as uncommitted
+#                               changes (saved as a private checkpoint before and after), conflicts as conflict markers.
 #                               Exits 0 when merged (or nothing to merge), 3 on conflicts (left for the agent to resolve).
 #   fork images                 List the images the app's Docker built itself, which no registry has: "ID TAG..." per line.
 #   fork save-image DIR FILE TAG...
@@ -169,8 +173,46 @@ load_image() {
     [ "$source" = url ] || rm -f "$source" 2>/dev/null || true
 }
 
+CHECKPOINT="${ONEDROP_CHECKPOINT:-/opt/onedrop/checkpoint}"
+
 commit_all() {
-    printf '%s' "$1" | "${ONEDROP_CHECKPOINT:-/opt/onedrop/checkpoint}"
+    printf '%s' "$1" | "$CHECKPOINT" --commit
+}
+
+# Whether this copy leaves its changes uncommitted (Main, when the project doesn't commit each turn).
+uncommitted() {
+    [ "${ONEDROP_COMMIT_TURNS:-1}" = 0 ]
+}
+
+# The workspace's files as a commit on top of the branch's (MESSAGE), without touching the branch or what's staged.
+files_commit() {
+    local checkpoint head parents=()
+    checkpoint="$(ONEDROP_CHECKPOINT_KIND="${2:-edits}" "$CHECKPOINT" --snapshot </dev/null)"
+    [ -n "$checkpoint" ] || return 1
+    head="$(git rev-parse -q --verify HEAD)" && parents=(-p "$head")
+    printf '%s\n' "$1" | git "${AUTHOR[@]}" commit-tree "$checkpoint^{tree}" ${parents[@]+"${parents[@]}"}
+}
+
+# Make the files go from tree FROM to tree TO: write TO's files, and remove the ones FROM has and TO doesn't. Ignored
+# files (dependencies, .env) and what's staged are untouched.
+put_tree() {
+    local index
+    index="$(git rev-parse --git-dir)/onedrop-put-index"
+    rm -f "$index"
+
+    if ! GIT_INDEX_FILE="$index" git read-tree "$2" || ! GIT_INDEX_FILE="$index" git checkout-index -a -f; then
+        rm -f "$index"
+
+        return 1
+    fi
+
+    rm -f "$index"
+    git diff --name-only -z --no-renames --diff-filter=D "$1" "$2" | xargs -0 -r rm -f --
+}
+
+# The bundle's one branch (HEAD, or the ref an uncommitted Main wrote).
+bundle_head() {
+    git bundle list-heads "$1" | awk 'NR == 1 { print $2 }'
 }
 
 case "${1:-}" in
@@ -202,6 +244,15 @@ case "${1:-}" in
         ;;
     bundle)
         cd "$WORKSPACE" || exit 1
+
+        if uncommitted; then
+            "$CHECKPOINT" --prepare </dev/null
+            files="$(files_commit "$3")" || exit 1
+            git update-ref refs/onedrop/outgoing "$files" || exit 1
+            git bundle create -q "$2" refs/onedrop/outgoing || exit 1
+            exit 0
+        fi
+
         commit_all "$3"
         git bundle create -q "$2" HEAD || exit 1
         ;;
@@ -213,8 +264,26 @@ case "${1:-}" in
             exit 1
         fi
 
+        if uncommitted; then
+            "$CHECKPOINT" --prepare </dev/null
+            files="$(files_commit "Before: $3")" || exit 1
+            git fetch -q "$2" "$(bundle_head "$2"):refs/onedrop/incoming" --force || exit 1
+            merged="$(git merge-tree --write-tree --name-only --no-messages "$files" refs/onedrop/incoming)"
+            status=$?
+            [ "$status" -le 1 ] || exit 1
+            put_tree "$files" "$(head -n 1 <<<"$merged")" || exit 1
+            printf '%s' "$3" | ONEDROP_CHECKPOINT_KIND=apply "$CHECKPOINT" --snapshot >/dev/null
+
+            if [ "$status" = 1 ]; then
+                tail -n +2 <<<"$merged" | sed '/^$/d'
+                exit 3
+            fi
+
+            exit 0
+        fi
+
         commit_all "Checkpoint before merging"
-        git fetch -q "$2" "HEAD:refs/onedrop/incoming" --force || exit 1
+        git fetch -q "$2" "$(bundle_head "$2"):refs/onedrop/incoming" --force || exit 1
 
         if git "${AUTHOR[@]}" merge -q --no-ff --no-edit -m "$3" refs/onedrop/incoming >/dev/null 2>&1; then
             exit 0

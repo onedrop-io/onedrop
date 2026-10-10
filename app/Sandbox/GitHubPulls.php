@@ -442,7 +442,7 @@ class GitHubPulls
      */
     protected function repositoryOf(Project $project): string
     {
-        return self::repository($project) ?? throw new GitException(__('Connect a GitHub repository in Tools → Git to see its pull requests.'));
+        return self::repository($project) ?? throw new GitException(__('Connect a GitHub repository in Source Control to see its pull requests.'));
     }
 
     /**
@@ -457,7 +457,7 @@ class GitHubPulls
             : $project->git_remote_token;
 
         if (blank($token)) {
-            throw new GitException(__('Connect a GitHub repository in Tools → Git to see its pull requests.'));
+            throw new GitException(__('Connect a GitHub repository in Source Control to see its pull requests.'));
         }
 
         return Http::acceptJson()->withToken($token)->withHeaders(['X-GitHub-Api-Version' => '2022-11-28'])->timeout(20);
@@ -472,7 +472,7 @@ class GitHubPulls
 
         return match (true) {
             $response->successful() => $response,
-            $response->status() === 401 => throw new GitException(__('GitHub didn\'t accept the repository\'s token. Connect it again in Tools → Git.')),
+            $response->status() === 401 => throw new GitException(__('GitHub didn\'t accept the repository\'s token. Connect it again in Source Control.')),
             in_array($response->status(), [403, 429], true) && Str::contains(Str::lower($message), 'rate limit') => throw new GitException(__('GitHub\'s rate limit was reached. Try again in a few minutes.')),
             $response->status() === 403 => throw new GitException(__('GitHub refused to show this: the app or token needs the :permission: Read permission. (:message)', ['permission' => $permission, 'message' => $message])),
             $response->status() === 404 => throw new GitException(__('GitHub couldn\'t find that pull request, or the app or token can\'t see it.')),

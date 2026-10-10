@@ -82,7 +82,7 @@ The **Publish** menu has what you need to publish: the status, where it's publis
 
 Your hosted app doesn't change while you keep building. It only updates when you publish again, so half-finished work never reaches your visitors.
 
-- **What's changed.** After each turn, a dot on **Publish** shows the sandbox has changes the hosted app doesn't. The panel lists them ("3 changes since you published", with what each one did) and its button says **Update**.
+- **What's changed.** After each turn, a dot on **Publish** shows the sandbox has changes the hosted app doesn't. The panel lists them ("3 changes since you published", with what each one did) and its button says **Update**. With [Commit after each agent turn](/guides/source-control#commit-after-each-agent-turn) off, it counts the agent's turns instead of commits.
 - **Update** deploys the sandbox's latest code to the same address. If the new version doesn't start, the previous one is put back and the panel says what went wrong. If it crashes as it starts, the deploy stops within a minute and its log shows the app's last output.
 - **Roll back.** Under **Earlier deploys**, pick an earlier version and click **Roll back**. It comes back in a few seconds, without building again. Your data stays as it is now, so anything the newer version changed in the database stays changed. Front ends can't roll back yet.
 - **Update automatically** (off by default) updates the hosted app by itself about a minute after a turn, when the agent finished without waiting on you and the preview showed no new errors. Leave it off if you often build a feature over several messages.

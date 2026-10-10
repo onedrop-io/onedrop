@@ -116,8 +116,8 @@ class GitHubSkillImporter
 
         return match (true) {
             $response->successful() => $response,
-            $response->status() === 404 => throw new SkillException(__('There\'s nothing at that link. Check it, and that you can open the repository (connect GitHub in Tools → Git for private ones).')),
-            $response->status() === 403 || $response->status() === 429 => throw new SkillException(__('GitHub is limiting requests right now. Try again in a few minutes, or connect GitHub in Tools → Git.')),
+            $response->status() === 404 => throw new SkillException(__('There\'s nothing at that link. Check it, and that you can open the repository (connect GitHub in Source Control for private ones).')),
+            $response->status() === 403 || $response->status() === 429 => throw new SkillException(__('GitHub is limiting requests right now. Try again in a few minutes, or connect GitHub in Source Control.')),
             default => throw new SkillException(__('GitHub couldn\'t send the skill (:status).', ['status' => $response->status()])),
         };
     }

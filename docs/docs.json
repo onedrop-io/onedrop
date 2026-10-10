@@ -34,6 +34,12 @@
     "icons": {
         "library": "lucide"
     },
+    "redirects": [
+        {
+            "source": "/guides/git",
+            "destination": "/guides/source-control"
+        }
+    ],
     "navigation": {
         "tabs": [
             {
@@ -70,7 +76,7 @@
                             "guides/developer-tools",
                             "guides/docker-compose",
                             "guides/serverless",
-                            "guides/git",
+                            "guides/source-control",
                             "guides/pull-requests",
                             "guides/agent-skills",
                             "guides/publish",
@@ -147,6 +153,7 @@
                             "testing/agents",
                             "testing/shell",
                             "testing/tools",
+                            "testing/source-control",
                             "testing/pull-requests",
                             "testing/sandboxes",
                             "testing/publishing",

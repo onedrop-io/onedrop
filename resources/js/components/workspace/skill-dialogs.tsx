@@ -303,7 +303,7 @@ export function ImportSkillDialog({
                     <DialogDescription>
                         Paste a link to a skill’s folder or its SKILL.md.
                         Private repositories work once you’ve connected GitHub
-                        in Tools → Git.
+                        in Source Control.
                     </DialogDescription>
                 </DialogHeader>
                 <Input

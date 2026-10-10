@@ -21,7 +21,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 
 /**
- * Connecting repositories through the platform's GitHub App (Tools → Git → Connect to GitHub): installing it and
+ * Connecting repositories through the platform's GitHub App (Source Control → Connect to GitHub): installing it and
  * signing in through it, then creating a repository or picking one (and a branch) that the user and the app can both reach.
  */
 class GitHubAppController extends Controller
@@ -82,7 +82,7 @@ class GitHubAppController extends Controller
     }
 
     /**
-     * Whether a request is GitHub coming back from a Tools → Git connection this session started.
+     * Whether a request is GitHub coming back from a Source Control connection this session started.
      */
     public static function isReturning(Request $request): bool
     {
@@ -106,7 +106,7 @@ class GitHubAppController extends Controller
         $forImport = is_array($pending) && array_key_exists('project', $pending) && $pending['project'] === null;
 
         if (! is_array($pending) || ! hash_equals((string) $pending['state'], (string) $request->query('state')) || (! $forImport && (! $project || $request->user()->cannot('update', $project)))) {
-            abort(403, __('This GitHub connection was started from another session. Start again from Tools → Git.'));
+            abort(403, __('This GitHub connection was started from another session. Start again from Source Control.'));
         }
 
         if (is_string($request->query('error'))) {
@@ -303,6 +303,6 @@ class GitHubAppController extends Controller
             return to_route('dashboard')->with('github_import', ['error' => $error]);
         }
 
-        return redirect()->to(route('projects.show', $project).'?'.http_build_query(array_filter(['tool' => 'git', 'github' => 'connect', 'github_error' => $error])));
+        return redirect()->to(route('projects.show', $project).'?'.http_build_query(array_filter(['tab' => 'source-control', 'github' => 'connect', 'github_error' => $error])));
     }
 }

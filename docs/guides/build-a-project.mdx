@@ -32,7 +32,7 @@ The first time you open this page, OneDrop asks **How do you like to build?**
 - **Simple**: you describe it, and the AI handles the technical side. New projects open with just Tools and Preview and the files panel closed, and the chat says what the agent is doing in plain words ("Building the orders page" rather than a file path). Nothing is hidden for good: the agent and model pickers and **Commit** are still there, you can add Shell, Console or Services from **+**, and whatever you open or hide stays that way next time. Only the repository import is left to Advanced.
 - **Advanced**: everything shows: models, files, the shell and git.
 
-Switch any time with **Simple / Advanced** at the top right of the page, or **Mode** in the [account menu](/guides/settings#account-menu). Your choice is saved to your account, so it follows you to other devices. Switching to Simple shows the chat and closes the files panel once; after that your layout is remembered as usual. Simple mode never turns anything off: the agent still saves your code after every turn. Until you choose, everything shows.
+Switch any time with **Simple / Advanced** at the top right of the page, or **Mode** in the [account menu](/guides/settings#account-menu). Your choice is saved to your account, so it follows you to other devices. Switching to Simple shows the chat and closes the files panel once; after that your layout is remembered as usual. Simple mode never turns anything off: the agent's work is still saved after every turn. Until you choose, everything shows.
 
 ### Start from a template
 
@@ -68,7 +68,7 @@ To work on an app you already have, switch to Advanced mode and click **Somethin
 
 The message box becomes optional: say what you want done, like "add dark mode", or leave it empty and the agent gets the app running in the preview. Press Enter to start.
 
-OneDrop checks it can reach the repository first, and tells you if it can't. It then creates a project named after the repository, brings the branch into the project's sandbox, connects the repository in [Tools → Git](/guides/git) so you can pull and push later, and starts the agent.
+OneDrop checks it can reach the repository first, and tells you if it can't. It then creates a project named after the repository, brings the branch into the project's sandbox, connects the repository in [Source Control](/guides/source-control) so you can pull and push later, and starts the agent. The agent's changes stay uncommitted until you commit them.
 
 <Note>
     Private repositories need GitHub connected. If your OneDrop has the GitHub
@@ -77,7 +77,7 @@ OneDrop checks it can reach the repository first, and tells you if it can't. It 
     repositories listed as you type. Repository not listed? Click **Add it on
     GitHub** to install the app on another account or let it see more
     repositories. Public repositories work without connecting anything; to push
-    to one later, connect it with a token in Tools → Git.
+    to one later, connect it with a token in Source Control.
 </Note>
 
 ### What your app is built with
@@ -120,7 +120,9 @@ Your message stays in the box until it's sent. Without OpenRouter, or if Jev doe
 
 ### Your code is saved after every turn
 
-When the agent finishes or you stop it, OneDrop commits everything in the project to git, with your message as the commit message, and backs up the project's history outside its sandbox. Projects without a git repository get one on branch `main`; a project that already has one keeps its branches and history. Dependencies (`node_modules`, `vendor`), caches and `.env` secrets are never committed. If a project's sandbox is ever replaced without its files, the code comes back from the backup. See the history, go back to an earlier version, or push to GitHub in [Tools → Git](/guides/git).
+When the agent finishes or you stop it, OneDrop saves the turn as a checkpoint in the [Timeline](/guides/source-control#timeline), so you can go back to before any turn. In new projects it also commits everything to git, with your message as the commit message; a project connected to a repository leaves the agent's changes uncommitted for you to review and commit (see [Commit after each agent turn](/guides/source-control#commit-after-each-agent-turn)). Projects without a git repository get one on branch `main`; a project that already has one keeps its branches and history. Dependencies (`node_modules`, `vendor`), caches and `.env` secrets are never committed.
+
+OneDrop backs up the project's history and checkpoints outside its sandbox. If a project's sandbox is ever replaced without its files, the code comes back from the backup, uncommitted work included. Review changes, go back to an earlier version, or push to GitHub in [Source Control](/guides/source-control).
 
 ## Attach images and files
 

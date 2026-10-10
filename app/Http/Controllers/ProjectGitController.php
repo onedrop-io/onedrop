@@ -25,7 +25,8 @@ use Illuminate\Support\Str;
 class ProjectGitController extends Controller
 {
     /**
-     * The branch, uncommitted changes, recent commits, and the remote (never its token).
+     * The branch, staged and unstaged changes, recent commits, the agent's checkpoints, whether the agent commits each
+     * turn, and the remote (never its token).
      */
     public function index(Request $request, Project $project, WorkspaceGit $git, GitHubApp $github): JsonResponse
     {
@@ -34,9 +35,55 @@ class ProjectGitController extends Controller
         return $this->fromSandbox($project, fn (Sandbox $sandbox) => [
             'status' => $git->status($sandbox),
             ...$git->history($sandbox),
+            'checkpoints' => $git->checkpoints($sandbox),
+            'commit_turns' => $project->commit_turns,
             ...self::remote($project),
             'github' => $this->githubApp($project, $github, $request),
         ]);
+    }
+
+    /**
+     * A page of the agent's checkpoints (SCM-002).
+     */
+    public function checkpoints(Request $request, Project $project, WorkspaceGit $git): JsonResponse
+    {
+        Gate::authorize('view', $project);
+
+        $offset = (int) ($request->validate(['offset' => ['nullable', 'integer', 'min:0', 'max:100000']])['offset'] ?? 0);
+
+        return $this->fromSandbox($project, fn (Sandbox $sandbox) => $git->checkpoints($sandbox, $offset));
+    }
+
+    /**
+     * Put the files back as they were at one of the agent's checkpoints, or just before it, as uncommitted changes.
+     */
+    public function restoreCheckpoint(Request $request, Project $project, WorkspaceGit $git): JsonResponse
+    {
+        Gate::authorize('update', $project);
+
+        $validated = $request->validate([
+            'sha' => ['required', 'string', 'regex:/^[0-9a-f]{7,40}$/'],
+            'before' => ['sometimes', 'boolean'],
+        ]);
+
+        return $this->changing($project, function (Sandbox $sandbox) use ($git, $validated, $project) {
+            $status = $git->restoreCheckpoint($sandbox, $validated['sha'], (bool) ($validated['before'] ?? false));
+            BackupProject::dispatch($project);
+
+            return ['status' => $status, 'checkpoints' => $git->checkpoints($sandbox)];
+        });
+    }
+
+    /**
+     * Whether the agent commits each turn to the branch, or leaves its changes for the user to commit (SCM-003).
+     */
+    public function settings(Request $request, Project $project): JsonResponse
+    {
+        Gate::authorize('update', $project);
+
+        $project->update($request->validate(['commit_turns' => ['required', 'boolean']]));
+
+        return response()->json(['commit_turns' => $project->commit_turns]);
     }
 
     /**
@@ -161,20 +208,23 @@ class ProjectGitController extends Controller
     }
 
     /**
-     * The diff of one uncommitted change, for reviewing it before committing.
+     * The diff of one change, its staged part or its unstaged part, for reviewing it before committing.
      */
     public function changeDiff(Request $request, Project $project, WorkspaceGit $git): JsonResponse
     {
         Gate::authorize('view', $project);
 
-        $path = $request->validate(['path' => ['required', 'string', 'max:1000']])['path'];
+        $validated = $request->validate([
+            'path' => ['required', 'string', 'max:1000'],
+            'staged' => ['sometimes', 'boolean'],
+        ]);
 
-        return $this->fromSandbox($project, fn (Sandbox $sandbox) => $git->changeDiff($sandbox, $path));
+        return $this->fromSandbox($project, fn (Sandbox $sandbox) => $git->changeDiff($sandbox, $validated['path'], $request->boolean('staged')));
     }
 
     /**
-     * Commit every change, or only the chosen files, as the signed-in user; optionally on a new branch, and with a
-     * message written for them when they leave it blank.
+     * Commit what's staged, or every change when nothing is, as the signed-in user; optionally on a new branch, and
+     * with a message written for them when they leave it blank.
      */
     public function commit(Request $request, Project $project, WorkspaceGit $git, CommitMessageWriter $writer): JsonResponse
     {
@@ -182,33 +232,81 @@ class ProjectGitController extends Controller
 
         $validated = $request->validate([
             'message' => ['nullable', 'string', 'max:5000'],
-            'paths' => ['nullable', 'array', 'min:1', 'max:500'],
-            'paths.*' => ['string', 'max:1000'],
             'branch' => ['nullable', 'string', 'max:100'],
-            'partials' => ['nullable', 'array', 'max:500'],
-            'partials.*.path' => ['required', 'string', 'max:1000'],
-            'partials.*.hash' => ['required', 'string', 'size:40'],
-            'partials.*.excluded' => ['present', 'array', 'max:100000'],
-            'partials.*.excluded.*' => ['integer', 'min:0'],
         ]);
-        $paths = $validated['paths'] ?? null;
-        $partials = array_values(array_map(fn (array $partial) => [
-            'path' => $partial['path'],
-            'hash' => $partial['hash'],
-            'excluded' => array_values(array_map(intval(...), $partial['excluded'])),
-        ], $validated['partials'] ?? []));
 
-        return $this->changing($project, function (Sandbox $sandbox) use ($git, $writer, $validated, $paths, $partials, $request, $project) {
+        return $this->changing($project, function (Sandbox $sandbox) use ($git, $writer, $validated, $request, $project) {
             if (($validated['branch'] ?? null) !== null) {
                 $git->switch($sandbox, $validated['branch'], create: true);
             }
 
-            $message = trim($validated['message'] ?? '') ?: $writer->write($project, $sandbox, $partials === [] ? $paths : [...($paths ?? []), ...array_column($partials, 'path')]);
-            $status = $git->commit($sandbox, $message, $request->user(), $partials === [] ? $paths : ($paths ?? []), $partials);
+            $message = trim($validated['message'] ?? '') ?: $writer->write($project, $sandbox);
+            $status = $git->commit($sandbox, $message, $request->user());
             BackupProject::dispatch($project);
 
             return ['status' => $status, 'commits' => $git->log($sandbox), 'message' => $message];
         });
+    }
+
+    /**
+     * A commit message the project's AI writes for what committing would commit, for the message box.
+     */
+    public function draftMessage(Project $project, CommitMessageWriter $writer): JsonResponse
+    {
+        Gate::authorize('update', $project);
+
+        return $this->fromSandbox($project, fn (Sandbox $sandbox) => ['message' => $writer->write($project, $sandbox)]);
+    }
+
+    /**
+     * Stage the unstaged changes to the chosen files, or every one. Allowed while the agent works: it doesn't change
+     * any file.
+     */
+    public function stage(Request $request, Project $project, WorkspaceGit $git): JsonResponse
+    {
+        Gate::authorize('update', $project);
+
+        $paths = $this->paths($request);
+
+        return $this->fromSandbox($project, fn (Sandbox $sandbox) => ['status' => $git->stage($sandbox, $paths)]);
+    }
+
+    /**
+     * Unstage the staged changes to the chosen files, or every one.
+     */
+    public function unstage(Request $request, Project $project, WorkspaceGit $git): JsonResponse
+    {
+        Gate::authorize('update', $project);
+
+        $paths = $this->paths($request);
+
+        return $this->fromSandbox($project, fn (Sandbox $sandbox) => ['status' => $git->unstage($sandbox, $paths)]);
+    }
+
+    /**
+     * Stage or unstage one hunk, or some lines, of an edited file (the hash says which version of its diff was shown).
+     */
+    public function stageLines(Request $request, Project $project, WorkspaceGit $git): JsonResponse
+    {
+        Gate::authorize('update', $project);
+
+        $validated = $request->validate([
+            'path' => ['required', 'string', 'max:1000'],
+            'hash' => ['required', 'string', 'size:40'],
+            'staged' => ['sometimes', 'boolean'],
+            'hunk' => ['nullable', 'integer', 'min:0', 'required_without:lines'],
+            'lines' => ['nullable', 'array', 'min:1', 'max:100000', 'required_without:hunk'],
+            'lines.*' => ['integer', 'min:0'],
+        ]);
+
+        return $this->fromSandbox($project, fn (Sandbox $sandbox) => ['status' => $git->stageLines(
+            $sandbox,
+            $validated['path'],
+            $validated['hash'],
+            $request->boolean('staged'),
+            isset($validated['hunk']) ? (int) $validated['hunk'] : null,
+            isset($validated['lines']) ? array_values(array_map(intval(...), $validated['lines'])) : null,
+        )]);
     }
 
     /**
@@ -228,15 +326,30 @@ class ProjectGitController extends Controller
     }
 
     /**
-     * Throw away uncommitted changes to one file, or all of them.
+     * Throw away unstaged changes to the chosen files, or all of them (staged changes stay).
      */
     public function discard(Request $request, Project $project, WorkspaceGit $git): JsonResponse
     {
         Gate::authorize('update', $project);
 
-        $path = $request->validate(['path' => ['nullable', 'string', 'max:1000']])['path'] ?? null;
+        $paths = $this->paths($request);
 
-        return $this->changing($project, fn (Sandbox $sandbox) => ['status' => $git->discard($sandbox, $path)]);
+        return $this->changing($project, fn (Sandbox $sandbox) => ['status' => $git->discard($sandbox, $paths)]);
+    }
+
+    /**
+     * The files a request picked ("paths"), or null for every change.
+     *
+     * @return list<string>|null
+     */
+    protected function paths(Request $request): ?array
+    {
+        $validated = $request->validate([
+            'paths' => ['nullable', 'array', 'min:1', 'max:500'],
+            'paths.*' => ['string', 'max:1000'],
+        ]);
+
+        return isset($validated['paths']) ? array_values($validated['paths']) : null;
     }
 
     /**

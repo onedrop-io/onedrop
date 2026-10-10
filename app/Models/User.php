@@ -367,7 +367,7 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     }
 
     /**
-     * Installations of the platform's GitHub App this user can reach (Tools → Git).
+     * Installations of the platform's GitHub App this user can reach (Source Control).
      *
      * @return HasMany<GitHubInstallation, $this>
      */

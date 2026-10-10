@@ -102,7 +102,7 @@ function withView(href: string, view: WorkspaceView): string {
 
 const OPEN_TOOL_EVENT = 'workspace:open-tool';
 
-/** Show a Tools section in the workspace from outside it (e.g. the header's git menu opening Tools → Git). */
+/** Show a Tools section in the workspace from outside it (e.g. the header's git menu opening Source Control). */
 export function openWorkspaceTool(tool: string): void {
     window.dispatchEvent(new CustomEvent(OPEN_TOOL_EVENT, { detail: tool }));
 }

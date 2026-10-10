@@ -21,6 +21,7 @@ use App\Sandbox\ExecResult;
 use App\Sandbox\Providers\FakeSandboxProvider;
 use App\Sandbox\SandboxProvider;
 use App\Sandbox\TaskCopies;
+use Illuminate\Contracts\Process\ProcessResult;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
@@ -306,6 +307,27 @@ test('a project at its limit can\'t start another task copy', function () {
     expect(Task::count())->toBe(1);
 })->group('TASK-003');
 
+test('a task applied to a Main that leaves its changes uncommitted lands as uncommitted changes, and the agent is told not to commit', function () {
+    Queue::fake();
+    $this->project->update(['commit_turns' => false]);
+    $this->mergeResult = new ExecResult(3, "app.css\n");
+    $task = Task::factory()->for($this->project)->create(['title' => 'Dark mode']);
+    $task->sandbox()->create(['provider' => 'fake', 'external_id' => 'copy-1', 'status' => SandboxStatus::Running]);
+
+    (new SyncTask($task, TaskSyncStatus::Applying))->handle(app(TaskCopies::class), app(AgentQueue::class));
+
+    $merge = collect($this->provider->executed)->first(fn (array $run) => $run['id'] === 'main-1' && $run['command'][0] === '/opt/onedrop/fork');
+    $bundle = collect($this->provider->executed)->first(fn (array $run) => $run['id'] === 'copy-1' && str_contains(implode(' ', $run['command']), 'fork bundle'));
+
+    expect($merge['env'])->toBe(['ONEDROP_COMMIT_TURNS' => '0'])
+        ->and($bundle['env'])->toBe([])
+        ->and($this->project->messages()->where('role', MessageRole::User)->sole()->content)
+        ->toContain('as uncommitted changes')
+        ->toContain('marked with <<<<<<<')
+        ->toContain("Don't commit")
+        ->not->toContain('git commit --no-edit');
+})->group('TASK-003', 'SCM-003');
+
 test("deleting a task or its project removes the task's copy", function () {
     Queue::fake();
     $task = Task::factory()->for($this->project)->create();
@@ -355,3 +377,77 @@ test("the fork tool switches a pull request's task copy to its branch at the bun
 
     File::deleteDirectory($root);
 })->group('GIT-014');
+
+/**
+ * Run the fork tool in $workspace with the real checkpoint tool, as Main or a task's copy.
+ *
+ * @param  list<string>  $args
+ */
+function forkTool(string $workspace, array $args, bool $uncommitted): ProcessResult
+{
+    return Process::path($workspace)->env([
+        'GIT_CONFIG_GLOBAL' => '/dev/null',
+        'ONEDROP_WORKSPACE' => $workspace,
+        'ONEDROP_CHECKPOINT' => base_path('docker/sandbox/checkpoint'),
+        ...($uncommitted ? ['ONEDROP_COMMIT_TURNS' => '0'] : []),
+    ])->run(['bash', base_path('docker/sandbox/fork'), ...$args]);
+}
+
+test('a Main that leaves its changes uncommitted gets a task\'s work as uncommitted changes, and sends its own without committing', function () {
+    $root = sys_get_temp_dir().'/onedrop-fork-'.uniqid();
+    $sh = fn (string $command, string $path) => trim(Process::path($path)->env(['GIT_CONFIG_GLOBAL' => '/dev/null'])->run($command)->throw()->output());
+    $commit = '-c user.name=Me -c user.email=me@example.com commit -q';
+    File::ensureDirectoryExists("{$root}/main");
+    // Main: a commit, then uncommitted work (an edit, a new file, something staged).
+    $sh("git init -q -b main && printf 'one\\ntwo\\nthree\\n' > a.txt && echo keep > gone.txt && git add . && git {$commit} -m Main", "{$root}/main");
+    $sh('cp -a main copy', $root);
+    $sh("printf 'one\\ntwo\\nthree, edited on Main\\n' > a.txt && echo staged > staged.txt && git add staged.txt", "{$root}/main");
+    // The task's copy: its own commits on its branch.
+    forkTool("{$root}/copy", ['branch', 'task-1'], uncommitted: false)->throw();
+    $sh("printf 'one, edited by the task\\ntwo\\nthree\\n' > a.txt && echo task > task.txt && rm gone.txt && git add -A && git {$commit} -m Task", "{$root}/copy");
+    forkTool("{$root}/copy", ['bundle', "{$root}/branch.bundle", 'Task: Edit'], uncommitted: false)->throw();
+
+    $applied = forkTool("{$root}/main", ['merge', "{$root}/branch.bundle", 'Apply task: Edit'], uncommitted: true);
+
+    expect($applied->exitCode())->toBe(0)
+        ->and($sh('git log --format=%s', "{$root}/main"))->toBe('Main')
+        ->and(file_get_contents("{$root}/main/a.txt"))->toBe("one, edited by the task\ntwo\nthree, edited on Main\n")
+        ->and(file_get_contents("{$root}/main/task.txt"))->toBe("task\n")
+        ->and(File::exists("{$root}/main/gone.txt"))->toBeFalse()
+        ->and($sh('git diff --cached --name-only', "{$root}/main"))->toBe('staged.txt')
+        ->and($sh("git log -2 --format='%s|%(trailers:key=Onedrop-Kind,valueonly,separator=)' refs/onedrop/checkpoints", "{$root}/main"))->toBe("Apply task: Edit|apply\nChanges outside the agent|edits");
+
+    // Update from Main: Main's files travel without a commit on its branch.
+    forkTool("{$root}/main", ['bundle', "{$root}/main.bundle", 'Checkpoint'], uncommitted: true)->throw();
+    $updated = forkTool("{$root}/copy", ['merge', "{$root}/main.bundle", 'Update from Main'], uncommitted: false);
+
+    expect($updated->exitCode())->toBe(0)
+        ->and($sh('git log --format=%s', "{$root}/main"))->toBe('Main')
+        ->and(file_get_contents("{$root}/copy/a.txt"))->toBe("one, edited by the task\ntwo\nthree, edited on Main\n")
+        ->and(file_get_contents("{$root}/copy/staged.txt"))->toBe("staged\n");
+
+    File::deleteDirectory($root);
+})->group('TASK-003', 'SCM-003');
+
+test('conflicts applied to an uncommitted Main are left as conflict markers, with nothing committed', function () {
+    $root = sys_get_temp_dir().'/onedrop-fork-'.uniqid();
+    $sh = fn (string $command, string $path) => trim(Process::path($path)->env(['GIT_CONFIG_GLOBAL' => '/dev/null'])->run($command)->throw()->output());
+    $commit = '-c user.name=Me -c user.email=me@example.com commit -q';
+    File::ensureDirectoryExists("{$root}/main");
+    $sh("git init -q -b main && echo start > a.txt && git add . && git {$commit} -m Main", "{$root}/main");
+    $sh('cp -a main copy', $root);
+    $sh('echo main > a.txt', "{$root}/main");
+    forkTool("{$root}/copy", ['branch', 'task-1'], uncommitted: false)->throw();
+    $sh("echo task > a.txt && git {$commit} -am Task", "{$root}/copy");
+    forkTool("{$root}/copy", ['bundle', "{$root}/branch.bundle", 'Task: Edit'], uncommitted: false)->throw();
+
+    $applied = forkTool("{$root}/main", ['merge', "{$root}/branch.bundle", 'Apply task: Edit'], uncommitted: true);
+
+    expect($applied->exitCode())->toBe(3)
+        ->and(trim($applied->output()))->toBe('a.txt')
+        ->and(file_get_contents("{$root}/main/a.txt"))->toContain('<<<<<<<')->toContain('main')->toContain('task')
+        ->and(File::exists("{$root}/main/.git/MERGE_HEAD"))->toBeFalse()
+        ->and($sh('git log --format=%s', "{$root}/main"))->toBe('Main');
+
+    File::deleteDirectory($root);
+})->group('TASK-003', 'SCM-003');

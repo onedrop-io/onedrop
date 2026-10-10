@@ -9,6 +9,7 @@ import {
 import {
     ArrowLeft,
     AppWindow,
+    GitBranch,
     ArrowRight,
     Ban,
     Brush,
@@ -118,6 +119,7 @@ import {
 } from '@/components/workspace/preview-errors';
 import EditorMenu from '@/components/workspace/editor-menu';
 import GitActionsMenu from '@/components/workspace/git-actions-menu';
+import SourceControlView from '@/components/workspace/source-control-view';
 import PublishMenu from '@/components/workspace/publish-menu';
 import { ComputerMenu, DesktopView } from '@/components/workspace/desktop-view';
 import ShareMenu from '@/components/workspace/share-menu';
@@ -1016,7 +1018,14 @@ function WorkspacePanel({
     const [tool, setTool] = useState<string | null>(initialView.tool);
     /** The panes and their tabs (LAYOUT-002); the URL follows the tab showing in the pane last used. */
     const [layout, setLayout] = useState<Layout>(() => {
-        const asked = initialView.tab ?? (initialView.tool ? 'tools' : null);
+        // Git was a Tools section before it had its own tab (SCM-001): old links still open it.
+        const asked =
+            initialView.tab ??
+            (initialView.tool === 'git'
+                ? 'source-control'
+                : initialView.tool
+                  ? 'tools'
+                  : null);
         const first: PaneTab =
             (asked === 'file' && !initialView.file) ||
             (computer && asked === 'tools')
@@ -1097,10 +1106,18 @@ function WorkspacePanel({
     const [quickOpen, setQuickOpen] = useState(false);
     const [recentFiles, setRecentFiles] = useState<string[]>([]);
 
-    // The header's git menu asks for Tools → Git to connect a repository (GIT-006).
+    // The header's git menu asks for Source Control (SCM-001), other places for a Tools section.
     useEffect(
         () =>
             onOpenWorkspaceTool((section) => {
+                if (section === 'git' || section === 'git-commit') {
+                    setLayout((current) =>
+                        panes.showTab(current, 'source-control'),
+                    );
+
+                    return;
+                }
+
                 setLayout((current) => panes.showTab(current, 'tools'));
                 setTool(section);
             }),
@@ -1895,6 +1912,7 @@ function WorkspacePanel({
             requirements: '',
             tests: '',
             browser: '',
+            'source-control': '',
         }[kind];
     };
 
@@ -2743,6 +2761,18 @@ function WorkspacePanel({
                     ),
                 )}
                 {content(
+                    'source-control',
+                    shown('source-control') && (
+                        <SourceControlView
+                            projectId={project.id}
+                            running={running}
+                            working={working}
+                            refreshSignal={`${activity}-${filesChanges}`}
+                            onOpenFile={(path) => openFile(path)}
+                        />
+                    ),
+                )}
+                {content(
                     'requirements',
                     shown('requirements') && (
                         <RequirementsView
@@ -3049,6 +3079,7 @@ type ToolTab =
     | 'console'
     | 'services'
     | 'shell'
+    | 'source-control'
     | 'requirements'
     | 'tests'
     | 'browser';
@@ -3060,6 +3091,7 @@ const ACTIVE_TABS: PaneTab[] = [
     'console',
     'services',
     'shell',
+    'source-control',
     'requirements',
     'tests',
     'browser',
@@ -3123,6 +3155,10 @@ const TOOL_TABS: Record<ToolTab, { label: string; icon: React.ReactNode }> = {
     console: { label: 'Console', icon: <Terminal className="size-4" /> },
     services: { label: 'Services', icon: <Boxes className="size-4" /> },
     shell: { label: 'Shell', icon: <SquareTerminal className="size-4" /> },
+    'source-control': {
+        label: 'Source Control',
+        icon: <GitBranch className="size-4" />,
+    },
     requirements: {
         label: 'Requirements',
         icon: <ClipboardList className="size-4" />,

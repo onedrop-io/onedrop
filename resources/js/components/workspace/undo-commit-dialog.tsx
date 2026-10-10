@@ -19,7 +19,7 @@ export type GitCommit = { sha: string; subject: string };
 
 /**
  * Undo the last commit (GIT-010), after showing which one: its changes come back as uncommitted, and the files
- * don't change. Used by the header's git menu and Tools → Git.
+ * don't change. Used by the header's git menu and Source Control.
  */
 export default function UndoCommitDialog({
     projectId,

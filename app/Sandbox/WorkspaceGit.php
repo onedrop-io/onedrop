@@ -6,8 +6,8 @@ use App\Models\Sandbox;
 use App\Models\User;
 
 /**
- * The app's git repository (branch, changes, history, commits, restores), reached through docker/sandbox/git.php
- * inside the sandbox. Remotes are handled by GitRemote on the platform, so their credentials never enter the sandbox.
+ * The app's git repository (branch, staged and unstaged changes, history, commits, restores, and the agent's private
+ * checkpoints), reached through docker/sandbox/git.php inside the sandbox. Remotes are handled by GitRemote on the platform, so their credentials never enter the sandbox.
  */
 class WorkspaceGit
 {
@@ -16,13 +16,14 @@ class WorkspaceGit
     public function __construct(protected SandboxProvider $provider) {}
 
     /**
-     * @return array{initialized: bool, branch: ?string, branches: list<string>, head: ?string, changes: list<array{path: string, status: string, additions?: ?int, deletions?: ?int, binary?: bool, from?: string}>, more_changes: bool, tracking: array{ahead: int, behind: int}|null, unpushed?: ?int, state: ?string}
+     * @return array{initialized: bool, branch: ?string, branches: list<string>, head: ?string, staged: list<array{path: string, status: string, additions?: ?int, deletions?: ?int, binary?: bool, from?: string}>, changes: list<array{path: string, status: string, additions?: ?int, deletions?: ?int, binary?: bool, from?: string}>, more_changes: bool, tracking: array{ahead: int, behind: int}|null, unpushed?: ?int, state: ?string}
      *
      * @throws SandboxException|GitException
      */
     public function status(Sandbox $sandbox): array
     {
-        return $this->call($sandbox, ['op' => 'status']);
+        // A sandbox whose Git tool predates staging (SCM-001) reports everything as unstaged until it's updated.
+        return ['staged' => [], ...$this->call($sandbox, ['op' => 'status'])];
     }
 
     /**
@@ -75,18 +76,54 @@ class WorkspaceGit
     }
 
     /**
-     * Commit every change, or only those at $paths and the chosen parts of others (dependencies and secrets
-     * excluded), as the user.
+     * Commit what's staged, or every change when nothing is (dependencies and secrets excluded), as the user.
      *
-     * @param  list<string>|null  $paths
-     * @param  list<array{path: string, hash: string, excluded: list<int>}>  $partials  files committed in part: the hash of the patch that was shown and the indexes of its lines left out
      * @return array<string, mixed>
      *
      * @throws SandboxException|GitException
      */
-    public function commit(Sandbox $sandbox, string $message, User $user, ?array $paths = null, array $partials = []): array
+    public function commit(Sandbox $sandbox, string $message, User $user): array
     {
-        return $this->call($sandbox, ['op' => 'commit', 'message' => $message, 'paths' => $paths, ...($partials === [] ? [] : ['partials' => $partials]), ...$this->author($user)]);
+        return $this->call($sandbox, ['op' => 'commit', 'message' => $message, ...$this->author($user)]);
+    }
+
+    /**
+     * Stage the unstaged changes to $paths, or every one.
+     *
+     * @param  list<string>|null  $paths
+     * @return array<string, mixed>
+     *
+     * @throws SandboxException|GitException
+     */
+    public function stage(Sandbox $sandbox, ?array $paths = null): array
+    {
+        return $this->call($sandbox, ['op' => 'stage', 'paths' => $paths]);
+    }
+
+    /**
+     * Unstage the staged changes to $paths, or every one.
+     *
+     * @param  list<string>|null  $paths
+     * @return array<string, mixed>
+     *
+     * @throws SandboxException|GitException
+     */
+    public function unstage(Sandbox $sandbox, ?array $paths = null): array
+    {
+        return $this->call($sandbox, ['op' => 'unstage', 'paths' => $paths]);
+    }
+
+    /**
+     * Stage (or, with $staged, unstage) one hunk or some lines of an edited file, whose diff was the one hashed.
+     *
+     * @param  list<int>|null  $lines  indexes of the patch's lines
+     * @return array<string, mixed>
+     *
+     * @throws SandboxException|GitException
+     */
+    public function stageLines(Sandbox $sandbox, string $path, string $hash, bool $staged, ?int $hunk, ?array $lines): array
+    {
+        return $this->call($sandbox, ['op' => 'stage_lines', 'path' => $path, 'hash' => $hash, 'staged' => $staged, 'hunk' => $hunk, 'lines' => $lines]);
     }
 
     /**
@@ -102,7 +139,7 @@ class WorkspaceGit
     }
 
     /**
-     * Put one hunk of an edited file back as it was in the last commit.
+     * Put one hunk of an edited file back as it's staged (or as it was in the last commit).
      *
      * @return array<string, mixed>
      *
@@ -114,15 +151,16 @@ class WorkspaceGit
     }
 
     /**
-     * One uncommitted change's patch (a new file's is all added lines, a new folder lists its files instead).
+     * One change's patch, its staged part or its unstaged part (a new file's is all added lines, a new folder lists
+     * its files instead).
      *
-     * @return array{path: string, patch: string, hash: ?string, truncated: bool, binary: bool, files: list<string>|null}
+     * @return array{path: string, staged: bool, patch: string, hash: ?string, truncated: bool, binary: bool, files: list<string>|null}
      *
      * @throws SandboxException|GitException
      */
-    public function changeDiff(Sandbox $sandbox, string $path): array
+    public function changeDiff(Sandbox $sandbox, string $path, bool $staged = false): array
     {
-        return $this->call($sandbox, ['op' => 'change_diff', 'path' => $path]);
+        return $this->call($sandbox, ['op' => 'change_diff', 'path' => $path, 'staged' => $staged]);
     }
 
     /**
@@ -162,29 +200,29 @@ class WorkspaceGit
     }
 
     /**
-     * What committing every change (or only those at $paths) would commit: the tracked files' diff, cut short,
-     * and the new files' names.
+     * What committing would commit (what's staged, or every change): the tracked files' diff, cut short, and the
+     * new files' names.
      *
-     * @param  list<string>|null  $paths
      * @return array{patch: string, new_files: list<string>, truncated: bool}
      *
      * @throws SandboxException|GitException
      */
-    public function changesDiff(Sandbox $sandbox, ?array $paths = null): array
+    public function changesDiff(Sandbox $sandbox): array
     {
-        return $this->call($sandbox, ['op' => 'changes_diff', 'paths' => $paths]);
+        return $this->call($sandbox, ['op' => 'changes_diff']);
     }
 
     /**
-     * Throw away uncommitted changes to one path, or all of them.
+     * Throw away unstaged changes to $paths, or all of them (staged changes stay).
      *
+     * @param  list<string>|null  $paths
      * @return array<string, mixed>
      *
      * @throws SandboxException|GitException
      */
-    public function discard(Sandbox $sandbox, ?string $path = null): array
+    public function discard(Sandbox $sandbox, ?array $paths = null): array
     {
-        return $this->call($sandbox, ['op' => 'discard', 'path' => $path]);
+        return $this->call($sandbox, ['op' => 'discard', 'paths' => $paths]);
     }
 
     /**
@@ -210,6 +248,38 @@ class WorkspaceGit
     public function restore(Sandbox $sandbox, string $sha, User $user): array
     {
         $status = $this->call($sandbox, ['op' => 'restore', 'sha' => $sha, ...$this->author($user)]);
+        $this->restartApp($sandbox);
+
+        return $status;
+    }
+
+    /**
+     * The agent's private checkpoints, newest first, a page at a time (SCM-002).
+     *
+     * @return array{checkpoints: list<array{sha: string, subject: string, date: string, kind: string, files: int, additions: int, deletions: int, restorable_before: bool}>, more: bool}
+     *
+     * @throws SandboxException|GitException
+     */
+    public function checkpoints(Sandbox $sandbox, int $offset = 0): array
+    {
+        try {
+            return $this->call($sandbox, ['op' => 'checkpoints', 'offset' => $offset]);
+        } catch (SandboxException) {
+            // A Git tool from before checkpoints (it's updated before the agent's next run): none to show yet.
+            return ['checkpoints' => [], 'more' => false];
+        }
+    }
+
+    /**
+     * Put the files back as they were at a checkpoint, or just before it, as uncommitted changes.
+     *
+     * @return array<string, mixed>
+     *
+     * @throws SandboxException|GitException
+     */
+    public function restoreCheckpoint(Sandbox $sandbox, string $sha, bool $before): array
+    {
+        $status = $this->call($sandbox, ['op' => 'restore_checkpoint', 'sha' => $sha, 'before' => $before]);
         $this->restartApp($sandbox);
 
         return $status;

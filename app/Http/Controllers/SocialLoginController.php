@@ -41,7 +41,7 @@ class SocialLoginController extends Controller
      */
     public function callback(Request $request, SocialProvider $provider, ResolveSocialUser $resolve): RedirectResponse
     {
-        // A GitHub App whose Callback URL is this login one: its return from a Tools → Git connection goes on there.
+        // A GitHub App whose Callback URL is this login one: its return from a Source Control connection goes on there.
         if ($provider === SocialProvider::GitHub && GitHubAppController::isReturning($request)) {
             return redirect()->to(route('github-app.callback').'?'.http_build_query($request->query()));
         }

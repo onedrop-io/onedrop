@@ -1,10 +1,10 @@
 ---
-title: 'GitHub App for Tools → Git'
+title: 'GitHub App for Source Control'
 sidebarTitle: 'GitHub App'
 description: 'Let people connect GitHub repositories to their projects without pasting tokens.'
 ---
 
-With a GitHub App set up, **Tools → Git** shows **Connect to GitHub**. People install your app on their GitHub account or an organization, choose which repositories it can reach, and then pick a repository and branch for their project. Without one, they can still connect repositories by pasting an access token (see [Git](/guides/git)).
+With a GitHub App set up, **Source Control** shows **Connect to GitHub**. People install your app on their GitHub account or an organization, choose which repositories it can reach, and then pick a repository and branch for their project. Without one, they can still connect repositories by pasting an access token (see [Source Control](/guides/source-control)).
 
 ## How it works
 
@@ -55,12 +55,12 @@ With a GitHub App set up, **Tools → Git** shows **Connect to GitHub**. People 
     missing or wrong. Set the Callback URL and the Setup URL to `APP_URL` plus
     `/github/callback`, e.g. `http://localhost:8000/github/callback` on a
     laptop. (If you also use the app for logging in and its Callback URL is
-    `/login/github/callback`, that works too: OneDrop passes Tools → Git returns
+    `/login/github/callback`, that works too: OneDrop passes Source Control returns
     on.) Admins see the URL to use in the Connect to GitHub dialog, and a
-    warning in Tools → Git when the app has installs that never came back.
+    warning in Source Control when the app has installs that never came back.
 </Warning>
 
-**Connect to GitHub** appears in Tools → Git once all five values are set. Until the setup is complete (a missing value, or a missing permission), admins see what's wrong at the top of Tools → Git, with a link to the app's permission settings.
+**Connect to GitHub** appears in Source Control once all five values are set. Until the setup is complete (a missing value, or a missing permission), admins see what's wrong at the top of Source Control, with a link to the app's permission settings.
 
 <Note>
     The same app also turns on **Log in with GitHub**. Add a second Callback URL,

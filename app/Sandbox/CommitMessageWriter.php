@@ -17,21 +17,17 @@ class CommitMessageWriter
     public function __construct(protected WorkspaceGit $git, protected OneOffPrompt $ai) {}
 
     /**
-     * A one-line message for committing every change, or only those at $paths.
-     *
-     * @param  list<string>|null  $paths
+     * A one-line message for what committing would commit: what's staged, or every change when nothing is.
      *
      * @throws SandboxException|GitException when the sandbox's changes can't be read
      */
-    public function write(Project $project, Sandbox $sandbox, ?array $paths = null): string
+    public function write(Project $project, Sandbox $sandbox): string
     {
-        $changes = array_values(array_filter(
-            $this->git->status($sandbox)['changes'],
-            fn (array $change) => $paths === null || in_array($change['path'], $paths, true),
-        ));
+        $status = $this->git->status($sandbox);
+        $changes = ($status['staged'] ?? []) !== [] ? $status['staged'] : $status['changes'];
 
         try {
-            $message = $this->messageFrom($this->ai->ask($project, $this->prompt($this->git->changesDiff($sandbox, $paths))));
+            $message = $this->messageFrom($this->ai->ask($project, $this->prompt($this->git->changesDiff($sandbox))));
         } catch (SandboxException|GitException|ChatGptSignInFailed) {
             $message = '';
         }

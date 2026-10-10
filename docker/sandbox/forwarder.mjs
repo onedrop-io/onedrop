@@ -10,7 +10,8 @@
 // For Codex, CODEX_AUTH_CONTENT is its auth.json (the ChatGPT sign-in or OpenAI key), written before it starts.
 // APP_REQUIREMENTS is "1" when the agent keeps the project's requirements and their tests (REQ-002, TEST-002): those
 // guides join the instructions. APP_MODE is "computer" on a person's computer (CMP-002): the agent works its desktop
-// with the computer guide instead of building an app, and there's no checkpoint to commit.
+// with the computer guide instead of building an app, and there's no checkpoint to commit. APP_COMMIT_TURNS is "0"
+// when the turn's changes are left for the user to commit (SCM-003): the checkpoint is private.
 // Provider keys (ANTHROPIC_API_KEY, OPENAI_API_KEY, ...) are read by the agent; a Claude subscription is Claude Code's own sign-in.
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
@@ -38,6 +39,7 @@ const {
     APP_CLAUDE_AUTH,
     APP_REQUIREMENTS,
     APP_MODE = 'app',
+    APP_COMMIT_TURNS = '1',
     CODEX_AUTH_CONTENT,
 } = process.env;
 
@@ -376,10 +378,30 @@ function compactCodexEvent(event) {
     }
 }
 
-// Commit the turn's changes before the platform hears it's over, so its backup includes them.
+// Before the turn: save edits made since the last checkpoint (in the Shell, the Files panel) as their own
+// checkpoint, so the turn's checkpoint holds only the agent's changes (SCM-002). In the background, so the start
+// event still goes out at once.
+function snapshot() {
+    // A computer's Home isn't a repository (CMP-001).
+    if (computer) {
+        return Promise.resolve();
+    }
+
+    return new Promise((resolve) => {
+        const child = spawn(CHECKPOINT, ['--snapshot'], {
+            stdio: ['ignore', 'ignore', 'ignore'],
+            timeout: 60000,
+        });
+
+        child.on('error', resolve);
+        child.on('close', resolve);
+    });
+}
+
+// Save the turn's changes before the platform hears it's over, so its backup includes them: a private checkpoint,
+// and a commit unless the project leaves its changes for the user to commit (SBX-006, SCM-003).
 // The first line of the prompt is the subject; a longer prompt follows in full.
 function checkpoint() {
-    // A computer's Home isn't a repository (CMP-001).
     if (computer) {
         return;
     }
@@ -394,6 +416,7 @@ function checkpoint() {
         input: message,
         stdio: ['pipe', 'ignore', 'ignore'],
         timeout: 60000,
+        env: { ...process.env, ONEDROP_COMMIT_TURNS: APP_COMMIT_TURNS },
     });
 }
 
@@ -610,6 +633,13 @@ function run(resume) {
 
         process.exit(0);
     });
+}
+
+await snapshot();
+
+// Stopped while the edits were being saved: there's no agent to start.
+if (stopped) {
+    process.exit(0);
 }
 
 run(true);

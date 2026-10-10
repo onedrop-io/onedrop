@@ -711,13 +711,13 @@ test('a checkpoint is backed up and restored, with its branches, into a fresh sa
 
     try {
         $script = 'cd /workspace && echo "<h1>Timer</h1>" > index.html && echo SECRET=1 > .env'
-            .' && echo "Build a timer" | /opt/onedrop/checkpoint && git branch experiment';
+            .' && echo "Build a timer" | /opt/onedrop/checkpoint && git branch experiment && echo "<p>Uncommitted</p>" > draft.html';
         expect($docker->exec($old, ['bash', '-c', $script])->successful())->toBeTrue()
             ->and($backups->backUp($project))->toBeTrue()
             ->and($backups->backUp($project->fresh()))->toBeFalse();
 
-        $head = $project->fresh()->backup_commit;
-        expect($head)->toMatch('/^[0-9a-f]{40}$/');
+        [$head] = explode(':', $project->fresh()->backup_commit);
+        expect($project->fresh()->backup_commit)->toMatch('/^[0-9a-f]{40}:[0-9a-f]{40}$/');
 
         $sandbox->update(['external_id' => $new]);
         expect($backups->restore($project, $sandbox))->toBeTrue();
@@ -730,7 +730,8 @@ test('a checkpoint is backed up and restored, with its branches, into a fresh sa
             ->and($git('git branch --show-current'))->toBe('main')
             ->and($git('git branch --format="%(refname:short)" | sort | tr "\n" " "'))->toBe('experiment main')
             ->and($git('git remote'))->toBe('')
-            ->and($git('git status --porcelain'))->toBe('')
+            ->and($git('git status --porcelain'))->toBe('?? draft.html')
+            ->and($git('cat draft.html'))->toBe('<p>Uncommitted</p>')
             ->and($git('test -e .env && echo yes || echo no'))->toBe('no');
     } finally {
         $docker->destroy($old);
@@ -767,7 +768,7 @@ test('the git tool commits, lists and restores in a real container', function ()
     try {
         $docker->exec($id, ['bash', '-c', 'cd /workspace && echo one > a.txt && echo "Build a timer" | /opt/onedrop/checkpoint && echo two > a.txt']);
 
-        expect($git->status($sandbox))->toMatchArray(['branch' => 'main', 'changes' => [['path' => 'a.txt', 'status' => 'M']]]);
+        expect($git->status($sandbox))->toMatchArray(['branch' => 'main', 'staged' => [], 'changes' => [['path' => 'a.txt', 'status' => 'M', 'additions' => 1, 'deletions' => 1, 'binary' => false]]]);
 
         $git->commit($sandbox, 'Second', $user);
         $commits = $git->log($sandbox);

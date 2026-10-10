@@ -15,7 +15,7 @@ use Throwable;
 
 /**
  * The platform's GitHub App (config/services.php "github_app"): installing it lets people connect repositories
- * in Tools → Git without pasting tokens.
+ * in Source Control without pasting tokens.
  *
  * Two kinds of token: the user's own (from signing in through the app, kept encrypted and refreshed), which only
  * sees repositories both the user and the app can reach, so listing and connecting are limited to what the user
@@ -150,7 +150,7 @@ class GitHubApp
     public function authorizeUrl(string $state): string
     {
         // GitHub sends people to the app's Callback URL: /github/callback, or /login/github/callback for an app
-        // shared with logging in, which passes Tools → Git returns on (SocialLoginController).
+        // shared with logging in, which passes Source Control returns on (SocialLoginController).
         return 'https://github.com/login/oauth/authorize?'.http_build_query([
             'client_id' => config('services.github_app.client_id'),
             'state' => $state,

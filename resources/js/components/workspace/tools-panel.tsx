@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { Button } from '@/components/ui/button';
 import AuthPanel from '@/components/workspace/auth-panel';
 import ComputerPanel from '@/components/workspace/computer-panel';
 import DatabasePanel from '@/components/workspace/database-panel';
@@ -28,7 +29,6 @@ import DomainsPanel from '@/components/workspace/domains-panel';
 import HostingManager from '@/components/workspace/hosting-details';
 import DeveloperPanel from '@/components/workspace/developer-panel';
 import FlagsPanel from '@/components/workspace/flags-panel';
-import GitPanel from '@/components/workspace/git-panel';
 import GrowthPanel from '@/components/workspace/growth-panel';
 import IconPanel from '@/components/workspace/icon-panel';
 import MonitoringPanel from '@/components/workspace/monitoring-panel';
@@ -37,6 +37,7 @@ import SecretsPanel from '@/components/workspace/secrets-panel';
 import SkillsPanel from '@/components/workspace/skills-panel';
 import StoragePanel from '@/components/workspace/storage-panel';
 import { cn } from '@/lib/utils';
+import { openWorkspaceTool } from '@/lib/workspace-view';
 import type { Publication } from '@/types';
 
 type Section = {
@@ -146,10 +147,10 @@ const GROUPS: { label: string; sections: Section[] }[] = [
             },
             {
                 id: 'git',
-                label: 'Git',
+                label: 'Source Control',
                 icon: GitBranch,
                 description:
-                    "Your app's changes and history, and pushing them to GitHub or another git host.",
+                    "Your app's changes, history and the agent's checkpoints, in their own tab.",
             },
             {
                 id: 'pulls',
@@ -321,11 +322,7 @@ export default function ToolsPanel({
                             working={working}
                         />
                     ) : section.id === 'git' ? (
-                        <GitPanel
-                            projectId={projectId}
-                            running={running}
-                            working={working}
-                        />
+                        <SourceControlPointer />
                     ) : section.id === 'pulls' ? (
                         <PullRequestsPanel projectId={projectId} />
                     ) : section.id === 'icon' ? (
@@ -448,6 +445,27 @@ function ComingSoon() {
             data-test="tool-coming-soon"
         >
             Coming soon.
+        </div>
+    );
+}
+
+/** Git has its own tab now (SCM-001): opening this section shows it. */
+function SourceControlPointer() {
+    useEffect(() => openWorkspaceTool('git'), []);
+
+    return (
+        <div className="max-w-xl space-y-3 text-sm text-muted-foreground">
+            <p>
+                Changes, commits, the history, the agent's checkpoints and the
+                repository are in the Source Control tab.
+            </p>
+            <Button
+                size="sm"
+                onClick={() => openWorkspaceTool('git')}
+                data-test="tools-open-source-control"
+            >
+                Open Source Control
+            </Button>
         </div>
     );
 }

@@ -13,7 +13,7 @@ use Illuminate\Support\Carbon;
 
 /**
  * A user's sign-in through the platform's GitHub App: their GitHub user token (encrypted), used to list and
- * check the repositories they and the app can both reach (Tools → Git). Refreshed when it expires.
+ * check the repositories they and the app can both reach (Source Control). Refreshed when it expires.
  *
  * @property int $id
  * @property int $user_id

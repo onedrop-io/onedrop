@@ -18,22 +18,27 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import CombineCommitsDialog from '@/components/workspace/combine-commits-dialog';
-import CommitDialog from '@/components/workspace/commit-dialog';
-import { DEFAULT_BRANCHES } from '@/components/workspace/git-state';
+import {
+    allChanges,
+    DEFAULT_BRANCHES,
+    gitChanged,
+    onGitChanged,
+} from '@/components/workspace/git-state';
 import type { GitState } from '@/components/workspace/git-state';
 import PullRequestDialog from '@/components/workspace/pull-request-dialog';
+import { openForCommit } from '@/components/workspace/source-control-view';
 import UndoCommitDialog from '@/components/workspace/undo-commit-dialog';
 import { jsonRequest } from '@/lib/json-request';
 import { openWorkspaceTool } from '@/lib/workspace-view';
 
 type OpenDialog =
-    | { kind: 'commit'; push: boolean }
     | { kind: 'pull-request' }
     | { kind: 'combine' }
     | { kind: 'undo' };
 
 /**
- * Commit, push and open a pull request from the header (GIT-006), next to Share. The same git as Tools → Git.
+ * Commit, push and open a pull request from the header (GIT-006), next to Share. Committing opens the Source Control
+ * tab (SCM-001), with the cursor in its message box.
  */
 export default function GitActionsMenu({
     projectId,
@@ -63,8 +68,27 @@ export default function GitActionsMenu({
         if (running) {
             void load();
         }
-        // Reload when the agent finishes: its turn is a new commit.
+        // Reload when the agent finishes: its turn leaves changes, or a new commit.
     }, [load, running, working]);
+
+    // Source Control changed the repository (a commit, staging): catch up.
+    useEffect(
+        () =>
+            onGitChanged((changed) =>
+                changed.status
+                    ? setGit((current) =>
+                          current ? { ...current, ...changed } : current,
+                      )
+                    : void load(),
+            ),
+        [load],
+    );
+
+    /** Take what a change made here returned, and tell Source Control. */
+    const apply = (changed: Partial<GitState>) => {
+        setGit((current) => (current ? { ...current, ...changed } : current));
+        gitChanged(changed);
+    };
 
     const syncStatus = git?.remote?.sync_status ?? null;
     const syncing = syncStatus === 'pushing' || syncStatus === 'pulling';
@@ -94,6 +118,7 @@ export default function GitActionsMenu({
         }
 
         pushToast.current = null;
+        gitChanged({});
     }, [git, syncStatus, syncing]);
 
     const pushBranch = () => {
@@ -105,30 +130,19 @@ export default function GitActionsMenu({
         )
             .then((changed) => {
                 pushToast.current = id;
-                setGit((current) =>
-                    current ? { ...current, ...changed } : current,
-                );
+                apply(changed);
             })
             .catch((e: Error) => toast.error(e.message, { id }));
     };
 
-    const committed = (changed: Pick<GitState, 'status'>, push: boolean) => {
-        setGit((current) => (current ? { ...current, ...changed } : current));
-        setDialog(null);
-
-        if (push) {
-            void pushBranch();
-        }
-    };
-
     const status = git?.status;
     const remote = git?.remote ?? null;
-    const changes = status?.changes.length ?? 0;
+    const changes = status ? allChanges(status).length : 0;
     const ahead = status?.tracking?.ahead ?? null;
     // Never pushed (no tracking yet) counts as something to push.
     const unpushed = !!status?.head && ahead !== 0;
     const busy = !running || !git || working || syncing;
-    const canCommit = !busy && changes > 0;
+    const canCommit = !!running && !!git && changes > 0;
     const canPush = !busy && !!remote && unpushed;
     const branch = status?.branch ?? null;
     const bases = (status?.branches ?? []).filter((other) => other !== branch);
@@ -158,20 +172,20 @@ export default function GitActionsMenu({
     };
 
     const primary = () => {
-        if (changes > 0) {
-            setDialog({ kind: 'commit', push: !!remote });
-        } else if (canPush) {
+        if (changes > 0 || !canPush) {
+            openForCommit();
+        } else {
             void pushBranch();
         }
     };
 
     const title = !running
         ? 'Git works when the sandbox is running.'
-        : working
-          ? 'The agent is working. It commits its changes when it finishes.'
-          : changes === 0 && !canPush
-            ? 'Nothing to commit or push'
-            : undefined;
+        : changes > 0
+          ? `Review and commit ${changes} changed ${changes === 1 ? 'file' : 'files'} in Source Control`
+          : canPush
+            ? 'Push the branch'
+            : 'Open Source Control';
 
     return (
         <>
@@ -180,7 +194,7 @@ export default function GitActionsMenu({
                     size="sm"
                     variant="outline"
                     className="rounded-r-none border-r-0"
-                    disabled={!canCommit && !canPush}
+                    disabled={!running}
                     onClick={primary}
                     title={title}
                     data-test="git-actions-primary"
@@ -194,6 +208,14 @@ export default function GitActionsMenu({
                               ? 'Commit & push'
                               : 'Commit'}
                     </span>
+                    {changes > 0 && (
+                        <span
+                            className="rounded-full bg-primary px-1.5 text-[11px] leading-4 text-primary-foreground tabular-nums"
+                            data-test="git-actions-count"
+                        >
+                            {changes}
+                        </span>
+                    )}
                 </Button>
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -222,13 +244,11 @@ export default function GitActionsMenu({
                     >
                         <DropdownMenuItem
                             disabled={!canCommit}
-                            onSelect={() =>
-                                openDialog({ kind: 'commit', push: false })
-                            }
+                            onSelect={() => openForCommit()}
                             data-test="git-actions-commit"
                         >
                             <GitCommitHorizontal className="size-4" />
-                            Commit
+                            Commit…
                         </DropdownMenuItem>
                         <DropdownMenuItem
                             disabled={remote ? !canPush : !running}
@@ -259,16 +279,19 @@ export default function GitActionsMenu({
                         )}
                         {combinable > 1 && (
                             <DropdownMenuItem
-                                disabled={busy || changes > 0}
+                                disabled={
+                                    busy || (status?.staged.length ?? 0) > 0
+                                }
                                 onSelect={() => openDialog({ kind: 'combine' })}
                                 data-test="git-actions-combine"
                             >
                                 <Combine className="size-4" />
                                 <span className="flex flex-col">
                                     Combine {combinable} commits
-                                    {changes > 0 && (
+                                    {(status?.staged.length ?? 0) > 0 && (
                                         <span className="text-xs text-muted-foreground">
-                                            Commit your changes first
+                                            Commit or unstage what's staged
+                                            first
                                         </span>
                                     )}
                                 </span>
@@ -305,36 +328,13 @@ export default function GitActionsMenu({
                 open={dialog !== null}
                 onOpenChange={(open) => !open && setDialog(null)}
             >
-                {dialog?.kind === 'commit' && status && (
-                    <CommitDialog
-                        projectId={projectId}
-                        branch={status.branch}
-                        changes={status.changes}
-                        moreChanges={status.more_changes}
-                        push={dialog.push}
-                        working={working}
-                        onCancel={() => setDialog(null)}
-                        onCommitted={(changed) =>
-                            committed(changed, dialog.push)
-                        }
-                        onStatusChanged={(changedStatus) =>
-                            setGit((current) =>
-                                current
-                                    ? { ...current, status: changedStatus }
-                                    : current,
-                            )
-                        }
-                    />
-                )}
                 {dialog?.kind === 'combine' && (
                     <CombineCommitsDialog
                         projectId={projectId}
                         working={working}
                         onClose={() => setDialog(null)}
                         onCombined={(changed) => {
-                            setGit((current) =>
-                                current ? { ...current, ...changed } : current,
-                            );
+                            apply(changed);
                             setDialog(null);
                         }}
                     />
@@ -345,9 +345,7 @@ export default function GitActionsMenu({
                         commit={lastCommit}
                         onClose={() => setDialog(null)}
                         onUndone={(changed) => {
-                            setGit((current) =>
-                                current ? { ...current, ...changed } : current,
-                            );
+                            apply(changed);
                             setDialog(null);
                         }}
                     />

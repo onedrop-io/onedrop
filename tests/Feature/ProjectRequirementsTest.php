@@ -90,3 +90,17 @@ test('the agent is told whether to keep the requirements', function (bool $track
     'on' => [true, '1'],
     'off' => [false, ''],
 ])->group('REQ-002');
+
+test('the agent on Main is told whether to commit its turn', function (bool $commitTurns, string $flag) {
+    $this->project->update(['commit_turns' => $commitTurns]);
+    $message = $this->project->messages()->create(['role' => MessageRole::User, 'content' => 'add a contact form']);
+
+    app(HarnessRunner::class)->start($this->project, $message);
+
+    $forwarder = collect($this->provider->executed)->firstWhere('command', ['node', '/opt/onedrop/forwarder.mjs']);
+
+    expect($forwarder['env']['APP_COMMIT_TURNS'])->toBe($flag);
+})->with([
+    'committing each turn' => [true, '1'],
+    'leaving changes to the user' => [false, '0'],
+])->group('SCM-003');

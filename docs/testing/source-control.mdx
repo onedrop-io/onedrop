@@ -1,0 +1,81 @@
+---
+title: 'Source Control'
+description: 'Manual tests for the Source Control tab, the Timeline and agent commits against a real sandbox and a real GitHub repository.'
+noindex: true
+---
+
+The Pest suite runs `git.php` and `checkpoint` against a fake sandbox. These checks need a real Docker sandbox, a real agent turn and, for pushing, a GitHub repository you can look at.
+
+## Stage, commit and discard (SCM-001)
+
+1. Open a running project and make a few edits in the Shell: change two parts of one file far apart, add a new file, and delete a file.
+2. Open **Source Control** from the **+** button.
+
+- [ ] The three changes show under **Changes** with **M**, **U** and **D**, and the lines added and removed.
+- [ ] Clicking the edited file shows its diff. **Stage** on one part moves only that part to **Staged changes**; `git diff --cached` in the Shell shows exactly that part, and `git diff` the other.
+- [ ] Picking two single lines and **Stage lines** stages only those lines (check with `git diff --cached`).
+- [ ] **Unstage lines** and **Unstage** on a part undo it the same way.
+- [ ] A new file can only be staged whole.
+- [ ] `git add` on a file in the Shell, then **Refresh**: it shows under **Staged changes**.
+- [ ] **Commit (n)** commits only what's staged; the rest stays under **Changes**. `git log -1 --stat` agrees.
+- [ ] With nothing staged, **Commit all (n)** commits everything. A blank message gets one written by the project's AI; the sparkle button drafts one into the box first.
+- [ ] **Discard** on an edited file with a staged part throws away only the unstaged part. Discarding a new file deletes it; `node_modules` and `.env` are untouched.
+- [ ] The header's **Commit & push** shows the number of changed files and opens Source Control with the cursor in the message box. With nothing to commit and commits to push, it pushes.
+- [ ] `?tool=git` in the address opens Source Control.
+- [ ] On a narrow pane, the list and the diff take turns, and **Back** returns to the list.
+
+## Push never sends checkpoints (SCM-001, SCM-002)
+
+Needs a GitHub repository connected to the project.
+
+1. Run a few agent turns, commit, then **Push**.
+
+- [ ] On GitHub, the repository has the branch and its commits only. `git ls-remote <repository URL>` on your computer lists no `refs/onedrop/*`.
+- [ ] `git for-each-ref refs/onedrop` in the Shell shows `refs/onedrop/checkpoints`, and `git branch -a` doesn't list it.
+
+## Timeline and restore (SCM-002)
+
+1. Turn **Commit after each agent turn** off under **Repository**.
+2. Ask the agent for a small change ("make the heading blue").
+
+- [ ] When the turn ends, the files show under **Changes**, uncommitted, and `git log` has no new commit.
+- [ ] **Timeline** has an **Agent turn** entry with the files and lines it changed; clicking it shows the diffs.
+3. Edit a file in the Shell, then send another message.
+
+- [ ] Before the agent's entry, the Timeline has a **Changes outside the agent** entry with your edit.
+4. Stage one file, then choose **Restore before this** on the first agent turn.
+
+- [ ] The files and the preview go back to before that turn; nothing is committed; the staged file is still staged.
+- [ ] The Timeline has a new **Restore** entry, and restoring the checkpoint saved just before it brings your files back.
+
+## Uncommitted work survives a lost sandbox (SCM-002)
+
+1. With **Commit after each agent turn** off, let the agent change something and leave it uncommitted.
+2. Wait for the backup (the note under **Repository**), then recreate the sandbox from the backup: `php artisan sandbox:recreate {project}` (without `--keep-files`).
+
+- [ ] The project's commits come back, and the agent's changes are back under **Changes** as uncommitted.
+- [ ] The Timeline still lists the earlier checkpoints.
+
+## Agent commits (SCM-003)
+
+- [ ] A new project has **Commit after each agent turn** on: each turn adds a commit to **History**, and anything you staged by hand goes into it.
+- [ ] Starting a project from a GitHub repository, or connecting one, turns the switch off; turning it back on makes the next turn commit.
+- [ ] With the switch off, **History → Restore this version** makes a new commit, and the uncommitted changes from before are in the Timeline, not committed.
+- [ ] **Combine N commits** refuses while something is staged and works with only unstaged changes, which stay as they were.
+- [ ] With the switch off and [hosting](/testing/publishing) set up, **Publish** counts the turns since the last deploy, and **Update automatically** still deploys after a turn.
+
+### Apply to Main with the switch off (SCM-003)
+
+1. With the switch off on Main, start a task, let its agent change a file, and click **Apply to Main**.
+
+- [ ] The task's changes show on Main under **Changes**, uncommitted; `git log` on Main has no merge commit.
+- [ ] The task's own copy committed its work on its branch.
+2. Start another task that edits the same lines as an uncommitted change on Main, then apply it.
+
+- [ ] The file on Main has conflict markers, and Main's agent resolves them.
+
+## Old sandboxes get the new tools (SCM-001, SCM-002)
+
+1. Open a project whose sandbox was made before this change, and leave it unused for 10 minutes (or run `php artisan sandbox:update`).
+
+- [ ] Source Control loads its changes and Timeline, and the next agent turn adds a Timeline entry.

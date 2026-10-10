@@ -155,7 +155,7 @@ test('back from GitHub, the user\'s token is kept encrypted and only installatio
 
     $this->withSession(['github_app' => ['state' => 'abc', 'project' => $this->project->id]])
         ->get(route('github-app.callback', ['state' => 'abc', 'code' => 'oauth-code', 'installation_id' => 888, 'setup_action' => 'install']))
-        ->assertRedirect(route('projects.show', $this->project).'?tool=git&github=connect');
+        ->assertRedirect(route('projects.show', $this->project).'?tab=source-control&github=connect');
 
     $authorization = $this->user->githubAuthorization()->first();
 
@@ -356,7 +356,7 @@ test('admins are told where GitHub must send people back, and warned when instal
     $this->getJson(route('projects.git.index', $this->project))->assertJsonPath('github.callback_url', null);
 })->group('GIT-005');
 
-test('a GitHub App whose Callback URL is the login one still brings Tools → Git returns back', function () {
+test('a GitHub App whose Callback URL is the login one still brings Source Control returns back', function () {
     $this->withSession(['github_app' => ['state' => 'abc', 'project' => $this->project->id]])
         ->get('/login/github/callback?code=oauth-code&state=abc&installation_id=777&setup_action=install')
         ->assertRedirect(route('github-app.callback').'?code=oauth-code&state=abc&installation_id=777&setup_action=install');

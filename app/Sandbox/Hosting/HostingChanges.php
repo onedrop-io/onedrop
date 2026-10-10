@@ -13,31 +13,47 @@ use App\Sandbox\SandboxProvider;
 
 /**
  * What the sandbox has that the hosted app doesn't yet (HOST-004): the commits since the one the live deployment
- * shipped, read from the workspace's git after each turn and kept on the project for the Publish panel.
+ * shipped, read from the workspace's git after each turn and kept on the project for the Publish panel. A project that
+ * leaves its changes uncommitted (SCM-003) counts its private checkpoints instead: each agent turn, and edits made
+ * outside it.
  */
 class HostingChanges
 {
     /** Commits listed; the count covers them all. */
     public const SHOWN = 10;
 
-    /** Prints the count, then one "sha<TAB>subject" line per commit, newest first; nothing when $ONEDROP_FROM is gone. */
+    /**
+     * Prints the count, then one "sha<TAB>subject" line per commit, newest first, from $ONEDROP_FROM to $ONEDROP_TO (or
+     * HEAD when it isn't there); nothing when $ONEDROP_FROM is gone.
+     */
     protected const SCRIPT = <<<'BASH'
         export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0="*"
         cd /workspace 2>/dev/null && git cat-file -e "$ONEDROP_FROM^{commit}" 2>/dev/null || exit 0
-        git rev-list --count "$ONEDROP_FROM..HEAD"
-        git log --format='%h%x09%s' -n "$ONEDROP_SHOWN" "$ONEDROP_FROM..HEAD"
+        to="$ONEDROP_TO"; git rev-parse -q --verify "$to" >/dev/null || to=HEAD
+        git rev-list --count "$ONEDROP_FROM..$to"
+        git log --format='%h%x09%s' -n "$ONEDROP_SHOWN" "$ONEDROP_FROM..$to"
+        BASH;
+
+    /** Saves the files as a private checkpoint when they changed, and prints the newest (SCM-002). */
+    protected const SNAPSHOT = <<<'BASH'
+        export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0="*"
+        grep -q -- --snapshot /opt/onedrop/checkpoint 2>/dev/null || { git -C /workspace rev-parse --verify -q HEAD; exit; }
+        ONEDROP_CHECKPOINT_KIND=edits /opt/onedrop/checkpoint --snapshot </dev/null
         BASH;
 
     public function __construct(protected SandboxProvider $sandboxes) {}
 
     /**
-     * The workspace's current commit, or null without one.
+     * The workspace's current commit, or null without one. A project that leaves its changes uncommitted ships its
+     * files as they are, so that's a private checkpoint of them.
      *
      * @throws SandboxException
      */
-    public function head(Sandbox $sandbox): ?string
+    public function head(Project $project, Sandbox $sandbox): ?string
     {
-        $result = $this->sandboxes->exec($sandbox->external_id, ['bash', '-c', 'export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0="*"; git -C /workspace rev-parse --verify -q HEAD']);
+        $result = $this->sandboxes->exec($sandbox->external_id, ['bash', '-c', $project->commit_turns
+            ? 'export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0="*"; git -C /workspace rev-parse --verify -q HEAD'
+            : self::SNAPSHOT]);
         $sha = trim($result->output);
 
         return $result->successful() && preg_match('/^[0-9a-f]{40}$/', $sha) ? $sha : null;
@@ -62,6 +78,7 @@ class HostingChanges
 
         $result = $this->sandboxes->exec($sandbox->external_id, ['bash', '-c', self::SCRIPT], [
             'ONEDROP_FROM' => $live->commit,
+            'ONEDROP_TO' => $project->commit_turns ? 'HEAD' : 'refs/onedrop/checkpoints',
             'ONEDROP_SHOWN' => (string) self::SHOWN,
         ]);
         $lines = preg_split('/\R/', trim($result->output)) ?: [];

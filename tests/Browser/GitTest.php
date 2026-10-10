@@ -13,7 +13,7 @@ use App\Sandbox\SandboxProvider;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 
-test('the git section commits changes, restores a version and connects a remote as the dev user', function () {
+test('source control commits changes, restores a version and connects a remote as the dev user', function () {
     Queue::fake();
     config(['sandbox.git.allow_private_remotes' => true]);
 
@@ -61,8 +61,12 @@ test('the git section commits changes, restores a version and connects a remote 
             $patch = "diff --git a/{$request['path']} b/{$request['path']}\n@@ -1 +1 @@\n-const start = 0;\n+const start = 1;\n";
 
             return new ExecResult(0, json_encode(['ok' => true, 'data' => [
-                'path' => $request['path'], 'patch' => $patch, 'hash' => sha1($patch), 'truncated' => false, 'binary' => false, 'files' => null,
+                'path' => $request['path'], 'staged' => false, 'patch' => $patch, 'hash' => sha1($patch), 'truncated' => false, 'binary' => false, 'files' => null,
             ]]));
+        }
+
+        if ($request['op'] === 'checkpoints') {
+            return new ExecResult(0, json_encode(['ok' => true, 'data' => ['checkpoints' => [], 'more' => false]]));
         }
 
         if ($request['op'] === 'diff') {
@@ -77,7 +81,7 @@ test('the git section commits changes, restores a version and connects a remote 
             'more' => false,
         ] : [
             'initialized' => true, 'branch' => 'main', 'branches' => ['main'], 'head' => $state['commits'][0]['sha'],
-            'changes' => $state['changes'], 'more_changes' => false, 'tracking' => null, 'state' => null,
+            'staged' => [], 'changes' => $state['changes'], 'more_changes' => false, 'tracking' => null, 'state' => null,
         ];
 
         return new ExecResult(0, json_encode(['ok' => true, 'data' => $data]));
@@ -89,16 +93,15 @@ test('the git section commits changes, restores a version and connects a remote 
     Sandbox::factory()->for($project)->create(['preview_url' => null]);
     $this->actingAs($user);
 
-    visit("/projects/{$project->id}")
-        ->resize(1500, 1000)
-        ->click('@tab-tools')
-        ->click('@tool-git')
-        ->assertVisible('@git-panel')
+    visit("/projects/{$project->id}?tab=source-control")
+        ->resize(2200, 1100)
+        ->assertVisible('@source-control')
         ->assertSeeIn('@git-branch', 'main')
+        ->click('[data-test="scm-history"] button[aria-expanded]')
         ->assertSeeIn('@git-history', 'Make the timer blue')
         ->assertSeeIn('@git-history', 'Agent · 1 hour ago · bbbbbbb')
-        ->assertSeeIn('@git-change-count', '1 changed file')
-        ->assertSeeIn('@git-changes', 'resources/js/app.tsx')
+        ->assertSeeIn('@git-changes-count', '1')
+        ->assertSeeIn('@git-changes', 'app.tsx')
         ->type('@git-history-search', 'build')
         ->assertDontSeeIn('@git-history', 'Make the timer blue')
         ->assertSeeIn('@git-history', 'Build a timer')
@@ -113,15 +116,11 @@ test('the git section commits changes, restores a version and connects a remote 
         ->click('@git-commit-file')
         ->assertSeeIn('@git-diff', '+  color: blue;')
         ->assertDontSeeIn('@git-diff', 'diff --git')
-        ->click('[data-test="git-commit-row"]:first-child [data-test="git-commit-toggle"]')
-        ->assertMissing('@git-commit-details')
         ->click('@git-change-open')
-        ->assertVisible('@git-actions-dialog')
-        ->assertSeeIn('@git-actions-diff-path', 'resources/js/app.tsx')
-        ->type('@git-actions-message', 'Tweak the start button')
-        ->click('@git-actions-submit')
-        ->assertMissing('@git-actions-dialog')
-        ->assertSeeIn('@git-change-count', 'No changes')
+        ->assertSeeIn('@scm-diff-path', 'resources/js/app.tsx')
+        ->type('@scm-message', 'Tweak the start button')
+        ->click('@scm-commit')
+        ->assertSeeIn('@scm-no-changes', 'No changes.')
         ->assertSeeIn('@git-history', 'Tweak the start button')
         ->assertSeeIn('@git-history', 'Dev User')
         ->hover('[data-test="git-commit-row"]:last-child')
@@ -136,7 +135,6 @@ test('the git section commits changes, restores a version and connects a remote 
         ->click('@git-undo-confirm')
         ->assertMissing('@git-undo-dialog')
         ->assertDontSeeIn('@git-history', 'Restore "Build a timer"')
-        ->assertScript('new Set([...document.querySelectorAll(\'[data-test="git-commit-toggle"] > svg:last-child\')].map((arrow) => Math.round(arrow.getBoundingClientRect().right))).size', 1)
         ->click('@git-connect-existing')
         ->type('@git-remote-url', 'https://git.example.com/dev/timer.git')
         ->type('@git-remote-token', 'secret-token')
@@ -189,7 +187,7 @@ function githubSetup(object $test, ?string $head, bool &$created = false): Proje
     $provider = new FakeSandboxProvider;
     $provider->execUsing = fn (array $command, array $env) => new ExecResult(0, json_encode(['ok' => true, 'data' => [
         'commits' => [], 'more' => false, 'initialized' => $head !== null, 'branch' => $head ? 'main' : null, 'branches' => $head ? ['main'] : [], 'head' => $head,
-        'changes' => [], 'more_changes' => false, 'tracking' => null, 'state' => null,
+        'staged' => [], 'changes' => [], 'checkpoints' => [], 'more_changes' => false, 'tracking' => null, 'state' => null,
     ]]));
     app()->instance(SandboxProvider::class, $provider);
 
@@ -320,9 +318,10 @@ test('discarding a file named "all" discards only that file', function () {
 
         $data = match ($request['op']) {
             'log' => ['commits' => [], 'more' => false],
+            'checkpoints' => ['checkpoints' => [], 'more' => false],
             default => [
                 'initialized' => true, 'branch' => 'main', 'branches' => ['main'], 'head' => str_repeat('a', 40),
-                'changes' => [['path' => 'all', 'status' => 'M'], ['path' => 'index.html', 'status' => 'M']],
+                'staged' => [], 'changes' => [['path' => 'all', 'status' => 'M'], ['path' => 'index.html', 'status' => 'M']],
                 'more_changes' => false, 'tracking' => null, 'state' => null,
             ],
         };
@@ -336,15 +335,14 @@ test('discarding a file named "all" discards only that file', function () {
     Sandbox::factory()->for($project)->create(['preview_url' => null]);
     $this->actingAs($user);
 
-    visit("/projects/{$project->id}")
+    visit("/projects/{$project->id}?tab=source-control")
         ->resize(1500, 1000)
-        ->click('@tab-tools')
-        ->click('@tool-git')
-        ->assertSeeIn('@git-change-count', '2 changed files')
-        ->click('[aria-label="Discard changes to all"]')
+        ->assertSeeIn('@git-changes-count', '2')
+        ->hover('[data-test="git-change"]:first-child')
+        ->click('[data-test="git-change"]:first-child [data-test="git-change-discard"]')
         ->assertSee('Discard changes to this file?')
         ->click('@git-confirm-action')
         ->assertNoJavaScriptErrors();
 
-    expect(collect($requests)->where('op', 'discard')->values()->all())->toBe([['op' => 'discard', 'path' => 'all']]);
+    expect(collect($requests)->where('op', 'discard')->values()->all())->toBe([['op' => 'discard', 'paths' => ['all']]]);
 })->group('GIT-002');

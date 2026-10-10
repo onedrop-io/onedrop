@@ -1,12 +1,29 @@
 #!/usr/bin/env bash
-# Commits everything in the workspace as one checkpoint after an agent turn (forwarder.mjs), so the platform
-# can back the code up (BackupProject). The commit message comes on stdin. Starts a repository if there's none.
-# The author is OneDrop unless ONEDROP_GIT_AUTHOR_NAME/EMAIL say otherwise (commits from Tools → Git; see git.php).
+# Saves the workspace (SBX-006). Starts a repository if there's none. The message comes on stdin.
+#
+#   checkpoint              After an agent turn (forwarder.mjs): save a private checkpoint of every file, then commit
+#                           everything to the branch too, unless ONEDROP_COMMIT_TURNS=0 (the project leaves its changes
+#                           for the user to commit in Source Control).
+#   checkpoint --snapshot   Save a private checkpoint only, when files changed since the last one (KIND in
+#                           ONEDROP_CHECKPOINT_KIND, "edits" by default). Prints the newest checkpoint's id.
+#   checkpoint --commit     Commit everything to the branch (Source Control's commit with nothing staged, tasks).
+#   checkpoint --prepare    Only start the repository and keep dependencies and secrets out of it.
+#
+# Private checkpoints are commits on refs/onedrop/checkpoints, each with the one before it as parent (the first one's is
+# the branch's commit), made through their own index: the branch, its history and what the user staged are untouched,
+# and nothing pushes them. Backups carry them (ProjectBackups), so uncommitted work comes back with the project.
+#
+# The author is OneDrop unless ONEDROP_GIT_AUTHOR_NAME/EMAIL say otherwise (commits from Source Control; see git.php).
 # Never fails the caller: a checkpoint that can't be made is skipped.
 set -uo pipefail
 
 # Git may run as another user than the one owning the workspace.
 export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0="*"
+export GIT_AUTHOR_NAME="${ONEDROP_GIT_AUTHOR_NAME:-OneDrop}" GIT_AUTHOR_EMAIL="${ONEDROP_GIT_AUTHOR_EMAIL:-agent@onedrop.io}"
+export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME" GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL"
+
+CHECKPOINTS=refs/onedrop/checkpoints
+mode="${1:-}"
 
 cd "${ONEDROP_WORKSPACE:-/workspace}" 2>/dev/null || exit 0
 
@@ -25,38 +42,64 @@ done
 # Logs committed before they were excluded.
 git rm -q --cached --ignore-unmatch -- '.onedrop/*.log' >/dev/null 2>&1
 
-# Mid-merge or mid-rebase: leave it to whoever started it.
-if [ -e .git/MERGE_HEAD ] || [ -d .git/rebase-merge ] || [ -d .git/rebase-apply ]; then
-    exit 0
-fi
-
-# Tools → Git can commit only some files (NUL-separated paths in ONEDROP_GIT_PATHS_FILE) and parts of others (a
-# patch in ONEDROP_GIT_PATCH_FILE): start the index from the last commit, then add just those. A patch that no
-# longer applies exits 3, so git.php can say the file changed.
-if [ -n "${ONEDROP_GIT_PATHS_FILE:-}" ]; then
-    if git rev-parse --verify -q HEAD >/dev/null; then
-        git read-tree HEAD 2>/dev/null || exit 0
-    else
-        git read-tree --empty 2>/dev/null || exit 0
-    fi
-
-    # An empty list would mean "everything" to git add.
-    if [ -s "$ONEDROP_GIT_PATHS_FILE" ]; then
-        git add -A --pathspec-from-file="$ONEDROP_GIT_PATHS_FILE" --pathspec-file-nul 2>/dev/null || exit 0
-    fi
-
-    if [ -n "${ONEDROP_GIT_PATCH_FILE:-}" ]; then
-        git apply --cached --recount --whitespace=nowarn "$ONEDROP_GIT_PATCH_FILE" 2>/dev/null || exit 3
-    fi
-else
-    git add -A . 2>/dev/null || exit 0
-fi
-
-if git diff --cached --quiet 2>/dev/null; then
-    exit 0
-fi
+[ "$mode" = --prepare ] && exit 0
 
 message="$(cat)"
 
-git -c user.name="${ONEDROP_GIT_AUTHOR_NAME:-OneDrop}" -c user.email="${ONEDROP_GIT_AUTHOR_EMAIL:-agent@onedrop.io}" -c commit.gpgsign=false \
-    commit -q --no-verify -m "${message:-Checkpoint}" >/dev/null 2>&1 || exit 0
+# Save every file as a private checkpoint when anything changed since the last one; print the newest checkpoint (or the
+# branch's commit when there's none and nothing changed).
+save() {
+    local kind="$1" index tree previous head base sha parents=()
+    index="$(git rev-parse --git-dir)/onedrop-index"
+    previous="$(git rev-parse -q --verify "$CHECKPOINTS")"
+    head="$(git rev-parse -q --verify HEAD)"
+
+    # A new index starts from the last checkpoint or commit, so files tracked despite the excludes stay tracked.
+    if [ ! -f "$index" ] && [ -n "${previous:-$head}" ]; then
+        GIT_INDEX_FILE="$index" git read-tree "${previous:-$head}" 2>/dev/null
+    fi
+
+    GIT_INDEX_FILE="$index" git add -A . 2>/dev/null || return 0
+    GIT_INDEX_FILE="$index" git rm -q --cached --ignore-unmatch -- '.onedrop/*.log' >/dev/null 2>&1
+    tree="$(GIT_INDEX_FILE="$index" git write-tree 2>/dev/null)" || return 0
+    base="${previous:-$head}"
+
+    if [ -n "$base" ] && [ "$(git rev-parse -q --verify "$base^{tree}")" = "$tree" ]; then
+        echo "$base"
+
+        return 0
+    fi
+
+    [ -n "$base" ] && parents=(-p "$base")
+    sha="$(printf '%s\n\nOnedrop-Kind: %s\nOnedrop-Head: %s\n' "${message:-Checkpoint}" "$kind" "${head:-none}" \
+        | git -c commit.gpgsign=false commit-tree "$tree" ${parents[@]+"${parents[@]}"} 2>/dev/null)" || return 0
+    git update-ref -m checkpoint "$CHECKPOINTS" "$sha" ${previous:+"$previous"} 2>/dev/null || return 0
+    echo "$sha"
+}
+
+# Commit everything to the branch; mid-merge or mid-rebase, leave it to whoever started it.
+commit() {
+    if [ -e .git/MERGE_HEAD ] || [ -d .git/rebase-merge ] || [ -d .git/rebase-apply ]; then
+        return 0
+    fi
+
+    git add -A . 2>/dev/null || return 0
+    git diff --cached --quiet 2>/dev/null && return 0
+    git -c commit.gpgsign=false commit -q --no-verify -m "${message:-Checkpoint}" >/dev/null 2>&1
+}
+
+case "$mode" in
+    --snapshot)
+        [ -n "$message" ] || message="Changes outside the agent"
+        save "${ONEDROP_CHECKPOINT_KIND:-edits}"
+        ;;
+    --commit)
+        commit
+        ;;
+    *)
+        save turn >/dev/null
+        [ "${ONEDROP_COMMIT_TURNS:-1}" = 0 ] || commit
+        ;;
+esac
+
+exit 0

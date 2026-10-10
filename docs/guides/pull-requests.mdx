@@ -3,7 +3,7 @@ title: 'Pull requests'
 description: "Follow a GitHub repository's pull requests, check one out as a task, and have the agent fix its failing checks."
 ---
 
-When your project is connected to a GitHub repository (see [Git](/guides/git)), **Tools → Pull requests** shows the repository's pull requests. You can read one the way you would on GitHub, run it as a [task](/guides/tasks) with its own copy of the app, and have that task's agent fix its failing checks.
+When your project is connected to a GitHub repository (see [Source Control](/guides/source-control)), **Tools → Pull requests** shows the repository's pull requests. You can read one the way you would on GitHub, run it as a [task](/guides/tasks) with its own copy of the app, and have that task's agent fix its failing checks.
 
 OneDrop reads GitHub with the same connection it pushes with: the GitHub App, or the access token you connected with. Nothing about GitHub goes into the sandbox.
 
@@ -69,4 +69,4 @@ The agent is asked to fix the code, not the checks: it doesn't skip, delete or l
 
 ## What GitHub needs to allow
 
-With the GitHub App, its admin gives it the **Pull requests**, **Checks**, **Commit statuses** and **Actions** read permissions (see [GitHub App](/self-hosting/github-app)); admins see in Tools → Git which are missing. With an access token, the token needs the same read access to the repository. When GitHub refuses, the section says which permission it needs.
+With the GitHub App, its admin gives it the **Pull requests**, **Checks**, **Commit statuses** and **Actions** read permissions (see [GitHub App](/self-hosting/github-app)); admins see in Source Control which are missing. With an access token, the token needs the same read access to the repository. When GitHub refuses, the section says which permission it needs.

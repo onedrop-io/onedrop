@@ -206,7 +206,7 @@ class Deployer
         $remote = '/tmp/onedrop-hosting-'.Str::lower(Str::random(8));
         $seed = $deployment->kind === 'server' && $this->needsSeed($deployment);
         // What it ships, so the Publish panel can tell what changed since (HOST-004).
-        $deployment->update(['commit' => $this->changes->head($sandbox)]);
+        $deployment->update(['commit' => $this->changes->head($project, $sandbox)]);
         $deployment->note($seed ? 'Building and packing the app, with its data for the first deploy.' : 'Building and packing the app.');
 
         try {

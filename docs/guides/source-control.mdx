@@ -1,0 +1,208 @@
+---
+title: 'Source Control'
+description: "Review, stage and commit changes, go back to any agent turn, see your app's history, and push to GitHub or another git host."
+keywords: ['git', 'commit', 'stage', 'diff', 'checkpoint', 'timeline', 'history', 'restore', 'push']
+---
+
+Every project is a git repository. The **Source Control** tab shows what changed and lets you stage, commit, push and go back, without the Shell. It works like the Source Control view in VS Code.
+
+Open it from the **+** button in the tab bar, or **Tools → Source Control**. Its address is `?tab=source-control`; older links to `?tool=git` open it too.
+
+## The left column
+
+From the top:
+
+- **Branch menu.** Shows the current branch. Pick another to switch to it, or choose **New branch…** (see [Branches](#branches)).
+- **Pull** and **Push**, each with how many commits there are to bring in or send. They appear once a remote repository is connected (see [Push to GitHub or another git host](#push-to-github-or-another-git-host)).
+- **Refresh** reloads the changes.
+- **…** holds **Stage all changes**, **Unstage all changes**, **Discard all changes**, **Undo last commit**, **Combine N commits** and **Create PR**.
+- **The message box.** Type a commit message and press ⌘/Ctrl+Enter to commit. Leave it blank and your project's AI writes one from the changes (if it can't, the message names the files). The sparkle button drafts a message into the box so you can edit it first.
+- **Commit.** Says **Commit (n)** when files are staged, and commits only those. With nothing staged it says **Commit all (n)** and commits every change. Its arrow opens **Commit & push** and **Commit on new branch…**. The commit is made as you.
+
+Below that are the changes, in up to three lists:
+
+| List | What's in it |
+| --- | --- |
+| **Merge changes** | Files with conflicts. Fix the conflict markers (or ask the agent to), then mark the file resolved. |
+| **Staged changes** | What the next commit will contain. |
+| **Changes** | Everything else you or the agent changed. |
+
+Each file shows its icon, name and folder, the lines added and removed, and its state: **M** modified, **A** added, **D** deleted, **R** renamed, **U** new (untracked), **!** conflicted. Hover a file for its actions: open the file, discard its changes, and stage or unstage it. Press ↑/↓ to move between files.
+
+`node_modules`, `vendor`, `.cache` and `.env` files (except `.env.example`) never show up and are never committed.
+
+While the agent is working, committing, discarding, switching branches and restoring wait until it finishes. Source Control works while the sandbox is running.
+
+## Review a file
+
+Click a file to see its diff on the right: old and new line numbers, the code colored by its language, and the words that changed within an edited line highlighted. A new file is all green; a new folder lists its files.
+
+- **Stage**, **Unstage** and **Discard** at the top act on the whole file.
+- Each part (hunk) has **Stage** or **Unstage**, **Discard** for unstaged edits, and **Ask**, which puts the part and the file's name in the chat box. Type your question ("why did you change this?", "undo just this") and send it.
+- To stage only some lines, click them to pick them, then click **Stage lines** (or **Unstage lines** on a staged file).
+- **Hide whitespace** reads lines whose only change is spacing (like re-indenting) as unchanged. Turn it off again to stage or discard parts.
+
+On a narrow pane, the list and the diff take turns: click a file to open its diff and **Back** to return to the list.
+
+### Staging
+
+Staging works like `git add`: what you stage stays staged, in the Shell too, until you commit or unstage it. `git diff --cached` in the Shell shows the same thing as **Staged changes**.
+
+You can stage parts and lines of edited text files. A new file is staged whole.
+
+### Discarding
+
+**Discard** throws away unstaged changes only, after you confirm. What you've staged stays. Edited files go back to their staged or last committed state, new files are deleted, and ignored files like `node_modules` and `.env` are kept. The files as they were are saved in the [Timeline](#timeline) first, so you can get discarded work back.
+
+## Commit and push from the header
+
+The **Commit & push** button next to **Share** shows how many files have changed. Click it to open Source Control with the cursor in the message box. With nothing to commit but commits not yet pushed, it pushes instead. Without a connected repository the button says **Commit**.
+
+Its arrow opens **Commit…**, **Push** (or **Connect a repository…** when there's none), **Undo last commit**, **Combine N commits** and **Create PR**.
+
+## Commit after each agent turn
+
+The **Commit after each agent turn** switch is under **Repository** in Source Control.
+
+- **On**: when the agent finishes or you stop it, OneDrop commits everything in the project, with your message as the commit message. Anything you staged by hand goes into that commit too.
+- **Off**: the agent's changes stay uncommitted, so you can review, stage and commit them yourself. Every turn is still saved in the [Timeline](#timeline).
+
+It's on for new projects. Connecting a repository, or [starting a project from one](/guides/build-a-project#start-from-a-repository), turns it off: that history is yours to write. Turn it back on any time.
+
+With it off:
+
+- **Apply to Main** on a [task](/guides/tasks) brings the task's changes onto Main as uncommitted changes, with no merge commit. If they clash with Main's, the files get conflict markers for Main's agent to resolve. A task's own copy always commits on its branch.
+- [Hosting](/guides/hosting) counts the turns since you last deployed instead of commits, and auto-deploy still works.
+
+## Timeline
+
+Every agent turn is saved as a private checkpoint, whether or not anything is committed. Edits you make outside the agent, in the Shell or the Files panel, are saved as their own **Changes outside the agent** checkpoint before the agent's next turn and before each backup.
+
+The **Timeline** lists them newest first, each with an icon (agent turn, changes outside the agent, restore, or applied task), when it happened, and the files and lines it changed. Click one to see its files and their diffs.
+
+- **Restore before this** puts every file back the way it was before that checkpoint.
+- **Restore this** puts every file back the way it was right after it.
+
+A restore changes your files but commits nothing, and what you've staged stays staged. Your current files are saved as a checkpoint first, so you can undo a restore by restoring that one.
+
+Checkpoints are kept out of your branches and are never pushed to your repository.
+
+## History
+
+**History** lists the project's commits, newest first, with who made each one (the agent's are marked **Agent**), how long ago, and its short id.
+
+Search it with the box next to **History**: it looks through every commit's message and author (type `agent` for the agent's turns), or finds a commit by its id. **Show more** lists older commits, 50 at a time.
+
+Click a commit to see its details on the right: its full message, author and email, the exact date and time, its full id (with a copy button), and the files it changed with their diffs.
+
+### Undo the last commit
+
+Open the **⋮** menu on the newest commit and choose **Undo this commit** (or **Undo last commit** in the **…** menu). After you confirm, the commit is gone and its changes are back as uncommitted, so you can change them or commit them differently. Your files don't change.
+
+Only a commit that isn't pushed yet can be undone, so your repository never has to be overwritten. For a pushed commit, restore the version before it instead. The very first commit and merges can't be undone.
+
+### Restore an earlier version
+
+Open the **⋮** menu on a commit and choose **Restore this version**. Every file goes back to how it was at that commit, saved as a new commit, and the app restarts. To undo it, restore the version before it the same way. Uncommitted changes aren't committed first: they're saved in the [Timeline](#timeline).
+
+### Combine commits
+
+**Combine N commits** appears when more than one commit is waiting to be pushed. It turns them into one commit with a message your project's AI writes from them, listing the original messages underneath; edit it before combining. Only commits that aren't pushed yet are combined, so pushing never has to overwrite your repository, and your files don't change. If something is staged, commit or unstage it first; unstaged changes are left alone.
+
+### Open a pull request
+
+On a branch other than `main` or `master` that's pushed to a GitHub repository, **Create PR** opens a dialog. Pick the branch it goes into (`main` or `master` to start with), and your project's AI writes a title and description from the branch's commits and changes. Edit them, then click **Open on GitHub**: GitHub's new pull request page opens with both filled in, ready to create. Without an AI, the title is the branch's only commit message (or the branch name) and the description lists its commits.
+
+When Create PR isn't available, the menu says why: **Commit on a new branch first**, **Push the branch first**, or **Needs a GitHub repository**.
+
+## Repository
+
+The **Repository** section holds the [Commit after each agent turn](#commit-after-each-agent-turn) switch, the connected remote repository (or **Connect to GitHub**), and when the project was last backed up.
+
+### Backups
+
+OneDrop backs up the project's history and Timeline outside its sandbox. If the sandbox is ever lost, your commits come back, and work that wasn't committed comes back as uncommitted changes.
+
+## Branches
+
+The branch menu at the top of the left column shows the current branch. Pick another to switch to it, or choose **New branch…** to start one from the current commit. The app restarts on the new branch.
+
+## Push to GitHub or another git host
+
+Connect a remote repository to push your commits to it and pull commits others made.
+
+### Connect GitHub
+
+If your OneDrop has a [GitHub App](/self-hosting/github-app) set up, click **Connect to GitHub**. A dialog walks you through it.
+
+**The first time**, click **Continue to GitHub**. On GitHub, pick your account or an organization, choose all repositories or only the ones OneDrop may use, and approve. GitHub brings you back with the dialog open. If you end up back on the project without GitHub bringing you, open Source Control: the dialog asks **Finished installing on GitHub?** Click **Continue** to pick up the installation.
+
+**Then pick an owner** (your account or an organization) at the top of the dialog, and either:
+
+<Tabs>
+    <Tab title="New repository">
+        The name is suggested from your project, and OneDrop checks as you type that it's free. Choose **Private** or **Public**.
+
+        - **In an organization**, click **Create and push**. OneDrop creates the repository and pushes your project to it.
+        - **On your personal account**, click **Create it on GitHub**. GitHub doesn't let apps create repositories on personal accounts, so GitHub's new-repository page opens with the name and visibility filled in. Create it there and come back: OneDrop finds it and offers **Connect and push**. If OneDrop only reaches the repositories you chose, give it access to the new one first; the dialog links to the right page.
+    </Tab>
+    <Tab title="Existing repository">
+        Search the owner's repositories, newest activity first, click one and choose a branch.
+
+        - In a project with commits, click **Connect** (or **Connect and push** for an empty repository).
+        - In a project with no commits yet, click **Connect and bring it in** to start from that repository's code.
+
+        Don't see a repository? Click **Choose which repositories OneDrop can reach**, change it on GitHub, and come back. The list updates by itself.
+    </Tab>
+</Tabs>
+
+The dialog opens on **New repository** when your project has commits, and on **Existing repository** when it doesn't. **Add account or organization** installs the app somewhere else.
+
+You only see repositories that both you and the app can reach. No token is stored for the project: OneDrop gets a short-lived one from GitHub each time it pushes or pulls. A pull, and bringing the repository in when a project starts from it, is downloaded by the project's sandbox with a token that can only read that repository and expires within an hour, so even a large repository (hundreds of MB of history) comes in. Pushes always go through OneDrop's server. If your GitHub sign-in expires, the dialog asks you to reconnect.
+
+### Connect with a token
+
+Without the GitHub App, or for another git host (**Other git host**), connect with an access token:
+
+<Tabs>
+    <Tab title="Create on GitHub">
+        1. Click **Create on GitHub**.
+        2. Enter a repository name and a GitHub [personal access token](https://github.com/settings/tokens) that can create repositories (a fine-grained token with **Administration** and **Contents** read and write, or a classic token with the `repo` scope).
+        3. Leave **Private repository** checked, or uncheck it for a public one.
+        4. Click **Create and push**. The repository is made on your account and the current branch is pushed to it.
+    </Tab>
+    <Tab title="Connect existing">
+        1. Click **Connect existing**.
+        2. Enter the repository's HTTPS URL, for example `https://gitlab.com/you/my-app.git`.
+        3. Enter an access token that can read and write the repository. Some hosts also need your username (Forgejo and Gitea, for example); GitHub and GitLab don't.
+        4. Click **Connect**, then **Push**.
+    </Tab>
+</Tabs>
+
+**Push** sends the current branch to the remote. **Pull** brings in commits the remote has that the project doesn't. Both run in the background; the card shows **Pushing…** or **Pulling…**, then how many commits there are to push or pull.
+
+- A push the remote refuses because it has newer commits says **Pull first**.
+- A pull only fast-forwards. If the project and the remote both have new commits, ask the agent to merge them.
+- **Disconnect** in the **⋮** menu forgets the remote and its token. The repository itself is untouched.
+
+<Note>
+    The token is stored encrypted by OneDrop and never shown again. It never goes into the sandbox: pushes and pulls run on OneDrop's server, which carries commits in and out of the sandbox. Remotes must use HTTPS, and on the public internet unless your admin allows private networks (see [configuration](/self-hosting/configuration)).
+</Note>
+
+## Private GitHub packages
+
+Projects can download the private GitHub packages you can see, like a codespace does: Docker images on `ghcr.io` and npm packages on `npm.pkg.github.com`. No personal access token needed.
+
+1. Go to **Settings → Security**. Under **Connected accounts**, GitHub says whether your projects can download your private packages.
+2. Click **Connect** (or **Reconnect** if you connected GitHub before), and allow OneDrop to read your packages.
+
+Every sandbox of a project you own, task copies too, then has your GitHub token as `GITHUB_TOKEN`, in the Shell, the app and the agent. Docker is signed in to `ghcr.io` with it, and npm to `npm.pkg.github.com`, so `docker compose up`, `docker pull ghcr.io/…` and `npm install` just work. **Tools → Secrets** shows it under **From (your name)’s GitHub**.
+
+- If npm looks for a `@scope` package on npmjs.org, point the scope at GitHub once: `npm config set @scope:registry https://npm.pkg.github.com`. The agent does this when it needs to.
+- It downloads as you, so your GitHub account must be able to see the packages.
+- An organization secret or a project secret named `GITHUB_TOKEN` wins over yours, so an admin can share one token instead.
+- **Disconnect** in Settings → Security, or leaving the organization, takes it out of your projects' sandboxes.
+
+<Note>
+    Only package reading (`read:packages`) is asked for, not access to your repositories. The token never goes into the project's files or your home folder, so it doesn't end up in commits, hosted apps, snapshots or remixes. Your organization's owners and admins, who can open your projects' Shell, could read it there. Your admin needs a GitHub OAuth app for this (see [social login](/self-hosting/social-login)).
+</Note>

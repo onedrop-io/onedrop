@@ -74,7 +74,7 @@ test('uncommitted changes are listed with their state and the lines added and re
     ]);
 })->group('GIT-002', 'GIT-006');
 
-test('only the chosen files are committed, and the rest stay uncommitted', function () {
+test('staged files are committed and the rest stay unstaged; with nothing staged, everything is committed', function () {
     ($this->write)('a.txt', 'a');
     ($this->write)('b.txt', 'b');
     ($this->data)(['op' => 'commit', 'message' => 'Start']);
@@ -82,15 +82,62 @@ test('only the chosen files are committed, and the rest stay uncommitted', funct
     File::delete("{$this->workspace}/b.txt");
     ($this->write)('new.txt', 'new');
 
-    $status = ($this->data)(['op' => 'commit', 'message' => 'Some of it', 'paths' => ['b.txt', 'new.txt']]);
+    $status = ($this->data)(['op' => 'stage', 'paths' => ['b.txt', 'new.txt']]);
 
-    expect(array_column($status['changes'], 'path'))->toBe(['a.txt'])
+    expect(array_column($status['staged'], 'status', 'path'))->toBe(['b.txt' => 'D', 'new.txt' => 'A'])
+        ->and(array_column($status['changes'], 'path'))->toBe(['a.txt']);
+
+    $status = ($this->data)(['op' => 'commit', 'message' => 'Some of it']);
+
+    expect($status['staged'])->toBe([])
+        ->and(array_column($status['changes'], 'path'))->toBe(['a.txt'])
         ->and(explode("\n", ($this->git)('show', '--name-status', '--format=', 'HEAD')))->toEqualCanonicalizing(["D\tb.txt", "A\tnew.txt"])
-        ->and(($this->tool)(['op' => 'commit', 'message' => 'Nope', 'paths' => ['elsewhere.txt']]))->toBe(['ok' => false, 'error' => 'Some of those files have no changes to commit.'])
-        ->and(($this->tool)(['op' => 'commit', 'message' => 'Nope', 'paths' => []]))->toBe(['ok' => false, 'error' => 'Pick at least one file to commit.']);
-})->group('GIT-006');
+        ->and(($this->tool)(['op' => 'stage', 'paths' => ['elsewhere.txt']]))->toBe(['ok' => false, 'error' => 'Some of those files have no changes.'])
+        ->and(($this->tool)(['op' => 'stage', 'paths' => []]))->toBe(['ok' => false, 'error' => 'Pick at least one file.']);
 
-test('the uncommitted changes can be read as a diff for writing a commit message', function () {
+    expect(($this->data)(['op' => 'commit', 'message' => 'The rest'])['changes'])->toBe([])
+        ->and(($this->git)('show', 'HEAD:a.txt'))->toBe('changed');
+})->group('GIT-006', 'SCM-001');
+
+test('files are staged and unstaged, one at a time or all, without changing them', function () {
+    ($this->write)('a.txt', 'a');
+    ($this->data)(['op' => 'commit', 'message' => 'Start']);
+    ($this->write)('a.txt', 'changed');
+    ($this->write)('new.txt', 'new');
+    ($this->write)('.env', 'SECRET=1');
+
+    $all = ($this->data)(['op' => 'stage']);
+
+    expect(array_column($all['staged'], 'path'))->toEqualCanonicalizing(['a.txt', 'new.txt'])
+        ->and($all['changes'])->toBe([]);
+
+    $one = ($this->data)(['op' => 'unstage', 'paths' => ['new.txt']]);
+
+    expect(array_column($one['staged'], 'path'))->toBe(['a.txt'])
+        ->and(array_column($one['changes'], 'status', 'path'))->toBe(['new.txt' => '?']);
+
+    ($this->write)('a.txt', 'changed again');
+    $both = ($this->data)(['op' => 'status']);
+
+    expect(array_column($both['staged'], 'path'))->toBe(['a.txt'])
+        ->and(array_column($both['changes'], 'path'))->toEqualCanonicalizing(['a.txt', 'new.txt'])
+        ->and(($this->data)(['op' => 'unstage'])['staged'])->toBe([])
+        ->and(File::get("{$this->workspace}/a.txt"))->toBe('changed again');
+})->group('SCM-001');
+
+test('the first commit can be staged and unstaged before there is any history', function () {
+    ($this->write)('a.txt', 'a');
+    ($this->write)('b.txt', 'b');
+
+    ($this->data)(['op' => 'stage']);
+    $status = ($this->data)(['op' => 'unstage', 'paths' => ['b.txt']]);
+
+    expect(array_column($status['staged'], 'path'))->toBe(['a.txt'])
+        ->and(($this->data)(['op' => 'commit', 'message' => 'Only a'])['changes'])->toHaveCount(1)
+        ->and(($this->git)('ls-files'))->toBe('a.txt');
+})->group('SCM-001');
+
+test('what would be committed can be read as a diff for writing a commit message', function () {
     ($this->write)('a.txt', "old\n");
     ($this->write)('b.txt', "b\n");
     ($this->data)(['op' => 'commit', 'message' => 'Start']);
@@ -99,14 +146,15 @@ test('the uncommitted changes can be read as a diff for writing a commit message
     ($this->write)('new.txt', 'new');
 
     $all = ($this->data)(['op' => 'changes_diff']);
-    $some = ($this->data)(['op' => 'changes_diff', 'paths' => ['a.txt']]);
+    ($this->data)(['op' => 'stage', 'paths' => ['a.txt']]);
+    $staged = ($this->data)(['op' => 'changes_diff']);
 
     expect($all['patch'])->toContain('+new')->toContain('+bb')
         ->and($all['new_files'])->toBe(['new.txt'])
         ->and($all['truncated'])->toBeFalse()
-        ->and($some['patch'])->toContain('+new')->not->toContain('+bb')
-        ->and($some['new_files'])->toBe([]);
-})->group('GIT-006');
+        ->and($staged['patch'])->toContain('+new')->not->toContain('+bb')
+        ->and($staged['new_files'])->toBe([]);
+})->group('GIT-006', 'SCM-001');
 
 test('committing with nothing changed or no message is refused', function () {
     ($this->write)('index.html', 'hi');
@@ -116,27 +164,36 @@ test('committing with nothing changed or no message is refused', function () {
         ->and(($this->tool)(['op' => 'commit', 'message' => ' ']))->toBe(['ok' => false, 'error' => 'Write a message for the commit.']);
 })->group('GIT-002');
 
-test('one file or every change can be discarded, keeping ignored files', function () {
+test('unstaged changes to some files or all of them are discarded, keeping staged changes and ignored files', function () {
     ($this->write)('a.txt', 'a');
     ($this->write)('b.txt', 'b');
+    ($this->write)('c.txt', 'c');
     ($this->data)(['op' => 'commit', 'message' => 'Start']);
     ($this->write)('a.txt', 'changed');
     ($this->write)('b.txt', 'changed');
+    ($this->write)('c.txt', 'staged');
+    ($this->data)(['op' => 'stage', 'paths' => ['c.txt']]);
+    ($this->write)('c.txt', 'staged, then changed');
     ($this->write)('new.txt', 'new');
     ($this->write)('.env', 'SECRET=1');
 
-    ($this->data)(['op' => 'discard', 'path' => 'a.txt']);
+    ($this->data)(['op' => 'discard', 'paths' => ['a.txt']]);
     expect(File::get("{$this->workspace}/a.txt"))->toBe('a')
         ->and(File::get("{$this->workspace}/b.txt"))->toBe('changed');
 
-    $status = ($this->data)(['op' => 'discard', 'path' => null]);
+    $status = ($this->data)(['op' => 'discard']);
 
     expect($status['changes'])->toBe([])
+        ->and(array_column($status['staged'], 'path'))->toBe(['c.txt'])
+        ->and(File::get("{$this->workspace}/c.txt"))->toBe('staged')
         ->and(File::get("{$this->workspace}/b.txt"))->toBe('b')
         ->and(File::exists("{$this->workspace}/new.txt"))->toBeFalse()
         ->and(File::get("{$this->workspace}/.env"))->toBe('SECRET=1')
-        ->and(($this->tool)(['op' => 'discard', 'path' => '../outside'])['error'])->toBe("That isn't a file in this project.");
-})->group('GIT-002');
+        ->and(($this->tool)(['op' => 'discard', 'paths' => ['../outside']])['error'])->toBe('Some of those files have no changes.')
+        // What was thrown away is in the Timeline.
+        ->and(($this->data)(['op' => 'checkpoints'])['checkpoints'][0]['subject'])->toBe('Before discarding changes')
+        ->and(($this->git)('show', 'refs/onedrop/checkpoints:new.txt'))->toBe('new');
+})->group('GIT-002', 'SCM-001');
 
 test('branches can be created and switched, and bad names are refused', function () {
     ($this->write)('a.txt', 'a');
@@ -147,7 +204,7 @@ test('branches can be created and switched, and bad names are refused', function
         ->and(($this->tool)(['op' => 'switch', 'branch' => '--force'])['error'])->toBe("That isn't a valid branch name.");
 })->group('GIT-002');
 
-test('restoring an earlier version is a new commit, after committing what was uncommitted', function () {
+test('restoring an earlier version is a new commit, with what was uncommitted kept in a checkpoint', function () {
     ($this->write)('a.txt', 'first');
     ($this->data)(['op' => 'commit', 'message' => 'First']);
     $first = ($this->git)('rev-parse', 'HEAD');
@@ -155,17 +212,22 @@ test('restoring an earlier version is a new commit, after committing what was un
     ($this->write)('b.txt', 'added later');
     ($this->data)(['op' => 'commit', 'message' => 'Second']);
     ($this->write)('a.txt', 'uncommitted');
+    ($this->write)('c.txt', 'new and uncommitted');
 
-    ($this->data)(['op' => 'restore', 'sha' => $first, 'name' => 'Dev User', 'email' => 'dev@example.com']);
+    $status = ($this->data)(['op' => 'restore', 'sha' => $first, 'name' => 'Dev User', 'email' => 'dev@example.com']);
+    $checkpoint = ($this->data)(['op' => 'checkpoints'])['checkpoints'][0];
 
     expect(File::get("{$this->workspace}/a.txt"))->toBe('first')
         ->and(File::exists("{$this->workspace}/b.txt"))->toBeFalse()
+        ->and(File::exists("{$this->workspace}/c.txt"))->toBeFalse()
+        ->and($status['changes'])->toBe([])
         ->and(($this->git)('log', '--format=%an|%s'))->toBe(implode("\n", [
             'Dev User|Restore "First" ('.substr($first, 0, 7).')',
-            'Dev User|Changes before restoring '.substr($first, 0, 7),
             'OneDrop|Second',
             'OneDrop|First',
         ]))
+        ->and($checkpoint)->toMatchArray(['subject' => 'Before restoring '.substr($first, 0, 7), 'kind' => 'edits'])
+        ->and(($this->git)('show', "{$checkpoint['sha']}:c.txt"))->toBe('new and uncommitted')
         ->and(($this->tool)(['op' => 'restore', 'sha' => str_repeat('a', 40)])['error'])->toBe("That version isn't in this project's history.");
 })->group('GIT-003');
 
@@ -278,15 +340,19 @@ test('one uncommitted change can be read as a diff: edits, new files, binary fil
 
     $edited = ($this->data)(['op' => 'change_diff', 'path' => 'a.txt']);
     $new = ($this->data)(['op' => 'change_diff', 'path' => 'new.txt']);
+    ($this->data)(['op' => 'stage', 'paths' => ['a.txt']]);
+    ($this->write)('a.txt', "newer\nsame\n");
 
     expect($edited['patch'])->toContain("-old\n+new\n same")
+        ->and(($this->data)(['op' => 'change_diff', 'path' => 'a.txt', 'staged' => true])['patch'])->toContain("-old\n+new\n same")
+        ->and(($this->data)(['op' => 'change_diff', 'path' => 'a.txt'])['patch'])->toContain("-new\n+newer\n same")
         ->and($new['patch'])->toBe("diff --git a/new.txt b/new.txt\nnew file mode 100644\n--- /dev/null\n+++ b/new.txt\n@@ -0,0 +1,2 @@\n+one\n+two\n\\ No newline at end of file\n")
         ->and($new['hash'])->toBe(sha1($new['patch']))
         ->and(($this->data)(['op' => 'change_diff', 'path' => 'logo.png']))->toMatchArray(['binary' => true, 'patch' => ''])
         ->and(($this->data)(['op' => 'change_diff', 'path' => 'docs/'])['files'])->toEqualCanonicalizing(['docs/one.md', 'docs/two.md'])
-        ->and(($this->tool)(['op' => 'change_diff', 'path' => 'unchanged.txt']))->toBe(['ok' => false, 'error' => 'That file has no uncommitted changes.'])
+        ->and(($this->tool)(['op' => 'change_diff', 'path' => 'unchanged.txt']))->toBe(['ok' => false, 'error' => 'That file has no unstaged changes.'])
         ->and(($this->tool)(['op' => 'change_diff', 'path' => '../etc/passwd']))->toBe(['ok' => false, 'error' => "That isn't a file in this project."]);
-})->group('GIT-006');
+})->group('GIT-006', 'SCM-001');
 
 test('a branch is compared with its base: the commits it adds and their diff', function () {
     ($this->write)('a.txt', "one\n");
@@ -327,13 +393,15 @@ test('the commits no remote has yet are counted and combined into one, keeping t
         ->and(array_column($preview['commits'], 'subject'))->toBe(['Add a bee', 'Make it two'])
         ->and($preview['patch'])->toContain('+two')->toContain('+bee');
 
-    ($this->write)('c.txt', 'uncommitted');
-    expect(($this->tool)(['op' => 'combine', 'message' => 'Both']))->toBe(['ok' => false, 'error' => 'Commit or discard your changes first.']);
-    File::delete("{$this->workspace}/c.txt");
+    ($this->write)('c.txt', 'staged');
+    ($this->data)(['op' => 'stage', 'paths' => ['c.txt']]);
+    expect(($this->tool)(['op' => 'combine', 'message' => 'Both']))->toBe(['ok' => false, 'error' => 'Commit or unstage your staged changes first.']);
+    ($this->data)(['op' => 'unstage']);
 
     $status = ($this->data)(['op' => 'combine', 'message' => 'Two and a bee', 'name' => 'Dev User', 'email' => 'dev@example.com']);
 
     expect($status['unpushed'])->toBe(1)
+        ->and(array_column($status['changes'], 'path'))->toBe(['c.txt'])
         ->and(($this->git)('log', '--format=%s|%an', "{$pushed}..HEAD"))->toBe('Two and a bee|Dev User')
         ->and(($this->git)('rev-parse', 'HEAD^'))->toBe($pushed)
         ->and(File::get("{$this->workspace}/a.txt"))->toBe("two\n")
@@ -365,46 +433,51 @@ function patchLines(string $patch, string ...$wanted): array
     return array_keys(array_filter(explode("\n", $patch), fn (string $line) => in_array($line, $wanted, true)));
 }
 
-test('parts of a file are committed, and what was left out stays uncommitted', function () {
+test('one hunk is staged, then unstaged, leaving the file as it is', function () {
     $diff = twoHunks($this);
 
-    // Leave out the second hunk.
-    $status = ($this->data)(['op' => 'commit', 'message' => 'Top only', 'paths' => [], 'partials' => [
-        ['path' => 'a.txt', 'hash' => $diff['hash'], 'excluded' => patchLines($diff['patch'], '-line 19', '+line 19 changed')],
-    ]]);
+    $status = ($this->data)(['op' => 'stage_lines', 'path' => 'a.txt', 'hash' => $diff['hash'], 'hunk' => 0]);
 
-    expect(($this->git)('show', 'HEAD:a.txt'))->toContain('line 2 changed')->not->toContain('line 19 changed')
-        ->and(File::get("{$this->workspace}/a.txt"))->toContain('line 2 changed')->toContain('line 19 changed')
-        ->and($status['changes'])->toHaveCount(1)
+    expect(($this->git)('show', ':a.txt'))->toContain('line 2 changed')->not->toContain('line 19 changed')
+        ->and($status['staged'][0])->toMatchArray(['path' => 'a.txt', 'additions' => 1, 'deletions' => 1])
         ->and($status['changes'][0])->toMatchArray(['path' => 'a.txt', 'additions' => 1, 'deletions' => 1]);
-})->group('GIT-009');
 
-test('single lines are left out: an added line is dropped and a removed one stays', function () {
+    $staged = ($this->data)(['op' => 'change_diff', 'path' => 'a.txt', 'staged' => true]);
+    $status = ($this->data)(['op' => 'stage_lines', 'path' => 'a.txt', 'hash' => $staged['hash'], 'hunk' => 0, 'staged' => true]);
+
+    expect($status['staged'])->toBe([])
+        ->and(File::get("{$this->workspace}/a.txt"))->toContain('line 2 changed')->toContain('line 19 changed');
+})->group('GIT-009', 'SCM-001');
+
+test('single lines are staged and unstaged: the others stay as they are', function () {
     ($this->write)('a.txt', "keep\nold\n");
     ($this->data)(['op' => 'commit', 'message' => 'Start']);
     ($this->write)('a.txt', "keep\nnew one\nnew two\n");
-    ($this->write)('b.txt', "first\nsecond\n");
-    $edited = ($this->data)(['op' => 'change_diff', 'path' => 'a.txt']);
-    $new = ($this->data)(['op' => 'change_diff', 'path' => 'b.txt']);
+    $diff = ($this->data)(['op' => 'change_diff', 'path' => 'a.txt']);
 
-    ($this->data)(['op' => 'commit', 'message' => 'Some lines', 'partials' => [
-        ['path' => 'a.txt', 'hash' => $edited['hash'], 'excluded' => patchLines($edited['patch'], '-old', '+new two')],
-        ['path' => 'b.txt', 'hash' => $new['hash'], 'excluded' => patchLines($new['patch'], '+second')],
-    ]]);
+    ($this->data)(['op' => 'stage_lines', 'path' => 'a.txt', 'hash' => $diff['hash'], 'lines' => patchLines($diff['patch'], '+new one')]);
 
-    expect(($this->git)('show', 'HEAD:a.txt'))->toBe("keep\nold\nnew one")
-        ->and(($this->git)('show', 'HEAD:b.txt'))->toBe('first');
-})->group('GIT-009');
+    expect(($this->git)('show', ':a.txt'))->toBe("keep\nold\nnew one");
 
-test('parts of a file that changed since it was shown are refused', function () {
+    ($this->data)(['op' => 'stage', 'paths' => ['a.txt']]);
+    $staged = ($this->data)(['op' => 'change_diff', 'path' => 'a.txt', 'staged' => true]);
+    ($this->data)(['op' => 'stage_lines', 'path' => 'a.txt', 'hash' => $staged['hash'], 'staged' => true, 'lines' => patchLines($staged['patch'], '-old', '+new two')]);
+
+    expect(($this->git)('show', ':a.txt'))->toBe("keep\nold\nnew one")
+        ->and(File::get("{$this->workspace}/a.txt"))->toBe("keep\nnew one\nnew two\n");
+})->group('GIT-009', 'SCM-001');
+
+test('parts of a file that changed since it was shown, or of new files, are refused', function () {
     $diff = twoHunks($this);
     ($this->write)('a.txt', "something else\n");
+    ($this->write)('new.txt', "one\n");
+    $new = ($this->data)(['op' => 'change_diff', 'path' => 'new.txt']);
 
-    expect(($this->tool)(['op' => 'commit', 'message' => 'Stale', 'partials' => [['path' => 'a.txt', 'hash' => $diff['hash'], 'excluded' => []]]]))
+    expect(($this->tool)(['op' => 'stage_lines', 'path' => 'a.txt', 'hash' => $diff['hash'], 'hunk' => 0]))
         ->toBe(['ok' => false, 'error' => 'This file changed. Review it again.'])
-        ->and(($this->tool)(['op' => 'commit', 'message' => 'Nothing', 'paths' => [], 'partials' => []]))
-        ->toBe(['ok' => false, 'error' => 'Pick at least one file to commit.']);
-})->group('GIT-009');
+        ->and(($this->tool)(['op' => 'stage_lines', 'path' => 'new.txt', 'hash' => $new['hash'], 'hunk' => 0]))
+        ->toBe(['ok' => false, 'error' => 'Only parts of edited text files can be staged.']);
+})->group('GIT-009', 'SCM-001');
 
 test('one hunk is discarded, putting just that part back', function () {
     $diff = twoHunks($this);
@@ -446,3 +519,77 @@ test('the last commit is undone, its changes coming back uncommitted, unless it 
 
     expect(($this->tool)(['op' => 'undo_commit', 'sha' => $again])['error'])->toStartWith('That commit is already pushed');
 })->group('GIT-010');
+
+/**
+ * Run the checkpoint script in the workspace as the agent's turn would, with $message as its prompt.
+ */
+function agentTurn(object $test, string $message, bool $commit = false): void
+{
+    Process::path($test->workspace)
+        ->env(['ONEDROP_WORKSPACE' => $test->workspace, 'ONEDROP_COMMIT_TURNS' => $commit ? '1' : '0'])
+        ->input($message)
+        ->run([dirname(__DIR__, 2).'/docker/sandbox/checkpoint']);
+}
+
+test('the agent\'s turns are listed as checkpoints, newest first, with edits made between them', function () {
+    ($this->write)('a.txt', "one\n");
+    ($this->data)(['op' => 'commit', 'message' => 'Start']);
+    ($this->write)('a.txt', "two\n");
+    agentTurn($this, 'Make it two');
+    ($this->write)('b.txt', "bee\n");
+    Process::path($this->workspace)->env(['ONEDROP_WORKSPACE' => $this->workspace])->run([dirname(__DIR__, 2).'/docker/sandbox/checkpoint', '--snapshot']);
+    ($this->write)('a.txt', "three\nfour\n");
+    agentTurn($this, 'Make it four');
+
+    $checkpoints = ($this->data)(['op' => 'checkpoints']);
+
+    expect($checkpoints['more'])->toBeFalse()
+        ->and(array_map(fn (array $checkpoint) => [$checkpoint['subject'], $checkpoint['kind'], $checkpoint['files'], $checkpoint['additions'], $checkpoint['deletions']], $checkpoints['checkpoints']))->toBe([
+            ['Make it four', 'turn', 1, 2, 1],
+            ['Changes outside the agent', 'edits', 1, 1, 0],
+            ['Make it two', 'turn', 1, 1, 1],
+        ])
+        ->and(($this->git)('log', '--format=%s'))->toBe('Start')
+        ->and(($this->data)(['op' => 'show', 'sha' => $checkpoints['checkpoints'][0]['sha']]))->toMatchArray(['subject' => 'Make it four', 'body' => '', 'agent' => true]);
+})->group('SBX-006', 'SCM-002');
+
+test('a project with no history yet still gets checkpoints, and has none before the first', function () {
+    expect(($this->data)(['op' => 'checkpoints']))->toBe(['checkpoints' => [], 'more' => false]);
+
+    ($this->write)('a.txt', 'a');
+    agentTurn($this, 'Start');
+
+    expect(($this->data)(['op' => 'checkpoints'])['checkpoints'][0])->toMatchArray(['subject' => 'Start', 'restorable_before' => false]);
+})->group('SCM-002');
+
+test('a checkpoint is restored, or the files as they were before it, without committing or touching what is staged', function () {
+    ($this->write)('a.txt', "one\n");
+    ($this->data)(['op' => 'commit', 'message' => 'Start']);
+    ($this->write)('a.txt', "two\n");
+    ($this->write)('b.txt', "bee\n");
+    agentTurn($this, 'Two and a bee');
+    $turn = ($this->data)(['op' => 'checkpoints'])['checkpoints'][0]['sha'];
+    ($this->write)('a.txt', "three\n");
+    ($this->write)('c.txt', "sea\n");
+    ($this->data)(['op' => 'stage', 'paths' => ['c.txt']]);
+
+    $status = ($this->data)(['op' => 'restore_checkpoint', 'sha' => $turn, 'before' => true]);
+
+    expect(File::get("{$this->workspace}/a.txt"))->toBe("one\n")
+        ->and(File::exists("{$this->workspace}/b.txt"))->toBeFalse()
+        ->and(File::exists("{$this->workspace}/c.txt"))->toBeFalse()
+        ->and(array_column($status['staged'], 'path'))->toBe(['c.txt'])
+        ->and(($this->git)('log', '--format=%s'))->toBe('Start');
+
+    $checkpoints = ($this->data)(['op' => 'checkpoints'])['checkpoints'];
+
+    expect(array_column($checkpoints, 'kind'))->toBe(['restore', 'edits', 'turn'])
+        ->and($checkpoints[0]['subject'])->toBe('Restore before "Two and a bee"');
+
+    // The restore itself is undone from the checkpoint before it.
+    ($this->data)(['op' => 'restore_checkpoint', 'sha' => $checkpoints[1]['sha']]);
+
+    expect(File::get("{$this->workspace}/a.txt"))->toBe("three\n")
+        ->and(File::get("{$this->workspace}/c.txt"))->toBe("sea\n")
+        ->and(($this->tool)(['op' => 'restore_checkpoint', 'sha' => ($this->git)('rev-parse', 'HEAD')])['error'])->toBe("That isn't one of the project's checkpoints.");
+})->group('SCM-002');

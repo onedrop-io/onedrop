@@ -461,12 +461,12 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## SBX-006: Checkpoints and code backups
 
-- User's changes should be committed to git in `/workspace` after every agent turn (finished or stopped), whichever agent ran it, with the prompt as the commit message; a turn that changed nothing makes no commit.
+- User's changes should be saved after every agent turn (finished or stopped), whichever agent ran it: always as a private checkpoint (SCM-002), and also committed to git in `/workspace` with the prompt as the commit message unless the project leaves its changes for the user to commit (SCM-003); a turn that changed nothing saves nothing.
 - A project without a git repository should get one (branch `main`) on its first checkpoint; one that already has a repository keeps its branch and history.
 - Checkpoints should never include `node_modules`, `vendor`, `.cache` or `.env` files (except `.env.example`), whatever the app's `.gitignore` says.
 - A repository in the middle of a merge or rebase should be left alone.
-- After each turn the platform should copy the project's whole git history (a verified git bundle) to its backup disk (`SANDBOX_BACKUP_DISK`), outside any sandbox provider, and remember which commit it holds; a turn with no new commit copies nothing.
-- A sandbox that gets a fresh workspace (recreated without its files, or its old sandbox is gone) should get the project's code back from the backup, with its branches, and start the app.
+- After each turn the platform should copy the project's whole git history, checkpoints included (a verified git bundle), to its backup disk (`SANDBOX_BACKUP_DISK`), outside any sandbox provider, and remember which commit and checkpoint it holds; a turn with nothing new copies nothing. Uncommitted edits are saved as a checkpoint first, so they're backed up too.
+- A sandbox that gets a fresh workspace (recreated without its files, or its old sandbox is gone) should get the project's code back from the backup, with its branches and checkpoints, its uncommitted changes as uncommitted changes, and start the app.
 - Deleting a project should delete its backup.
 
 ## SBX-007: Idle Docker sandboxes are suspended
@@ -1235,9 +1235,9 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## GIT-001: Git history
 
-- User should see a Git section under Tools with the current branch and the project's commits, newest first: each with its message, who made it (the agent's turns marked as the agent's, see SBX-006), how long ago, and its short id.
+- User should see the current branch and the project's commits, newest first, in the Source Control tab (SCM-001): each with its message, who made it (the agent's turns marked as the agent's, see SBX-006), how long ago, and its short id.
 - User should see the last backup time, and that dependencies, caches and `.env` secrets are never committed.
-- User should be able to click a commit to see more: its full message, author and email, exact date and time, full id (with a copy button), and the files it changed with lines added and removed (binary files marked); clicking again closes it.
+- User should be able to click a commit to see more beside the list: its full message, author and email, exact date and time, full id (with a copy button), and the files it changed with lines added and removed (binary files marked).
 - User should be able to search the whole history by message, author ("agent" finds the agent's turns) or commit id, and see older commits with "Show more", 50 at a time.
 - User should be able to click a changed file to see its diff in that commit, added lines in green and removed in red; very large diffs are cut short and say so.
 - A project with no repository yet should show an empty history until its first commit.
@@ -1245,20 +1245,21 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## GIT-002: Commit, discard and branches
 
-- User should see uncommitted changes (made in the Shell, the Files panel, or while the agent was stopped) with their state: modified, added, deleted, renamed, new or conflicted.
-- User should be able to click "Review and commit" (or a changed file) to open the same Commit changes dialog as the header's (GIT-006), and commit as themselves; dependencies and secrets stay out as with checkpoints. Committing with no changes should say why it can't.
-- User should be able to discard the changes to one file, or all of them, after confirming; new files are deleted, ignored files (`node_modules`, `.env`) are kept.
+- User should see uncommitted changes (the agent's when it doesn't commit, and those made in the Shell or the Files panel), staged and unstaged, with their state: modified, added, deleted, renamed, new or conflicted (SCM-001).
+- User should be able to commit as themselves from Source Control; dependencies and secrets stay out as with checkpoints. Committing with no changes should say why it can't.
+- User should be able to discard the unstaged changes to one file, or all of them, after confirming; staged changes stay, new files are deleted, ignored files (`node_modules`, `.env`) are kept, and the files as they were are saved as a checkpoint first (SCM-002).
 - User should be able to switch branches and create a new one from the current commit; invalid branch names are refused, and the app restarts on the new branch.
-- Committing, discarding, switching and restoring should wait while the agent is working.
-- A repository in the middle of a merge or rebase should be pointed out.
+- Committing, discarding, switching and restoring should wait while the agent is working; staging and unstaging needn't.
+- A repository in the middle of a merge or rebase should be pointed out; mid-merge, committing the staged, resolved files finishes the merge.
 
 ## GIT-003: Restore an earlier version
 
 - User should be able to pick "Restore this version" on any earlier commit and confirm; every file goes back to how it was then, saved as a new commit, so nothing is lost and today's version can be restored the same way.
-- Uncommitted changes should be committed first ("Changes before restoring …"), the app restarts, and the project is backed up.
+- Uncommitted changes should be kept in a checkpoint first ("Before restoring …", SCM-002) rather than committed, the app restarts, and the project is backed up.
 
 ## GIT-004: Push to and pull from a remote
 
+- Pushing should only ever send the branch: the agent's checkpoints (SCM-002) never leave the platform.
 - With no remote, user should be able to create a new private (or public) repository on GitHub with a token, which connects it and pushes to it, or connect an existing repository on GitHub, GitLab, Forgejo or any HTTPS git host with its URL, an access token and an optional username.
 - Remote URLs should be HTTPS without credentials in them, on the public internet unless the admin allows private networks (`SANDBOX_GIT_ALLOW_PRIVATE_REMOTES`).
 - The token should be stored encrypted, never shown again, never sent to the browser, and never put in the sandbox: pushes and pulls run on the platform, carrying commits in and out of the sandbox as git bundles.
@@ -1269,9 +1270,9 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## GIT-005: Connect GitHub with the GitHub App
 
-- When the admin has set up a GitHub App (`GITHUB_APP_*`), user should see "Connect to GitHub" in Tools → Git, which opens a dialog instead of asking for a token.
-- The first time, the dialog explains and sends the user to GitHub to install the app on their account or an organization and choose which repositories it can reach; GitHub sends them back to the project's Git section with the dialog open again.
-- If the user comes back without GitHub's redirect (the app isn't set up to send people back, or they used the back button), the dialog should reopen asking "Finished installing on GitHub?" with Continue, which confirms the sign-in with GitHub and picks the installation up. A GitHub App whose Callback URL is the login one (`/login/github/callback`) should still bring Tools → Git returns back to the Git section.
+- When the admin has set up a GitHub App (`GITHUB_APP_*`), user should see "Connect to GitHub" in Source Control's Repository section, which opens a dialog instead of asking for a token.
+- The first time, the dialog explains and sends the user to GitHub to install the app on their account or an organization and choose which repositories it can reach; GitHub sends them back to the project's Source Control tab with the dialog open again.
+- If the user comes back without GitHub's redirect (the app isn't set up to send people back, or they used the back button), the dialog should reopen asking "Finished installing on GitHub?" with Continue, which confirms the sign-in with GitHub and picks the installation up. A GitHub App whose Callback URL is the login one (`/login/github/callback`) should still bring Source Control returns back to the Source Control tab.
 - The platform should sign the user in through the app and keep their GitHub token encrypted (refreshing it when it expires), and remember only the installations GitHub says they can reach. When the token can't be refreshed, the dialog asks them to reconnect.
 - Repositories should be listed and connected with the user's own token, so they only see and connect repositories both they and the app can reach; someone else's installation is refused.
 - In the dialog, user should pick an owner (their account or an organization, with its avatar), then either:
@@ -1279,21 +1280,18 @@ What users should be able to do. Each entry has an ID; tests reference it with `
     - **Existing repository:** search the owner's repositories, most recently updated first, marked private or public, pick a branch, and connect; a project with no commits brings the branch in (an import). The list refreshes when the user comes back from GitHub.
 - The dialog should open on "New repository" for a project with commits and "Existing repository" for one without.
 - Pushes and pulls for a GitHub-connected repository should use a short-lived installation token made on the platform when needed; no token is stored for the project, and none enters the sandbox. The connected remote shows as the GitHub repository with a link to it.
-- Admins should see in Tools → Git what's wrong with the GitHub App setup (missing settings, missing Contents or Metadata permission, creating repositories unavailable without Administration permission, and installs on GitHub that never came back to OneDrop), with a link to the app's permission settings, and the Callback and Setup URL GitHub must use. Other users fall back to the token-based ways (GIT-004), which stay available as "Other git host".
+- Admins should see in Source Control what's wrong with the GitHub App setup (missing settings, missing Contents or Metadata permission, creating repositories unavailable without Administration permission, and installs on GitHub that never came back to OneDrop), with a link to the app's permission settings, and the Callback and Setup URL GitHub must use. Other users fall back to the token-based ways (GIT-004), which stay available as "Other git host".
 
 ## GIT-006: Commit and push from the header
 
-- User should see a "Commit & push" button next to Share (just "Commit" with no remote), with a menu of Commit, Push and Create PR.
-- User should be able to click it to open "Commit changes", then commit and push the branch when a remote is connected; with nothing to commit but commits to push, it just pushes. A toast says Pushing…, then Pushed or why it failed.
-- The dialog should show the branch (marked "Default branch" on `main` or `master`), each changed file with its state and lines added and removed (binary files marked), and the total.
-- User should be able to click Edit and untick files to leave them out of the commit; the count and total follow, and the files left out stay uncommitted.
-- User should be able to leave the message blank and have the project's AI write one from the diff; when it can't, the message names the files ("Update app.tsx and 2 other files").
+- User should see a "Commit & push" button next to Share (just "Commit" with no remote), with the number of changed files, and a menu of Commit, Push, Undo last commit, Combine and Create PR.
+- User should be able to click it to open Source Control (SCM-001) with the cursor in its message box; with nothing to commit but commits to push, it just pushes. A toast says Pushing…, then Pushed or why it failed.
+- In Source Control, user should be able to commit and push in one go ("Commit & push"), and see the branch they're committing to ("On the default branch" on `main` or `master`).
+- User should be able to leave the message blank and have the project's AI write one from what's being committed, or ask it for one into the message box first; when it can't, the message names the files ("Update app.tsx and 2 other files").
 - User should be able to pick "Commit on new branch", name it, and commit there (the app restarts on it).
-- User should be able to click a file to open its diff beside the list (the dialog widens): added lines in green and removed in red, a new file as all added lines, a binary file marked as such, and a new folder as its list of files; very large diffs are cut short and say so.
-- With a diff open, ↑/↓ should move to the next or previous file and show its diff, Space should tick or untick it while editing, and clicking the file again, the close button or Esc should close the diff (Esc again closes the dialog).
-- Commit should only be offered with uncommitted changes, and Push with a remote and commits it hasn't got; with no remote, the menu offers "Connect a repository…", which opens Tools → Git.
+- Push should only be offered with a remote and commits it hasn't got; with no remote, the menu offers "Connect a repository…", which opens Source Control.
 - Create PR should open a pull request for the current branch (GIT-007), and Combine should combine commits before pushing (GIT-008).
-- The buttons should wait while the agent is working or the sandbox isn't running.
+- Committing should wait while the agent is working or the sandbox isn't running.
 
 ## GIT-007: Open a pull request with a written title and description
 
@@ -1304,26 +1302,26 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## GIT-008: Combine commits before pushing
 
-- When the branch has more than one commit that isn't pushed yet, user should be able to combine them into one ("Combine N commits") from the header's menu, with a message the project's AI writes from them (editable), or their messages listed when it can't.
+- When the branch has more than one commit that isn't pushed yet, user should be able to combine them into one ("Combine N commits") from the header's or Source Control's menu, with a message the project's AI writes from them (editable), or their messages listed when it can't.
 - Only commits that haven't been pushed should be combined, so pushing never has to overwrite the remote; the files are unchanged and nothing is lost from the working tree.
-- Combining should wait while the agent is working, and be refused with uncommitted changes or while merging or rebasing.
+- Combining should wait while the agent is working, and be refused with staged changes or while merging or rebasing; unstaged changes stay as they are.
 
-## GIT-009: Choose hunks and lines, and discard a hunk
+## GIT-009: Stage hunks and lines, and discard a hunk
 
-- In the commit dialog's diff, user should be able to untick a hunk, or click single added or removed lines, to leave them out of the commit; the file shows as partly included and the totals count only what's chosen.
-- Committing should commit only the chosen parts of each file; what was left out stays uncommitted in the file.
-- If a file changed after its diff was shown, the commit should be refused with "This file changed. Review it again." rather than committing something else.
-- User should be able to discard one hunk of an uncommitted file after confirming, putting just that part back as it was in the last commit.
+- In a file's diff in Source Control, user should be able to stage one hunk, or click single added or removed lines and stage just those; in its staged diff, unstage a hunk or lines the same way. What's left stays in the file, unstaged.
+- If a file changed after its diff was shown, staging should be refused with "This file changed. Review it again." rather than staging something else.
+- Only edited text files can be staged in parts; new, deleted, renamed and binary files go whole.
+- User should be able to discard one hunk of an unstaged edit after confirming, putting just that part back as it's staged (or as it was in the last commit).
 
 ## GIT-010: Undo the last commit
 
-- User should be able to pick "Undo last commit" from the header's git menu, or "Undo this commit" on the newest commit in Tools → Git, and see its message first; its changes come back as uncommitted, and the files don't change.
+- User should be able to pick "Undo last commit" from the header's or Source Control's menu, or "Undo this commit" on the newest commit in Source Control's history, and see its message first; its changes come back as uncommitted, and the files don't change.
 - Only a commit that isn't pushed yet should be undoable, so pushing never has to overwrite the remote; the first commit and merges can't be undone, and if the newest commit changed since it was shown, the undo is refused.
 - Undoing should wait while the agent is working or a push or pull is running.
 
 ## GIT-011: Ask the agent about a change
 
-- In a diff of uncommitted changes, user should be able to pick "Ask" on a hunk to put it, with the file's name, into the chat box, ready to type a question and send; the dialog closes and the cursor is in the chat box.
+- In a diff of uncommitted changes, user should be able to pick "Ask" on a hunk to put it, with the file's name, into the chat box, ready to type a question and send; the cursor goes to the chat box.
 
 ## GIT-012: Readable diffs
 
@@ -1332,7 +1330,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## GIT-013: See a GitHub repository's pull requests
 
-- User should see a Pull requests section under Tools for a project connected to a GitHub repository (with the GitHub App or a token); without one, it says to connect a GitHub repository in Tools → Git.
+- User should see a Pull requests section under Tools for a project connected to a GitHub repository (with the GitHub App or a token); without one, it says to connect a GitHub repository in Source Control.
 - User should see the open pull requests, newest activity first, and be able to switch to closed ones and search them by title, number, branch or author. Each shows its number, title, author, branch and base, draft, its checks (passing, failing or running), its review (approved, changes requested), how many comments, when it last changed, and whether it's checked out as a task.
 - User should be able to click a pull request to open its page (the URL keeps it, e.g. `?tab=tools&tool=pulls&pr=12`, so a reload or a link opens it again), with its title, state (open, draft, merged, closed), author, branch into base, whether it can be merged, a link to it on GitHub, and four tabs:
     - **Conversation:** the description and the comments and reviews, oldest first, formatted.
@@ -1341,7 +1339,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
     - **Checks:** each check and commit status on the newest commit, with its state, how long it took, and a link to its details; a failed check shows the end of its log when opened.
 - The checks should refresh on their own while any is still running and the page is open.
 - The pull requests are read on the platform with the project's GitHub App installation token or its stored token, never in the sandbox. GitHub's errors (no access, missing permission, rate limit) are shown plainly. Only people who can see the project should see its pull requests.
-- Admins should be told in Tools → Git when the GitHub App lacks the Pull requests, Checks, Commit statuses or Actions read permissions these need.
+- Admins should be told in Source Control when the GitHub App lacks the Pull requests, Checks, Commit statuses or Actions read permissions these need.
 
 ## GIT-014: Check out a pull request as a task
 
@@ -1372,6 +1370,34 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - An organization secret or a project secret named `GITHUB_TOKEN` should win over the owner's token.
 - User should see `GITHUB_TOKEN` in Tools → Secrets, marked as coming from the owner's GitHub.
 - When a private GitHub package won't download and there's no `GITHUB_TOKEN`, the agent should tell the user to connect GitHub in Settings → Security (or, if the package needs someone else's access, add a token as an organization secret), not ask for a personal access token in the chat.
+
+## SCM-001: Source Control tab
+
+- User should be able to open a Source Control tab (from "+", the header's Commit button, or Tools → Source Control) that can fill the workspace or sit beside other tabs, like VS Code's; old `?tool=git` links open it.
+- User should see, on the left: the branch (to switch or create one), Pull and Push with how many commits each way, refresh, a menu (stage all, unstage all, discard all, undo last commit, combine commits, create PR), a message box, a Commit button, and the lists: Merge changes (conflicted files), Staged changes and Changes, each file with its icon, name, folder, lines added and removed and state, then the Timeline (SCM-002), the History (GIT-001) and the Repository (remote, SCM-003's switch, backups).
+- User should be able to stage and unstage a file from its row, or all of them; what's staged stays staged until it's committed or unstaged.
+- User should be able to commit what's staged ("Commit (n)"), or every change when nothing is ("Commit all (n)"), with ⌘/Ctrl+Enter in the message box, or from the Commit menu: Commit & push, Commit on new branch.
+- User should be able to click a file to see its diff on the right (its staged or unstaged part), stage, unstage or discard the whole file, stage parts of it (GIT-009), ask the agent about a hunk (GIT-011), open the file in the editor, and move between files with ↑/↓.
+- User should see a commit's or a checkpoint's details on the right when one is clicked.
+- On a narrow pane, user should see the lists and the diff one at a time, with a way back.
+- The header's button and Source Control should stay in step: a commit, push or undo in one shows in the other.
+
+## SCM-002: The agent's checkpoints (Timeline)
+
+- Every agent turn should be saved as a private checkpoint, whether or not the agent commits: a commit on a hidden ref (`refs/onedrop/checkpoints`) that's on no branch, never pushed, and leaves what's staged untouched.
+- Edits made outside the agent (Shell, Files panel) should be saved as their own checkpoint ("Changes outside the agent") before the next turn, before a backup and before a deploy, so a turn's checkpoint holds only what the agent did.
+- User should see the checkpoints in Source Control's Timeline, newest first, each with what made it (an agent turn, outside edits, a restore or an applied task), when, and the files and lines it changed, 100 at a time.
+- User should be able to click a checkpoint to see its files and diffs, and restore the files to just before it or to it, after confirming: nothing is committed, the difference shows as changes, what's staged stays staged, and the files as they were are saved as a checkpoint first, so a restore can be undone. The app restarts and the project is backed up.
+- Checkpoints should be backed up with the project (SBX-006), so uncommitted work survives a lost sandbox.
+
+## SCM-003: Choose whether the agent commits each turn
+
+- User should be able to switch "Commit after each agent turn" in Source Control. On, the agent commits its changes to the branch after every turn; off, they stay uncommitted for the user to review, stage and commit.
+- A new project should commit each turn; connecting or importing a repository should turn it off (the user's history is theirs to write), and the user can turn it back on. Projects already connected when this arrived are off.
+- With it off, applying a task to Main (TASK-003) should land the task's work on Main as uncommitted changes, with conflicts left as conflict markers for Main's agent to resolve without committing, and Update from Main should carry Main's files without committing them.
+- With it off, the Publish panel's changes since the last deploy (HOST-004) should count checkpoints instead of commits, and a deploy records a checkpoint of the files it shipped; auto-deploy (HOST-006) works the same.
+- A task's own copy should always commit its turns, on its own branch.
+- The agent should be told not to commit, stage or unstage anything itself unless the user asks.
 
 ## STORE-001: App Storage
 

@@ -23,7 +23,7 @@ beforeEach(function () {
 
     $this->status = [
         'initialized' => true, 'branch' => 'main', 'branches' => ['main'], 'head' => str_repeat('a', 40),
-        'changes' => [['path' => 'index.html', 'status' => 'M']], 'more_changes' => false, 'tracking' => null, 'state' => null,
+        'staged' => [], 'changes' => [['path' => 'index.html', 'status' => 'M']], 'more_changes' => false, 'tracking' => null, 'state' => null,
     ];
     $this->commits = [['sha' => str_repeat('a', 40), 'subject' => 'Build a timer', 'author' => 'OneDrop', 'email' => 'agent@onedrop.io', 'date' => '2026-09-28T10:00:00+00:00', 'agent' => true]];
     $this->requests = [];
@@ -50,7 +50,8 @@ beforeEach(function () {
             'changes_diff' => ['patch' => "-color: black;\n+color: blue;\n", 'new_files' => [], 'truncated' => false],
             'combine_preview' => ['commits' => $this->compared, 'patch' => "+plans\n", 'truncated' => false],
             'compare' => ['base' => $request['base'], 'commits' => $this->compared, 'more' => false, 'patch' => "+plans\n", 'truncated' => false],
-            'change_diff' => ['path' => $request['path'], 'patch' => "@@ -1 +1 @@\n-a\n+b\n", 'truncated' => false, 'binary' => false, 'files' => null],
+            'change_diff' => ['path' => $request['path'], 'staged' => $request['staged'], 'patch' => "@@ -1 +1 @@\n-a\n+b\n", 'truncated' => false, 'binary' => false, 'files' => null],
+            'checkpoints' => ['checkpoints' => [['sha' => str_repeat('d', 40), 'subject' => 'Build a timer', 'date' => '2026-09-28T10:00:00+00:00', 'kind' => 'turn', 'files' => 1, 'additions' => 3, 'deletions' => 0, 'restorable_before' => true]], 'more' => false],
             default => $this->status,
         };
 
@@ -64,14 +65,17 @@ beforeEach(function () {
     $this->actingAs($this->user);
 });
 
-test('the panel shows the branch, changes and history', function () {
+test('the panel shows the branch, changes, history, checkpoints and whether the agent commits', function () {
     $this->getJson(route('projects.git.index', $this->project))
         ->assertOk()
         ->assertJsonPath('status.branch', 'main')
+        ->assertJsonPath('status.staged', [])
         ->assertJsonPath('status.changes.0.path', 'index.html')
         ->assertJsonPath('commits.0.agent', true)
+        ->assertJsonPath('checkpoints.checkpoints.0.kind', 'turn')
+        ->assertJsonPath('commit_turns', true)
         ->assertJsonPath('remote', null);
-})->group('GIT-001');
+})->group('GIT-001', 'SCM-001');
 
 test('only the project owner can use its git', function () {
     $this->actingAs(User::factory()->has(AgentConnection::factory())->create());
@@ -91,30 +95,32 @@ test('committing commits as the signed-in user and backs the project up', functi
         ->assertOk()
         ->assertJsonPath('commits.0.subject', 'Build a timer');
 
-    expect($this->requests[0])->toBe(['op' => 'commit', 'message' => 'Make the button blue', 'paths' => null, 'name' => 'Dev User', 'email' => 'dev@example.com']);
+    expect($this->requests[0])->toBe(['op' => 'commit', 'message' => 'Make the button blue', 'name' => 'Dev User', 'email' => 'dev@example.com']);
     Queue::assertPushed(BackupProject::class);
 })->group('GIT-002');
 
-test('an uncommitted change\'s diff comes from the sandbox, for the owner only', function () {
+test('a change\'s diff, staged or unstaged, comes from the sandbox, for the owner only', function () {
     $this->getJson(route('projects.git.change-diff', [$this->project, 'path' => 'index.html']))
         ->assertOk()
         ->assertJsonPath('patch', "@@ -1 +1 @@\n-a\n+b\n");
 
-    expect(end($this->requests))->toBe(['op' => 'change_diff', 'path' => 'index.html']);
+    expect(end($this->requests))->toBe(['op' => 'change_diff', 'path' => 'index.html', 'staged' => false]);
+
+    $this->getJson(route('projects.git.change-diff', [$this->project, 'path' => 'index.html', 'staged' => 1]))->assertJsonPath('staged', true);
 
     $this->getJson(route('projects.git.change-diff', $this->project))->assertUnprocessable();
     $this->actingAs(User::factory()->has(AgentConnection::factory())->create());
     $this->getJson(route('projects.git.change-diff', [$this->project, 'path' => 'index.html']))->assertForbidden();
 })->group('GIT-006');
 
-test('committing only some files on a new branch switches to it first', function () {
-    $this->postJson(route('projects.git.commit', $this->project), ['message' => 'Pricing page', 'paths' => ['index.html'], 'branch' => 'pricing'])
+test('committing on a new branch switches to it first', function () {
+    $this->postJson(route('projects.git.commit', $this->project), ['message' => 'Pricing page', 'branch' => 'pricing'])
         ->assertOk()
         ->assertJsonPath('message', 'Pricing page');
 
     expect(array_slice($this->requests, 0, 2))->toBe([
         ['op' => 'switch', 'branch' => 'pricing', 'create' => true],
-        ['op' => 'commit', 'message' => 'Pricing page', 'paths' => ['index.html'], 'name' => 'Dev User', 'email' => 'dev@example.com'],
+        ['op' => 'commit', 'message' => 'Pricing page', 'name' => 'Dev User', 'email' => 'dev@example.com'],
     ]);
 })->group('GIT-006');
 
@@ -139,9 +145,100 @@ test('a commit without a message names its files when the AI can\'t write one', 
         ->assertOk()
         ->assertJsonPath('message', 'Update App.tsx and 2 other files');
 
-    $this->postJson(route('projects.git.commit', $this->project), ['paths' => ['src/new.ts']])
+    // With files staged, only those are named.
+    $this->status['staged'] = [['path' => 'src/new.ts', 'status' => 'A']];
+    $this->postJson(route('projects.git.commit', $this->project), [])
         ->assertJsonPath('message', 'Add new.ts');
-})->group('GIT-006');
+})->group('GIT-006', 'SCM-001');
+
+test('the message box can ask the project\'s AI for a message', function () {
+    $this->mock(OneOffPrompt::class)->shouldReceive('ask')->andReturn('Make the button blue');
+
+    $this->postJson(route('projects.git.draft-message', $this->project))
+        ->assertOk()
+        ->assertJsonPath('message', 'Make the button blue');
+
+    expect(collect($this->requests)->pluck('op')->all())->not->toContain('commit');
+})->group('SCM-001');
+
+test('files are staged and unstaged, all of them or the chosen ones, even while the agent works', function () {
+    $this->project->update(['status' => ProjectStatus::Working]);
+
+    $this->postJson(route('projects.git.stage', $this->project), ['paths' => ['index.html']])->assertOk()->assertJsonPath('status.branch', 'main');
+    $this->postJson(route('projects.git.stage', $this->project))->assertOk();
+    $this->postJson(route('projects.git.unstage', $this->project), ['paths' => ['index.html']])->assertOk();
+    $this->postJson(route('projects.git.unstage', $this->project), ['paths' => []])->assertUnprocessable();
+
+    expect($this->requests)->toBe([
+        ['op' => 'stage', 'paths' => ['index.html']],
+        ['op' => 'stage', 'paths' => null],
+        ['op' => 'unstage', 'paths' => ['index.html']],
+    ]);
+})->group('SCM-001');
+
+test('a hunk or some lines of a file are staged or unstaged against the diff that was shown', function () {
+    $hash = str_repeat('f', 40);
+
+    $this->postJson(route('projects.git.stage-lines', $this->project), ['path' => 'index.html', 'hash' => $hash, 'hunk' => 1])->assertOk();
+    $this->postJson(route('projects.git.stage-lines', $this->project), ['path' => 'index.html', 'hash' => $hash, 'staged' => true, 'lines' => [7, 8]])->assertOk();
+    $this->postJson(route('projects.git.stage-lines', $this->project), ['path' => 'index.html', 'hash' => $hash])->assertUnprocessable();
+
+    expect($this->requests)->toBe([
+        ['op' => 'stage_lines', 'path' => 'index.html', 'hash' => $hash, 'staged' => false, 'hunk' => 1, 'lines' => null],
+        ['op' => 'stage_lines', 'path' => 'index.html', 'hash' => $hash, 'staged' => true, 'hunk' => null, 'lines' => [7, 8]],
+    ]);
+})->group('GIT-009', 'SCM-001');
+
+test('the agent\'s checkpoints are listed a page at a time, and one is restored as uncommitted changes', function () {
+    $sha = str_repeat('d', 40);
+
+    $this->getJson(route('projects.git.checkpoints', [$this->project, 'offset' => 100]))
+        ->assertOk()
+        ->assertJsonPath('checkpoints.0.subject', 'Build a timer');
+
+    $this->postJson(route('projects.git.restore-checkpoint', $this->project), ['sha' => $sha, 'before' => true])
+        ->assertOk()
+        ->assertJsonPath('checkpoints.checkpoints.0.sha', $sha);
+
+    expect(collect($this->requests)->whereIn('op', ['checkpoints', 'restore_checkpoint'])->values()->all())->toBe([
+        ['op' => 'checkpoints', 'offset' => 100],
+        ['op' => 'restore_checkpoint', 'sha' => $sha, 'before' => true],
+        ['op' => 'checkpoints', 'offset' => 0],
+    ])
+        ->and(collect($this->provider->executed)->pluck('command')->all())->toContain(['/opt/onedrop/restart']);
+    Queue::assertPushed(BackupProject::class);
+
+    $this->project->update(['status' => ProjectStatus::Working]);
+    $this->postJson(route('projects.git.restore-checkpoint', $this->project), ['sha' => $sha])->assertStatus(409);
+})->group('SCM-002');
+
+test('the owner turns the agent\'s commits after each turn on and off', function () {
+    $this->patchJson(route('projects.git.settings', $this->project), ['commit_turns' => false])
+        ->assertOk()
+        ->assertJsonPath('commit_turns', false);
+
+    expect($this->project->fresh()->commit_turns)->toBeFalse();
+
+    $this->patchJson(route('projects.git.settings', $this->project), [])->assertUnprocessable();
+    $this->actingAs(User::factory()->has(AgentConnection::factory())->create());
+    $this->patchJson(route('projects.git.settings', $this->project), ['commit_turns' => true])->assertForbidden();
+})->group('SCM-003');
+
+test('connecting a repository stops the agent committing each turn, unless turned back on', function () {
+    expect($this->project->commit_turns)->toBeTrue();
+
+    $this->putJson(route('projects.git.connect', $this->project), ['url' => 'https://github.com/dev/timer.git', 'token' => 'ghp_x'])->assertOk();
+
+    expect($this->project->fresh()->commit_turns)->toBeFalse();
+
+    $this->project->update(['commit_turns' => true]);
+    $this->deleteJson(route('projects.git.disconnect', $this->project))->assertOk();
+    $this->putJson(route('projects.git.connect', $this->project), ['url' => 'https://github.com/dev/timer.git', 'token' => 'ghp_x'])->assertOk();
+
+    expect($this->project->fresh()->commit_turns)->toBeFalse()
+        ->and(Project::factory()->create(['git_remote_url' => 'https://github.com/dev/imported.git'])->commit_turns)->toBeFalse()
+        ->and(Project::factory()->create()->commit_turns)->toBeTrue();
+})->group('SCM-003');
 
 test('changes wait while the agent is working', function (string $route, array $body) {
     $this->project->update(['status' => ProjectStatus::Working]);
@@ -153,16 +250,16 @@ test('changes wait while the agent is working', function (string $route, array $
     expect($this->requests)->toBe([]);
 })->with([
     'commit' => ['projects.git.commit', ['message' => 'Hi']],
-    'discard' => ['projects.git.discard', ['path' => null]],
+    'discard' => ['projects.git.discard', []],
     'switch' => ['projects.git.switch', ['branch' => 'main']],
     'restore' => ['projects.git.restore', ['sha' => 'abcdef1']],
 ])->group('GIT-002');
 
-test('discarding sends one path or everything', function () {
-    $this->postJson(route('projects.git.discard', $this->project), ['path' => 'index.html'])->assertOk();
-    $this->postJson(route('projects.git.discard', $this->project), ['path' => null])->assertOk();
+test('discarding sends the chosen paths or everything', function () {
+    $this->postJson(route('projects.git.discard', $this->project), ['paths' => ['index.html']])->assertOk();
+    $this->postJson(route('projects.git.discard', $this->project))->assertOk();
 
-    expect($this->requests)->toBe([['op' => 'discard', 'path' => 'index.html'], ['op' => 'discard', 'path' => null]]);
+    expect($this->requests)->toBe([['op' => 'discard', 'paths' => ['index.html']], ['op' => 'discard', 'paths' => null]]);
 })->group('GIT-002');
 
 test('switching branches restarts the app', function () {
@@ -382,25 +479,6 @@ test('combining commits as the user backs the project up, and waits for the agen
         ->assertStatus(409)
         ->assertJsonPath('message', 'Wait for the agent to finish first.');
 })->group('GIT-008');
-
-test('parts of files are committed alongside whole ones', function () {
-    $hash = str_repeat('f', 40);
-
-    $this->postJson(route('projects.git.commit', $this->project), [
-        'message' => 'Top only',
-        'paths' => ['README.md'],
-        'partials' => [['path' => 'index.html', 'hash' => $hash, 'excluded' => [7, 8]]],
-    ])->assertOk();
-
-    expect(collect($this->requests)->firstWhere('op', 'commit'))->toMatchArray([
-        'paths' => ['README.md'],
-        'partials' => [['path' => 'index.html', 'hash' => $hash, 'excluded' => [7, 8]]],
-    ]);
-
-    $this->postJson(route('projects.git.commit', $this->project), ['message' => 'Bad', 'partials' => [['path' => 'index.html', 'hash' => 'short', 'excluded' => []]]])
-        ->assertUnprocessable()
-        ->assertJsonValidationErrors('partials.0.hash');
-})->group('GIT-009');
 
 test('one hunk of a file is discarded, waiting for the agent', function () {
     $hash = str_repeat('f', 40);

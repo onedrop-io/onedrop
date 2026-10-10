@@ -12,7 +12,7 @@ use Illuminate\Support\Carbon;
 
 /**
  * An installation of the platform's GitHub App (on the user's account or an organization) that GitHub confirmed
- * the user can reach. Its repositories can be connected to the user's projects (Tools → Git).
+ * the user can reach. Its repositories can be connected to the user's projects (Source Control).
  *
  * @property int $id
  * @property int $user_id

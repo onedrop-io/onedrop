@@ -1,7 +1,6 @@
 import type { Language } from '@codemirror/language';
 import type { ReactNode } from 'react';
 import { highlight, useLanguage } from '@/components/code-highlight';
-import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 
 export type PatchLine = { index: number; text: string; kind: string };
@@ -36,12 +35,10 @@ export function changeLines(patch: string): PatchLine[] {
     );
 }
 
-/** Picking lines and hunks to leave out of a commit (GIT-009). */
+/** Picking single lines, to stage or unstage just those (GIT-009, SCM-001). */
 export type PatchPicking = {
-    isLeftOut: (index: number) => boolean;
+    isPicked: (index: number) => boolean;
     toggleLine: (index: number) => void;
-    /** Leave out every changed line of the hunk, or bring them all back. */
-    toggleHunk: (lines: PatchLine[], leaveOut: boolean) => void;
 };
 
 type Row = {
@@ -56,9 +53,9 @@ type Row = {
 
 /**
  * A unified diff's hunks (GIT-012): old and new line numbers, code colored by the file's language, the words that
- * changed within an edited line highlighted, and optionally whitespace-only changes hidden. With `picking`, lines
- * and hunks can be left out (GIT-009); `hunkActions` adds buttons to each hunk's header. Git's header lines are left
- * out. Used for a commit's files (GIT-001) and uncommitted changes (GIT-006).
+ * changed within an edited line highlighted, and optionally whitespace-only changes hidden. With `picking`, single
+ * changed lines can be picked (GIT-009); `hunkActions` adds buttons to each hunk's header. Git's header lines are left
+ * out. Used for a commit's files (GIT-001) and staged and unstaged changes (SCM-001).
  */
 export default function PatchView({
     patch,
@@ -131,12 +128,6 @@ function HunkView({
     picking: PatchPicking | null;
     actions: ReactNode;
 }) {
-    const changed = hunk.lines.filter(
-        (line) => line.kind === '+' || line.kind === '-',
-    );
-    const leftOut = picking
-        ? changed.filter((line) => picking.isLeftOut(line.index)).length
-        : 0;
     const rows = rowsOf(hunk).filter(
         (row) =>
             !hideWhitespace ||
@@ -148,22 +139,6 @@ function HunkView({
     return (
         <div data-test="git-actions-hunk">
             <div className="sticky top-0 z-10 flex items-center gap-2 bg-background/95 px-3 py-1 text-sky-600 dark:text-sky-400">
-                {picking && (
-                    <Checkbox
-                        checked={
-                            leftOut === 0
-                                ? true
-                                : leftOut === changed.length
-                                  ? false
-                                  : 'indeterminate'
-                        }
-                        onCheckedChange={() =>
-                            picking.toggleHunk(changed, leftOut === 0)
-                        }
-                        aria-label="Include this part"
-                        data-test="git-actions-hunk-toggle"
-                    />
-                )}
                 <span className="min-w-0 flex-1 whitespace-pre">
                     {hunk.header}
                 </span>
@@ -198,7 +173,7 @@ function RowView({
     // A line that only changed in spacing reads as unchanged while whitespace is hidden.
     const isChange = !asUnchanged && (line.kind === '+' || line.kind === '-');
     const pickable = !!picking && isChange;
-    const out = pickable && picking.isLeftOut(line.index);
+    const picked = pickable && picking.isPicked(line.index);
     const content = line.text.slice(1);
 
     if (line.kind === '\\') {
@@ -213,12 +188,12 @@ function RowView({
     return (
         <div
             role={pickable ? 'checkbox' : undefined}
-            aria-checked={pickable ? !out : undefined}
+            aria-checked={pickable ? picked : undefined}
             title={
                 pickable
-                    ? out
-                        ? 'Left out: click to include this line'
-                        : 'Click to leave this line out'
+                    ? picked
+                        ? 'Picked: click to unpick this line'
+                        : 'Click to pick this line'
                     : undefined
             }
             onClick={() => pickable && picking.toggleLine(line.index)}
@@ -230,7 +205,7 @@ function RowView({
                     : kind === '-'
                       ? 'bg-red-500/10'
                       : '',
-                out && 'bg-transparent line-through opacity-40',
+                picked && 'bg-primary/15 shadow-[inset_3px_0_0] shadow-primary',
             )}
             data-test={isChange ? 'git-actions-line' : undefined}
         >

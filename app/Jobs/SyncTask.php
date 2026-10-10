@@ -57,7 +57,7 @@ class SyncTask implements ShouldQueue
         // Its work is in Main now; a later message makes a fresh copy from there.
         $task->destroyCopy();
 
-        $queue->send($project, self::handOff("the task “{$task->title}”", $conflicts, fromMain: false));
+        $queue->send($project, self::handOff("the task “{$task->title}”", $conflicts, fromMain: false, uncommitted: ! $project->commit_turns));
     }
 
     /**
@@ -65,14 +65,19 @@ class SyncTask implements ShouldQueue
      *
      * @param  list<string>  $conflicts
      * @param  string|null  $what  What was merged, in place of Main's or a task's work.
+     * @param  bool  $uncommitted  Whether it landed as uncommitted changes (Main, when the project leaves its changes for the user to commit, SCM-003).
      */
-    public static function handOff(string $source, array $conflicts, bool $fromMain, ?string $what = null): string
+    public static function handOff(string $source, array $conflicts, bool $fromMain, ?string $what = null, bool $uncommitted = false): string
     {
         $what ??= $fromMain
             ? 'The latest work from Main was just merged into this task\'s copy of the app.'
-            : "The work from {$source} (done by another agent in a separate copy of the app) was just merged in here.";
+            : "The work from {$source} (done by another agent in a separate copy of the app) was just merged in here".($uncommitted ? ', as uncommitted changes for the user to review and commit.' : '.');
 
-        $resolve = $conflicts === [] ? '' : "\n\nThe merge stopped with conflicts in: ".implode(', ', $conflicts).'. Resolve them so both sides\' changes work together, then finish the merge with `git add -A && git commit --no-edit`.';
+        $resolve = match (true) {
+            $conflicts === [] => '',
+            $uncommitted => "\n\nSome files have conflicts, marked with <<<<<<< / ======= / >>>>>>> lines: ".implode(', ', $conflicts).'. Resolve them so both sides\' changes work together and remove the markers. Don\'t commit: the user commits these changes.',
+            default => "\n\nThe merge stopped with conflicts in: ".implode(', ', $conflicts).'. Resolve them so both sides\' changes work together, then finish the merge with `git add -A && git commit --no-edit`.',
+        };
 
         return $what.$resolve."\n\nBring this copy up to date with it: install dependencies if lockfiles or manifests changed, apply any database migrations or schema changes it added, and restart the dev server with /opt/onedrop/restart if it needs it. Then check the preview works and fix anything the merge broke. If nothing needed doing, say so in one line.";
     }

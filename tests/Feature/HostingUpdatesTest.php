@@ -59,6 +59,20 @@ test('a deploy records the commit it shipped, and the panel lists what changed s
     expect(collect($this->sandboxes->executed)->pluck('env.ONEDROP_FROM')->filter()->last())->toBe($this->sandboxes->head);
 })->group('HOST-004');
 
+test('a project that leaves its changes uncommitted ships a checkpoint of its files, and counts checkpoints since', function () {
+    $this->project->update(['commit_turns' => false]);
+    $this->sandboxes->head = 'cccccccccccccccccccccccccccccccccccccccc';
+
+    $this->actingAs($this->user)->post(route('projects.publication.store', $this->project), ['visibility' => 'public', 'target' => 'hosting']);
+    app(HostingChanges::class)->refresh($this->project->fresh());
+
+    $snapshot = collect($this->sandboxes->executed)->first(fn (array $run) => str_contains($run['command'][2] ?? '', 'checkpoint --snapshot'));
+
+    expect($snapshot)->not->toBeNull()
+        ->and($this->project->deployments()->latest('id')->first()->commit)->toBe('cccccccccccccccccccccccccccccccccccccccc')
+        ->and(collect($this->sandboxes->executed)->pluck('env.ONEDROP_TO')->filter()->last())->toBe('refs/onedrop/checkpoints');
+})->group('HOST-004', 'SCM-003');
+
 test('updating clears the changes once the new deploy is live', function () {
     $this->project->update(['hosting_changes' => ['count' => 1, 'commits' => [['sha' => 'abc1234', 'message' => 'Add a dark mode']]]]);
     $this->sandboxes->head = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
