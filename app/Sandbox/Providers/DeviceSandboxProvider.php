@@ -106,6 +106,10 @@ class DeviceSandboxProvider implements SandboxProvider
         return (bool) $this->container($id, 'wake')->json('woke');
     }
 
+    public function holdAwake(string $id): void {}
+
+    public function releaseAwake(string $id, bool $soon): void {}
+
     public function exec(string $id, array $command, array $env = [], bool $detach = false, bool $root = false): ExecResult
     {
         ['device' => $device, 'container' => $container] = self::parse($id);

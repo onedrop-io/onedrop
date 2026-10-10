@@ -164,6 +164,10 @@ class DockerSandboxProvider implements SandboxProvider
         return $this->repairMounts($id) || $woke;
     }
 
+    public function holdAwake(string $id): void {}
+
+    public function releaseAwake(string $id, bool $soon): void {}
+
     /**
      * Unpause or start the container, saying whether it had to.
      */

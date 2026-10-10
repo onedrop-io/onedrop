@@ -155,6 +155,10 @@ class BlaxelSandboxProvider implements SandboxProvider
         return false;
     }
 
+    public function holdAwake(string $id): void {}
+
+    public function releaseAwake(string $id, bool $soon): void {}
+
     public function exec(string $id, array $command, array $env = [], bool $detach = false, bool $root = false): ExecResult
     {
         // The sandbox API takes one shell command; env goes in the body, never the command line.

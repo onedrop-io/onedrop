@@ -2,11 +2,13 @@
  * A JSON request to the app builder with the session's CSRF token.
  * GET without a body; otherwise `method` (POST by default) with a JSON body, or multipart for FormData.
  * Throws the server's message when the response isn't OK (with the response's `status` and body as `data`).
+ * With `keepalive`, the request still goes out when the page is closing.
  */
 export async function jsonRequest<T>(
     url: string,
     body?: unknown,
     method: 'POST' | 'PUT' | 'PATCH' | 'DELETE' = 'POST',
+    { keepalive = false }: { keepalive?: boolean } = {},
 ): Promise<T> {
     const token = document.cookie.match(/(?:^|; )XSRF-TOKEN=([^;]+)/)?.[1];
     const isForm = body instanceof FormData;
@@ -22,6 +24,7 @@ export async function jsonRequest<T>(
                   }),
         },
         credentials: 'same-origin',
+        keepalive,
         body:
             body === undefined
                 ? undefined

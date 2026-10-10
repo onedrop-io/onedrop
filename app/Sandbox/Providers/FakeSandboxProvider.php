@@ -78,6 +78,22 @@ class FakeSandboxProvider implements SandboxProvider
         return $this->wakes;
     }
 
+    /** @var list<string> ids held awake for an agent run, in order */
+    public array $held = [];
+
+    public function holdAwake(string $id): void
+    {
+        $this->held[] = $id;
+    }
+
+    /** @var list<array{0: string, 1: bool}> [id, soon] for each releaseAwake(), in order */
+    public array $released = [];
+
+    public function releaseAwake(string $id, bool $soon): void
+    {
+        $this->released[] = [$id, $soon];
+    }
+
     public function exec(string $id, array $command, array $env = [], bool $detach = false, bool $root = false): ExecResult
     {
         $this->executed[] = ['id' => $id, 'command' => $command, 'env' => $env, 'detach' => $detach, 'root' => $root];

@@ -104,6 +104,9 @@ class AgentQueue
 
         if ($next) {
             $this->run($conversation, $next->content, fn (Message $message) => $message->attachments()->saveMany($attachments), $next->meta);
+        } else {
+            // With nobody watching, it pauses within a minute (SBX-014).
+            $conversation->agentSandbox()?->releaseAwake();
         }
     }
 
@@ -178,6 +181,7 @@ class AgentQueue
 
         $conversation->messages()->create(['role' => MessageRole::Activity, 'content' => 'Stopped']);
         $conversation->update(['status' => ProjectStatus::Idle]);
+        $conversation->agentSandbox()?->releaseAwake();
     }
 
     /**

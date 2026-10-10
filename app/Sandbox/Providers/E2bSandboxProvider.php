@@ -75,6 +75,12 @@ class E2bSandboxProvider implements SandboxProvider
     /** How often using a sandbox puts its pause off again (one API call). */
     public const TOUCH_SECONDS = 60;
 
+    /** How long an agent run keeps it awake, renewed as it's used: E2B's longest continuous run on its free plan. */
+    public const HOLD_SECONDS = 3600;
+
+    /** How soon it pauses once nobody's watching it and no agent is at work. */
+    public const SOON_SECONDS = 60;
+
     /** The preview link's query parameter for its traffic token; the gateway sends it as E2B's header (Gateway). */
     public const TRAFFIC_TOKEN = 'e2b_traffic_token';
 
@@ -177,14 +183,51 @@ class E2bSandboxProvider implements SandboxProvider
     public function wake(string $id): bool
     {
         if (Cache::add("e2b-touch:{$id}", true, self::TOUCH_SECONDS)) {
-            $response = $this->request('post', "sandboxes/{$id}/timeout", ['timeout' => $this->idleSeconds()]);
-
-            if ($response->status() !== 404) {
-                $this->throwUnlessOk($response);
-            }
+            $this->pauseAfter($id, $this->timeout($id));
         }
 
         return false;
+    }
+
+    /**
+     * Its pause is a deadline: an hour while the agent works, so a quiet build or install never pauses mid-run.
+     */
+    public function holdAwake(string $id): void
+    {
+        Cache::put("e2b-held:{$id}", true, now()->addDay());
+        $this->pauseAfter($id, self::HOLD_SECONDS);
+    }
+
+    /**
+     * Back to pausing once idle, or within a minute when $soon. The next use puts the usual pause back at once.
+     */
+    public function releaseAwake(string $id, bool $soon): void
+    {
+        Cache::forget("e2b-held:{$id}");
+        Cache::forget("e2b-touch:{$id}");
+        $this->pauseAfter($id, $soon ? min(self::SOON_SECONDS, $this->idleSeconds()) : $this->idleSeconds());
+    }
+
+    /**
+     * How long it may go unused from now before it pauses: held for an agent run, or the usual idle time.
+     */
+    protected function timeout(string $id): int
+    {
+        return Cache::has("e2b-held:{$id}") ? self::HOLD_SECONDS : $this->idleSeconds();
+    }
+
+    /**
+     * Set its pause $seconds from now. A paused sandbox (not found while it sleeps) is left as it is.
+     *
+     * @throws SandboxException
+     */
+    protected function pauseAfter(string $id, int $seconds): void
+    {
+        $response = $this->request('post', "sandboxes/{$id}/timeout", ['timeout' => $seconds]);
+
+        if ($response->status() !== 404) {
+            $this->throwUnlessOk($response);
+        }
     }
 
     public function exec(string $id, array $command, array $env = [], bool $detach = false, bool $root = false): ExecResult
@@ -579,7 +622,7 @@ class E2bSandboxProvider implements SandboxProvider
     protected function tokens(string $id): array
     {
         if (! isset($this->tokens[$id])) {
-            $sandbox = $this->send('post', "v2/sandboxes/{$id}/connect", ['timeout' => $this->idleSeconds()]);
+            $sandbox = $this->send('post', "v2/sandboxes/{$id}/connect", ['timeout' => $this->timeout($id)]);
             $this->tokens[$id] = ['envd' => (string) ($sandbox['envdAccessToken'] ?? ''), 'traffic' => (string) ($sandbox['trafficAccessToken'] ?? '')];
         }
 

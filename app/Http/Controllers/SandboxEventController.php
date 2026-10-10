@@ -46,7 +46,7 @@ class SandboxEventController extends Controller
         }
 
         // An agent at work counts as use, so the sandbox isn't suspended right after it finishes (SBX-007).
-        $sandbox->markActive();
+        $sandbox->markActive(byAgent: true);
 
         return response()->json(['ok' => true]);
     }

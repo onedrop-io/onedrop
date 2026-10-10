@@ -46,6 +46,22 @@ interface SandboxProvider
     public function wake(string $id): bool;
 
     /**
+     * An agent is at work in it: don't pause it for sitting idle until releaseAwake(), however quiet the run. For
+     * providers whose idle pause is a deadline the platform sets (E2B); the others ignore it.
+     *
+     * @throws SandboxException
+     */
+    public function holdAwake(string $id): void;
+
+    /**
+     * Let it pause for sitting idle again: after the usual idle time, or within a minute when $soon (nobody's
+     * watching it). Providers that pause idle sandboxes by themselves ignore it.
+     *
+     * @throws SandboxException
+     */
+    public function releaseAwake(string $id, bool $soon): void;
+
+    /**
      * Run a short command. Use $detach for anything long-running (agents, servers). Commands run as the sandbox user
      * unless $root: only the platform's own tools, for files the app's processes own (e.g. a database in a nested
      * container), never anything the agent or user chose.

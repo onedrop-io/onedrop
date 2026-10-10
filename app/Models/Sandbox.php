@@ -95,11 +95,22 @@ class Sandbox extends Model
         return $this->belongsTo(Project::class);
     }
 
+    /** How long a person's use counts as someone watching the sandbox (the open workspace pings every 20 seconds). */
+    public const WATCHED_SECONDS = 60;
+
     /**
      * Note that someone or something used the sandbox just now, so it isn't suspended for sitting idle (SBX-007).
+     * $byAgent: the agent's own events, which put no E2B pause off: holdAwake() keeps it awake while the agent works.
      */
-    public function markActive(): void
+    public function markActive(bool $byAgent = false): void
     {
+        // E2B pauses a sandbox by itself once nobody has used it for a while; a person using it puts that off, at most
+        // once a minute and after the response, so a page never waits on it (SBX-014).
+        if (! $byAgent && $this->markWatched()) {
+            $id = $this->external_id;
+            defer(fn () => rescue(fn () => app(SandboxProvider::class)->wake($id)));
+        }
+
         // The gateway asks on every request a page makes: every 15 seconds is plenty.
         if ($this->last_active_at?->gt(now()->subSeconds(15))) {
             return;
@@ -107,13 +118,54 @@ class Sandbox extends Model
 
         $this->forceFill(['last_active_at' => now()])->saveQuietly();
         $this->updateWhenIdle();
+    }
 
-        // E2B pauses a sandbox by itself once nobody has used it for a while; using it puts that off (SBX-014). After
-        // the response, so a page never waits on it.
-        if ($this->provider === 'e2b' && $this->external_id !== null) {
-            $id = $this->external_id;
-            defer(fn () => rescue(fn () => app(SandboxProvider::class)->wake($id)));
+    /**
+     * Note that a person is using an E2B sandbox (see isWatched()). True when they weren't a minute ago, so its pause
+     * should be put off again.
+     */
+    protected function markWatched(): bool
+    {
+        return $this->provider === 'e2b' && $this->external_id !== null
+            && Cache::add("sandbox-watched:{$this->id}", true, self::WATCHED_SECONDS);
+    }
+
+    /**
+     * Whether a person used the sandbox in the last minute: its open workspace, or a visit through the gateway.
+     */
+    public function isWatched(): bool
+    {
+        return Cache::has("sandbox-watched:{$this->id}");
+    }
+
+    /**
+     * An agent run started in it: keep it awake however quiet the run, until releaseAwake() (SBX-014).
+     */
+    public function holdAwake(): void
+    {
+        if ($this->external_id !== null) {
+            rescue(fn () => app(SandboxProvider::class)->holdAwake($this->external_id));
         }
+    }
+
+    /**
+     * The agent stopped, or the last person watching left: let it pause for sitting idle again, within a minute when
+     * nobody's watching. Never while an agent still works in it (another task's, without task copies).
+     */
+    public function releaseAwake(): void
+    {
+        if ($this->external_id !== null && ! $this->project->busyIn($this)) {
+            rescue(fn () => app(SandboxProvider::class)->releaseAwake($this->external_id, soon: ! $this->isWatched()));
+        }
+    }
+
+    /**
+     * The workspace showing it was hidden or closed: nobody's watching from there any more, so it may pause soon.
+     */
+    public function left(): void
+    {
+        Cache::forget("sandbox-watched:{$this->id}");
+        $this->releaseAwake();
     }
 
     /**
@@ -156,6 +208,7 @@ class Sandbox extends Model
         $wasAsleep = $started || $this->suspended_at !== null;
         $this->forceFill([...$addresses, 'suspended_at' => null, 'stopped_at' => null, 'last_active_at' => now()])->save();
         $this->updateWhenIdle();
+        $this->markWatched();
 
         if ($wasAsleep) {
             // The organization's secrets may have changed while it slept (SECRET-003).

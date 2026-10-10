@@ -18,7 +18,8 @@ const ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'wheel'] as const;
 /**
  * While the workspace is visible and used, tell the app its sandbox is in use, so it isn't suspended for sitting
  * idle, and wake it straight away when the tab comes back or the page is used (SBX-007). A visible page left
- * untouched for 15 minutes stops counting. `task` is a task whose own copy of the app is shown.
+ * untouched for 15 minutes stops counting. When the page is hidden, closed or left untouched, it says so, so the
+ * sandbox can pause within a minute (SBX-014). `task` is a task whose own copy of the app is shown.
  *
  * @param onReturn Called when the tab comes back, or when using the page or the open workspace's own ping woke the
  * sandbox; `woke` says it had been asleep (its preview is stale).
@@ -37,6 +38,7 @@ export function useSandboxActivity(
     useEffect(() => {
         let lastPing = 0;
         let lastUsed = Date.now();
+        let gone = false;
 
         // Typing in the preview or shell frame never reaches the page, so a focused frame counts as use.
         const inUse = () =>
@@ -46,6 +48,7 @@ export function useSandboxActivity(
 
         const ping = async (): Promise<boolean> => {
             lastPing = Date.now();
+            gone = false;
 
             const { woke } = await jsonRequest<{ woke: boolean }>(
                 SandboxActivityController.store.url(projectId),
@@ -55,21 +58,48 @@ export function useSandboxActivity(
             return woke;
         };
 
+        // Nobody's watching from here any more (once, until the next ping).
+        const leave = () => {
+            if (gone) {
+                return;
+            }
+
+            gone = true;
+            void jsonRequest(
+                SandboxActivityController.store.url(projectId),
+                { ...(task ? { task } : {}), left: true },
+                'POST',
+                { keepalive: true },
+            ).catch(() => {});
+        };
+
         // A sandbox can fall asleep with the tab still visible (the computer slept): the ping that wakes it reloads the
         // preview too.
         const onTimer = () => {
-            if (document.visibilityState === 'visible' && inUse()) {
-                ping()
-                    .then((woke) => {
-                        if (woke) {
-                            latest.current(true);
-                        }
-                    })
-                    .catch(() => {});
+            if (document.visibilityState !== 'visible') {
+                return;
             }
+
+            if (!inUse()) {
+                leave();
+
+                return;
+            }
+
+            ping()
+                .then((woke) => {
+                    if (woke) {
+                        latest.current(true);
+                    }
+                })
+                .catch(() => {});
         };
 
         const onVisible = () => {
+            if (document.visibilityState === 'hidden') {
+                leave();
+            }
+
             if (document.visibilityState === 'visible') {
                 lastUsed = Date.now();
                 ping()
@@ -116,6 +146,7 @@ export function useSandboxActivity(
         document.addEventListener('pointermove', onMove, { passive: true });
         window.addEventListener('focus', onActivity);
         window.addEventListener('blur', onBlur);
+        window.addEventListener('pagehide', leave);
 
         return () => {
             window.clearInterval(timer);
@@ -126,6 +157,8 @@ export function useSandboxActivity(
             document.removeEventListener('pointermove', onMove);
             window.removeEventListener('focus', onActivity);
             window.removeEventListener('blur', onBlur);
+            window.removeEventListener('pagehide', leave);
+            leave();
         };
     }, [projectId, task]);
 }

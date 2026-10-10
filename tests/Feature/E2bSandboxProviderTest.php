@@ -416,3 +416,30 @@ test('the install\'s E2B previews are private only behind the Cloudflare gateway
     'Caddy on a server' => [['sandbox.gateway_domain' => 'onedrop.example', 'sandbox.gateway_secret' => null], false],
     'no gateway' => [['sandbox.gateway_domain' => null, 'sandbox.gateway_secret' => null], false],
 ])->group('SBX-014');
+
+test('an agent run holds it awake for an hour, renewed as it is used; releasing it pauses it soon, or after the usual idle time', function () {
+    Cache::flush();
+    Http::fake([E2B_API.'/sandboxes/'.E2B_ID.'/timeout' => Http::response('', 204)]);
+    $timeouts = fn () => Http::recorded()->map(fn (array $sent) => $sent[0]['timeout'])->all();
+
+    $this->e2b->holdAwake(E2B_ID);
+    $this->e2b->wake(E2B_ID);
+    $this->e2b->releaseAwake(E2B_ID, soon: true);
+    // The next use puts the usual pause back at once, not a minute later.
+    $this->e2b->wake(E2B_ID);
+    $this->e2b->releaseAwake(E2B_ID, soon: false);
+
+    expect($timeouts())->toBe([3600, 3600, 60, 600, 600]);
+})->group('SBX-014');
+
+test('agent events don\'t put an E2B sandbox\'s pause off: the run holds it awake', function () {
+    $provider = new FakeSandboxProvider;
+    app()->instance(SandboxProvider::class, $provider);
+    $this->withoutDefer();
+    $sandbox = Sandbox::factory()->create(['provider' => 'e2b', 'external_id' => 'e2b-1']);
+
+    $sandbox->markActive(byAgent: true);
+
+    expect($provider->woken)->toBe([])
+        ->and($sandbox->fresh()->last_active_at)->not->toBeNull();
+})->group('SBX-014');

@@ -59,3 +59,18 @@ test('a visible workspace nobody touches for 15 minutes lets its sandbox sleep, 
 
     expect($sandbox->fresh()->suspended_at)->toBeNull();
 })->group('SBX-007');
+
+test('hiding the workspace says nobody is watching, so an E2B sandbox can pause soon', function () {
+    app()->instance(SandboxProvider::class, $provider = new FakeSandboxProvider);
+    $user = User::factory()->has(AgentConnection::factory())->create();
+    $project = Project::factory()->for($user)->create();
+    Sandbox::factory()->for($project)->create(['provider' => 'e2b', 'external_id' => 'e2b-1']);
+    $this->actingAs($user);
+
+    $page = visit("/projects/{$project->id}")->assertPresent('@tab-preview');
+
+    $page->script("Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true }); document.dispatchEvent(new Event('visibilitychange'))");
+    $page->wait(1);
+
+    expect($provider->released)->toBe([['e2b-1', true]]);
+})->group('SBX-014');

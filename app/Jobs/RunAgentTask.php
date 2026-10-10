@@ -54,6 +54,9 @@ class RunAgentTask implements ShouldQueue
 
         $agent->start($this->project, $this->message);
 
+        // However quiet the run, its sandbox doesn't pause under it (SBX-014).
+        $conversation->agentSandbox()?->holdAwake();
+
         // In case the run's end never arrives.
         WatchAgentRun::later($this->project, $this->message);
     }

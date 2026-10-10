@@ -13,6 +13,7 @@ class SandboxActivityController extends Controller
     /**
      * The workspace is open on the project (or a task's own copy of it): keep its sandbox from being suspended for
      * sitting idle, and wake it if it was (SBX-007). `woke` says it had been asleep, so the workspace reloads its preview.
+     * With `left`, the workspace was hidden or closed instead: nobody's watching from there, so it may pause soon (SBX-014).
      */
     public function store(Request $request, Project $project, SandboxProvider $provider): JsonResponse
     {
@@ -21,6 +22,12 @@ class SandboxActivityController extends Controller
         $sandbox = $request->filled('task')
             ? $project->sandboxes()->where('task_id', $request->integer('task'))->first()
             : $project->sandbox;
+
+        if ($request->boolean('left')) {
+            $sandbox?->left();
+
+            return response()->json(['woke' => false]);
+        }
 
         return response()->json(['woke' => $sandbox?->wake($provider) ?? false]);
     }

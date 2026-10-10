@@ -72,6 +72,16 @@ class RoutingSandboxProvider implements SandboxProvider
         return $this->for($id)->wake($id);
     }
 
+    public function holdAwake(string $id): void
+    {
+        $this->for($id)->holdAwake($id);
+    }
+
+    public function releaseAwake(string $id, bool $soon): void
+    {
+        $this->for($id)->releaseAwake($id, $soon);
+    }
+
     public function exec(string $id, array $command, array $env = [], bool $detach = false, bool $root = false): ExecResult
     {
         return $this->for($id)->exec($id, $command, $env, $detach, $root);

@@ -181,6 +181,10 @@ class RuntimeSandboxProvider implements SandboxProvider
         return false;
     }
 
+    public function holdAwake(string $id): void {}
+
+    public function releaseAwake(string $id, bool $soon): void {}
+
     public function exec(string $id, array $command, array $env = [], bool $detach = false, bool $root = false): ExecResult
     {
         // Env goes in the body, never the command line: Runtime never echoes it back. Runtime runs commands

@@ -163,7 +163,10 @@ How it differs from Runtime:
 
 - **Docker inside sandboxes** is on by default. Turn it off in E2B's settings if you don't need it; existing sandboxes move to new ones without it.
 - **Previews and Shells.** OneDrop hands the link only to people allowed to see the project. Behind the [Cloudflare gateway](/self-hosting/cloudflare-preview-gateway) they're private: a sandbox's ports answer only with its traffic token, which the Worker sends as E2B's header, WebSockets included. Without it (no gateway, or Caddy on a server) they're public, at the sandbox's long random address, because a browser can't send that header.
-- **Idle sandboxes pause.** After 10 minutes with nothing happening (`E2B_IDLE_SECONDS`), a sandbox pauses with its memory and running containers kept. The next visit or command wakes it in about a second. An open workspace, the agent's events and gateway visits put the pause off.
+- **Idle sandboxes pause.** After 10 minutes with nothing happening (`E2B_IDLE_SECONDS`), a sandbox pauses with its memory and running containers kept. The next visit or command wakes it in about a second. An open workspace and gateway visits put the pause off.
+- **Paused as soon as nobody's watching.** When the workspace is hidden, closed or left untouched for 15 minutes, or a run ends with nobody watching, the sandbox pauses within about a minute instead, as Runtime's do. Coming back puts the usual 10 minutes back at once.
+- **Never paused under the agent.** A run holds its sandbox awake however long a step goes without output, until the run ends.
+- **No polling.** Keeping sandboxes awake costs at most one E2B call a minute while someone uses one, plus one when a run starts, one when it ends and one when the workspace is left.
 - **Size.** Set vCPUs, memory and free disk in E2B's settings (4 vCPUs, 8 GB and 20 GB by default; E2B allows up to 8 vCPUs and 8 GB). Saving a new size builds the image again, and sandboxes move to the new size once their projects sit unused for 10 minutes.
 - **Running time.** E2B stops a sandbox that runs without a break for 24 hours on its Pro plan, or 1 hour on its free plan. Each idle pause starts the clock again.
 - **Not available:** SSH (Tools → Developer → SSH) and Tailscale publishing.
