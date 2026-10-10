@@ -225,6 +225,20 @@ test('the sidebar reloading the project page in the background doesn\'t count as
     expect($this->provider->woken)->toBe(['ctr-1'])->and($this->sandbox->fresh()->suspended_at)->toBeNull();
 })->group('SBX-007', 'LIVE-001');
 
+test('a reload of the sandbox from a tab nobody is looking at doesn\'t count as using it', function () {
+    $this->sandbox->forceFill(['suspended_at' => now()->subMinutes(5)])->save();
+
+    $this->actingAs($this->user)->get(route('projects.show', $this->project), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) app(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'projects/show',
+        'X-Inertia-Partial-Data' => 'project,sandbox,messages',
+        'X-Onedrop-Unseen' => '1',
+    ])->assertOk();
+
+    expect($this->provider->woken)->toBe([])->and($this->sandbox->fresh()->suspended_at)->not->toBeNull();
+})->group('SBX-007', 'SBX-014');
+
 test('an open workspace keeps its sandbox in use and wakes it if it was suspended', function () {
     $this->sandbox->forceFill(['suspended_at' => now()])->save();
 

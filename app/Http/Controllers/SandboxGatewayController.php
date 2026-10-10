@@ -168,7 +168,7 @@ class SandboxGatewayController extends Controller
         }
 
         // Someone is using it: wake it if it was suspended for sitting idle (SBX-007).
-        $sandbox->wake($provider);
+        $sandbox->wake($provider, viaGateway: true);
 
         // The Worker forwards to the provider's address with its token; Caddy to a published host:port.
         if ($gateway->viaWorker()) {

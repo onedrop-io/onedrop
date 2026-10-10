@@ -101,12 +101,14 @@ class Sandbox extends Model
     /**
      * Note that someone or something used the sandbox just now, so it isn't suspended for sitting idle (SBX-007).
      * $byAgent: the agent's own events, which put no E2B pause off: holdAwake() keeps it awake while the agent works.
+     * $viaGateway: a request to its preview or shell, which after the workspace was left comes from that hidden page's
+     * own frames, so it doesn't count as watching until the workspace is back (SBX-014).
      */
-    public function markActive(bool $byAgent = false): void
+    public function markActive(bool $byAgent = false, bool $viaGateway = false): void
     {
         // E2B pauses a sandbox by itself once nobody has used it for a while; a person using it puts that off, at most
         // once a minute and after the response, so a page never waits on it (SBX-014).
-        if (! $byAgent && $this->markWatched()) {
+        if (! $byAgent && ! ($viaGateway && $this->wasLeft()) && $this->markWatched()) {
             $id = $this->external_id;
             defer(fn () => rescue(fn () => app(SandboxProvider::class)->wake($id)));
         }
@@ -165,7 +167,16 @@ class Sandbox extends Model
     public function left(): void
     {
         Cache::forget("sandbox-watched:{$this->id}");
+        Cache::put("sandbox-left:{$this->id}", true, now()->addDay());
         $this->releaseAwake();
+    }
+
+    /**
+     * Whether its workspace said it was left and hasn't come back since (its ping, or a load of the page).
+     */
+    protected function wasLeft(): bool
+    {
+        return Cache::has("sandbox-left:{$this->id}");
     }
 
     /**
@@ -184,13 +195,18 @@ class Sandbox extends Model
      * can also be stopped outside the app (Docker Desktop, a restart), so it's checked too, at most every 30 seconds.
      * Returns whether it had been asleep, so a preview showing it can reload.
      */
-    public function wake(SandboxProvider $provider): bool
+    public function wake(SandboxProvider $provider, bool $viaGateway = false): bool
     {
+        // The workspace (or another page of it) is back.
+        if (! $viaGateway) {
+            Cache::forget("sandbox-left:{$this->id}");
+        }
+
         $check = $this->suspended_at !== null
             || ($this->provider === 'docker' && Cache::add("sandbox-awake-check:{$this->id}", true, 30));
 
         if (! $check || $this->external_id === null || $this->status !== SandboxStatus::Running) {
-            $this->markActive();
+            $this->markActive(viaGateway: $viaGateway);
 
             return false;
         }
@@ -208,7 +224,10 @@ class Sandbox extends Model
         $wasAsleep = $started || $this->suspended_at !== null;
         $this->forceFill([...$addresses, 'suspended_at' => null, 'stopped_at' => null, 'last_active_at' => now()])->save();
         $this->updateWhenIdle();
-        $this->markWatched();
+
+        if (! ($viaGateway && $this->wasLeft())) {
+            $this->markWatched();
+        }
 
         if ($wasAsleep) {
             // The organization's secrets may have changed while it slept (SECRET-003).

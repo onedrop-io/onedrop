@@ -66,8 +66,9 @@ trait RendersWorkspace
         // A task with its own copy of the app shows that copy's preview, shell and files (TASK-003).
         $sandbox = $task && Task::getsCopies() ? $task->sandbox()->first() : $project->sandbox;
         // Only a page load, or a reload that shows the sandbox, counts as using it (SBX-007): the sidebar's reloads
-        // in a background tab would otherwise keep it from ever pausing.
-        if (self::showsSandbox($request)) {
+        // in a background tab would otherwise keep it from ever pausing. Nor does a reload from a tab nobody's looking
+        // at, such as the one when a run ends in a hidden tab (SBX-014).
+        if (self::showsSandbox($request) && ! $request->hasHeader('X-Onedrop-Unseen')) {
             $sandbox?->wake(app(SandboxProvider::class));
         }
         // The desktop app (DESK-001) has no session for that address to sign in with: it gets the sandbox address's own

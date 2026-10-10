@@ -87,3 +87,26 @@ test('a gateway visit counts as watching, so a run ending then leaves the usual 
 
     expect($this->provider->released)->toBe([['e2b-1', false]]);
 })->group('SBX-014');
+
+test('after the workspace is left, its hidden frames\' requests through the gateway don\'t count as watching', function () {
+    $this->project->update(['status' => ProjectStatus::Idle]);
+    $this->actingAs($this->user)->post(route('projects.sandbox.activity', $this->project), ['left' => true]);
+    $this->provider->woken = [];
+
+    $this->sandbox->fresh()->wake($this->provider, viaGateway: true);
+    app(AgentQueue::class)->finished($this->project);
+
+    expect($this->provider->woken)->toBe([])
+        ->and($this->provider->released)->toBe([['e2b-1', true], ['e2b-1', true]]);
+})->group('SBX-014');
+
+test('once the workspace is back, gateway requests count as watching again', function () {
+    $this->project->update(['status' => ProjectStatus::Idle]);
+    $this->actingAs($this->user)->post(route('projects.sandbox.activity', $this->project), ['left' => true]);
+    $this->actingAs($this->user)->post(route('projects.sandbox.activity', $this->project));
+    Cache::forget('sandbox-watched:'.$this->sandbox->id);
+
+    $this->sandbox->fresh()->wake($this->provider, viaGateway: true);
+
+    expect($this->sandbox->fresh()->isWatched())->toBeTrue();
+})->group('SBX-014');
