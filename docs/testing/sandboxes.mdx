@@ -28,6 +28,7 @@ Run these against the provider you changed. Locally that's Docker; for Runtime C
 - [ ] A sandbox whose agent is working is never suspended.
 - [ ] A published URL wakes a suspended sandbox when someone opens it.
 - [ ] SBX-007: with the workspace open and visible, `docker stop` its container (as the idle check does): within about 20 seconds, without touching the page, the container is running again and the preview reloads to the app.
+- [ ] SBX-007: leave a workspace open and visible without touching it for 15 minutes (no mouse over it): its 20-second pings to `/projects/{id}/sandbox/activity` stop (browser network tab) and the sandbox is suspended once idle (E2B: paused about 10 minutes later in its console). Click the page: the sandbox wakes and the preview reloads.
 
 ## Updates
 

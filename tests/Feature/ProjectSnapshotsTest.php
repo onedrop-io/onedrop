@@ -289,6 +289,39 @@ test('the daily snapshot only takes projects whose sandbox was used that day', f
         ->and(collect($this->provider->executed)->where('id', 'dormant-ctr'))->toBeEmpty();
 })->group('SBX-009');
 
+test('the daily snapshot skips a sandbox unused since its latest snapshot, so it is not woken', function () {
+    $this->sandbox->forceFill(['last_active_at' => now()->subHours(3), 'suspended_at' => now()->subHours(2)])->save();
+    $this->travel(-1)->hours();
+    $idle = app(ProjectSnapshots::class)->take($this->project, 'idle');
+    $this->travelBack();
+    $this->provider->executed = [];
+
+    $this->artisan('sandbox:snapshot')->assertSuccessful();
+
+    expect($this->project->snapshots()->sole()->is($idle))->toBeTrue()
+        ->and($this->provider->executed)->toBeEmpty()
+        ->and($this->provider->suspended)->toBeEmpty();
+})->group('SBX-009', 'SBX-007');
+
+test('the daily snapshot puts a suspended sandbox back to sleep', function () {
+    $this->sandbox->forceFill(['last_active_at' => now()->subHours(3), 'suspended_at' => now()->subHours(2)])->save();
+
+    $this->artisan('sandbox:snapshot')->assertSuccessful();
+
+    expect($this->project->snapshots()->sole()->reason)->toBe('daily')
+        ->and($this->provider->suspended)->toBe(['old-ctr'])
+        ->and($this->sandbox->fresh()->suspended_at->gt(now()->subMinute()))->toBeTrue();
+})->group('SBX-009', 'SBX-007');
+
+test('the daily snapshot leaves a sandbox awake when it was awake', function () {
+    $this->sandbox->forceFill(['last_active_at' => now()->subHours(3)])->save();
+
+    $this->artisan('sandbox:snapshot')->assertSuccessful();
+
+    expect($this->project->snapshots()->sole()->reason)->toBe('daily')
+        ->and($this->provider->suspended)->toBeEmpty();
+})->group('SBX-009', 'SBX-007');
+
 test('deleting a project deletes its snapshots', function () {
     app(ProjectSnapshots::class)->take($this->project, 'turn');
 
