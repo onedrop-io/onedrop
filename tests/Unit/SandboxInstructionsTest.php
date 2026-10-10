@@ -28,12 +28,13 @@ test('apps with a second server route it through the preview address', function 
         ->toContain('/workspace/.onedrop/routes.json');
 })->group('RT-001');
 
-test('the agent knows the platform commits its turns and keeps history intact', function () use ($sandbox) {
+test('the agent knows the platform saves its turns, leaves committing alone and keeps history intact', function () use ($sandbox) {
     expect(file_get_contents("{$sandbox}/instructions.md"))
-        ->toContain('After each of your turns the platform commits everything and backs it up')
+        ->toContain('After each of your turns the platform saves a checkpoint and backs it up')
+        ->toContain("don't commit, stage or unstage anything yourself unless the user asks")
         ->toContain("Don't rewrite or delete history")
         ->and("{$sandbox}/checkpoint")->toBeFile();
-})->group('SBX-006');
+})->group('SBX-006', 'SCM-003');
 
 test('the agent puts a new favicon where the sidebar picks it up', function () use ($sandbox) {
     expect(file_get_contents("{$sandbox}/instructions.md"))
