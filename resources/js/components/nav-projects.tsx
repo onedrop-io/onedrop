@@ -39,6 +39,7 @@ import { useCurrentUrl } from '@/hooks/use-current-url';
 import { desktopNotificationStatus } from '@/hooks/use-desktop-notifications';
 import { useOrganization } from '@/hooks/use-organization';
 import { isProjectPath } from '@/lib/open-project';
+import { useLiveReload, usePrivateChannels } from '@/lib/realtime';
 import { isTabSeen } from '@/lib/unseen-reloads';
 import { readyNotificationBody, WAITING_LABELS } from '@/lib/waiting-for';
 import { useWorkspaceLinks } from '@/lib/workspace-view';
@@ -78,6 +79,24 @@ export function useSidebarUpdates(
         !!open?.checking ||
         !!open?.tasks.some((task) => task.working);
     const drawing = all.some((project) => project.drawing_icon);
+    // The projects being waited on: each one's live updates say when it changed (LIVE-001).
+    const waitingOn = [
+        ...all.filter(
+            (project) =>
+                project.naming ||
+                project.working ||
+                project.checking ||
+                project.drawing_icon,
+        ),
+        ...(open &&
+        (open.working ||
+            open.checking ||
+            open.tasks.some((task) => task.working))
+            ? [open]
+            : []),
+    ].map((project) => `project.${project.id}`);
+    const reload = useLiveReload(['sidebarProjects', 'openProject']);
+    const live = usePrivateChannels(waitingOn, { ProjectUpdated: reload });
     const { start, stop } = usePoll(
         1500,
         { only: ['sidebarProjects', 'openProject'] },
@@ -85,16 +104,17 @@ export function useSidebarUpdates(
         { autoStart: false, keepAlive: true },
     );
 
-    // Pick up AI-generated titles, drawn icons and finished agents as soon as they're ready.
+    // Pick up AI-generated titles, drawn icons and finished agents as soon as they're ready: pushed when live
+    // updates are on, else polled.
     useEffect(() => {
-        if (naming || working || drawing) {
+        if ((naming || working || drawing) && !live) {
             start();
         } else {
             stop();
         }
 
         return stop;
-    }, [naming, working, drawing, start, stop]);
+    }, [naming, working, drawing, live, start, stop]);
 
     useReadyNotifications(all);
     useRefreshWhenSeen(all, open);

@@ -169,13 +169,16 @@ test('the workspace shows gateway urls on a server and local urls on a laptop', 
         ->get(route('projects.show', $this->project))
         ->assertInertia(fn ($page) => $page
             ->where('sandbox.preview_url', route('projects.gateway.open', [$this->project, 'preview']))
-            ->where('sandbox.shell_url', route('projects.gateway.open', [$this->project, 'shell'])));
+            ->where('sandbox.shell_url', route('projects.gateway.open', [$this->project, 'shell']))
+            // The bar above the preview shows the preview's own address, not the link on the app's address.
+            ->where('sandbox.preview_address', "https://preview-{$this->sandbox->id}.onedrop.example.com"));
 
     config(['sandbox.gateway_domain' => null]);
 
     $this->actingAs($this->owner)
         ->get(route('projects.show', $this->project))
-        ->assertInertia(fn ($page) => $page->where('sandbox.preview_url', 'http://127.0.0.1:32800'));
+        ->assertInertia(fn ($page) => $page->where('sandbox.preview_url', 'http://127.0.0.1:32800')
+            ->where('sandbox.preview_address', 'http://127.0.0.1:32800'));
 })->group('GW-001');
 
 test('the gateway is off without a domain', function () {

@@ -70,6 +70,17 @@ export function usePrivateChannel(
     name: string | null,
     handlers: Record<string, (payload: never) => void>,
 ): boolean {
+    return usePrivateChannels(name === null ? [] : [name], handlers);
+}
+
+/**
+ * Listen to several private channels with the same handlers (the sidebar's busy projects). Returns whether live
+ * updates are flowing on every one of them; while false, callers should poll instead. No names listens to nothing.
+ */
+export function usePrivateChannels(
+    names: string[],
+    handlers: Record<string, (payload: never) => void>,
+): boolean {
     // By value: every reload brings a new props object, which mustn't resubscribe.
     const config = JSON.stringify(usePage().props.realtime);
     const [live, setLive] = useState(false);
@@ -80,33 +91,39 @@ export function usePrivateChannel(
     });
 
     const events = Object.keys(handlers).sort().join(',');
+    const channels = [...new Set(names)].sort().join(',');
 
     useEffect(() => {
         if (
-            name === null ||
+            channels === '' ||
             !connect(JSON.parse(config) as RealtimeConfig | null)
         ) {
             return;
         }
 
-        const channel = echo().private(name);
-        let subscribed = false;
+        const list = channels.split(',');
+        const subscribed = new Set<string>();
         let connected = echo().connectionStatus() === 'connected';
-        const update = () => setLive(subscribed && connected);
+        const update = () =>
+            setLive(connected && subscribed.size === list.length);
 
-        channel.subscribed(() => {
-            subscribed = true;
-            update();
-        });
-        channel.error(() => {
-            subscribed = false;
-            update();
-        });
+        for (const name of list) {
+            const channel = echo().private(name);
 
-        for (const event of events.split(',')) {
-            channel.listen(`.${event}`, (payload: never) =>
-                latest.current[event]?.(payload),
-            );
+            channel.subscribed(() => {
+                subscribed.add(name);
+                update();
+            });
+            channel.error(() => {
+                subscribed.delete(name);
+                update();
+            });
+
+            for (const event of events.split(',')) {
+                channel.listen(`.${event}`, (payload: never) =>
+                    latest.current[event]?.(payload),
+                );
+            }
         }
 
         const stopWatching = echo().connector.onConnectionChange((status) => {
@@ -116,10 +133,10 @@ export function usePrivateChannel(
 
         return () => {
             stopWatching();
-            echo().leave(name);
+            list.forEach((name) => echo().leave(name));
             setLive(false);
         };
-    }, [config, name, events]);
+    }, [config, channels, events]);
 
     return live;
 }

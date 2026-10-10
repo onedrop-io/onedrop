@@ -46,6 +46,23 @@ class E2bSandboxProvider implements SandboxProvider
     /** The sandbox user's home; commands run in /workspace. */
     public const HOME = '/home/sandbox';
 
+    /**
+     * The image's ENV (docker/sandbox/Dockerfile), which E2B leaves out of a template made from it: every process gets
+     * it, the template's start.sh and each command, or Docker can't find ghcr.io's credential helper in
+     * /opt/onedrop/lazy (GIT-016). A test keeps it in step with the Dockerfile.
+     */
+    public const IMAGE_ENV = [
+        'LANG' => 'C.UTF-8',
+        'PORT' => '8000',
+        'SHELL_PORT' => '7681',
+        'PROXY_PORT' => '8081',
+        'SSH_PORT' => '2222',
+        'APP_STORAGE_DIR' => '/data/storage',
+        'PATH' => '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/onedrop/lazy',
+        'COREPACK_ENABLE_DOWNLOAD_PROMPT' => '0',
+        'PLAYWRIGHT_BROWSERS_PATH' => '/opt/onedrop/playwright',
+    ];
+
     /** Settings file start.sh and the shell source, as on Runtime: the template's start.sh is already running. */
     public const ENV_FILE = self::HOME.'/.onedrop-env';
 
@@ -182,7 +199,7 @@ class E2bSandboxProvider implements SandboxProvider
             'args' => $detach
                 ? ['-c', 'setsid nohup "$@" >/dev/null 2>&1 < /dev/null &', 'onedrop-detach', ...$command]
                 : ['--kill-after=5', (string) self::EXEC_SECONDS, ...$command],
-            'envs' => (object) ['HOME' => $root ? '/root' : self::HOME, ...$env],
+            'envs' => (object) [...self::IMAGE_ENV, 'HOME' => $root ? '/root' : self::HOME, ...$env],
             'cwd' => '/workspace',
         ];
 
@@ -258,7 +275,11 @@ class E2bSandboxProvider implements SandboxProvider
                 ['type' => 'WORKDIR', 'args' => ['/workspace'], 'force' => false],
             ],
             // start.sh serves a placeholder on PORT until the project's own settings arrive (written at create).
-            'startCmd' => '/opt/onedrop/start.sh',
+            'startCmd' => implode(' ', ['env', ...array_map(
+                fn (string $name, string $value) => escapeshellarg("{$name}={$value}"),
+                array_keys(self::IMAGE_ENV),
+                self::IMAGE_ENV,
+            ), '/opt/onedrop/start.sh']),
             'readyCmd' => '[ -n "$(ss -Htuln sport = :'.(int) config('sandbox.port').')" ]',
             'force' => false,
         ]);

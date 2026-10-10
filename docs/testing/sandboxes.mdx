@@ -100,6 +100,7 @@ With `E2B_API_KEY` set and the template built (`SANDBOX_PROVIDER=e2b php artisan
 - [ ] The Shell tab connects and keeps working (it's a WebSocket through the gateway).
 - [ ] `docker info` in the Shell says `overlayfs`; importing Pixwel/platform, the agent starts its whole Compose stack (API, MongoDB, Redis, Elasticsearch, workers) and the preview shows the app.
 - [ ] Opening the preview's URL with its token removed (`https://<port>-<id>.e2b.app/`) is refused (403).
+- [ ] In a project whose owner connected GitHub with packages (GIT-016), the Shell's `echo $PATH` ends in `/opt/onedrop/lazy`, and asking the agent to `docker pull` a private `ghcr.io` image of theirs works.
 - [ ] Left alone for 10 minutes, the sandbox shows as paused in the E2B dashboard; opening the project brings the preview back in about a second, with the Compose stack still up.
 - [ ] A long agent turn with the workspace closed isn't paused mid-turn.
 - [ ] The Files, Git and Services panels load without errors.

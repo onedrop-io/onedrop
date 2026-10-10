@@ -53,6 +53,9 @@ class RunAgentTask implements ShouldQueue
         }
 
         $agent->start($this->project, $this->message);
+
+        // In case the run's end never arrives.
+        WatchAgentRun::later($this->project, $this->message);
     }
 
     /**

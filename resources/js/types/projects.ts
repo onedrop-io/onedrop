@@ -206,6 +206,8 @@ export type ChatMessage = {
 export type SandboxState = {
     status: 'creating' | 'running' | 'paused' | 'failed';
     preview_url: string | null;
+    /** The preview's own address, for the bar above it (preview_url may be a link that redirects there). */
+    preview_address: string | null;
     shell_url: string | null;
     /** shell_url is the gateway's address, which takes the shell's own address as its `path` (FILE-005). */
     shell_via_gateway: boolean;

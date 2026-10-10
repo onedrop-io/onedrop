@@ -5,6 +5,7 @@ use App\Enums\ProjectStatus;
 use App\Enums\PublishStatus;
 use App\Enums\SandboxMovePhase;
 use App\Enums\SandboxStatus;
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\AgentConnection;
 use App\Models\Project;
 use App\Models\Sandbox;
@@ -203,6 +204,26 @@ test('opening the project wakes its suspended sandbox', function () {
         ->and($sandbox->suspended_at)->toBeNull()
         ->and($sandbox->last_active_at->isAfter(now()->subMinute()))->toBeTrue();
 })->group('SBX-007');
+
+test('the sidebar reloading the project page in the background doesn\'t count as using its sandbox; reloading the sandbox does', function () {
+    $this->sandbox->forceFill(['suspended_at' => now()->subMinutes(5), 'last_active_at' => now()->subMinutes(30)])->save();
+    $reload = fn (string $only) => $this->actingAs($this->user)->get(route('projects.show', $this->project), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) app(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'projects/show',
+        'X-Inertia-Partial-Data' => $only,
+    ])->assertOk();
+
+    $reload('sidebarProjects,openProject');
+
+    expect($this->provider->woken)->toBe([])
+        ->and($this->sandbox->fresh()->suspended_at)->not->toBeNull()
+        ->and($this->sandbox->fresh()->last_active_at->isBefore(now()->subMinutes(29)))->toBeTrue();
+
+    $reload('project,sandbox,messages');
+
+    expect($this->provider->woken)->toBe(['ctr-1'])->and($this->sandbox->fresh()->suspended_at)->toBeNull();
+})->group('SBX-007', 'LIVE-001');
 
 test('an open workspace keeps its sandbox in use and wakes it if it was suspended', function () {
     $this->sandbox->forceFill(['suspended_at' => now()])->save();

@@ -2449,7 +2449,7 @@ function WorkspacePanel({
                                     {statusIsUrl && (
                                         <PreviewAddress
                                             address={previewAddress(
-                                                url,
+                                                sandbox?.preview_address ?? url,
                                                 previewPage,
                                             )}
                                             link={previewUrlAt(
@@ -2461,7 +2461,8 @@ function WorkspacePanel({
                                             onGo={(address) => {
                                                 const page = pageFromAddress(
                                                     address,
-                                                    url,
+                                                    sandbox?.preview_address ??
+                                                        url,
                                                 );
 
                                                 if (page) {

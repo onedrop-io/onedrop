@@ -155,13 +155,20 @@ test('exec runs the command as the sandbox user in the project, with its env in 
 
         return $process['cmd'] === 'timeout'
             && $process['args'] === ['--kill-after=5', '120', 'bash', '-c', 'echo "$1"', 'x', "it's"]
-            && $process['envs'] === ['HOME' => '/home/sandbox', 'OPENAI_API_KEY' => 'sk-secret']
+            && $process['envs'] === [...E2bSandboxProvider::IMAGE_ENV, 'HOME' => '/home/sandbox', 'OPENAI_API_KEY' => 'sk-secret']
             && $process['cwd'] === '/workspace'
             && $request->hasHeader('Authorization', 'Basic '.base64_encode('sandbox:'))
             && $request->hasHeader('Content-Type', 'application/connect+json')
             && $request->hasHeader('Keepalive-Ping-Interval', '50');
     });
 })->group('SBX-014');
+
+test('every process gets the image\'s ENV, which E2B leaves out of a template made from it', function () {
+    preg_match_all('/^ENV ((?:.*\\\\\n)*.*)$/m', file_get_contents(base_path('docker/sandbox/Dockerfile')), $lines);
+    preg_match_all('/([A-Z_]+)=(\S+)/', str_replace("\\\n", ' ', implode(' ', $lines[1])), $pairs);
+
+    expect(E2bSandboxProvider::IMAGE_ENV)->toBe(array_combine($pairs[1], $pairs[2]));
+})->group('SBX-014', 'GIT-016');
 
 test('a zero exit code, root, a detached command and a command that ran too long', function () {
     Http::fake([
@@ -305,7 +312,9 @@ test('building on E2B asks E2B to make the template from the published sandbox i
         && $request['name'] === 'onedrop-sandbox' && $request['cpuCount'] === 4 && $request['memoryMB'] === 8192);
     Http::assertSent(fn (Request $request) => $request->url() === E2B_API.'/v2/templates/tpl1/builds/build-8'
         && $request['fromImage'] === 'ghcr.io/onedrop-io/onedrop-sandbox:latest'
-        && $request['startCmd'] === '/opt/onedrop/start.sh'
+        && str_starts_with($request['startCmd'], "env 'LANG=C.UTF-8' ")
+        && str_contains($request['startCmd'], " 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/onedrop/lazy' ")
+        && str_ends_with($request['startCmd'], ' /opt/onedrop/start.sh')
         && $request['steps'][0] === ['type' => 'USER', 'args' => ['sandbox'], 'force' => false]);
     expect(SystemSetting::group(SandboxTemplates::SETTING)['e2b']['build_id'])->toBe('build-8');
 })->group('SBX-014');

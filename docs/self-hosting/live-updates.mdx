@@ -3,11 +3,11 @@ title: "Live updates"
 description: "Run Laravel Reverb so the workspace updates the moment something changes."
 ---
 
-The project page updates live: chat replies, the agent's progress, the sandbox's status, publishing, sharing, and the Files panel. OneDrop pushes a short "this project changed" signal over WebSockets with [Laravel Reverb](https://reverb.laravel.com), and the page then reloads only its live data. Nothing about the project goes over the socket itself.
+The project page updates live: chat replies, the agent's progress, the sandbox's status, publishing, sharing, and the Files panel. So does the sidebar, for projects whose agent is working or whose title or icon is on its way. OneDrop pushes a short "this project changed" signal over WebSockets with [Laravel Reverb](https://reverb.laravel.com), and the page then reloads only its live data. Nothing about the project goes over the socket itself.
 
 Each project has a private channel, `project.{id}`. Only people who can see the project can listen on it.
 
-Without Reverb, OneDrop still works: pages poll every second while the agent works, and the Files panel checks for changes every three seconds. If the connection drops, pages fall back to polling until it's back.
+Without Reverb, OneDrop still works: pages poll every second while the agent works, the sidebar every second and a half (in background tabs too) while any of your projects is busy, and the Files panel checks for changes every three seconds. If the connection drops, pages fall back to polling until it's back.
 
 ## Run it
 

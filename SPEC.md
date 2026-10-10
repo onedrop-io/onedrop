@@ -234,6 +234,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see the live app in the preview once it has a preview URL, and a placeholder until then.
 - User should see a bar between the tab bar and the preview, like a browser's toolbar: back, forward and reload on the left, then the address of the app's page the preview is on in a rounded address field (not on a phone), with copy, open-in-a-new-tab and open-in-a-new-window inside it, then size, inspect and annotate.
 - User should see the page's path stand out in the address and its host dimmed, like a browser, until they click into it to type.
+- User should see the preview's own address there (its `preview-<id>` host on a server), never the app's address the preview's link goes through.
 - User should see a thin moving line under the bar while the preview's page loads, which goes away once it has loaded.
 - User should be able to go back and forward through the pages they visited in the preview; each button is greyed out when there's nowhere to go.
 - User should be able to type one of the app's paths (or its full address) in the address and press Enter to go there; Esc puts the address back. An address on another site is refused and stays to fix.
@@ -467,7 +468,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 ## SBX-007: Idle Docker sandboxes are suspended
 
 - A Docker sandbox nobody has used for a minute (`SANDBOX_DOCKER_IDLE_SECONDS`, 60 by default; 0 turns it off) should be suspended: its processes frozen with their memory kept, so it stops using CPU, the way Runtime and Blaxel sandboxes pause by themselves.
-- An open workspace, the agent's events, gateway visits and the container's network traffic (such as its preview open in its own tab) should count as use; a sandbox whose agent is working, or whose project is published, should never be suspended.
+- An open workspace, the agent's events, gateway visits and the container's network traffic (such as its preview open in its own tab) should count as use, but the sidebar reloading the workspace's page in the background should not; a sandbox whose agent is working, or whose project is published, should never be suspended.
 - A suspended sandbox should wake by itself, carrying on where it was, when its project is opened, when its workspace is open, when the gateway sends someone to it, and before any command the platform runs in it.
 - When user comes back to the workspace's tab and its sandbox had been asleep, the preview should reload by itself, and the chat and sandbox status should catch up on anything missed, without the chat scrolling.
 - Using the workspace (clicking, typing, scrolling, or clicking into the preview or shell) should wake a sandbox that had fallen asleep and reload its preview the same way.
@@ -566,6 +567,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - When user sends a message, OpenCode should run inside the project's sandbox using the user's default AI (Anthropic key, OpenAI key, or OpenRouter).
 - User should see the agent thinking, then each step as it happens (reading, editing files, running commands) and its replies.
 - The agent should remember the conversation across messages in the same project.
+- A run whose end never arrives (its sandbox restarted or was lost mid-turn) should end by itself within about 15 minutes of the agent being gone, with "The agent stopped without finishing its turn" in the chat, so the chat doesn't stay working for good.
 - Only one agent run should happen at a time per project; messages sent while it works are queued (see AGT-003).
 - The preview should switch from the placeholder to the app's dev server once the agent sets one up, and restart when the agent asks.
 - User should see a clear message if the agent fails or their AI can't be used.
@@ -1058,6 +1060,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Only people who can see the project should be able to listen on its channel.
 - When the live connection isn't available (not configured, or dropped), the page should fall back to polling as before, and a broadcasting failure should never break the request or job that caused it.
 - Reverb should run locally with `composer dev`, on servers (behind Caddy on the app's own address) and on Laravel Cloud (its WebSockets cluster).
+- The sidebar should pick up a project's new title, drawn icon and finished agent from the live updates of the projects it's waiting on, polling only when they aren't available.
 
 ## LIVE-002: The preview updates while the agent works
 

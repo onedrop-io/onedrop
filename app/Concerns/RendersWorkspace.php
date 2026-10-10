@@ -65,7 +65,11 @@ trait RendersWorkspace
 
         // A task with its own copy of the app shows that copy's preview, shell and files (TASK-003).
         $sandbox = $task && Task::getsCopies() ? $task->sandbox()->first() : $project->sandbox;
-        $sandbox?->wake(app(SandboxProvider::class));
+        // Only a page load, or a reload that shows the sandbox, counts as using it (SBX-007): the sidebar's reloads
+        // in a background tab would otherwise keep it from ever pausing.
+        if (self::showsSandbox($request)) {
+            $sandbox?->wake(app(SandboxProvider::class));
+        }
         // The desktop app (DESK-001) has no session for that address to sign in with: it gets the sandbox address's own
         // sign-in, good for a minute, which every load of the workspace renews, for a partitioned cookie.
         $open = fn (string $kind, string $path = '/') => $sandbox && UseDesktopToken::from($request)
@@ -141,6 +145,9 @@ trait RendersWorkspace
                 'updating' => $sandbox->task_id === null && SandboxUpdater::isUpdating($project),
                 // On servers the browser goes through the gateway (which signs it in to that address), not the sandbox's local ports.
                 'preview_url' => $sandbox->preview_url ? ($gateway->enabled() ? $open('preview') : $sandbox->preview_url) : null,
+                // What the address bar above the preview shows: the preview's own address, not the gateway link that
+                // redirects there (which is on the app's address).
+                'preview_address' => $sandbox->preview_url ? ($gateway->url($sandbox, 'preview') ?? $sandbox->preview_url) : null,
                 'shell_url' => $sandbox->shell_url ? ($gateway->enabled() ? $open('shell') : $sandbox->shell_url) : null,
                 // A computer's desktop viewer, served by the sandbox's proxy beside the preview (CMP-001).
                 'desktop_url' => $project->isComputer() && $sandbox->preview_url
@@ -289,5 +296,17 @@ trait RendersWorkspace
             // Try again on the next visit.
             Cache::forget("sandbox-addresses:{$sandbox->id}");
         }
+    }
+
+    /**
+     * Whether the request shows the sandbox: a page load, or a partial reload that asks for it (not the sidebar's).
+     */
+    protected static function showsSandbox(Request $request): bool
+    {
+        if (! $request->hasHeader('X-Inertia-Partial-Data')) {
+            return true;
+        }
+
+        return in_array('sandbox', explode(',', (string) $request->header('X-Inertia-Partial-Data')), true);
     }
 }
