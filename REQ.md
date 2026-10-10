@@ -101,6 +101,7 @@ AI-001..007, AGT-001..015, USAGE-001.
 Users connect an AI before building; each project picks its agent (OpenCode, Claude Code or Codex), model and reasoning level; runs can be stopped, queued or sent now; prompts can be recalled; attachments work; usage and estimated cost are tracked per agent, model and project.
 
 ### Decisions
+
 - **2026-10-10: A run's end that never arrives is caught by a safety check (`WatchAgentRun`) 15 minutes after the run starts, then every 15 minutes while its forwarder is still alive (its pid file); a run whose forwarder is gone is ended (AGT-001).** Project 53's chat stayed "working" for 9 hours after its Runtime sandbox lost the forwarder mid-turn. That kept every open tab's sidebar polling, and through it another project's sandbox awake. Allowed under the no-polling rule as a safety check, like the 15- and 30-minute ones for sandbox work. A sandbox that doesn't answer is asked 4 times before the run is given up on. Not dispatched on a sync queue, which can't wait: a check run straight away would end a run whose forwarder hasn't started yet.
 
 - **The platform never pools subscriptions.** Every run uses the project owner's own connection. Keys are encrypted and never sent back to the browser.
