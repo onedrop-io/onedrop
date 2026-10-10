@@ -443,3 +443,17 @@ test('agent events don\'t put an E2B sandbox\'s pause off: the run holds it awak
     expect($provider->woken)->toBe([])
         ->and($sandbox->fresh()->last_active_at)->not->toBeNull();
 })->group('SBX-014');
+
+test('commands the platform runs during an agent run connect with the run\'s hold, not the usual idle time', function () {
+    Cache::flush();
+    Http::fake([
+        E2B_API.'/sandboxes/'.E2B_ID.'/timeout' => Http::response('', 204),
+        E2B_API.'/v2/sandboxes/'.E2B_ID.'/connect' => Http::response(['sandboxID' => E2B_ID, 'envdAccessToken' => 'envd-secret', 'trafficAccessToken' => 'traffic-secret']),
+        E2B_ENVD.'/*' => Http::response(envdStream([['start' => ['pid' => 1]], ['end' => ['exitCode' => 0, 'exited' => true]]])),
+    ]);
+
+    $this->e2b->holdAwake(E2B_ID);
+    $this->e2b->exec(E2B_ID, ['true']);
+
+    Http::assertSent(fn (Request $request) => str_ends_with($request->url(), '/connect') && $request['timeout'] === 3600);
+})->group('SBX-014');

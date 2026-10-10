@@ -5,6 +5,7 @@ use App\Jobs\RunAgentTask;
 use App\Models\AgentConnection;
 use App\Models\Project;
 use App\Models\Sandbox;
+use App\Models\Task;
 use App\Models\User;
 use App\Sandbox\Agents\AgentQueue;
 use App\Sandbox\Providers\FakeSandboxProvider;
@@ -62,4 +63,27 @@ test('coming back after leaving puts the usual pause back at once', function () 
     $this->actingAs($this->user)->post(route('projects.sandbox.activity', $this->project));
 
     expect($this->provider->woken)->toBe(['e2b-1', 'e2b-1']);
+})->group('SBX-014');
+
+test('stopping the agent lets its sandbox pause soon', function () {
+    app(AgentQueue::class)->stop($this->project);
+
+    expect($this->provider->released)->toBe([['e2b-1', true]]);
+})->group('SBX-014');
+
+test('a task\'s run ending in the shared sandbox doesn\'t let it pause while the main chat\'s agent still works', function () {
+    config(['sandbox.task_copies' => false]);
+    $task = Task::factory()->working()->for($this->project)->create();
+
+    app(AgentQueue::class)->finished($task);
+
+    expect($this->provider->released)->toBe([]);
+})->group('SBX-014');
+
+test('a gateway visit counts as watching, so a run ending then leaves the usual idle time', function () {
+    $this->sandbox->markActive();
+
+    app(AgentQueue::class)->finished($this->project);
+
+    expect($this->provider->released)->toBe([['e2b-1', false]]);
 })->group('SBX-014');
