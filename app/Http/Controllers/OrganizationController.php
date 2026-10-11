@@ -37,8 +37,9 @@ class OrganizationController extends Controller
 
         $name = $request->validate(['name' => ['required', 'string', 'max:255']])['name'];
 
-        // Every organization gets free AI credits (CREDIT-001), so for now each person can own only one.
-        if (app(AiCredits::class)->enabled() && $request->user()->organizations()->wherePivot('role', OrganizationRole::Owner->value)->exists()) {
+        // Every organization gets free AI credits (CREDIT-001), so for now each person can own only one. Platform admins
+        // run the install and pay for those credits anyway.
+        if (app(AiCredits::class)->enabled() && ! $request->user()->is_admin && $request->user()->organizations()->wherePivot('role', OrganizationRole::Owner->value)->exists()) {
             throw ValidationException::withMessages(['name' => __('You can own one organization for now.')]);
         }
 

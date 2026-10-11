@@ -186,6 +186,16 @@ test('while credits are on, someone can own only one organization', function () 
     expect(Organization::query()->where('name', 'Second')->exists())->toBeFalse();
 })->group('CREDIT-001', 'ORG-003');
 
+test('a platform admin can own more than one organization while credits are on', function () {
+    config(['app.multi_tenant' => true]);
+    $this->user->forceFill(['is_admin' => true])->save();
+    Organization::factory()->create()->addMember($this->user, OrganizationRole::Owner);
+
+    $this->actingAs($this->user)->post(route('organizations.store'), ['name' => 'Second'])->assertSessionHasNoErrors();
+
+    expect(Organization::query()->where('name', 'Second')->exists())->toBeTrue();
+})->group('CREDIT-001', 'ORG-003');
+
 test('the balance beside the model picker shows what is left of each part, and when more arrives', function () {
     fakeCredits(520, resetsAt: now()->setDate(2026, 11, 2)->startOfDay());
 

@@ -104,7 +104,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 - On the hosted install, someone signing up without an invite should get a new organization they own, named after them ("Ada's organization"); someone signing up through an invite should join the inviter's organization instead.
 - On the hosted install, user should be able to create another organization from the account menu's Organization submenu, with a name; they become its owner and land on its new-project page.
-- While AI credits are on (CREDIT-001), user who already owns an organization should be told they can own only one for now, and no organization should be created.
+- While AI credits are on (CREDIT-001), user who already owns an organization should be told they can own only one for now, and no organization should be created. A platform admin should be able to create more.
 - On a self-hosted install, new sign-ups should join the one organization, and creating more should not be offered.
 
 ## ORG-004: Manage an organization's members
