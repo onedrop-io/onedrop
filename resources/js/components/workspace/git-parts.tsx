@@ -688,7 +688,7 @@ export function History({
                                     <Button
                                         size="icon"
                                         variant="ghost"
-                                        className="mt-1 size-7 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
+                                        className="mt-1 size-7 text-muted-foreground"
                                         aria-label={`More options for ${commit.subject}`}
                                         data-test="git-commit-menu"
                                     >

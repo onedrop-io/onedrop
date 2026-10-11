@@ -85,8 +85,9 @@ test('source control stages a part of a file and a whole file, commits them as t
     $page->click('[data-test="git-changes"] [data-test="git-change"]:first-child [data-test="git-change-open"]')
         ->assertSeeIn('@scm-diff-path', 'app.tsx')
         ->assertSeeIn('@scm-diff', 'line 2, by the agent')
-        // The open file's row shows its actions without hovering, discard included.
-        ->assertVisible('[data-test="git-change"]:first-child [data-test="git-change-discard"]')
+        // Every row shows its buttons without hovering (tablets can't hover), discard included.
+        ->assertVisible('[data-test="git-change"]:last-child [data-test="git-change-discard"]')
+        ->assertVisible('@scm-stage-all-inline')
         ->click('[data-test="git-actions-hunk"]:first-child [data-test="scm-hunk-stage"]')
         ->assertSeeIn('@scm-staged', 'app.tsx')
         ->assertSeeIn('@scm-commit', 'Commit (1)');
@@ -96,8 +97,7 @@ test('source control stages a part of a file and a whole file, commits them as t
     expect(($this->sh)('git show :app.tsx'))->toContain('line 2, by the agent')->not->toContain('line 19, by the agent');
 
     // Stage timer.tsx from its row, then commit what's staged with a message.
-    $page->hover('[data-test="git-changes"] [data-test="git-change"]:last-child')
-        ->click('[data-test="git-changes"] [data-test="git-change"]:last-child [data-test="git-change-stage"]')
+    $page->click('[data-test="git-changes"] [data-test="git-change"]:last-child [data-test="git-change-stage"]')
         ->assertSeeIn('@scm-staged', 'timer.tsx')
         ->type('@scm-message', 'Add the timer')
         ->click('@scm-commit')

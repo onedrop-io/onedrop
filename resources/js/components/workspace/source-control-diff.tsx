@@ -288,16 +288,20 @@ export default function SourceControlDiff({
                 {!staged && change.status !== 'U' && (
                     <Button
                         type="button"
-                        size="icon"
-                        variant="ghost"
-                        className="size-7 shrink-0"
-                        aria-label="Discard changes to this file"
-                        title="Discard changes"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 shrink-0"
+                        title={
+                            working
+                                ? 'Wait for the agent to finish'
+                                : 'Put the file back as it was'
+                        }
                         disabled={working}
                         onClick={onDiscardFile}
                         data-test="scm-diff-discard"
                     >
                         <Undo2 className="size-4" />
+                        Discard
                     </Button>
                 )}
                 <Button
