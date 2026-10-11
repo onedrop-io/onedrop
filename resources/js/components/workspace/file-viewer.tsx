@@ -1,5 +1,4 @@
 import { languages } from '@codemirror/language-data';
-import { oneDark } from '@codemirror/theme-one-dark';
 import type { Extension } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
 import CodeMirror from '@uiw/react-codemirror';
@@ -10,6 +9,7 @@ import ProjectServiceController from '@/actions/App/Http/Controllers/ProjectServ
 import { Button } from '@/components/ui/button';
 import FileIcon from '@/components/workspace/file-icon';
 import { useAppearance } from '@/hooks/use-appearance';
+import { editorTheme } from '@/lib/editor-theme';
 import { saveWorkspaceFile } from '@/hooks/use-workspace-files';
 import { jsonRequest } from '@/lib/json-request';
 import { cn } from '@/lib/utils';
@@ -116,7 +116,7 @@ export default function FileViewer({
                     `/__onedrop/files/${kind === 'pdf' ? 'raw' : 'view'}?path=${encodeURIComponent(file.path)}`,
                 )}
                 title={file.path.split('/').pop()}
-                className="min-h-0 w-full flex-1 border-0 bg-neutral-950"
+                className="min-h-0 w-full flex-1 border-0 bg-well"
                 allow="fullscreen; autoplay"
                 data-test="file-media"
             />
@@ -381,7 +381,7 @@ function FileEditor({
                     goTo(locationRef.current);
                 }}
                 extensions={extensions}
-                theme={resolvedAppearance === 'dark' ? oneDark : 'light'}
+                theme={editorTheme(resolvedAppearance === 'dark')}
                 height="100%"
                 className="min-h-0 flex-1 overflow-hidden text-xs [&_.cm-editor]:h-full [&_.cm-editor]:bg-transparent! [&_.cm-gutters]:bg-transparent!"
                 basicSetup={{ foldGutter: true, highlightActiveLine: true }}

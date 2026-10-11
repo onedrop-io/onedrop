@@ -183,7 +183,7 @@ export default function BrowserView({
                     ref={frame}
                     src={session.url}
                     title="Browser"
-                    className="flex-1 bg-neutral-950"
+                    className="flex-1 bg-well"
                     data-test="browser-frame"
                 />
             ) : status && !status.starting ? (

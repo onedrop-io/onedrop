@@ -97,7 +97,7 @@ export function DeployLog({
             </summary>
             <pre
                 ref={log}
-                className="mt-2 max-h-64 overflow-auto rounded-md bg-neutral-950 p-2 text-xs whitespace-pre-wrap text-neutral-300"
+                className="mt-2 max-h-64 overflow-auto rounded-md bg-well p-2 text-xs whitespace-pre-wrap text-well-foreground"
                 data-test="deploy-log"
             >
                 {deployment.log

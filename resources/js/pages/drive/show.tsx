@@ -1387,7 +1387,7 @@ function ViewerDialog({
                     }
                 }}
                 spellCheck={false}
-                className="h-[60vh] w-full resize-none rounded-md border border-sidebar-border/70 bg-neutral-950 p-3 font-mono text-xs text-neutral-100 outline-none dark:border-sidebar-border"
+                className="h-[60vh] w-full resize-none rounded-md border border-sidebar-border/70 bg-well p-3 font-mono text-xs text-well-foreground outline-none dark:border-sidebar-border"
                 data-test="drive-editor"
             />
         );

@@ -26,6 +26,7 @@ import { OrganizationSubmenu } from '@/components/organization-menu';
 import { UserInfo } from '@/components/user-info';
 import type { Appearance } from '@/hooks/use-appearance';
 import { useAppearance } from '@/hooks/use-appearance';
+import { findTheme } from '@/lib/themes';
 import { useBuildMode } from '@/hooks/use-build-mode';
 import { useMobileNavigation } from '@/hooks/use-mobile-navigation';
 import { useOrganization } from '@/hooks/use-organization';
@@ -33,6 +34,7 @@ import { DOCUMENTATION_URL, REPOSITORY_URL } from '@/lib/links';
 import { logout } from '@/routes';
 import { index as invitationsIndex } from '@/routes/invitations';
 import { usage as organizationUsage } from '@/routes/organizations';
+import { edit as editAppearance } from '@/routes/appearance';
 import { edit } from '@/routes/profile';
 import { index as usageIndex } from '@/routes/usage';
 import type { BuildMode, User } from '@/types';
@@ -57,7 +59,7 @@ const MODES: { value: BuildMode; label: string }[] = [
 export function UserMenuContent({ user, onCreateOrganization }: Props) {
     const cleanup = useMobileNavigation();
     const organization = useOrganization();
-    const { appearance, updateAppearance } = useAppearance();
+    const { appearance, resolvedTheme, updateAppearance } = useAppearance();
     const { chosen: mode, choose: chooseMode } = useBuildMode();
 
     const handleLogout = () => {
@@ -155,6 +157,20 @@ export function UserMenuContent({ user, onCreateOrganization }: Props) {
                                 </DropdownMenuRadioItem>
                             ))}
                         </DropdownMenuRadioGroup>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem asChild>
+                            <Link
+                                className="w-full cursor-pointer"
+                                href={editAppearance()}
+                                onClick={cleanup}
+                                data-test="color-theme-link"
+                            >
+                                Color theme…
+                                <span className="ml-auto pl-4 text-muted-foreground">
+                                    {findTheme(resolvedTheme)?.name}
+                                </span>
+                            </Link>
+                        </DropdownMenuItem>
                     </DropdownMenuSubContent>
                 </DropdownMenuSub>
                 <DropdownMenuSub>

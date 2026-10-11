@@ -3,35 +3,36 @@ import type { ReactNode } from 'react';
 import type { LogSearch } from '@/lib/log-search';
 import { cn } from '@/lib/utils';
 
+/** ANSI colors from the theme's terminal palette (themes.css), like the Shell's; black shows as a dim grey. */
 const ANSI_COLORS = [
-    'text-neutral-500',
-    'text-red-400',
-    'text-green-400',
-    'text-yellow-300',
-    'text-blue-400',
-    'text-fuchsia-400',
-    'text-cyan-400',
-    'text-neutral-200',
+    'text-(--terminal-bright-black)',
+    'text-(--terminal-red)',
+    'text-(--terminal-green)',
+    'text-(--terminal-yellow)',
+    'text-(--terminal-blue)',
+    'text-(--terminal-magenta)',
+    'text-(--terminal-cyan)',
+    'text-(--terminal-white)',
 ];
 const ANSI_BRIGHT_COLORS = [
-    'text-neutral-400',
-    'text-red-300',
-    'text-green-300',
-    'text-yellow-200',
-    'text-blue-300',
-    'text-fuchsia-300',
-    'text-cyan-300',
-    'text-white',
+    'text-(--terminal-bright-black)',
+    'text-(--terminal-bright-red)',
+    'text-(--terminal-bright-green)',
+    'text-(--terminal-bright-yellow)',
+    'text-(--terminal-bright-blue)',
+    'text-(--terminal-bright-magenta)',
+    'text-(--terminal-bright-cyan)',
+    'text-(--terminal-bright-white)',
 ];
 
 const LEVEL_COLORS: [RegExp, string][] = [
     [
         /^(fatal|panic|crit|critical|error|err|emerg|alert)$/i,
-        'text-red-400 font-semibold',
+        'text-(--terminal-red) font-semibold',
     ],
-    [/^(warn|warning)$/i, 'text-amber-300'],
-    [/^(info|notice)$/i, 'text-sky-400'],
-    [/^(debug|trace)$/i, 'text-neutral-500'],
+    [/^(warn|warning)$/i, 'text-(--terminal-yellow)'],
+    [/^(info|notice)$/i, 'text-(--terminal-blue)'],
+    [/^(debug|trace)$/i, 'text-(--terminal-bright-black)'],
 ];
 
 const LEVEL_WORDS =
@@ -58,20 +59,20 @@ type AnsiStyle = { color: string | null; bold: boolean; dim: boolean };
 /** A log line as shown: its position in the log (from 0) and its colored content. */
 export type LogLine = { index: number; nodes: ReactNode[] };
 
-/** Colors told apart on a dark background, one per label of merged logs. */
+/** Colors told apart in the theme's terminal palette, one per label of merged logs. */
 const LABEL_COLORS = [
-    'text-cyan-400',
-    'text-fuchsia-400',
-    'text-yellow-300',
-    'text-green-400',
-    'text-blue-400',
-    'text-orange-400',
-    'text-pink-400',
-    'text-lime-400',
+    'text-(--terminal-cyan)',
+    'text-(--terminal-magenta)',
+    'text-(--terminal-yellow)',
+    'text-(--terminal-green)',
+    'text-(--terminal-blue)',
+    'text-(--terminal-bright-red)',
+    'text-(--terminal-bright-magenta)',
+    'text-(--terminal-bright-green)',
 ];
 
 /**
- * Log output as colored lines, for a dark background. Lines a program colored itself (ANSI escapes) keep
+ * Log output as colored lines, in the theme's terminal colors (on a `bg-well`). Lines a program colored itself (ANSI escapes) keep
  * those colors; other lines get their timestamps, levels, keys, quoted strings, URLs and durations colored
  * (slow ones amber or red) and dot leaders dimmed, and URLs open in a new tab. Other escapes (cursor moves,
  * `\r` redraws) are dropped, so they don't show as junk. With a search, only the lines passing it are kept,
@@ -265,7 +266,7 @@ function tokenClass(match: RegExpMatchArray): string {
     const groups = match.groups ?? {};
 
     if (groups.time) {
-        return 'text-neutral-500';
+        return 'text-(--terminal-bright-black)';
     }
 
     if (groups.level) {
@@ -273,7 +274,7 @@ function tokenClass(match: RegExpMatchArray): string {
     }
 
     if (groups.url) {
-        return 'text-sky-300 underline';
+        return 'text-(--terminal-bright-blue) underline';
     }
 
     if (groups.duration) {
@@ -281,15 +282,15 @@ function tokenClass(match: RegExpMatchArray): string {
     }
 
     if (groups.leader) {
-        return 'text-neutral-600';
+        return 'text-(--terminal-bright-black) opacity-60';
     }
 
     if (groups.key) {
-        return 'text-violet-300';
+        return 'text-(--terminal-magenta)';
     }
 
     // A quoted level, as in JSON logs' "level":"error".
-    return levelClass(match[0].slice(1, -1)) ?? 'text-emerald-300';
+    return levelClass(match[0].slice(1, -1)) ?? 'text-(--terminal-green)';
 }
 
 /** Durations dimmed when quick, amber from 100ms and red from 500ms, so slow requests stand out. */
@@ -300,10 +301,12 @@ function durationClass(duration: string): string {
         unit === 's' ? amount * 1000 : unit === 'µs' ? amount / 1000 : amount;
 
     if (ms >= 500) {
-        return 'text-red-400';
+        return 'text-(--terminal-red)';
     }
 
-    return ms >= 100 ? 'text-amber-300' : 'text-neutral-500';
+    return ms >= 100
+        ? 'text-(--terminal-yellow)'
+        : 'text-(--terminal-bright-black)';
 }
 
 function levelClass(word: string): string | null {

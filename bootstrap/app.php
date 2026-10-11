@@ -29,7 +29,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->encryptCookies(except: ['appearance', 'sidebar_state', 'sidebar_width', 'open_project']);
+        $middleware->encryptCookies(except: ['appearance', 'theme-light', 'theme-dark', 'sidebar_state', 'sidebar_width', 'open_project']);
         $middleware->validateCsrfTokens(except: ['sandbox-events/*']);
 
         // Saved file contents must reach the sandbox byte for byte (trailing newlines included).

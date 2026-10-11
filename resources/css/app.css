@@ -2,6 +2,8 @@
 
 @import 'tw-animate-css';
 
+@import './themes.css';
+
 @source '../views';
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 
@@ -183,6 +185,10 @@
     --color-modal: var(--modal);
     --color-raised: var(--raised);
     --color-toolbar: var(--toolbar);
+
+    /* Code, terminals and logs: the theme's terminal background, a well cut into the page (themes.css). */
+    --color-well: var(--well);
+    --color-well-foreground: var(--well-foreground);
 
     --color-primary: var(--primary);
     --color-primary-foreground: var(--primary-foreground);
@@ -415,45 +421,49 @@
     }
 }
 
-/* Syntax colors for highlighted code in chat replies (components/code-highlight.tsx). */
+/* Syntax colors for highlighted code in chat replies (components/code-highlight.tsx), from the theme (themes.css). */
 @layer components {
     .tok-keyword,
     .tok-operator,
     .tok-bool,
     .tok-atom {
-        color: #a626a4;
+        color: var(--syntax-keyword);
     }
     .tok-string,
     .tok-inserted {
-        color: #50a14f;
+        color: var(--syntax-string);
     }
     .tok-string2,
     .tok-deleted,
     .tok-invalid {
-        color: #e45649;
+        color: var(--syntax-deleted);
     }
     .tok-number,
-    .tok-literal,
+    .tok-literal {
+        color: var(--syntax-number);
+    }
     .tok-className,
     .tok-typeName,
     .tok-attributeName {
-        color: #c18401;
+        color: var(--syntax-type);
     }
     .tok-comment,
     .tok-meta {
-        color: #a0a1a7;
+        color: var(--syntax-comment);
         font-style: italic;
     }
     .tok-definition,
-    .tok-propertyName,
     .tok-macroName {
-        color: #4078f2;
+        color: var(--syntax-function);
+    }
+    .tok-propertyName {
+        color: var(--syntax-property);
     }
     .tok-variableName2,
     .tok-tagName,
     .tok-namespace,
     .tok-labelName {
-        color: #e45649;
+        color: var(--syntax-tag);
     }
     .tok-heading,
     .tok-strong {
@@ -465,42 +475,6 @@
     .tok-link,
     .tok-url {
         text-decoration: underline;
-    }
-
-    .dark .tok-keyword,
-    .dark .tok-operator,
-    .dark .tok-bool,
-    .dark .tok-atom {
-        color: #c678dd;
-    }
-    .dark .tok-string,
-    .dark .tok-inserted {
-        color: #98c379;
-    }
-    .dark .tok-string2,
-    .dark .tok-deleted,
-    .dark .tok-invalid,
-    .dark .tok-variableName2,
-    .dark .tok-tagName,
-    .dark .tok-namespace,
-    .dark .tok-labelName {
-        color: #e06c75;
-    }
-    .dark .tok-number,
-    .dark .tok-literal,
-    .dark .tok-className,
-    .dark .tok-typeName,
-    .dark .tok-attributeName {
-        color: #e5c07b;
-    }
-    .dark .tok-comment,
-    .dark .tok-meta {
-        color: #7f848e;
-    }
-    .dark .tok-definition,
-    .dark .tok-propertyName,
-    .dark .tok-macroName {
-        color: #61afef;
     }
 }
 

@@ -707,7 +707,7 @@ function LogViewer({
                             24;
                     }}
                     className={cn(
-                        'overflow-auto rounded bg-neutral-950 p-2 font-mono text-xs whitespace-pre-wrap text-neutral-200',
+                        'overflow-auto rounded bg-well p-2 font-mono text-xs whitespace-pre-wrap text-well-foreground',
                         className,
                     )}
                     data-test="service-log-lines"
@@ -734,7 +734,7 @@ function LogViewer({
                                       className={cn(
                                           'min-h-lh',
                                           search &&
-                                              'cursor-pointer hover:bg-white/5',
+                                              'cursor-pointer hover:bg-(--terminal-selection)',
                                           contextLine === line.index &&
                                               'bg-amber-400/15',
                                       )}

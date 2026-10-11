@@ -144,6 +144,7 @@ import {
     FILES_OPEN_KEY,
     useBuildMode,
 } from '@/hooks/use-build-mode';
+import { useAppearance } from '@/hooks/use-appearance';
 import { useClipboard } from '@/hooks/use-clipboard';
 import { useResizableWidth } from '@/hooks/use-resizable-width';
 import { useSandboxActivity } from '@/hooks/use-sandbox-activity';
@@ -153,6 +154,7 @@ import {
     useWorkspaceFiles,
 } from '@/hooks/use-workspace-files';
 import { useLiveReload, useProjectChannel } from '@/lib/realtime';
+import { terminalTheme } from '@/lib/themes';
 import { cn } from '@/lib/utils';
 import {
     isPagePath,
@@ -1010,6 +1012,25 @@ function WorkspacePanel({
     const shellFrames = useRef<Partial<Record<ShellTab, HTMLIFrameElement>>>(
         {},
     );
+    const { resolvedTheme, resolvedAppearance } = useAppearance();
+    /** Gives a Shell (another origin) the color theme's terminal palette (SET-002; docker/sandbox/shell-keys.js). */
+    const themeShell = useCallback(
+        (frame: HTMLIFrameElement | undefined) =>
+            frame?.contentWindow?.postMessage(
+                {
+                    onedrop: 'theme',
+                    kind: resolvedAppearance,
+                    colors: terminalTheme(),
+                },
+                '*',
+            ),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [resolvedTheme, resolvedAppearance],
+    );
+
+    useEffect(() => {
+        Object.values(shellFrames.current).forEach(themeShell);
+    }, [themeShell]);
     // The URL says what to show (TASK-004): `?tab=tools&tool=database`, `?tab=file&file=…`, `?tab=console`.
     // `?tool=git` alone (e.g. back from connecting GitHub) opens that Tools section.
     const { url: pageUrl } = usePage();
@@ -2824,11 +2845,14 @@ function WorkspacePanel({
                                 }}
                                 src={shellSrc(shellStarts[shell], sandbox)}
                                 title={panes.shellLabel(shell)}
-                                onLoad={() =>
-                                    tab === shell &&
-                                    shellFrames.current[shell]?.focus()
-                                }
-                                className="flex-1 bg-neutral-950"
+                                onLoad={() => {
+                                    themeShell(shellFrames.current[shell]);
+
+                                    if (tab === shell) {
+                                        shellFrames.current[shell]?.focus();
+                                    }
+                                }}
+                                className="flex-1 bg-well"
                                 data-test={
                                     shell === 'shell'
                                         ? 'shell-frame'

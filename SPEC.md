@@ -915,13 +915,22 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 ## SET-001: Account menu and settings modal
 
 - User should be able to click their name at the bottom of the sidebar to open an account menu with Settings, Invite people, Theme, Help, and Log out.
-- User should be able to switch between light, dark, and system theme from the Theme submenu, and see the current theme next to it.
+- User should be able to switch between light, dark, and system theme from the Theme submenu, and see the current theme next to it, and open Color theme… (SET-002) from the same submenu, with the color theme showing now next to it.
 - User should see the dark theme by default until they pick another.
 - User should find Documentation and Repository links under Help.
 - User should see settings open in a modal with a left-hand list of sections: Account (Profile, Security, AI, Appearance, Notifications), People (Groups, Invite people), and, for admins only, Admin (Users, General, Sandboxes, Monitoring, Server, Backups; see ADMIN-001 to ADMIN-005).
 - User should be able to move between sections without the modal closing, and link straight to any section.
 - User should be able to close the modal with the close button or Escape and land back on the page they opened it from (the dashboard if they arrived by a direct link).
 - Groups, Invite people, and Users should no longer be in the sidebar.
+
+## SET-002: Color themes
+
+- User should be able to pick a color theme in Settings → Appearance, from OneDrop's own (OneDrop Dark, OneDrop Light) and ports of popular editor themes: One Dark Pro, Dracula, GitHub Dark, Monokai, Nord, Tokyo Night, Catppuccin Mocha, Solarized Dark, Gruvbox Dark, Night Owl and Rosé Pine (dark), GitHub Light, One Light, Solarized Light, Catppuccin Latte and Rosé Pine Dawn (light).
+- User should see each theme as a small preview drawn in its own colors (sidebar, button, code), grouped under Dark themes and Light themes, with the picked one checked.
+- User should keep one theme for dark mode and one for light mode: picking a dark theme switches to dark mode (and a light one to light), and on System the app switches between the two with their computer.
+- User should see the whole app in the theme straight away: pages, sidebar, menus and dialogs, code in chat and diffs, the file editor and SQL runner, logs and consoles, and the Shell's terminal.
+- User should see the same theme after a reload or on their next visit in that browser, without a flash of another theme.
+- OneDrop Dark should stay the default.
 
 ## HOME-004: Start a project from the home page
 

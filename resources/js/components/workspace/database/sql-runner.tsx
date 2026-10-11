@@ -10,7 +10,6 @@ import type { LanguageSupport } from '@codemirror/language';
 import { languages } from '@codemirror/language-data';
 import { Prec } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
-import { oneDark } from '@codemirror/theme-one-dark';
 import CodeMirror from '@uiw/react-codemirror';
 import { Play, Sparkles } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -19,6 +18,7 @@ import CellValue from '@/components/workspace/database/cell-value';
 import { useAppearance } from '@/hooks/use-appearance';
 import { databaseApi } from '@/lib/database-api';
 import type { DatabaseLocation } from '@/lib/database-api';
+import { editorTheme } from '@/lib/editor-theme';
 import type {
     DatabaseConnection,
     DatabaseQueryResult,
@@ -519,7 +519,7 @@ export default function SqlRunner({
                     value={sql}
                     onChange={setSql}
                     extensions={extensions}
-                    theme={resolvedAppearance === 'dark' ? oneDark : 'light'}
+                    theme={editorTheme(resolvedAppearance === 'dark')}
                     minHeight="7.5rem"
                     maxHeight="40vh"
                     placeholder={

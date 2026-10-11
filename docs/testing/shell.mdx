@@ -45,6 +45,16 @@ Open a project whose sandbox is running.
 - [ ] The Shell reconnects by itself and still has its session.
 - [ ] After five minutes or more (the sandbox stops), the Shell starts a fresh session that works.
 
+## Color theme (SET-002)
+
+The Shell gets the color theme from the workspace. It needs an image built after the change to `shell-keys.js`.
+
+- [ ] With **Tokyo Night** picked (Settings → Appearance), the Shell's background, text and `ls --color` colors are Tokyo Night's, and its scrollbar is the thin light one.
+- [ ] Switching to **GitHub Light** while a Shell is open turns it light right away, scrollbar included; colored output (`ls --color`, `git diff`) stays readable.
+- [ ] Switching back to **OneDrop Light** gives the near-black terminal it always had.
+- [ ] A reload, a new Shell (**+ → Shell**) and a Shell in a split pane all open in the current theme.
+- [ ] On **System**, switching the computer between light and dark mode switches the Shell too.
+
 ## Built-in tools
 
 Run each one; it should start without an install step.

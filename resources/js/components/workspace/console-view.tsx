@@ -190,13 +190,15 @@ export default function ConsoleView({
                             element.clientHeight <
                         40;
                 }}
-                className="flex-1 overflow-auto bg-neutral-950 p-3 font-mono text-xs leading-5 whitespace-pre-wrap text-neutral-200"
+                className="flex-1 overflow-auto bg-well p-3 font-mono text-xs leading-5 whitespace-pre-wrap text-well-foreground"
                 data-test="console-output"
             >
                 {error ? (
-                    <span className="text-red-400">{error}</span>
+                    <span className="text-(--terminal-red)">{error}</span>
                 ) : !output.text ? (
-                    <span className="text-neutral-500">No output yet.</span>
+                    <span className="text-(--terminal-bright-black)">
+                        No output yet.
+                    </span>
                 ) : shown.length ? (
                     shown.map((line) => (
                         <div
@@ -214,7 +216,8 @@ export default function ConsoleView({
                             }
                             className={cn(
                                 'min-h-lh',
-                                search && 'cursor-pointer hover:bg-white/5',
+                                search &&
+                                    'cursor-pointer hover:bg-(--terminal-selection)',
                                 contextLine === line.index && 'bg-amber-400/15',
                             )}
                         >
@@ -222,7 +225,9 @@ export default function ConsoleView({
                         </div>
                     ))
                 ) : (
-                    <span className="text-neutral-500">No lines match.</span>
+                    <span className="text-(--terminal-bright-black)">
+                        No lines match.
+                    </span>
                 )}
             </pre>
         </div>
