@@ -1429,9 +1429,7 @@ function SectionList({
                     />
                     <span className="truncate">{title}</span>
                 </button>
-                <span className="flex">
-                    {actions}
-                </span>
+                <span className="flex">{actions}</span>
                 {count !== undefined && count > 0 && (
                     <span
                         className="rounded-full bg-muted px-1.5 text-xs text-muted-foreground tabular-nums"
