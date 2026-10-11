@@ -33,7 +33,10 @@
         clearInterval(waiting);
         waiting = null;
         window.term.options.theme = theme.colors;
-        document.documentElement.classList.toggle('light', theme.kind === 'light');
+        document.documentElement.classList.toggle(
+            'light',
+            theme.kind === 'light',
+        );
         document.body.style.background = theme.colors.background;
     };
 
