@@ -127,10 +127,7 @@ export default function SourceControlDiff({
         return jsonRequest<{ status: GitStatus }>(url, body)
             .then((changed) => onStatus(changed.status))
             .catch((e: Error) => setError(e.message))
-            .finally(() => {
-                setBusy(false);
-                setConfirming(null);
-            });
+            .finally(() => setBusy(false));
     };
 
     const stageLines = (part: { hunk: number } | { lines: number[] }) =>
@@ -168,6 +165,8 @@ export default function SourceControlDiff({
                             className="h-6 px-2 text-xs"
                             disabled={busy}
                             onClick={() =>
+                                // Only the discard ends its own confirmation: staging that finishes meanwhile
+                                // leaves it open, and a diff that changes reloads and clears it anyway.
                                 send(
                                     ProjectGitController.discardHunk.url(
                                         projectId,
@@ -177,7 +176,7 @@ export default function SourceControlDiff({
                                         hash: diff?.hash,
                                         hunk: hunk.number,
                                     },
-                                )
+                                ).finally(() => setConfirming(null))
                             }
                             data-test="git-actions-hunk-discard-confirm"
                         >
