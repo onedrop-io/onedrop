@@ -132,17 +132,16 @@ test('on a small screen the chat and the workspace are tabs, keeping the draft w
     visit("/projects/{$project->id}")
         ->resize(390, 844)
         ->assertVisible('section[aria-label="Chat"]')
-        ->assertMissing('@mobile-tab-switcher')
+        ->assertAttribute('@mobile-bar-chat', 'aria-selected', 'true')
         ->type('#composer-content', 'half a thought')
-        ->click('@mobile-tab-workspace')
+        ->click('@mobile-bar-preview')
         ->assertMissing('section[aria-label="Chat"]')
-        ->assertVisible('@mobile-tab-switcher')
         ->assertMissing('@toggle-chat')
-        ->click('@mobile-tab-chat')
+        ->click('@mobile-bar-chat')
         ->assertVisible('section[aria-label="Chat"]')
         ->assertValue('#composer-content', 'half a thought')
         ->resize(1600, 900)
-        ->assertMissing('@mobile-tab-chat')
+        ->assertMissing('@mobile-tab-bar')
         ->assertVisible('@tab-preview')
         ->assertNoJavaScriptErrors();
 })->group('LAYOUT-006');
@@ -172,7 +171,7 @@ test('on a small screen the preview bar leaves out the address, the size menu an
 
     visit("/projects/{$project->id}")
         ->resize(390, 844)
-        ->click('@mobile-tab-workspace')
+        ->click('@mobile-bar-preview')
         ->assertVisible('@preview-annotate')
         ->assertMissing('@preview-size')
         ->assertMissing('@split-menu')
@@ -184,7 +183,7 @@ test('on a small screen the preview bar leaves out the address, the size menu an
         ->assertNoJavaScriptErrors();
 })->group('LAYOUT-006');
 
-test('on a small screen a pane\'s tabs are one switcher, with the rest in a sheet', function () {
+test('on a phone the tabs are a bar along the bottom, with the rest in a sheet', function () {
     $user = User::factory()->has(AgentConnection::factory())->create();
     $project = Project::factory()->for($user)->create();
     Sandbox::factory()->for($project)->create(['preview_url' => 'http://127.0.0.1:49152', 'shell_url' => 'about:blank']);
@@ -193,33 +192,45 @@ test('on a small screen a pane\'s tabs are one switcher, with the rest in a shee
     // Opened on a phone: opened wide, the files panel would start open and cover the workspace once narrowed.
     $page = visit("/projects/{$project->id}")
         ->on()->mobile()
-        ->click('@mobile-tab-workspace')
+        ->assertVisible('@mobile-tab-bar')
+        ->assertMissing('@mobile-tab-workspace')
+        ->click('@mobile-bar-preview')
         ->assertMissing('@tab-preview')
         ->assertMissing('@add-tab')
-        ->assertSeeIn('@mobile-tab-switcher', 'Preview')
+        ->assertAttribute('@mobile-bar-preview', 'aria-selected', 'true')
         ->assertVisible('@preview-annotate')
-        ->click('@mobile-tab-switcher')
+        ->click('@mobile-bar-shell')
+        ->assertAttribute('@mobile-bar-shell', 'aria-selected', 'true')
+        ->assertVisible('@shell-frame')
+        ->assertSeeIn('@mobile-bar-more', '2')
+        ->click('@mobile-bar-more')
         ->click('@mobile-add-tab-tests')
         ->assertMissing('@mobile-tab-sheet')
-        ->assertSeeIn('@mobile-tab-switcher', 'Tests')
-        ->assertSeeIn('@mobile-tab-switcher', '6')
-        ->click('@mobile-tab-switcher')
+        ->assertSeeIn('@mobile-bar-more', 'Tests')
+        ->assertAttribute('@mobile-bar-more', 'aria-selected', 'true')
+        ->click('@mobile-bar-more')
+        ->assertMissing('@mobile-tab-tools')
+        ->assertMissing('@mobile-tab-preview')
+        ->assertVisible('@mobile-close-shell')
         ->assertMissing('@mobile-add-tab-tests')
         ->assertVisible('@mobile-add-tab-shell')
         ->click('@mobile-close-tests')
         ->assertMissing('@mobile-tab-tests')
-        ->click('@mobile-tab-preview')
-        ->assertSeeIn('@mobile-tab-switcher', 'Preview')
+        ->click('@mobile-tab-console')
+        ->assertSeeIn('@mobile-bar-more', 'Console')
+        ->click('@mobile-bar-preview')
+        ->assertAttribute('@mobile-bar-preview', 'aria-selected', 'true')
+        ->assertSeeIn('@mobile-bar-more', 'More')
         ->assertVisible('@preview-annotate')
         ->click('@pane-more')
         ->assertSee('Open in a new tab')
         ->assertSee('Open in a new window')
         ->assertNoJavaScriptErrors();
 
-    $page->screenshot(filename: 'mobile-tab-switcher');
+    $page->screenshot(filename: 'mobile-tab-bar');
 
     $page->resize(1600, 900)
-        ->assertMissing('@mobile-tab-switcher')
+        ->assertMissing('@mobile-tab-bar')
         ->assertVisible('@tab-preview');
 })->group('LAYOUT-007');
 

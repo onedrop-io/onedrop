@@ -1,5 +1,7 @@
 import {
     Activity,
+    ChevronLeft,
+    ChevronRight,
     Clapperboard,
     CodeXml,
     Database,
@@ -206,19 +208,27 @@ export default function ToolsPanel({
         isSection(initialSection) ? initialSection : 'publishing',
     );
     const section = SECTIONS.find((s) => s.id === active) ?? SECTIONS[0];
+    // In a narrow pane (a phone) the menu and the section take turns at full width.
+    const [showingMenu, setShowingMenu] = useState(
+        () => !isSection(initialSection),
+    );
 
     // Asked for another section from outside (e.g. the header's git menu).
     useEffect(() => {
         if (isSection(initialSection)) {
             setActive(initialSection);
+            setShowingMenu(false);
         }
     }, [initialSection]);
 
     return (
-        <div className="flex min-h-0 flex-1" data-test="tools-panel">
+        <div className="@container flex min-h-0 flex-1" data-test="tools-panel">
             <nav
                 aria-label="Tools"
-                className="w-52 shrink-0 overflow-y-auto border-r border-sidebar-border/70 p-2 dark:border-sidebar-border"
+                className={cn(
+                    'min-w-0 flex-1 overflow-y-auto p-2 @lg:block @lg:w-52 @lg:flex-none @lg:border-r @lg:border-sidebar-border/70 @lg:dark:border-sidebar-border',
+                    showingMenu ? 'block' : 'hidden',
+                )}
             >
                 {GROUPS.map((group) => (
                     <div key={group.label} className="mb-3">
@@ -239,6 +249,7 @@ export default function ToolsPanel({
                                             }
 
                                             setActive(id);
+                                            setShowingMenu(false);
                                             onSectionChange?.(id);
                                         }}
                                         aria-current={
@@ -246,13 +257,14 @@ export default function ToolsPanel({
                                         }
                                         data-test={`tool-${id}`}
                                         className={cn(
-                                            'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted',
+                                            'flex w-full items-center gap-3 rounded-md px-2 py-3 text-left text-base hover:bg-muted @lg:gap-2 @lg:py-1.5 @lg:text-sm',
                                             active === id &&
-                                                'bg-muted font-medium',
+                                                '@lg:bg-muted @lg:font-medium',
                                         )}
                                     >
-                                        <Icon className="size-4 text-muted-foreground" />
-                                        {label}
+                                        <Icon className="size-5 text-muted-foreground @lg:size-4" />
+                                        <span className="flex-1">{label}</span>
+                                        <ChevronRight className="size-4 text-muted-foreground @lg:hidden" />
                                     </button>
                                 </li>
                             ))}
@@ -262,9 +274,21 @@ export default function ToolsPanel({
             </nav>
 
             <section
-                className="flex-1 overflow-y-auto p-6"
+                className={cn(
+                    'min-w-0 flex-1 overflow-y-auto p-4 @lg:block @lg:p-6',
+                    showingMenu ? 'hidden' : 'block',
+                )}
                 data-test={`tool-page-${section.id}`}
             >
+                <button
+                    type="button"
+                    onClick={() => setShowingMenu(true)}
+                    className="mb-3 -ml-2 flex items-center gap-1 rounded-md px-2 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground @lg:hidden"
+                    data-test="tools-back"
+                >
+                    <ChevronLeft className="size-4" />
+                    Tools
+                </button>
                 <h2 className="flex items-center gap-2 text-lg font-medium">
                     <section.icon className="size-5 text-muted-foreground" />
                     {section.label}

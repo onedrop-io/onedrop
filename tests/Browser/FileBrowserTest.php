@@ -93,7 +93,7 @@ test('on a phone the files panel covers the workspace from the ⋯ menu, and ope
         ->assertVisible('@files-panel')
         ->resize(390, 844)
         ->navigate("/projects/{$project->id}")
-        ->click('@mobile-tab-workspace')
+        ->click('@mobile-bar-preview')
         ->assertMissing('@files-panel')
         ->click('@pane-more')
         ->click('@pane-more-files')

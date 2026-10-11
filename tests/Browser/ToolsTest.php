@@ -39,3 +39,24 @@ test('the tools tab lists sections and shows publishing status', function () {
         ->assertMissing('@tools-panel')
         ->assertNoJavaScriptErrors();
 })->group('TOOL-001');
+
+test('on a phone the tools menu and a section take turns at full width', function () {
+    app()->instance(SandboxProvider::class, new FakeSandboxProvider);
+    $user = User::factory()->has(AgentConnection::factory())->create();
+    $project = Project::factory()->for($user)->create();
+    Sandbox::factory()->for($project)->create(['preview_url' => null]);
+    $this->actingAs($user);
+
+    visit("/projects/{$project->id}")
+        ->on()->mobile()
+        ->click('@mobile-bar-tools')
+        ->assertVisible('@tool-security')
+        ->assertMissing('@tools-publish-status')
+        ->click('@tool-security')
+        ->assertVisible('@tool-page-security')
+        ->assertMissing('@tool-publishing')
+        ->click('@tools-back')
+        ->assertVisible('@tool-publishing')
+        ->assertMissing('@tool-page-security')
+        ->assertNoJavaScriptErrors();
+})->group('TOOL-001');

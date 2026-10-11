@@ -728,16 +728,18 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## LAYOUT-006: Chat and workspace as tabs on small screens
 
-- On a phone or small tablet, user should see Chat and Workspace tabs at the top of a project instead of the chat above the workspace, each taking the whole screen.
+- On a small tablet, user should see Chat and Workspace tabs at the top of a project instead of the chat above the workspace, each taking the whole screen; on a phone, Chat is in the tab bar along the bottom (LAYOUT-007).
 - User should be able to switch between them without losing the chat's draft or reloading the preview.
-- User should see that the agent is working on the Chat tab while the Workspace tab is showing.
+- User should see that the agent is working on the Chat tab while the workspace is showing.
 - Sending something to the chat from the workspace (a marked-up or inspected preview) should switch to the Chat tab.
 - "Sign in to Claude" should switch to the Workspace tab (where the Shell runs the sign-in), and a successful sign-in should switch back to the Chat tab.
 - On a phone, the workspace's tab bar should leave out the preview's address, the preview size menu and the split menu, so its buttons fit on one line.
 
 ## LAYOUT-007: Tabs and header buttons on a phone
 
-- On a phone, user should see one button for a pane's tabs showing the tab on screen and how many are open; tapping it opens a sheet listing the open tabs (to switch to or close) and the tabs that can be opened.
+- On a phone, user should see one tab bar along the bottom of a project: Chat, Preview (Desktop on a computer), Tools, Shell and More, each one tap away.
+- Shell should show the Shell last on screen, or open one when none is.
+- More should open a sheet listing the open tabs not already in the bar (to switch to or close), then an "Add a tab" grid of the tabs that can be opened; it should show how many other tabs are open, and, while one of them is showing, that tab's name and icon instead.
 - The showing tab's own buttons (e.g. the preview's Inspect, Annotate and Reload) should stay in the bar however many tabs are open; "Open in a new tab", "Open in a new window" and the files toggle should be in a "⋯" menu.
 - On a phone, the header's Commit and Share buttons should show only their icons, Publish keeps its label, and the project's name should stay on one line, cut short if it's long.
 - Panels opened from the header (Share, Publish) should fit the phone's screen.
@@ -806,6 +808,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be able to switch between sections; each shows what it's for.
 - The Publishing section should show the project's current publish status, who can open it, and its URL.
 - Sections not built yet should say they're coming soon.
+- On a phone (a narrow pane), user should see the menu full width with large rows; choosing a section shows it full width with a **Tools** back button to the menu.
 
 ## INV-001: Invite people
 

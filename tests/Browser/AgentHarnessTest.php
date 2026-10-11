@@ -117,13 +117,13 @@ test('on a phone, "Sign in to Claude" switches to the workspace, and signing in 
     $page = visit("/projects/{$project->id}")
         ->resize(390, 844)
         ->click('@claude-sign-in')
-        ->assertAttribute('@mobile-tab-workspace', 'aria-selected', 'true')
+        ->assertAttribute('@mobile-bar-shell', 'aria-selected', 'true')
         ->assertVisible('@shell-frame-2')
         ->assertNoJavaScriptErrors();
 
     $provider->execUsing = fn (array $command) => new ExecResult(0, json_encode(['loggedIn' => true, 'authMethod' => 'claude.ai', 'email' => 'dev@example.com']));
 
-    $page->wait(6)->assertAttribute('@mobile-tab-chat', 'aria-selected', 'true')
+    $page->wait(6)->assertAttribute('@mobile-bar-chat', 'aria-selected', 'true')
         ->assertSeeIn('@claude-login-status', 'Claude Code is signed in as dev@example.com')
         ->assertMissing('@shell-frame-2')
         ->assertNoJavaScriptErrors();

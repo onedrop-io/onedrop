@@ -58,6 +58,7 @@ import {
     useRef,
     useState,
 } from 'react';
+import { createPortal } from 'react-dom';
 import type { CSSProperties } from 'react';
 import ProjectAgentController from '@/actions/App/Http/Controllers/ProjectAgentController';
 import ProjectMessageController from '@/actions/App/Http/Controllers/ProjectMessageController';
@@ -110,7 +111,7 @@ import FileTree, {
 } from '@/components/workspace/file-tree';
 import FilesMenu from '@/components/workspace/files-menu';
 import QuickOpen from '@/components/workspace/quick-open';
-import MobileTabSwitcher from '@/components/workspace/mobile-tab-switcher';
+import MobileTabBar from '@/components/workspace/mobile-tab-bar';
 import * as panes from '@/components/workspace/panes';
 import type { Layout, PaneTab, ShellTab } from '@/components/workspace/panes';
 import {
@@ -272,6 +273,10 @@ export default function ShowProject({
     const { simple } = useBuildMode();
     // On a phone or small tablet the chat and the workspace are tabs, one at a time (LAYOUT-006).
     const [mobileView, setMobileView] = useState<'chat' | 'workspace'>('chat');
+    // Where the workspace puts the phone's tab bar, along the bottom of the page under the chat too (LAYOUT-007).
+    const [mobileBarSlot, setMobileBarSlot] = useState<HTMLDivElement | null>(
+        null,
+    );
 
     // Bumped by "Sign in to Claude": the workspace opens the Shell tab on Claude Code's sign-in.
     const [claudeSignIns, setClaudeSignIns] = useState(0);
@@ -501,8 +506,11 @@ export default function ShowProject({
                     onToggleChat={toggleChat}
                     onShowChat={showChat}
                     mobileHidden={mobileView !== 'workspace'}
+                    mobileBarSlot={mobileBarSlot}
+                    onMobileViewChange={setMobileView}
                     onOpenFileChange={setOpenFile}
                 />
+                <div ref={setMobileBarSlot} className="contents" />
             </div>
         </>
     );
@@ -945,6 +953,8 @@ function WorkspacePanel({
     onToggleChat,
     onShowChat,
     mobileHidden,
+    mobileBarSlot,
+    onMobileViewChange,
     onOpenFileChange,
 }: {
     project: Project;
@@ -976,6 +986,10 @@ function WorkspacePanel({
     onShowChat: () => void;
     /** The chat tab is showing on a small screen (LAYOUT-006). */
     mobileHidden: boolean;
+    /** Where the phone's tab bar goes (LAYOUT-007). */
+    mobileBarSlot: HTMLElement | null;
+    /** Switches a small screen between the chat and the workspace. */
+    onMobileViewChange: (view: 'chat' | 'workspace') => void;
     /** Reports the file open in the editor, for the chat to send along (AGT-015). */
     onOpenFileChange: (file: ContextFile | null) => void;
 }) {
@@ -1065,6 +1079,14 @@ function WorkspacePanel({
     const tab = panes.focusedTab(layout);
     const showTab = (kind: PaneTab, paneId?: number) =>
         setLayout((current) => panes.showTab(current, kind, paneId));
+    // The Shell last on screen, for the phone tab bar's Shell (LAYOUT-007).
+    const lastShell = useRef<ShellTab | null>(null);
+
+    useEffect(() => {
+        if (panes.isShell(tab)) {
+            lastShell.current = tab;
+        }
+    }, [tab]);
 
     // A computer has no Tools tab to show (a layout saved in this tab, a link): its desktop instead.
     useEffect(() => {
@@ -2115,51 +2137,128 @@ function WorkspacePanel({
         );
     };
 
-    /** A pane's tabs for the phone's tab switcher (LAYOUT-007). */
-    const switcherTabs = (pane: Layout['panes'][number]) =>
-        pane.tabs
-            .filter((kind) => kind !== 'file' || openPath)
-            .filter((kind) => kind !== 'tools' || !computer)
-            .map((kind) => {
-                const name = openPath?.split('/').pop() ?? '';
+    /** Every open tab, for the phone's tab bar (LAYOUT-007). */
+    const switcherTabs = layout.panes
+        .flatMap((pane) => pane.tabs)
+        .filter((kind) => kind !== 'file' || openPath)
+        .filter((kind) => kind !== 'tools' || !computer)
+        .map((kind) => {
+            const name = openPath?.split('/').pop() ?? '';
 
-                return {
+            return {
+                id: kind,
+                label:
+                    kind === 'tools'
+                        ? 'Tools'
+                        : kind === 'preview'
+                          ? computer
+                              ? 'Desktop'
+                              : 'Preview'
+                          : kind === 'file'
+                            ? name
+                            : panes.isShell(kind)
+                              ? panes.shellLabel(kind)
+                              : TOOL_TABS[kind].label,
+                icon:
+                    kind === 'tools' ? (
+                        <Wrench className="size-4" />
+                    ) : kind === 'preview' ? (
+                        <Monitor className="size-4" />
+                    ) : kind === 'file' ? (
+                        <FileIcon name={name} />
+                    ) : panes.isShell(kind) ? (
+                        TOOL_TABS.shell.icon
+                    ) : (
+                        TOOL_TABS[kind].icon
+                    ),
+                active: tab === kind,
+                dirty: kind === 'file' && fileDirty,
+                onSelect: () => showMobileTab(kind),
+                onClose:
+                    kind === 'tools' || kind === 'preview'
+                        ? undefined
+                        : kind === 'file'
+                          ? closeFile
+                          : () => closeTab(kind),
+            };
+        });
+
+    /** Shows a tab from the phone's tab bar, switching from the chat to the workspace. */
+    const showMobileTab = (kind: PaneTab) => {
+        onMobileViewChange('workspace');
+        showTab(kind);
+
+        if (panes.isShell(kind)) {
+            shellFrames.current[kind]?.focus();
+        }
+    };
+    const openShells = layout.panes
+        .flatMap((pane) => pane.tabs)
+        .filter(panes.isShell);
+    const mobileBar = (
+        <MobileTabBar
+            chatActive={mobileHidden}
+            working={working}
+            onChat={() => onMobileViewChange('chat')}
+            items={[
+                {
+                    id: 'preview',
+                    label: computer ? 'Desktop' : 'Preview',
+                    icon: <Monitor />,
+                    active: tab === 'preview',
+                    tabIds: ['preview'],
+                    onSelect: () => showMobileTab('preview'),
+                },
+                ...(computer
+                    ? []
+                    : [
+                          {
+                              id: 'tools',
+                              label: 'Tools',
+                              icon: <Wrench />,
+                              active: tab === 'tools',
+                              tabIds: ['tools'],
+                              onSelect: () => showMobileTab('tools'),
+                          },
+                      ]),
+                {
+                    id: 'shell',
+                    label: 'Shell',
+                    icon: <SquareTerminal />,
+                    active: panes.isShell(tab),
+                    tabIds: openShells,
+                    onSelect: () => {
+                        const shell =
+                            lastShell.current &&
+                            openShells.includes(lastShell.current)
+                                ? lastShell.current
+                                : openShells[0];
+
+                        if (shell) {
+                            showMobileTab(shell);
+                        } else {
+                            onMobileViewChange('workspace');
+                            addTab('shell');
+                        }
+                    },
+                },
+            ]}
+            tabs={switcherTabs}
+            newTabs={toolTabs
+                .filter(
+                    (kind) => kind === 'shell' || !panes.paneOf(layout, kind),
+                )
+                .map((kind) => ({
                     id: kind,
-                    label:
-                        kind === 'tools'
-                            ? 'Tools'
-                            : kind === 'preview'
-                              ? computer
-                                  ? 'Desktop'
-                                  : 'Preview'
-                              : kind === 'file'
-                                ? name
-                                : panes.isShell(kind)
-                                  ? panes.shellLabel(kind)
-                                  : TOOL_TABS[kind].label,
-                    icon:
-                        kind === 'tools' ? (
-                            <Wrench className="size-4" />
-                        ) : kind === 'preview' ? (
-                            <Monitor className="size-4" />
-                        ) : kind === 'file' ? (
-                            <FileIcon name={name} />
-                        ) : panes.isShell(kind) ? (
-                            TOOL_TABS.shell.icon
-                        ) : (
-                            TOOL_TABS[kind].icon
-                        ),
-                    active: pane.active === kind,
-                    dirty: kind === 'file' && fileDirty,
-                    onSelect: () => showTab(kind),
-                    onClose:
-                        kind === 'tools' || kind === 'preview'
-                            ? undefined
-                            : kind === 'file'
-                              ? closeFile
-                              : () => closeTab(kind),
-                };
-            });
+                    label: TOOL_TABS[kind].label,
+                    icon: TOOL_TABS[kind].icon,
+                    onSelect: () => {
+                        onMobileViewChange('workspace');
+                        addTab(kind);
+                    },
+                }))}
+        />
+    );
 
     return (
         <div
@@ -2168,6 +2267,7 @@ function WorkspacePanel({
                 mobileHidden && 'max-lg:hidden',
             )}
         >
+            {mobileBarSlot && createPortal(mobileBar, mobileBarSlot)}
             <section
                 ref={panesArea}
                 aria-label="Preview"
@@ -2229,22 +2329,6 @@ function WorkspacePanel({
                                     <PanelLeft className="size-4" />
                                 </IconButton>
                             )}
-                            <MobileTabSwitcher
-                                className="md:hidden"
-                                tabs={switcherTabs(pane)}
-                                newTabs={toolTabs
-                                    .filter(
-                                        (kind) =>
-                                            kind === 'shell' ||
-                                            !panes.paneOf(layout, kind),
-                                    )
-                                    .map((kind) => ({
-                                        id: kind,
-                                        label: TOOL_TABS[kind].label,
-                                        icon: TOOL_TABS[kind].icon,
-                                        onSelect: () => addTab(kind, pane.id),
-                                    }))}
-                            />
                             <div className="flex min-w-0 items-center gap-1 max-md:hidden">
                                 {/* The tabs scroll when they don't fit, so the status and the tab's buttons stay in view. */}
                                 <div
@@ -3507,7 +3591,7 @@ function MobileViewTabs({
         <div
             role="tablist"
             aria-label="Chat or workspace"
-            className="flex shrink-0 gap-1 border-b border-sidebar-border/70 p-2 lg:hidden dark:border-sidebar-border"
+            className="flex shrink-0 gap-1 border-b border-sidebar-border/70 p-2 max-md:hidden lg:hidden dark:border-sidebar-border"
         >
             <div className="flex flex-1 gap-1 rounded-lg bg-muted p-1">
                 {tab('chat', <MessageSquare className="size-4" />, 'Chat')}
