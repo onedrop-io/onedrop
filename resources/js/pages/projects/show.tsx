@@ -273,6 +273,8 @@ export default function ShowProject({
     const { simple } = useBuildMode();
     // On a phone or small tablet the chat and the workspace are tabs, one at a time (LAYOUT-006).
     const [mobileView, setMobileView] = useState<'chat' | 'workspace'>('chat');
+    // Share as a sheet, opened from the header's "⋯" menu on a phone (LAYOUT-007).
+    const [shareSheetOpen, setShareSheetOpen] = useState(false);
     // Where the workspace puts the phone's tab bar, along the bottom of the page under the chat too (LAYOUT-007).
     const [mobileBarSlot, setMobileBarSlot] = useState<HTMLDivElement | null>(
         null,
@@ -429,11 +431,14 @@ export default function ShowProject({
                         projectId={project.id}
                         running={sandbox?.status === 'running'}
                         working={working}
+                        onShare={() => setShareSheetOpen(true)}
                     />
                     <ShareMenu
                         projectId={project.id}
                         projectName={project.name}
                         sharing={sharing}
+                        sheetOpen={shareSheetOpen}
+                        onSheetOpenChange={setShareSheetOpen}
                     />
                     <EditorMenu
                         projectId={project.id}

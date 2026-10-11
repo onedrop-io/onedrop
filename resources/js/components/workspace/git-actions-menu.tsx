@@ -3,6 +3,8 @@ import {
     CloudUpload,
     Combine,
     GitCommitHorizontal,
+    MoreHorizontal,
+    Share2,
     Undo2,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -14,6 +16,7 @@ import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
@@ -38,21 +41,26 @@ type OpenDialog =
 
 /**
  * Commit, push and open a pull request from the header (GIT-006), next to Share. Committing opens the Source Control
- * tab (SCM-001), with the cursor in its message box.
+ * tab (SCM-001), with the cursor in its message box. On a phone it's the header's one "⋯" menu (LAYOUT-007): the
+ * commit button is left out (Commit… and Push do the same), and Share moves in.
  */
 export default function GitActionsMenu({
     projectId,
     running,
     working,
+    onShare,
 }: {
     projectId: number;
     running: boolean;
     /** The agent is running a task: it commits when it finishes. */
     working: boolean;
+    /** Opens Share, from the menu on a phone. */
+    onShare?: () => void;
 }) {
     const [git, setGit] = useState<GitState | null>(null);
     const [dialog, setDialog] = useState<OpenDialog | null>(null);
     const pendingDialog = useRef<OpenDialog | null>(null);
+    const pendingShare = useRef(false);
     // The toast following a push until it's done.
     const pushToast = useRef<string | number | null>(null);
 
@@ -193,21 +201,18 @@ export default function GitActionsMenu({
                 <Button
                     size="sm"
                     variant="outline"
-                    className="rounded-r-none border-r-0"
+                    className="rounded-r-none border-r-0 max-sm:hidden"
                     disabled={!running}
                     onClick={primary}
                     title={title}
                     data-test="git-actions-primary"
                 >
                     <CloudUpload className="size-4" />
-                    {/* Icon only on a phone, so the project's name has room (LAYOUT-007). */}
-                    <span className="max-sm:sr-only">
-                        {syncStatus === 'pushing'
-                            ? 'Pushing…'
-                            : remote
-                              ? 'Commit & push'
-                              : 'Commit'}
-                    </span>
+                    {syncStatus === 'pushing'
+                        ? 'Pushing…'
+                        : remote
+                          ? 'Commit & push'
+                          : 'Commit'}
                     {changes > 0 && (
                         <span
                             className="rounded-full bg-primary px-1.5 text-[11px] leading-4 text-primary-foreground tabular-nums"
@@ -222,12 +227,19 @@ export default function GitActionsMenu({
                         <Button
                             size="sm"
                             variant="outline"
-                            className="rounded-l-none px-2"
-                            aria-label="More git actions"
+                            className="relative rounded-l-none px-2 max-sm:rounded-l-md"
+                            aria-label="More actions"
                             onClick={() => running && void load()}
                             data-test="git-actions-menu"
                         >
-                            <ChevronDown className="size-4" />
+                            <ChevronDown className="size-4 max-sm:hidden" />
+                            <MoreHorizontal className="size-4 sm:hidden" />
+                            {changes > 0 && (
+                                <span
+                                    className="absolute -top-1 -right-1 size-2.5 rounded-full border-2 border-background bg-primary sm:hidden"
+                                    aria-label={`${changes} changed ${changes === 1 ? 'file' : 'files'}`}
+                                />
+                            )}
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent
@@ -240,6 +252,12 @@ export default function GitActionsMenu({
                                 setDialog(pendingDialog.current);
                                 pendingDialog.current = null;
                             }
+
+                            if (pendingShare.current) {
+                                event.preventDefault();
+                                pendingShare.current = false;
+                                onShare?.();
+                            }
                         }}
                     >
                         <DropdownMenuItem
@@ -248,7 +266,13 @@ export default function GitActionsMenu({
                             data-test="git-actions-commit"
                         >
                             <GitCommitHorizontal className="size-4" />
-                            Commit…
+                            <span className="flex-1">Commit…</span>
+                            {/* The commit button's count, which a phone shows only here (LAYOUT-007). */}
+                            {changes > 0 && (
+                                <span className="rounded-full bg-primary px-1.5 text-[11px] leading-4 text-primary-foreground tabular-nums sm:hidden">
+                                    {changes}
+                                </span>
+                            )}
                         </DropdownMenuItem>
                         <DropdownMenuItem
                             disabled={remote ? !canPush : !running}
@@ -320,6 +344,21 @@ export default function GitActionsMenu({
                                 )}
                             </span>
                         </DropdownMenuItem>
+                        {onShare && (
+                            <>
+                                <DropdownMenuSeparator className="sm:hidden" />
+                                <DropdownMenuItem
+                                    onSelect={() => {
+                                        pendingShare.current = true;
+                                    }}
+                                    className="sm:hidden"
+                                    data-test="git-actions-share"
+                                >
+                                    <Share2 className="size-4" />
+                                    Share
+                                </DropdownMenuItem>
+                            </>
+                        )}
                     </DropdownMenuContent>
                 </DropdownMenu>
             </div>

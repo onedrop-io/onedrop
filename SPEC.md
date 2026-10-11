@@ -741,7 +741,8 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Shell should show the Shell last on screen, or open one when none is.
 - More should open a sheet listing the open tabs not already in the bar (to switch to or close), then an "Add a tab" grid of the tabs that can be opened; it should show how many other tabs are open, and, while one of them is showing, that tab's name and icon instead.
 - The showing tab's own buttons (e.g. the preview's Inspect, Annotate and Reload) should stay in the bar however many tabs are open; "Open in a new tab", "Open in a new window" and the files toggle should be in a "⋯" menu.
-- On a phone, the header's Commit and Share buttons should show only their icons, Publish keeps its label, and the project's name should stay on one line, cut short if it's long.
+- On a phone, the header should show only the sidebar button, the project's name (on one line, cut short if it's long), one "⋯" menu and Publish with its label.
+- The "⋯" menu should hold the git actions (Commit…, with how many files changed, Push, Undo last commit, Create PR) and Share; Share should open as a sheet from the bottom. A dot on "⋯" should show there are changes to commit.
 - Panels opened from the header (Share, Publish) should fit the phone's screen.
 
 ## TOUCH-001: Tablets and phones show what others show on hover

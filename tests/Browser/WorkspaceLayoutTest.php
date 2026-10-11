@@ -234,7 +234,7 @@ test('on a phone the tabs are a bar along the bottom, with the rest in a sheet',
         ->assertVisible('@tab-preview');
 })->group('LAYOUT-007');
 
-test('on a small screen the header\'s commit and share buttons are icons, leaving room for the project\'s name', function () {
+test('on a phone the header\'s commit and share are in one menu, leaving room for the project\'s name', function () {
     $user = User::factory()->has(AgentConnection::factory())->create();
     $project = Project::factory()->for($user)->create(['name' => 'Dolorum Aut Ut Alias Iusto Molestiae']);
     Sandbox::factory()->for($project)->create(['preview_url' => null]);
@@ -242,13 +242,24 @@ test('on a small screen the header\'s commit and share buttons are icons, leavin
 
     $page = visit("/projects/{$project->id}")
         ->resize(390, 844)
-        ->assertVisible('@share-button')
-        ->assertScript("document.querySelector('[data-test=\"share-button\"]').offsetWidth < 48", true)
+        ->assertMissing('@share-button')
+        ->assertMissing('@git-actions-primary')
         ->assertSeeIn('@publish-button', 'Publish')
         ->assertScript("document.querySelector('header [data-slot=\"breadcrumb-page\"]').offsetHeight < 30", true)
+        ->click('@git-actions-menu')
+        ->assertSeeIn('@git-actions-commit', 'Commit…')
+        ->assertVisible('@git-actions-push')
+        ->click('@git-actions-share')
+        ->assertVisible('@share-panel')
+        ->assertSee('Show it off')
+        ->assertVisible('@share-prompt')
         ->assertNoJavaScriptErrors();
 
     $page->screenshot(filename: 'mobile-header');
+
+    $page->resize(1600, 900)
+        ->assertVisible('@share-button')
+        ->assertVisible('@git-actions-primary');
 })->group('LAYOUT-007');
 
 test('the preview address copies only from its copy button', function () {
