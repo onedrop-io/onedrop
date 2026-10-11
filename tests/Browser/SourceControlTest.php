@@ -85,6 +85,8 @@ test('source control stages a part of a file and a whole file, commits them as t
     $page->click('[data-test="git-changes"] [data-test="git-change"]:first-child [data-test="git-change-open"]')
         ->assertSeeIn('@scm-diff-path', 'app.tsx')
         ->assertSeeIn('@scm-diff', 'line 2, by the agent')
+        // The open file's row shows its actions without hovering, discard included.
+        ->assertVisible('[data-test="git-change"]:first-child [data-test="git-change-discard"]')
         ->click('[data-test="git-actions-hunk"]:first-child [data-test="scm-hunk-stage"]')
         ->assertSeeIn('@scm-staged', 'app.tsx')
         ->assertSeeIn('@scm-commit', 'Commit (1)');

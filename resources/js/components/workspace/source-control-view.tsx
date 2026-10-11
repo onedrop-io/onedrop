@@ -1535,7 +1535,12 @@ function ChangeRow({
                     {folder}
                 </span>
                 {change.additions != null && change.deletions != null && (
-                    <span className="shrink-0 font-mono text-[11px] group-hover:hidden">
+                    <span
+                        className={cn(
+                            'shrink-0 font-mono text-[11px] group-focus-within:hidden group-hover:hidden pointer-coarse:hidden',
+                            selected && 'hidden',
+                        )}
+                    >
                         <span className="text-green-600">
                             +{change.additions}
                         </span>{' '}
@@ -1545,7 +1550,13 @@ function ChangeRow({
                     </span>
                 )}
             </button>
-            <span className="hidden shrink-0 group-focus-within:flex group-hover:flex">
+            {/* On hover, on the file that's open, and always on touch screens, which can't hover. */}
+            <span
+                className={cn(
+                    'hidden shrink-0 group-focus-within:flex group-hover:flex pointer-coarse:flex',
+                    selected && 'flex',
+                )}
+            >
                 {change.status !== 'D' && (
                     <RowAction label="Open file" onClick={onOpen}>
                         <FileText className="size-3.5" />
@@ -1553,7 +1564,11 @@ function ChangeRow({
                 )}
                 {!staged && change.status !== 'U' && (
                     <RowAction
-                        label="Discard changes"
+                        label={
+                            working
+                                ? 'Discard changes (wait for the agent to finish)'
+                                : 'Discard changes: put the file back as it was'
+                        }
                         disabled={working}
                         onClick={onDiscard}
                         testId="git-change-discard"
