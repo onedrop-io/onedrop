@@ -2180,7 +2180,7 @@ function WorkspacePanel({
                             }
                             {...tabBarDrop(pane.id)}
                             className={cn(
-                                'flex min-w-0 items-center gap-1 overflow-x-auto border-b border-sidebar-border/70 bg-toolbar px-2 py-1.5 text-sm [scrollbar-width:none] dark:border-sidebar-border',
+                                'flex min-w-0 [scrollbar-width:none] items-center gap-1 overflow-x-auto border-b border-sidebar-border/70 bg-toolbar px-2 py-1.5 text-sm dark:border-sidebar-border',
                                 !rowLayout && index > 0 && 'border-t-0',
                             )}
                         >
@@ -2212,7 +2212,7 @@ function WorkspacePanel({
                             />
                             <div className="flex min-w-0 items-center gap-1 max-md:hidden">
                                 {/* The tabs scroll when they don't fit, so the status and the tab's buttons stay in view. */}
-                                <div className="flex min-w-0 items-center gap-1 overflow-x-auto [scrollbar-width:none]">
+                                <div className="flex min-w-0 [scrollbar-width:none] items-center gap-1 overflow-x-auto">
                                     {pane.tabs.map((kind) =>
                                         tabButton(kind, pane.id),
                                     )}
