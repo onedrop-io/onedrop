@@ -22,8 +22,22 @@ class WorkspaceGit
      */
     public function status(Sandbox $sandbox): array
     {
+        $status = $this->rawStatus($sandbox);
+
         // A sandbox whose Git tool predates staging (SCM-001) reports everything as unstaged until it's updated.
-        return ['staged' => [], ...$this->call($sandbox, ['op' => 'status'])];
+        return [...$status, 'staged' => $status['staged'] ?? []];
+    }
+
+    /**
+     * The status as the sandbox's Git tool reports it; one older than staging (SCM-001) leaves out what's staged.
+     *
+     * @return array{initialized: bool, branch: ?string, branches: list<string>, head: ?string, staged?: list<array{path: string, status: string, additions?: ?int, deletions?: ?int, binary?: bool, from?: string}>, changes: list<array{path: string, status: string, additions?: ?int, deletions?: ?int, binary?: bool, from?: string}>, more_changes: bool, tracking: array{ahead: int, behind: int}|null, unpushed?: ?int, state: ?string}
+     *
+     * @throws SandboxException|GitException
+     */
+    protected function rawStatus(Sandbox $sandbox): array
+    {
+        return $this->call($sandbox, ['op' => 'status']);
     }
 
     /**

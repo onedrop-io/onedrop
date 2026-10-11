@@ -24,7 +24,7 @@ class CommitMessageWriter
     public function write(Project $project, Sandbox $sandbox): string
     {
         $status = $this->git->status($sandbox);
-        $changes = ($status['staged'] ?? []) !== [] ? $status['staged'] : $status['changes'];
+        $changes = $status['staged'] !== [] ? $status['staged'] : $status['changes'];
 
         try {
             $message = $this->messageFrom($this->ai->ask($project, $this->prompt($this->git->changesDiff($sandbox))));

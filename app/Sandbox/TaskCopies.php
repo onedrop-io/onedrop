@@ -524,6 +524,7 @@ class TaskCopies
     }
 
     /**
+     * @param  list<string>  $command
      * @param  array<string, string>  $env
      */
     protected function run(Sandbox $sandbox, array $command, array $env = []): string
