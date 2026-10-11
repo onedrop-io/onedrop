@@ -20,7 +20,6 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Button } from '@/components/ui/button';
 import AuthPanel from '@/components/workspace/auth-panel';
 import ComputerPanel from '@/components/workspace/computer-panel';
 import DatabasePanel from '@/components/workspace/database-panel';
@@ -204,16 +203,14 @@ export default function ToolsPanel({
     onSectionChange?: (section: string) => void;
 }) {
     const [active, setActive] = useState(() =>
-        SECTIONS.some((s) => s.id === initialSection)
-            ? (initialSection as string)
-            : 'publishing',
+        isSection(initialSection) ? initialSection : 'publishing',
     );
     const section = SECTIONS.find((s) => s.id === active) ?? SECTIONS[0];
 
     // Asked for another section from outside (e.g. the header's git menu).
     useEffect(() => {
-        if (SECTIONS.some((s) => s.id === initialSection)) {
-            setActive(initialSection as string);
+        if (isSection(initialSection)) {
+            setActive(initialSection);
         }
     }, [initialSection]);
 
@@ -234,6 +231,13 @@ export default function ToolsPanel({
                                     <button
                                         type="button"
                                         onClick={() => {
+                                            // Source Control is its own tab (SCM-001): this only opens it.
+                                            if (id === 'git') {
+                                                openWorkspaceTool('git');
+
+                                                return;
+                                            }
+
                                             setActive(id);
                                             onSectionChange?.(id);
                                         }}
@@ -321,8 +325,6 @@ export default function ToolsPanel({
                             running={running}
                             working={working}
                         />
-                    ) : section.id === 'git' ? (
-                        <SourceControlPointer />
                     ) : section.id === 'pulls' ? (
                         <PullRequestsPanel projectId={projectId} />
                     ) : section.id === 'icon' ? (
@@ -449,23 +451,7 @@ function ComingSoon() {
     );
 }
 
-/** Git has its own tab now (SCM-001): opening this section shows it. */
-function SourceControlPointer() {
-    useEffect(() => openWorkspaceTool('git'), []);
-
-    return (
-        <div className="max-w-xl space-y-3 text-sm text-muted-foreground">
-            <p>
-                Changes, commits, the history, the agent's checkpoints and the
-                repository are in the Source Control tab.
-            </p>
-            <Button
-                size="sm"
-                onClick={() => openWorkspaceTool('git')}
-                data-test="tools-open-source-control"
-            >
-                Open Source Control
-            </Button>
-        </div>
-    );
+/** A section Tools can show: Source Control is listed, but opens its own tab instead. */
+function isSection(id: string | null | undefined): id is string {
+    return id !== 'git' && SECTIONS.some((s) => s.id === id);
 }

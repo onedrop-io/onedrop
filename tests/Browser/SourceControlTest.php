@@ -149,5 +149,14 @@ test('old links to Source Control open the source control tab', function () {
     visit("/projects/{$project->id}?tool=git")
         ->resize(1500, 1000)
         ->assertVisible('@source-control')
-        ->assertSeeIn('@scm-timeline', 'Build a timer');
+        ->assertSeeIn('@scm-timeline', 'Build a timer')
+        // Tools still opens Tools, and its Source Control entry only opens the tab.
+        ->click('@tab-tools')
+        ->assertVisible('@tools-panel')
+        ->assertMissing('@source-control')
+        ->click('@tool-git')
+        ->assertVisible('@source-control')
+        ->click('@tab-tools')
+        ->assertVisible('@tools-panel')
+        ->assertMissing('@source-control');
 })->group('SCM-001');
