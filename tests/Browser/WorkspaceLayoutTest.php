@@ -100,6 +100,9 @@ test('a reload keeps the panes, tabs, Shell sessions, preview page and chat draf
         ->assertPresent('@shell-frame-2')
         ->click('[data-test="pane-1"] [data-test="add-tab"]')
         ->click('@add-tab-tests')
+        // A Shell starts once it's shown.
+        ->click('[data-test="pane-1"] [data-test="tab-shell"]')
+        ->assertPresent('@shell-frame')
         ->click('[data-test="pane-1"] [data-test="tab-preview"]')
         ->type('#composer-content', 'half a thought');
 
@@ -110,9 +113,12 @@ test('a reload keeps the panes, tabs, Shell sessions, preview page and chat draf
     $page->refresh()
         ->assertScript($tabsIn(1), 'tab-tools,tab-preview,tab-shell,tab-services,tab-console,tab-tests')
         ->assertScript($tabsIn(2), 'tab-shell-2')
-        ->assertScript($shellSrc, $session)
         ->assertScript("{$previewSrc}.endsWith('/settings?section=billing')", true)
         ->assertValue('#composer-content', 'half a thought')
+        // A Shell not on screen reattaches once it's shown.
+        ->assertMissing('@shell-frame')
+        ->click('[data-test="pane-1"] [data-test="tab-shell"]')
+        ->assertScript($shellSrc, $session)
         ->assertNoJavaScriptErrors();
 
     // Another browser tab has its own sessionStorage: the default layout, and no shared Shells.
@@ -199,6 +205,8 @@ test('on a phone the tabs are a bar along the bottom, with the rest in a sheet',
         ->assertMissing('@add-tab')
         ->assertAttribute('@mobile-bar-preview', 'aria-selected', 'true')
         ->assertVisible('@preview-annotate')
+        // A Shell starts once it's on screen, at the phone's width, so its banner isn't rewrapped off the top.
+        ->assertMissing('@shell-frame')
         ->click('@mobile-bar-shell')
         ->assertAttribute('@mobile-bar-shell', 'aria-selected', 'true')
         ->assertVisible('@shell-frame')
@@ -244,6 +252,7 @@ test('on a phone the header\'s commit and share are in one menu, leaving room fo
         ->resize(390, 844)
         ->assertMissing('@share-button')
         ->assertMissing('@git-actions-primary')
+        ->assertScript("!!document.querySelector('[data-sidebar=\"trigger\"] svg.lucide-menu')", true)
         ->assertSeeIn('@publish-button', 'Publish')
         ->assertScript("document.querySelector('header [data-slot=\"breadcrumb-page\"]').offsetHeight < 30", true)
         ->click('@git-actions-menu')

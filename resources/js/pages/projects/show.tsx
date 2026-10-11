@@ -1109,6 +1109,31 @@ function WorkspacePanel({
     >({});
     const panesArea = useRef<HTMLElement>(null);
 
+    // A Shell starts the first time it's on screen, not while hidden: a hidden frame has no size, so its terminal
+    // would start 80 columns wide and the banner, rewrapped for a phone's narrower one, would lose its top lines.
+    const [startedShells, setStartedShells] = useState<ShellTab[]>([]);
+    const onScreenShells = layout.panes
+        .map((pane) => pane.active)
+        .filter(panes.isShell)
+        .join();
+
+    useEffect(() => {
+        // Below `lg` the workspace is hidden while the chat is showing (LAYOUT-006).
+        if (mobileHidden && !window.matchMedia('(min-width: 1024px)').matches) {
+            return;
+        }
+
+        const shown = onScreenShells
+            ? (onScreenShells.split(',') as ShellTab[])
+            : [];
+
+        setStartedShells((started) =>
+            shown.every((shell) => started.includes(shell))
+                ? started
+                : [...new Set([...started, ...shown])],
+        );
+    }, [onScreenShells, mobileHidden]);
+
     // Put the cursor in the terminal whenever a Shell tab is shown; not when only the pane last used changes,
     // which would take focus from a menu opened in that pane.
     const shownTabs = layout.panes.map((pane) => pane.active).join();
@@ -1117,8 +1142,9 @@ function WorkspacePanel({
         if (panes.isShell(tab)) {
             shellFrames.current[tab]?.focus();
         }
+        // Again once a Shell shown for the first time has started.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [shownTabs]);
+    }, [shownTabs, startedShells]);
 
     // A tab that's opened or shown is scrolled into view in its pane's tab bar, which scrolls when the tabs don't fit:
     // on a narrow pane (a tablet) a tab opened from elsewhere could otherwise be off the edge (TOUCH-001).
@@ -2973,42 +2999,43 @@ function WorkspacePanel({
                 {shells.map((shell) =>
                     content(
                         shell,
-                        shellReady && shellStarts[shell] && !away ? (
-                            // Stays mounted while the tab is open so the session survives tab switches and moves (unloaded
-                            // while the page is away, then back on the same session).
-                            <iframe
-                                ref={(frame) => {
-                                    if (frame) {
-                                        shellFrames.current[shell] = frame;
-                                    } else {
-                                        delete shellFrames.current[shell];
-                                    }
-                                }}
-                                src={shellSrc(shellStarts[shell], sandbox)}
-                                title={panes.shellLabel(shell)}
-                                onLoad={() => {
-                                    themeShell(shellFrames.current[shell]);
+                        startedShells.includes(shell) &&
+                            (shellReady && shellStarts[shell] && !away ? (
+                                // Stays mounted while the tab is open so the session survives tab switches and moves (unloaded
+                                // while the page is away, then back on the same session).
+                                <iframe
+                                    ref={(frame) => {
+                                        if (frame) {
+                                            shellFrames.current[shell] = frame;
+                                        } else {
+                                            delete shellFrames.current[shell];
+                                        }
+                                    }}
+                                    src={shellSrc(shellStarts[shell], sandbox)}
+                                    title={panes.shellLabel(shell)}
+                                    onLoad={() => {
+                                        themeShell(shellFrames.current[shell]);
 
-                                    if (tab === shell) {
-                                        shellFrames.current[shell]?.focus();
+                                        if (tab === shell) {
+                                            shellFrames.current[shell]?.focus();
+                                        }
+                                    }}
+                                    className="flex-1 bg-well"
+                                    data-test={
+                                        shell === 'shell'
+                                            ? 'shell-frame'
+                                            : `shell-frame-${shell.slice('shell-'.length)}`
                                     }
-                                }}
-                                className="flex-1 bg-well"
-                                data-test={
-                                    shell === 'shell'
-                                        ? 'shell-frame'
-                                        : `shell-frame-${shell.slice('shell-'.length)}`
-                                }
-                            />
-                        ) : (
-                            <Notice>
-                                {shellUnreachable
-                                    ? 'The shell only works on the machine running this app builder.'
-                                    : running
-                                      ? "This sandbox doesn't have a shell. It was created before shells were added; recreate it to get one."
-                                      : 'The shell starts when the sandbox is running.'}
-                            </Notice>
-                        ),
+                                />
+                            ) : (
+                                <Notice>
+                                    {shellUnreachable
+                                        ? 'The shell only works on the machine running this app builder.'
+                                        : running
+                                          ? "This sandbox doesn't have a shell. It was created before shells were added; recreate it to get one."
+                                          : 'The shell starts when the sandbox is running.'}
+                                </Notice>
+                            )),
                     ),
                 )}
             </section>
