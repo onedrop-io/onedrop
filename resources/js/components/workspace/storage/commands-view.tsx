@@ -164,7 +164,7 @@ function CodeBlock({ title, code }: Snippet) {
                 <Button
                     size="icon"
                     variant="ghost"
-                    className="absolute top-2 right-2 size-7 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                    className="absolute top-2 right-2 size-7 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 touch:opacity-100!"
                     aria-label={`Copy: ${title}`}
                     onClick={() => void copy(code)}
                 >

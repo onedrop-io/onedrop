@@ -7,6 +7,9 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Screens that can't hover (tablets, phones): what shows on hover elsewhere is always shown there (TOUCH-001). */
+@custom-variant touch (@media (hover: none));
+
 @theme {
     --font-sans:
         'Instrument Sans', ui-sans-serif, system-ui, sans-serif,

@@ -1,0 +1,32 @@
+---
+title: 'Tablets and phones'
+description: 'Manual tests for using OneDrop on a real touch screen, which the browser tests can only emulate.'
+noindex: true
+---
+
+The browser tests emulate an iPad, which can't hover, but not a real one: an iPad with a trackpad or keyboard, Safari's sticky hover after a tap, or the on-screen keyboard. Check these on a real tablet (and a phone where noted).
+
+## Buttons that show on hover elsewhere (TOUCH-001)
+
+1. Open a running project with changes and a task, on a tablet with no trackpad attached.
+
+- [ ] **Source Control:** every file shows its open, discard (↶) and stage (+) buttons; **Changes** shows stage all and discard all; each commit in **History** shows its **⋯** menu. Discard asks first.
+- [ ] **Files panel:** every file and folder shows its **⋯** menu.
+- [ ] **Sidebar:** each project shows **+** (New task) and **⋯**, and its name stays readable beside them. A project with tasks has a small chevron badge on its icon that shows and hides them; tapping the icon elsewhere opens the project.
+- [ ] **Board:** each task card shows its menu.
+- [ ] **Tests:** each group shows **Run**, and a step shows **Take over**.
+- [ ] **Preview:** **Copy address** is there. **Apps page:** **Pin** is there. **App Storage → Commands:** **Copy** is there.
+- [ ] Icon buttons are easy to tap without hitting the one next to them.
+
+2. Attach a trackpad (or use a laptop).
+
+- [ ] The same buttons show on hover only, as before; on a laptop nothing changed.
+
+## Not covered yet
+
+Note what happens, so it can be fixed:
+
+- The workspace's tab strip on a narrow pane (a tab you open may be off-screen).
+- Dragging tabs between panes, and the pane, chat and files dividers.
+- Shortcuts with no on-screen way (⌘P, ⌘⏎ in Source Control, ↑/↓ through files) with the on-screen keyboard.
+- Reasons shown only as tooltips (a disabled button's "wait for the agent").

@@ -742,6 +742,13 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - On a phone, the header's Commit and Share buttons should show only their icons, Publish keeps its label, and the project's name should stay on one line, cut short if it's long.
 - Panels opened from the header (Share, Publish) should fit the phone's screen.
 
+## TOUCH-001: Tablets and phones show what others show on hover
+
+- On a screen that can't hover (a tablet or phone), user should always see the buttons other screens show only on hover: a file's actions in Source Control and the files panel, each list's stage and discard all, a commit's menu, a project's New task and menu in the sidebar, a task card's actions on the board, Run and Take over in Tests, Copy address on the preview, Pin on the Apps page, Copy in App Storage commands, the model picker's row action, and the screenshot arrows.
+- The sidebar's button to show a project's tasks should show as a small badge on its icon there, so tapping the icon doesn't toggle the tasks unseen.
+- Icon buttons should be at least 36px to tap on such a screen.
+- With a mouse, they keep showing on hover, as before.
+
 ## PUB-001: Publish a project
 
 - User should be able to publish a project from a Publish button in the workspace header.

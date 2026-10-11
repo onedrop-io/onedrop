@@ -85,9 +85,8 @@ test('source control stages a part of a file and a whole file, commits them as t
     $page->click('[data-test="git-changes"] [data-test="git-change"]:first-child [data-test="git-change-open"]')
         ->assertSeeIn('@scm-diff-path', 'app.tsx')
         ->assertSeeIn('@scm-diff', 'line 2, by the agent')
-        // Every row shows its buttons without hovering (tablets can't hover), discard included.
-        ->assertVisible('[data-test="git-change"]:last-child [data-test="git-change-discard"]')
-        ->assertVisible('@scm-stage-all-inline')
+        // The open file's row shows its buttons without hovering, discard included.
+        ->assertVisible('[data-test="git-change"]:first-child [data-test="git-change-discard"]')
         ->click('[data-test="git-actions-hunk"]:first-child [data-test="scm-hunk-stage"]')
         ->assertSeeIn('@scm-staged', 'app.tsx')
         ->assertSeeIn('@scm-commit', 'Commit (1)');
@@ -97,7 +96,8 @@ test('source control stages a part of a file and a whole file, commits them as t
     expect(($this->sh)('git show :app.tsx'))->toContain('line 2, by the agent')->not->toContain('line 19, by the agent');
 
     // Stage timer.tsx from its row, then commit what's staged with a message.
-    $page->click('[data-test="git-changes"] [data-test="git-change"]:last-child [data-test="git-change-stage"]')
+    $page->hover('[data-test="git-changes"] [data-test="git-change"]:last-child')
+        ->click('[data-test="git-changes"] [data-test="git-change"]:last-child [data-test="git-change-stage"]')
         ->assertSeeIn('@scm-staged', 'timer.tsx')
         ->type('@scm-message', 'Add the timer')
         ->click('@scm-commit')
@@ -162,3 +162,25 @@ test('old links to Source Control open the source control tab', function () {
         ->assertVisible('@tools-panel')
         ->assertMissing('@source-control');
 })->group('SCM-001');
+
+test('on a tablet, which can\'t hover, the buttons other screens show on hover are always there', function () {
+    sourceControlSandbox($this);
+    $user = User::factory()->has(AgentConnection::factory())->create();
+    $project = Project::factory()->for($user)->create();
+    Sandbox::factory()->for($project)->create(['preview_url' => null]);
+    $this->actingAs($user);
+    $visible = fn (string $selector) => "(() => { const el = document.querySelector('{$selector}'); return !!el && el.getClientRects().length > 0 && getComputedStyle(el).opacity === '1' && getComputedStyle(el.parentElement).opacity === '1'; })()";
+
+    visit("/projects/{$project->id}?tab=source-control")->on()->iPadPro()
+        ->assertVisible('@source-control')
+        ->assertScript($visible('[data-test="git-change"]:last-child [data-test="git-change-discard"]'), true)
+        ->assertScript($visible('[data-test="scm-stage-all-inline"]'), true)
+        ->assertScript($visible('[data-test="sidebar-new-task"]'), true);
+
+    // With a mouse they wait for hover, as before.
+    visit("/projects/{$project->id}?tab=source-control")
+        ->resize(1500, 1000)
+        ->assertVisible('@source-control')
+        ->assertScript($visible('[data-test="git-change"]:last-child [data-test="git-change-discard"]'), false)
+        ->assertScript($visible('[data-test="scm-stage-all-inline"]'), false);
+})->group('TOUCH-001', 'SCM-001');

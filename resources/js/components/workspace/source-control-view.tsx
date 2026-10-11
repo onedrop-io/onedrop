@@ -1429,7 +1429,9 @@ function SectionList({
                     />
                     <span className="truncate">{title}</span>
                 </button>
-                <span className="flex">{actions}</span>
+                <span className="flex opacity-0 group-hover/section:opacity-100 focus-within:opacity-100 touch:opacity-100!">
+                    {actions}
+                </span>
                 {count !== undefined && count > 0 && (
                     <span
                         className="rounded-full bg-muted px-1.5 text-xs text-muted-foreground tabular-nums"
@@ -1533,7 +1535,12 @@ function ChangeRow({
                     {folder}
                 </span>
                 {change.additions != null && change.deletions != null && (
-                    <span className="shrink-0 font-mono text-[11px] @max-md/scm:hidden">
+                    <span
+                        className={cn(
+                            'shrink-0 font-mono text-[11px] group-focus-within:hidden group-hover:hidden @max-md/scm:touch:hidden',
+                            selected && 'hidden',
+                        )}
+                    >
                         <span className="text-green-600">
                             +{change.additions}
                         </span>{' '}
@@ -1543,8 +1550,13 @@ function ChangeRow({
                     </span>
                 )}
             </button>
-            {/* Always shown: tablets can't hover. */}
-            <span className="flex shrink-0">
+            {/* On hover, on the open file, and always on screens that can't hover (TOUCH-001). */}
+            <span
+                className={cn(
+                    'hidden shrink-0 group-focus-within:flex group-hover:flex touch:flex!',
+                    selected && 'flex',
+                )}
+            >
                 {change.status !== 'D' && (
                     <RowAction label="Open file" onClick={onOpen}>
                         <FileText className="size-3.5" />

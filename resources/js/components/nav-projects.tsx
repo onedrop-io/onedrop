@@ -481,7 +481,7 @@ function ProjectList({
                                     currentUrl,
                                 )}
                                 aria-label={`${isExpanded(project, expanded, currentUrl) ? 'Hide' : 'Show'} tasks in ${project.name}`}
-                                className="absolute top-1 left-1 z-10 flex size-6 items-center justify-center rounded-md bg-sidebar-accent text-sidebar-accent-foreground opacity-0 group-hover/menu-item:opacity-100 group-data-[collapsible=icon]:hidden focus-visible:opacity-100"
+                                className="absolute top-1 left-1 z-10 flex size-6 items-center justify-center rounded-md bg-sidebar-accent text-sidebar-accent-foreground opacity-0 group-hover/menu-item:opacity-100 group-data-[collapsible=icon]:hidden focus-visible:opacity-100 touch:top-4.5 touch:left-4.5 touch:size-4 touch:rounded-full touch:opacity-100! touch:ring-2 touch:ring-sidebar touch:[&_svg]:size-3"
                                 data-test="sidebar-project-toggle"
                             >
                                 <ChevronRight
@@ -493,7 +493,7 @@ function ProjectList({
                             asChild
                             isActive={isCurrentUrl(show(project.id))}
                             tooltip={{ children: project.name }}
-                            className={`group-data-[collapsible=icon]:p-1.5! md:group-focus-within/menu-item:pr-14 md:group-hover/menu-item:pr-14 ${subtitle ? 'h-auto min-h-8 py-1.5' : ''}`}
+                            className={`group-data-[collapsible=icon]:p-1.5! md:group-focus-within/menu-item:pr-14 md:group-hover/menu-item:pr-14 touch:pr-14 ${subtitle ? 'h-auto min-h-8 py-1.5' : ''}`}
                         >
                             <Link href={link(project.id, show(project.id).url)}>
                                 <ProjectAvatar project={project} />

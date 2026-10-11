@@ -364,7 +364,7 @@ function AppTile({
                     className={cn(
                         'rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground',
                         !app.pinned &&
-                            'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100',
+                            'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 touch:opacity-100!',
                     )}
                     data-test="app-pin"
                 >

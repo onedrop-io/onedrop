@@ -154,6 +154,7 @@
                             "testing/shell",
                             "testing/tools",
                             "testing/source-control",
+                            "testing/touch",
                             "testing/pull-requests",
                             "testing/sandboxes",
                             "testing/publishing",

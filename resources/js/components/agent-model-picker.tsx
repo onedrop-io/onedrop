@@ -449,7 +449,7 @@ function ModelMenu({
                     className={cn(
                         'shrink-0 rounded p-1 text-muted-foreground hover:text-foreground',
                         !favorites.has(key) &&
-                            'opacity-0 group-hover:opacity-100 focus:opacity-100',
+                            'opacity-0 group-hover:opacity-100 focus:opacity-100 touch:opacity-100!',
                     )}
                     data-test={`star-${key}`}
                 >

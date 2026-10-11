@@ -337,6 +337,7 @@ test('discarding a file named "all" discards only that file', function () {
     visit("/projects/{$project->id}?tab=source-control")
         ->resize(1500, 1000)
         ->assertSeeIn('@git-changes-count', '2')
+        ->hover('[data-test="git-change"]:first-child')
         ->click('[data-test="git-change"]:first-child [data-test="git-change-discard"]')
         ->assertSee('Discard changes to this file?')
         ->click('@git-confirm-action')

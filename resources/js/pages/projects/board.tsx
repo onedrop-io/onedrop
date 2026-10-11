@@ -310,7 +310,7 @@ function Card({
                     <button
                         type="button"
                         aria-label={`Actions for ${task.title}`}
-                        className="absolute top-2.5 right-2 rounded p-0.5 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-muted focus-visible:opacity-100 data-[state=open]:opacity-100"
+                        className="absolute top-2.5 right-2 rounded p-0.5 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-muted focus-visible:opacity-100 data-[state=open]:opacity-100 touch:opacity-100!"
                         data-test="board-card-menu"
                     >
                         <EllipsisVertical className="size-4" />

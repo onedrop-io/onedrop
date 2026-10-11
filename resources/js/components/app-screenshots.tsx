@@ -140,7 +140,7 @@ function CarouselButton({
                 side === 'left' ? 'Previous screenshot' : 'Next screenshot'
             }
             className={cn(
-                'absolute top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-background/80 text-foreground shadow-sm backdrop-blur-sm transition-opacity hover:bg-background sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100',
+                'absolute top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-background/80 text-foreground shadow-sm backdrop-blur-sm transition-opacity hover:bg-background sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100 touch:opacity-100!',
                 side === 'left' ? 'left-2' : 'right-2',
             )}
             data-test={`app-screenshot-${side === 'left' ? 'previous' : 'next'}`}

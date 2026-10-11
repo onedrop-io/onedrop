@@ -294,7 +294,7 @@ export default function TestsView({
                                             disabled={busy}
                                             aria-label={`Run ${group.id}'s tests`}
                                             title={`Run ${group.id}'s tests`}
-                                            className="rounded p-0.5 opacity-0 group-hover/heading:opacity-100 hover:bg-muted focus-visible:opacity-100 disabled:hidden"
+                                            className="rounded p-0.5 opacity-0 group-hover/heading:opacity-100 hover:bg-muted focus-visible:opacity-100 disabled:hidden touch:opacity-100!"
                                         >
                                             <Play className="size-3" />
                                         </button>
@@ -496,7 +496,7 @@ function TestDetail({
                                     }
                                     data-test="take-over"
                                     className={cn(
-                                        'inline-flex shrink-0 items-center gap-1 rounded border px-1.5 py-0.5 text-xs opacity-0 group-hover/step:opacity-100 hover:bg-background focus-visible:opacity-100 disabled:opacity-50',
+                                        'inline-flex shrink-0 items-center gap-1 rounded border px-1.5 py-0.5 text-xs opacity-0 group-hover/step:opacity-100 hover:bg-background focus-visible:opacity-100 disabled:opacity-50 touch:opacity-100!',
                                         takingOver === i + 1 && 'opacity-100',
                                     )}
                                 >

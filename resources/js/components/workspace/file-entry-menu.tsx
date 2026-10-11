@@ -107,7 +107,7 @@ export default function FileEntryMenu({
                     title="Actions"
                     data-test={`file-menu-${entry.path}`}
                     className={cn(
-                        'absolute top-1/2 right-1 -translate-y-1/2 rounded p-0.5 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-background hover:text-foreground focus-visible:opacity-100',
+                        'absolute top-1/2 right-1 -translate-y-1/2 rounded p-0.5 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-background hover:text-foreground focus-visible:opacity-100 touch:opacity-100!',
                         open && 'opacity-100',
                     )}
                 >
