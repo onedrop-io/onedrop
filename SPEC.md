@@ -746,7 +746,9 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 - On a screen that can't hover (a tablet or phone), user should always see the buttons other screens show only on hover: a file's actions in Source Control and the files panel, each list's stage and discard all, a commit's menu, a project's New task and menu in the sidebar, a task card's actions on the board, Run and Take over in Tests, Copy address on the preview, Pin on the Apps page, Copy in App Storage commands, the model picker's row action, and the screenshot arrows.
 - The sidebar's button to show a project's tasks should show as a small badge on its icon there, so tapping the icon doesn't toggle the tasks unseen.
-- Icon buttons should be at least 36px to tap on such a screen.
+- Icon buttons should be at least 36px to tap on such a screen, and the dividers between panes and panels wider to grab.
+- User should be able to move a tab to another pane from a pane's split menu ("Move this tab to pane 2"), without dragging.
+- A tab that's opened or shown (from the header, Tools or "+") should scroll into view in its pane's tab bar when the tabs don't fit.
 - With a mouse, they keep showing on hover, as before.
 
 ## PUB-001: Publish a project

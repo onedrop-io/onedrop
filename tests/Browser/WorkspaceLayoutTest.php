@@ -366,3 +366,31 @@ test('the preview bar shows the path over a dimmed host and a line while the pag
         ->assertMissing('@preview-loading')
         ->assertNoJavaScriptErrors();
 })->group('PRJ-002');
+
+test('on a tablet, a tab moves to another pane from the split menu, and a tab opened elsewhere scrolls into view', function () {
+    $user = User::factory()->has(AgentConnection::factory())->create();
+    $project = Project::factory()->for($user)->create();
+    Sandbox::factory()->for($project)->create(['preview_url' => null, 'shell_url' => 'about:blank']);
+    $this->actingAs($user);
+
+    $tabsIn = fn (int $pane) => "Array.from(document.querySelectorAll('[data-test=\"pane-{$pane}\"] button[data-test^=tab-]')).map((tab) => tab.dataset.test).join(',')";
+    // Whether a tab's button lies inside its scrolling tab bar's visible part.
+    $inView = fn (string $tab) => "(() => { const tab = document.querySelector('[data-test=\"{$tab}\"]'); const bar = tab.closest('[data-tabs]').getBoundingClientRect(); const rect = tab.getBoundingClientRect(); return rect.left >= bar.left - 1 && rect.right <= bar.right + 1; })()";
+
+    visit("/projects/{$project->id}")->on()->iPadPro()
+        ->click('@split-menu')
+        ->click('@split-right')
+        ->assertScript($tabsIn(2), 'tab-shell-2')
+        ->wait(0.5) // the new pane's Shell takes the focus as it loads, which would close a menu opened before
+        ->click('[data-test="pane-1"] [data-test="tab-services"]')
+        ->click('[data-test="pane-1"] [data-test="split-menu"]')
+        ->click('@move-tab-2')
+        ->assertScript($tabsIn(1), 'tab-tools,tab-preview,tab-shell,tab-console')
+        ->assertScript($tabsIn(2), 'tab-shell-2,tab-services')
+        ->click('[data-test="pane-2"] [data-test="close-pane"]')
+        ->click('@tab-tools')
+        ->click('@tool-git')
+        ->assertPresent('@tab-source-control')
+        ->assertScript($inView('tab-source-control'), true)
+        ->assertNoJavaScriptErrors();
+})->group('TOUCH-001', 'LAYOUT-002');

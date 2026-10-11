@@ -18,6 +18,12 @@ The browser tests emulate an iPad, which can't hover, but not a real one: an iPa
 - [ ] **Preview:** **Copy address** is there. **Apps page:** **Pin** is there. **App Storage → Commands:** **Copy** is there.
 - [ ] Icon buttons are easy to tap without hitting the one next to them.
 
+## Panes and tabs by touch (TOUCH-001)
+
+- [ ] Split the workspace, then **Move this tab to pane 2** from pane 1's split menu moves the tab showing; a Shell keeps its session.
+- [ ] With more tabs than fit, opening Source Control from the header's **Commit** scrolls its tab into view; the tab bar scrolls with a swipe.
+- [ ] The dividers between panes, and beside the chat and files panel, can be dragged with a finger.
+
 2. Attach a trackpad (or use a laptop).
 
 - [ ] The same buttons show on hover only, as before; on a laptop nothing changed.
@@ -26,7 +32,7 @@ The browser tests emulate an iPad, which can't hover, but not a real one: an iPa
 
 Note what happens, so it can be fixed:
 
-- The workspace's tab strip on a narrow pane (a tab you open may be off-screen).
-- Dragging tabs between panes, and the pane, chat and files dividers.
+- Dragging a tab itself by touch (moving it from the split menu works).
+- A tablet held upright: the sidebar and chat leave the workspace little room.
 - Shortcuts with no on-screen way (⌘P, ⌘⏎ in Source Control, ↑/↓ through files) with the on-screen keyboard.
 - Reasons shown only as tooltips (a disabled button's "wait for the agent").

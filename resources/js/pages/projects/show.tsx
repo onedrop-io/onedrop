@@ -8,6 +8,7 @@ import {
 } from '@inertiajs/react';
 import {
     ArrowLeft,
+    ArrowRightLeft,
     AppWindow,
     GitBranch,
     ArrowRight,
@@ -1089,6 +1090,19 @@ function WorkspacePanel({
         if (panes.isShell(tab)) {
             shellFrames.current[tab]?.focus();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [shownTabs]);
+
+    // A tab that's opened or shown is scrolled into view in its pane's tab bar, which scrolls when the tabs don't fit:
+    // on a narrow pane (a tablet) a tab opened from elsewhere could otherwise be off the edge (TOUCH-001).
+    useEffect(() => {
+        layout.panes.forEach((pane) =>
+            document
+                .querySelector(
+                    `[data-tabs="${pane.id}"] [data-test="tab-${pane.active}"]`,
+                )
+                ?.scrollIntoView({ block: 'nearest', inline: 'nearest' }),
+        );
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [shownTabs]);
 
@@ -2201,7 +2215,7 @@ function WorkspacePanel({
                             }
                             {...tabBarDrop(pane.id)}
                             className={cn(
-                                'flex min-w-0 items-center gap-1 overflow-x-auto border-b border-sidebar-border/70 bg-toolbar px-2 py-1.5 text-sm [scrollbar-width:none] dark:border-sidebar-border',
+                                'flex min-w-0 [scrollbar-width:none] items-center gap-1 overflow-x-auto border-b border-sidebar-border/70 bg-toolbar px-2 py-1.5 text-sm dark:border-sidebar-border',
                                 !rowLayout && index > 0 && 'border-t-0',
                             )}
                         >
@@ -2233,7 +2247,10 @@ function WorkspacePanel({
                             />
                             <div className="flex min-w-0 items-center gap-1 max-md:hidden">
                                 {/* The tabs scroll when they don't fit, so the status and the tab's buttons stay in view. */}
-                                <div className="flex min-w-0 items-center gap-1 overflow-x-auto [scrollbar-width:none]">
+                                <div
+                                    className="flex min-w-0 [scrollbar-width:none] items-center gap-1 overflow-x-auto"
+                                    data-tabs={pane.id}
+                                >
                                     {pane.tabs.map((kind) =>
                                         tabButton(kind, pane.id),
                                     )}
@@ -2355,6 +2372,41 @@ function WorkspacePanel({
                                             <Rows2 />
                                             Split down
                                         </DropdownMenuItem>
+                                        {/* Without dragging (a tablet), a tab moves from here (TOUCH-001). */}
+                                        {layout.panes.length > 1 && (
+                                            <>
+                                                <DropdownMenuSeparator />
+                                                {layout.panes.map(
+                                                    (other, otherIndex) =>
+                                                        other.id !==
+                                                            pane.id && (
+                                                            <DropdownMenuItem
+                                                                key={other.id}
+                                                                onSelect={() =>
+                                                                    setLayout(
+                                                                        (
+                                                                            current,
+                                                                        ) =>
+                                                                            panes.moveTab(
+                                                                                current,
+                                                                                pane.active,
+                                                                                other.id,
+                                                                                null,
+                                                                                false,
+                                                                            ),
+                                                                    )
+                                                                }
+                                                                data-test={`move-tab-${otherIndex + 1}`}
+                                                            >
+                                                                <ArrowRightLeft />
+                                                                Move this tab to
+                                                                pane{' '}
+                                                                {otherIndex + 1}
+                                                            </DropdownMenuItem>
+                                                        ),
+                                                )}
+                                            </>
+                                        )}
                                     </DropdownMenuContent>
                                 </DropdownMenu>
                             )}
@@ -3359,9 +3411,10 @@ function PaneDivider({
             <span
                 className={cn(
                     'absolute transition-colors group-hover:bg-primary/20 group-focus-visible:bg-primary/40',
+                    // A finger needs more to grab than a mouse (TOUCH-001).
                     row
-                        ? 'inset-y-0 -right-1 -left-1'
-                        : 'inset-x-0 -top-1 -bottom-1',
+                        ? 'inset-y-0 -right-1 -left-1 touch:-right-3 touch:-left-3'
+                        : 'inset-x-0 -top-1 -bottom-1 touch:-top-3 touch:-bottom-3',
                     dragging && 'bg-primary/40',
                 )}
             />

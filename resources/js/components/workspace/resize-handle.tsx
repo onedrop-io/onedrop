@@ -85,7 +85,7 @@ export default function ResizeHandle({
         >
             <span
                 className={cn(
-                    'absolute inset-y-0 -right-1 -left-1 transition-colors group-hover:bg-primary/20 group-focus-visible:bg-primary/40',
+                    'absolute inset-y-0 -right-1 -left-1 transition-colors group-hover:bg-primary/20 group-focus-visible:bg-primary/40 touch:-right-3 touch:-left-3',
                     dragging && 'bg-primary/40',
                 )}
             />
