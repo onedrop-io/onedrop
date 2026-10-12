@@ -170,6 +170,7 @@ import {
     saveWorkspace,
 } from '@/lib/workspace-state';
 import type { SavedShell } from '@/lib/workspace-state';
+import { saveGlimpse, takeSendOnLoad } from '@/lib/chat-glimpse';
 import {
     askAgent,
     onAskAgent,
@@ -583,11 +584,22 @@ function ChatPanel({
         draftRef.current = draft;
     }, [draft]);
 
+    // A message typed and sent in the loading sketch, before this chat was here (PRJ-002). The page's own address:
+    // the browser's may not have changed yet when this first runs.
+    const sendingOnLoad = useRef(false);
+    const page = usePage();
+    const pagePath = new URL(page.url, 'http://localhost').pathname;
+    const userId = page.props.auth.user.id;
+
     useLayoutEffect(() => {
         const saved = loadChat(project.id, chat);
 
         if (saved.draft) {
             setDraft(saved.draft);
+            // Taken once: a second run of this mustn't forget it.
+            if (takeSendOnLoad(pagePath)) {
+                sendingOnLoad.current = true;
+            }
         }
 
         if (saved.scrollTop !== null && scroller.current) {
@@ -614,6 +626,26 @@ function ChatPanel({
             save();
         };
     }, [project.id, chat]);
+
+    useEffect(() => {
+        if (sendingOnLoad.current && draft?.trim()) {
+            sendingOnLoad.current = false;
+            requestAnimationFrame(() =>
+                (
+                    document.getElementById(
+                        'composer-content',
+                    ) as HTMLTextAreaElement | null
+                )?.form?.requestSubmit(),
+            );
+        }
+    }, [draft]);
+
+    // The last few messages, for the sketch shown while this chat loads next time (PRJ-002).
+    useEffect(() => {
+        if (!newTask) {
+            saveGlimpse(userId, pagePath, messages);
+        }
+    }, [userId, pagePath, newTask, messages]);
 
     // Stop the agent; any queued messages come back into the box for editing.
     const stop = () =>
