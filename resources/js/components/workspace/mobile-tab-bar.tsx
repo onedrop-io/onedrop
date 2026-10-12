@@ -1,4 +1,4 @@
-import { MessageSquare, MoreHorizontal, X } from 'lucide-react';
+import { FolderTree, MessageSquare, MoreHorizontal, X } from 'lucide-react';
 import { useState } from 'react';
 import {
     Sheet,
@@ -50,6 +50,8 @@ export default function MobileTabBar({
     items,
     tabs,
     newTabs,
+    filesOpen,
+    onToggleFiles,
 }: {
     chatActive: boolean;
     /** The agent is working: Chat shows it while the workspace is on screen. */
@@ -59,6 +61,9 @@ export default function MobileTabBar({
     /** Every open tab, for the More sheet. */
     tabs: SwitcherTab[];
     newTabs: SwitcherNewTab[];
+    /** The files panel is showing over the workspace. */
+    filesOpen: boolean;
+    onToggleFiles: () => void;
 }) {
     const [open, setOpen] = useState(false);
     // A tab without a shortcut that's showing takes More's place in the bar, so it's clear where you are.
@@ -215,6 +220,15 @@ export default function MobileTabBar({
                             Only the tabs in the bar are open.
                         </p>
                     )}
+                    <button
+                        type="button"
+                        onClick={() => pick(onToggleFiles)}
+                        className="mx-3 mt-3 flex items-center gap-3 rounded-lg border border-border px-3 py-3 text-left"
+                        data-test="mobile-files"
+                    >
+                        <FolderTree className="size-4" />
+                        {filesOpen ? 'Hide files' : 'Files'}
+                    </button>
                     {newTabs.length > 0 && (
                         <>
                             <p className="px-4 pt-5 pb-2 text-sm font-semibold">

@@ -743,7 +743,8 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - On a phone, user should see one tab bar along the bottom of a project: Chat, Preview (Desktop on a computer), Tools, Shell and More, each one tap away.
 - Shell should show the Shell last on screen, or open one when none is.
 - More should open a sheet listing the open tabs not already in the bar (to switch to or close), then an "Add a tab" grid of the tabs that can be opened; it should show how many other tabs are open, and, while one of them is showing, that tab's name and icon instead.
-- The showing tab's own buttons (e.g. the preview's Inspect, Annotate and Reload) should stay in the bar however many tabs are open; "Open in a new tab", "Open in a new window" and the files toggle should be in a "⋯" menu.
+- On a phone, a pane's own bar (the tab strip on wider screens) should show only when it has something to say: a sandbox state like "Starting sandbox…" or the open file's path.
+- The preview's own toolbar should keep Back, Forward, Reload, Inspect and Annotate, with "Open in a new tab" and "Open in a new window" in a "⋯" menu at its end; the files panel should open from More; the Console's clear button should be in its search bar.
 - On a phone, the header should show only the sidebar button, the project's name (on one line, cut short if it's long), one "⋯" menu and Publish with its label.
 - On a phone, the button that opens the sidebar should be the usual menu icon (☰).
 - The "⋯" menu should hold the git actions (Commit…, with how many files changed, Push, Undo last commit, Create PR) and Share; Share should open as a sheet from the bottom. A dot on "⋯" should show there are changes to commit.

@@ -1,4 +1,4 @@
-import { Search } from 'lucide-react';
+import { Ban, Search } from 'lucide-react';
 import {
     useDeferredValue,
     useEffect,
@@ -36,12 +36,15 @@ export default function ConsoleView({
     active,
     running,
     clearSignal,
+    onClear,
 }: {
     projectId: number;
     active: boolean;
     running: boolean;
     /** Increment to clear the view. */
     clearSignal: number;
+    /** Clears the view, from a button here on a phone, where the pane's bar is hidden (LAYOUT-007). */
+    onClear?: () => void;
 }) {
     const [output, setOutput] = useState<Output>({ text: '', dropped: 0 });
     const [error, setError] = useState<string | null>(null);
@@ -178,6 +181,18 @@ export default function ConsoleView({
                             ? '1 line'
                             : `${shown.length} lines`}
                     </span>
+                )}
+                {onClear && (
+                    <button
+                        type="button"
+                        onClick={onClear}
+                        aria-label="Clear console"
+                        title="Clear console"
+                        className="shrink-0 rounded p-1.5 text-muted-foreground hover:bg-muted md:hidden"
+                        data-test="console-clear"
+                    >
+                        <Ban className="size-4" />
+                    </button>
                 )}
             </div>
             <pre

@@ -33,7 +33,7 @@ test('shell, services and console tabs are open by default, and can be shown fro
         ->assertSeeIn('[data-test="tab-notice"]:visible', "This sandbox doesn't have a shell")
         ->click('@tab-console')
         ->assertSeeIn('@console-output', 'VITE v7 ready')
-        ->click('[aria-label="Clear console"]')
+        ->click('[data-test="pane-1"] [aria-label="Clear console"]')
         ->assertDontSeeIn('@console-output', 'VITE v7 ready')
         ->click('[data-test="tab-console"] + button')
         ->assertMissing('@tab-console')

@@ -2275,6 +2275,14 @@ function WorkspacePanel({
                 },
             ]}
             tabs={switcherTabs}
+            filesOpen={filesOpen && !mobileHidden}
+            onToggleFiles={() => {
+                onMobileViewChange('workspace');
+
+                if (!filesOpen || !mobileHidden) {
+                    toggleFiles();
+                }
+            }}
             newTabs={toolTabs
                 .filter(
                     (kind) => kind === 'shell' || !panes.paneOf(layout, kind),
@@ -2347,6 +2355,12 @@ function WorkspacePanel({
                             {...tabBarDrop(pane.id)}
                             className={cn(
                                 'flex min-w-0 [scrollbar-width:none] items-center gap-1 overflow-x-auto border-b border-sidebar-border/70 bg-toolbar px-2 py-1.5 text-sm dark:border-sidebar-border',
+                                // On a phone the bottom tab bar switches tabs and each tab's own bar has its buttons
+                                // (LAYOUT-007): this one shows only to say something, like "Starting sandbox…" or the
+                                // open file's path. A Shell's prompt already says its folder.
+                                (!statusFor(pane.active) ||
+                                    panes.isShell(pane.active)) &&
+                                    'max-md:hidden',
                                 !rowLayout && index > 0 && 'border-t-0',
                             )}
                         >
@@ -2550,73 +2564,6 @@ function WorkspacePanel({
                                     <PanelRight className="size-4" />
                                 </IconButton>
                             )}
-                            {((pane.active === 'preview' && url && !computer) ||
-                                index === filesTogglePane) && (
-                                <DropdownMenu modal={false}>
-                                    <DropdownMenuTrigger asChild>
-                                        <button
-                                            type="button"
-                                            aria-label="More"
-                                            title="More"
-                                            data-test="pane-more"
-                                            className="rounded p-1 hover:bg-muted md:hidden"
-                                        >
-                                            <MoreHorizontal className="size-4" />
-                                        </button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                        {pane.active === 'preview' &&
-                                            url &&
-                                            !computer && (
-                                                <DropdownMenuItem asChild>
-                                                    <a
-                                                        href={previewUrlAt(
-                                                            url,
-                                                            previewPage,
-                                                            sandbox?.shell_via_gateway ??
-                                                                false,
-                                                        )}
-                                                        target="_blank"
-                                                        rel="noreferrer"
-                                                    >
-                                                        <ExternalLink />
-                                                        Open in a new tab
-                                                    </a>
-                                                </DropdownMenuItem>
-                                            )}
-                                        {pane.active === 'preview' &&
-                                            url &&
-                                            !computer && (
-                                                <DropdownMenuItem
-                                                    onSelect={() =>
-                                                        openPreviewWindow(
-                                                            previewUrlAt(
-                                                                url,
-                                                                previewPage,
-                                                                sandbox?.shell_via_gateway ??
-                                                                    false,
-                                                            ),
-                                                        )
-                                                    }
-                                                >
-                                                    <AppWindow />
-                                                    Open in a new window
-                                                </DropdownMenuItem>
-                                            )}
-                                        {index === filesTogglePane && (
-                                            <DropdownMenuItem
-                                                onSelect={toggleFiles}
-                                                data-test="pane-more-files"
-                                            >
-                                                <PanelRight />
-                                                {filesOpen
-                                                    ? 'Hide files'
-                                                    : 'Show files'}
-                                            </DropdownMenuItem>
-                                        )}
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                            )}
                         </div>
                     </Fragment>
                 ))}
@@ -2767,6 +2714,52 @@ function WorkspacePanel({
                                         <Brush className="size-4" />
                                     )}
                                 </IconButton>
+                                {/* On a phone, where the address and its buttons don't fit (LAYOUT-007). */}
+                                <DropdownMenu modal={false}>
+                                    <DropdownMenuTrigger asChild>
+                                        <button
+                                            type="button"
+                                            aria-label="More"
+                                            title="More"
+                                            data-test="preview-more"
+                                            className="rounded p-1 hover:bg-muted md:hidden"
+                                        >
+                                            <MoreHorizontal className="size-4" />
+                                        </button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        <DropdownMenuItem asChild>
+                                            <a
+                                                href={previewUrlAt(
+                                                    url,
+                                                    previewPage,
+                                                    sandbox?.shell_via_gateway ??
+                                                        false,
+                                                )}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                            >
+                                                <ExternalLink />
+                                                Open in a new tab
+                                            </a>
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                            onSelect={() =>
+                                                openPreviewWindow(
+                                                    previewUrlAt(
+                                                        url,
+                                                        previewPage,
+                                                        sandbox?.shell_via_gateway ??
+                                                            false,
+                                                    ),
+                                                )
+                                            }
+                                        >
+                                            <AppWindow />
+                                            Open in a new window
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                                 {previewLoading && (
                                     <div
                                         aria-hidden
@@ -2938,6 +2931,7 @@ function WorkspacePanel({
                             active
                             running={running}
                             clearSignal={consoleClears}
+                            onClear={() => setConsoleClears((n) => n + 1)}
                         />
                     ),
                 )}

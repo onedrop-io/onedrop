@@ -254,11 +254,14 @@ test('on a phone the tabs are a bar along the bottom, with the rest in a sheet',
         ->assertMissing('@mobile-tab-tests')
         ->click('@mobile-tab-console')
         ->assertSeeIn('@mobile-bar-more', 'Console')
+        // No pane bar on a phone: the console's clear button is in its own bar.
+        ->assertMissing('@pane-1')
+        ->assertVisible('@console-clear')
         ->click('@mobile-bar-preview')
         ->assertAttribute('@mobile-bar-preview', 'aria-selected', 'true')
         ->assertSeeIn('@mobile-bar-more', 'More')
         ->assertVisible('@preview-annotate')
-        ->click('@pane-more')
+        ->click('@preview-more')
         ->assertSee('Open in a new tab')
         ->assertSee('Open in a new window')
         ->assertNoJavaScriptErrors();
