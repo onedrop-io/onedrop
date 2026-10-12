@@ -38,9 +38,7 @@ export function plain(content: string): string {
     return content
         .replace(/```[\s\S]*?(```|$)/g, ' ')
         .split('\n')
-        .map((line) =>
-            line.replace(/^\s*(#{1,6}|>|[-*+]|\d+\.)\s+/, '').trim(),
-        )
+        .map((line) => line.replace(/^\s*(#{1,6}|>|[-*+]|\d+\.)\s+/, '').trim())
         .join(' ')
         .replace(/`([^`]*)`/g, '$1')
         .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
