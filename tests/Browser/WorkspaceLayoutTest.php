@@ -169,6 +169,34 @@ test('on a small screen the sidebar closes once a project in it is opened', func
         ->assertNoJavaScriptErrors();
 })->group('PRJ-002');
 
+test('on a small screen the sidebar closes as soon as a project is tapped, and its page shows as loading', function () {
+    $this->seed(DatabaseSeeder::class);
+    $user = User::where('email', 'dev@example.com')->sole();
+    AgentConnection::factory()->for($user)->create();
+    $project = Project::factory()->for($user)->create(['name' => 'Todo App']);
+    $this->actingAs($user);
+
+    $page = visit('/dashboard')
+        ->resize(390, 844)
+        ->click('[data-sidebar="trigger"]')
+        ->assertVisible('[data-mobile="true"]');
+
+    // A slow connection: the page's request waits 1.5 seconds before it's sent. Tapped from a script, so the test
+    // doesn't wait for the page to load as a click would.
+    $page->script(<<<'JS'
+        const send = XMLHttpRequest.prototype.send;
+        XMLHttpRequest.prototype.send = function (...args) { setTimeout(() => send.apply(this, args), 1500); };
+        document.querySelector('[data-mobile="true"] li[data-test="sidebar-project"] a').click();
+        JS);
+
+    $page->assertMissing('[data-mobile="true"]')
+        ->assertSeeIn('@page-loading-name', 'Todo App')
+        ->assertVisible('[data-test="page-loading"] [role="status"]')
+        ->assertPathIs("/projects/{$project->id}")
+        ->assertMissing('@page-loading')
+        ->assertNoJavaScriptErrors();
+})->group('PRJ-002');
+
 test('on a small screen the preview bar leaves out the address, the size menu and splitting', function () {
     $user = User::factory()->has(AgentConnection::factory())->create();
     $project = Project::factory()->for($user)->create();

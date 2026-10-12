@@ -68,7 +68,8 @@ export function startApp(
             );
         },
         progress: {
-            color: '#4B5563',
+            // The theme's main colour, so it shows on dark and light alike.
+            color: 'var(--primary)',
         },
     });
 

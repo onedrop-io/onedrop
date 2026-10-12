@@ -5,6 +5,7 @@ import { AppShell } from '@/components/app-shell';
 import { AppSidebar } from '@/components/app-sidebar';
 import { AppSidebarHeader } from '@/components/app-sidebar-header';
 import ImpersonationBanner from '@/components/impersonation-banner';
+import { PageLoading } from '@/components/page-loading';
 import { isSettingsPage, rememberSettingsReturnUrl } from '@/lib/settings';
 import type { AppLayoutProps } from '@/types';
 
@@ -26,6 +27,7 @@ export default function AppSidebarLayout({
             <AppContent variant="sidebar" className="min-w-0 overflow-x-clip">
                 <AppSidebarHeader breadcrumbs={breadcrumbs} />
                 {children}
+                <PageLoading />
             </AppContent>
             <ImpersonationBanner />
         </AppShell>
