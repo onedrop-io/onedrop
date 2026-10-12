@@ -242,10 +242,8 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be able to copy the preview's address with the copy button that shows when they hover it (a check shows briefly after). Clicking or selecting the address itself shouldn't copy it.
 - User should see their recent projects in the sidebar.
 - On a phone, the sidebar should close as soon as the user picks a project (or any other page) in it, without waiting for the page to load.
-- While another page loads (after a short moment), user should see a sketch of it in place of the page they left: a project's name with a spinner and the shape of its chat and workspace, or the outline of any other page; after 8 seconds it should say it's still loading. The bar along the top should show progress in the theme's main colour.
+- While another page loads (after a short moment), user should see an empty frame of it in place of the page they left: a project's name in the header and a spinner where its chat goes (or a spinner for any other page), with nothing in it that's drawn again once the page is there; after 8 seconds it should say it's still loading. The bar along the top should show progress in the theme's main colour.
 - A project's page code should be fetched while the browser is idle, so opening a project only waits for its data.
-- While a project's chat (or a task's) loads, user should see its last few messages as this browser last showed them, dimmed, and what its agent is doing (working and its step, waiting for them, failed, or a new reply).
-- User should be able to type in the chat box while it loads; the text carries over into the chat, and sending sends it once the chat is open. The kept messages should be cleared when the user logs out.
 - User should not be able to see or message another user's project (admins can see all).
 
 ## PRJ-003: Project menu in the sidebar

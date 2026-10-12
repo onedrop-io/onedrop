@@ -1,6 +1,5 @@
 <?php
 
-use App\Enums\MessageRole;
 use App\Models\AgentConnection;
 use App\Models\Message;
 use App\Models\Project;
@@ -199,24 +198,15 @@ test('on a small screen the sidebar closes as soon as a project is tapped, and i
         ->assertNoJavaScriptErrors();
 })->group('PRJ-002');
 
-test('while a project loads, its sketch shows the last messages seen, what the agent is doing, and a chat box that sends once it\'s open', function () {
+test('while a project loads, an empty frame of it shows a spinner where the chat goes, with nothing to draw again', function () {
     $this->seed(DatabaseSeeder::class);
     $user = User::where('email', 'dev@example.com')->sole();
     AgentConnection::factory()->for($user)->create();
     $project = Project::factory()->for($user)->create(['name' => 'Todo App']);
-    Message::factory()->for($project)->create(['content' => 'Add a **due date** to each todo']);
-    Message::factory()->for($project)->create(['role' => MessageRole::Assistant, 'content' => 'Done: todos have a due date now.']);
+    Message::factory()->for($project)->create(['content' => 'Add a due date to each todo']);
     $this->actingAs($user);
 
-    // Seen once in this browser, then left.
-    $page = visit("/projects/{$project->id}")
-        ->resize(1440, 900)
-        ->assertSee('Done: todos have a due date now.')
-        ->navigate('/dashboard');
-
-    // A reply came in since: the project is unread again.
-    $project->update(['read_at' => null]);
-    $page->navigate('/dashboard')->assertSee('Todo App');
+    $page = visit('/dashboard')->resize(1440, 900);
 
     // A slow connection: the page's request waits 2 seconds before it's sent.
     $page->script(<<<'JS'
@@ -225,18 +215,14 @@ test('while a project loads, its sketch shows the last messages seen, what the a
         document.querySelector('li[data-test="sidebar-project"] a').click();
         JS);
 
-    $page->assertSeeIn('@page-loading-glimpse', 'Add a due date to each todo')
-        ->assertSeeIn('@page-loading-glimpse', 'Done: todos have a due date now.')
-        ->assertSeeIn('@page-loading-status', 'New reply')
-        ->type('@page-loading-composer', 'and sort by it')
-        ->keys('@page-loading-composer', 'Enter')
-        ->assertVisible('@page-loading-sending')
+    $page->assertSeeIn('@page-loading-name', 'Todo App')
+        ->assertVisible('[data-test="page-loading"] [role="status"]')
+        ->assertScript('document.querySelector(\'[data-test="page-loading"]\').querySelectorAll("textarea, p").length', 0)
+        ->assertDontSeeIn('@page-loading', 'Add a due date')
         ->assertPathIs("/projects/{$project->id}")
         ->assertMissing('@page-loading')
-        ->assertSeeIn('@message-user', 'and sort by it')
+        ->assertSeeIn('@message-user', 'Add a due date to each todo')
         ->assertNoJavaScriptErrors();
-
-    expect($project->messages()->where('content', 'and sort by it')->exists())->toBeTrue();
 })->group('PRJ-002');
 
 test('on a small screen the preview bar leaves out the address, the size menu and splitting', function () {

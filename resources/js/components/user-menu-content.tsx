@@ -31,7 +31,6 @@ import { useBuildMode } from '@/hooks/use-build-mode';
 import { useMobileNavigation } from '@/hooks/use-mobile-navigation';
 import { useOrganization } from '@/hooks/use-organization';
 import { DOCUMENTATION_URL, REPOSITORY_URL } from '@/lib/links';
-import { clearGlimpses } from '@/lib/chat-glimpse';
 import { logout } from '@/routes';
 import { index as invitationsIndex } from '@/routes/invitations';
 import { usage as organizationUsage } from '@/routes/organizations';
@@ -66,8 +65,6 @@ export function UserMenuContent({ user, onCreateOrganization }: Props) {
     const handleLogout = () => {
         cleanup();
         router.flushAll();
-        // The chats' last messages kept for loading sketches (PRJ-002) aren't the next person's to see.
-        clearGlimpses();
     };
 
     return (
