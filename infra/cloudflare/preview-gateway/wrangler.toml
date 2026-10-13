@@ -10,7 +10,9 @@ compatibility_date = "2026-09-01"
 # addresses there (FORMER_GATEWAY_DOMAIN), and the app's other names under it pass straight through.
 routes = [
     { pattern = "*.onedrop.dev/*", zone_name = "onedrop.dev" },
-    { pattern = "*/*", zone_name = "onedrop.dev" },
+    # Custom domains (DOM-001): add back once Cloudflare for SaaS is on for onedrop.dev. Until then Cloudflare refuses
+    # it, and with it every route in this list.
+    # { pattern = "*/*", zone_name = "onedrop.dev" },
     { pattern = "*.onedrop.io/*", zone_name = "onedrop.io" },
 ]
 
