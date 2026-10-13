@@ -411,7 +411,7 @@ function isInternal(url) {
 function isPreview(host) {
     return (
         /^preview-\d+\./.test(host) ||
-        /\.(preview\.bl\.run|runtimehost\.com)$/.test(host) ||
+        /\.(preview\.bl\.run|runtimehost\.com|e2b\.app)$/.test(host) ||
         /^(127\.0\.0\.1|localhost)(:\d+)?$/.test(host)
     );
 }

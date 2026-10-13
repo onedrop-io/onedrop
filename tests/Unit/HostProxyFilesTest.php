@@ -81,3 +81,12 @@ test('the proxy serves nothing outside the workspace, and nothing on other addre
     'a folder' => ['raw?path=media', 'localhost'],
     'a published address' => ['raw?path=media/clip.mp4', 'my-app.example.ts.net'],
 ])->group('FILE-001');
+
+test('the proxy serves files on every provider\'s preview address', function (string $host) {
+    expect(filesRequest($this->port, 'raw?path=media/clip.mp4', host: $host)->status())->toBe(200);
+})->with([
+    'the gateway' => 'preview-59.onedrop.io',
+    'Blaxel' => 'sbx-1.preview.bl.run',
+    'Runtime' => '8081-sbx-1.runtimehost.com',
+    'E2B' => '8081-idmuz1cq9dh8686wfhmfa.e2b.app',
+])->group('FILE-001', 'CMP-001');
