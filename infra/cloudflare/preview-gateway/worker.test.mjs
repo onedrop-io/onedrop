@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import worker, {
+    movedAddress,
     pointAtGateway,
     readCookie,
     setLocation,
@@ -354,4 +355,92 @@ test("a tunnel's answer is never cached, so it can't let in someone without a co
     });
 
     assert.equal(page.store.size, 1);
+});
+
+test('previews, shells and published apps under the former domain move to the same name under the new one', () => {
+    const moved = {
+        ...env,
+        GATEWAY_DOMAIN: 'onedrop.dev',
+        FORMER_GATEWAY_DOMAIN: 'onedrop.io',
+    };
+
+    assert.equal(
+        movedAddress(
+            new URL('https://time-tracker-4.onedrop.io/invoices?page=2'),
+            moved,
+        ),
+        'https://time-tracker-4.onedrop.dev/invoices?page=2',
+    );
+    assert.equal(
+        movedAddress(
+            new URL('https://preview-12.onedrop.io/__onedrop/enter?token=t'),
+            moved,
+        ),
+        'https://preview-12.onedrop.dev/__onedrop/enter?token=t',
+    );
+    assert.equal(
+        movedAddress(new URL('https://shell-12.onedrop.io/'), moved),
+        'https://shell-12.onedrop.dev/',
+    );
+});
+
+test("the former domain's own names, and the new domain's addresses, stay where they are", () => {
+    const moved = {
+        ...env,
+        GATEWAY_DOMAIN: 'onedrop.dev',
+        FORMER_GATEWAY_DOMAIN: 'onedrop.io',
+    };
+
+    for (const address of [
+        'https://onedrop.io/dashboard',
+        'https://www.onedrop.io/',
+        'https://docs.onedrop.io/install',
+        'https://relay.onedrop.io/__onedrop/devices/4/connect',
+        'https://time-tracker-4.onedrop.dev/',
+    ]) {
+        assert.equal(movedAddress(new URL(address), moved), null, address);
+    }
+
+    assert.equal(
+        movedAddress(new URL('https://time-tracker-4.onedrop.io/'), env),
+        null,
+    );
+});
+
+test('an address under the former domain is redirected before the app is asked', async () => {
+    globalThis.fetch = async () => {
+        throw new Error('fetched');
+    };
+
+    const response = await worker.fetch(
+        new Request('https://preview-12.onedrop.io/contacts'),
+        {
+            ...env,
+            GATEWAY_DOMAIN: 'onedrop.dev',
+            FORMER_GATEWAY_DOMAIN: 'onedrop.io',
+        },
+        { waitUntil: () => {} },
+    );
+
+    assert.equal(response.status, 308);
+    assert.equal(
+        response.headers.get('Location'),
+        'https://preview-12.onedrop.dev/contacts',
+    );
+});
+
+test("the former domain's own names still pass straight through, not as custom domains", async () => {
+    globalThis.fetch = async (input) => new Response(`from ${input.url}`);
+
+    const response = await worker.fetch(
+        new Request('https://docs.onedrop.io/install'),
+        {
+            ...env,
+            GATEWAY_DOMAIN: 'onedrop.dev',
+            FORMER_GATEWAY_DOMAIN: 'onedrop.io',
+        },
+        { waitUntil: () => {} },
+    );
+
+    assert.equal(await response.text(), 'from https://docs.onedrop.io/install');
 });

@@ -16,6 +16,9 @@
 // relay.<domain> is the device relay (DESK-010, device-relay.js): a Durable Object per computer that the desktop app
 // keeps a WebSocket open to. The app reaches sandboxes on that computer through it, and so do their previews and
 // shells: the app's answer names `device:<id>/<container>:<port>` instead of a provider's address.
+//
+// FORMER_GATEWAY_DOMAIN, when set, is a domain the addresses used to be under (onedrop.io, before onedrop.dev): its
+// previews, shells and published apps move permanently to the same name under GATEWAY_DOMAIN, so shared links work.
 
 import { DeviceRelay } from './device-relay.js';
 
@@ -42,15 +45,23 @@ const MAX_REWRITE_BYTES = 20_000_000;
 export default {
     async fetch(request, env, ctx) {
         const url = new URL(request.url);
+        const moved = movedAddress(url, env);
+
+        if (moved) {
+            return Response.redirect(moved, 308);
+        }
 
         if (url.hostname === `relay.${env.GATEWAY_DOMAIN}`) {
             return toRelay(request, env, url);
         }
 
         const preview = GATEWAY_HOST.test(url.hostname);
-        const ours =
-            url.hostname === env.GATEWAY_DOMAIN ||
-            url.hostname.endsWith(`.${env.GATEWAY_DOMAIN}`);
+        const ours = [env.GATEWAY_DOMAIN, env.FORMER_GATEWAY_DOMAIN].some(
+            (domain) =>
+                domain &&
+                (url.hostname === domain ||
+                    url.hostname.endsWith(`.${domain}`)),
+        );
 
         // The app itself, and other names under the wildcard, go on to their own origin.
         if (ours && !(preview || APP_HOST.test(url.hostname))) {
@@ -87,6 +98,25 @@ export default {
         });
     },
 };
+
+/**
+ * The same preview, shell or published app under GATEWAY_DOMAIN, for an address under FORMER_GATEWAY_DOMAIN.
+ */
+export function movedAddress(url, env) {
+    const suffix = `.${env.FORMER_GATEWAY_DOMAIN}`;
+
+    if (!env.FORMER_GATEWAY_DOMAIN || !url.hostname.endsWith(suffix)) {
+        return null;
+    }
+
+    const name = url.hostname.slice(0, -suffix.length);
+
+    if (!GATEWAY_HOST.test(`${name}.`) && !APP_HOST.test(`${name}.`)) {
+        return null;
+    }
+
+    return `https://${name}.${env.GATEWAY_DOMAIN}${url.pathname}${url.search}`;
+}
 
 /**
  * Ask the app about a gateway address, as the Worker (with the shared secret and the address it serves).

@@ -848,7 +848,9 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 ## GW-002: Previews and shells through Cloudflare
 
 - On Laravel Cloud (no Caddy), user should see each project's preview and shell inside the workspace at `preview-<id>.<domain>` and `shell-<id>.<domain>`, served by a Cloudflare Worker in front of the sandbox's provider (Blaxel or Runtime).
-- Previews should load with their styles and scripts in every browser, Safari included, and on every provider: the browser only ever deals with onedrop.io addresses and cookies.
+- Previews should load with their styles and scripts in every browser, Safari included, and on every provider: the browser only ever deals with the gateway domain's addresses and cookies.
+- On the hosted install, previews, shells and apps published to the domain should be served from onedrop.dev, not the app's onedrop.io, so sandboxed code is never on the app's site.
+- Visitor should be able to follow an old onedrop.io preview, shell or published-app link and land at the same name and page on onedrop.dev.
 - Only a logged-in user allowed to see the project should get through, checked on every request (GW-001's hand-off and cookie); a copied link without that user's cookie should be refused.
 - The provider's preview token should never reach the browser: the Worker adds it to each request it forwards.
 - Only the Worker should be able to ask the app for a sandbox's address and token (a shared secret).

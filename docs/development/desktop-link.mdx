@@ -60,7 +60,7 @@ When the control connection closes, the listeners close and `connected` turns fa
 `POST /api/v1/desktop/projects/{project}/tunnel` with `{"purpose": "forward", "port": 5432}`, `{"purpose": "ssh"}` (a forward to the SSH port, owner only) or `{"purpose": "network"}` returns:
 
 ```json
-{ "url": "wss://preview-12.onedrop.io/__onedrop/tunnel?ticket=...", "ticket": "...", "hosts": [...], "device": null }
+{ "url": "wss://preview-12.onedrop.dev/__onedrop/tunnel?ticket=...", "ticket": "...", "hosts": [...], "device": null }
 ```
 
 `hosts` comes with `network`. For a project on a computer, `device` is `{"id": 4, "container": "onedrop-project-9-ab12cd"}` and `url` is null: only that computer can open its tunnel, at `ws://127.0.0.1:<the container's published proxy port>/__onedrop/tunnel?ticket=<ticket>`; any other computer gets a 409. The app makes sure the tunnel is running (`tunnel ensure`, at most every 10 minutes per sandbox) and wakes a sleeping sandbox first.
@@ -71,7 +71,7 @@ A computer is a desktop app sign-in: its Sanctum token id is the device id. The 
 
 ### The desktop app's connection
 
-`POST /api/v1/desktop/device` returns `{"id": 4, "name": "Jeff's MacBook", "url": "wss://relay.onedrop.io/__onedrop/devices/4/connect?ticket=...", "image": "ghcr.io/onedrop-io/onedrop-sandbox:latest"}`, or 404 with just `id`, `name` and `message` when the install has no Worker gateway. The ticket is signed like the tunnel's, with `GATEWAY_SECRET` as the key and `{"d": 4, "exp": ...}` as the payload; the Worker checks it. A new connection replaces the old one.
+`POST /api/v1/desktop/device` returns `{"id": 4, "name": "Jeff's MacBook", "url": "wss://relay.onedrop.dev/__onedrop/devices/4/connect?ticket=...", "image": "ghcr.io/onedrop-io/onedrop-sandbox:latest"}`, or 404 with just `id`, `name` and `message` when the install has no Worker gateway. The ticket is signed like the tunnel's, with `GATEWAY_SECRET` as the key and `{"d": 4, "exp": ...}` as the payload; the Worker checks it. A new connection replaces the old one.
 
 ### Requests to the computer
 
