@@ -89,7 +89,7 @@ class SandboxTemplates
             return null;
         }
 
-        if (($build['status'] ?? 'building') === 'building' && $this->builds($name)) {
+        if ($build['status'] === 'building' && $this->builds($name)) {
             try {
                 ['status' => $status, 'reason' => $reason] = $this->e2b()->buildStatus($build['template_id'], $build['build_id']);
                 $build = [...$build, 'status' => $status === 'waiting' ? 'building' : $status, 'reason' => $reason];
