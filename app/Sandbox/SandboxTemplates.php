@@ -50,7 +50,21 @@ class SandboxTemplates
      */
     public function build(string $name): void
     {
-        $build = $this->e2b()->buildTemplate();
+        try {
+            $build = $this->e2b()->buildTemplate();
+        } catch (SandboxException $e) {
+            // A build E2B won't start (a size above the plan's) is a failed build, for Settings to say why.
+            SystemSetting::merge(self::SETTING, [$name => [
+                'template_id' => null,
+                'build_id' => null,
+                'settings' => $this->settings($name),
+                'status' => 'error',
+                'reason' => $e->getMessage(),
+                'started_at' => now()->toIso8601String(),
+            ]]);
+
+            throw $e;
+        }
 
         SystemSetting::merge(self::SETTING, [$name => [
             'template_id' => $build['templateID'],
@@ -71,7 +85,7 @@ class SandboxTemplates
     {
         $build = SystemSetting::group(self::SETTING)[$name] ?? null;
 
-        if (! is_array($build) || ! isset($build['template_id'], $build['build_id'])) {
+        if (! is_array($build) || ! isset($build['status'])) {
             return null;
         }
 

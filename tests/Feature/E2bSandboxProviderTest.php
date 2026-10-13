@@ -345,6 +345,20 @@ test('saving a new E2B size builds its image again; saving the same doesn\'t; Se
     Queue::assertPushed(BuildSandboxTemplate::class);
 })->group('SBX-014', 'ADMIN-002');
 
+test('a build E2B won\'t start is a failed build, and Settings says why', function () {
+    fakeSandboxImages();
+    config(['sandbox.provider' => 'e2b', 'sandbox.providers.e2b.api_key' => 'e2b-key', 'sandbox.providers.e2b.disk_mib' => 40000, 'inertia.ssr.enabled' => false]);
+    SystemSetting::put(SandboxTemplates::SETTING, ['e2b' => ['template_id' => 'tpl1', 'build_id' => 'build-7', 'status' => 'ready', 'settings' => []]]);
+    Http::fake([E2B_API.'/v3/templates' => Http::response(['message' => "Minimum free disk can't be higher than 25600 MiB"], 400)]);
+
+    expect(fn () => (new BuildSandboxTemplate('e2b'))->handle(app(SandboxTemplates::class)))->toThrow(SandboxException::class);
+
+    $this->actingAs(User::factory()->admin()->create())->get(route('admin.sandboxes.index'))
+        ->assertInertia(fn (AssertableInertia $page) => $page->where('templateBuilds.e2b.status', 'error')
+            ->where('templateBuilds.e2b.reason', fn (string $reason) => str_contains($reason, '25600 MiB')));
+    expect(app(SandboxTemplates::class)->needsBuild('e2b'))->toBeTrue();
+})->group('SBX-014', 'ADMIN-002');
+
 test('GitHub\'s workflow saying a sandbox image was published builds E2B\'s again, if it proves it\'s this repository\'s', function () {
     Queue::fake([BuildSandboxTemplate::class]);
     config(['sandbox.providers.e2b.api_key' => 'e2b-key', 'app.url' => 'https://onedrop.test', 'sandbox.images_repository' => 'onedrop-io/onedrop']);
