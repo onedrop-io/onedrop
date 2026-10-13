@@ -315,7 +315,8 @@ test('building on E2B asks E2B to make the template from the published sandbox i
         && str_starts_with($request['startCmd'], "env 'LANG=C.UTF-8' ")
         && str_contains($request['startCmd'], " 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/onedrop/lazy' ")
         && str_ends_with($request['startCmd'], ' /opt/onedrop/start.sh')
-        && $request['steps'][0] === ['type' => 'USER', 'args' => ['sandbox'], 'force' => false]);
+        && $request['steps'][0] === ['type' => 'USER', 'args' => ['sandbox'], 'force' => false]
+        && $request['force'] === true);
     expect(SystemSetting::group(SandboxTemplates::SETTING)['e2b']['build_id'])->toBe('build-8');
 })->group('SBX-014');
 

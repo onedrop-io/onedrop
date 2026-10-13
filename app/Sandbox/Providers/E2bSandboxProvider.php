@@ -324,7 +324,8 @@ class E2bSandboxProvider implements SandboxProvider
                 self::IMAGE_ENV,
             ), '/opt/onedrop/start.sh']),
             'readyCmd' => '[ -n "$(ss -Htuln sport = :'.(int) config('sandbox.port').')" ]',
-            'force' => false,
+            // E2B caches the image by its name, which stays `:latest`: without this it builds from the first one again.
+            'force' => true,
         ]);
 
         return ['templateID' => $templateId, 'buildID' => $buildId];
