@@ -66,6 +66,26 @@ test('the OIDC provider shows once its issuer and credentials are set', function
     $this->get(route('login'))->assertInertia(fn (Assert $page) => $page->where('socialProviders.4', ['id' => 'oidc', 'label' => 'Okta']));
 })->group('AUTH-003');
 
+test('the Apple private key can be set as its contents, with \\n for newlines, or base64-encoded', function (Closure $encode) {
+    $key = '';
+    openssl_pkey_export(openssl_pkey_new(['curve_name' => 'prime256v1', 'private_key_type' => OPENSSL_KEYTYPE_EC]), $key);
+    $key = trim($key);
+
+    $_ENV['APPLE_PRIVATE_KEY'] = $_SERVER['APPLE_PRIVATE_KEY'] = $encode($key);
+
+    try {
+        $loaded = (require config_path('services.php'))['apple']['private_key'];
+    } finally {
+        unset($_ENV['APPLE_PRIVATE_KEY'], $_SERVER['APPLE_PRIVATE_KEY']);
+    }
+
+    expect($loaded)->toBe($key);
+})->with([
+    'as is' => [fn (string $key) => $key],
+    'escaped newlines' => [fn (string $key) => str_replace("\n", '\n', $key)],
+    'base64' => [fn (string $key) => base64_encode($key)],
+])->group('AUTH-003');
+
 test('the Apple button shows once its Services ID, team, key ID and private key are set', function (?string $missing) {
     configureApple();
 

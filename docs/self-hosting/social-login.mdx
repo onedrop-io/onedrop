@@ -61,9 +61,11 @@ where `{provider}` is `google`, `apple`, `microsoft`, `github`, `gitlab`, or `oi
         APPLE_CLIENT_ID=com.example.onedrop.web
         APPLE_TEAM_ID=ABCDE12345
         APPLE_KEY_ID=FGHIJ67890
-        # The .p8 file's contents, with newlines written as \n, or the path to the file
-        APPLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIGT...\n-----END PRIVATE KEY-----"
+        # The .p8 file's contents: base64-encoded on one line, with newlines written as \n, or the path to the file
+        APPLE_PRIVATE_KEY=LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0t...
         ```
+
+        To get the one-line form, run `base64 -i AuthKey_FGHIJ67890.p8 | tr -d '\n'` and paste all of it; a key cut short fails with "Apple sign-in failed".
 
         OneDrop signs a fresh client secret with the key on each sign-in, so there's no secret to renew every six months.
 

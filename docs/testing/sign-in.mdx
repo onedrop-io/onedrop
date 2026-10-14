@@ -17,4 +17,4 @@ Set `APPLE_CLIENT_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID` and `APPLE_PRIVATE_KEY`, 
 - [ ] Cancelling on Apple's page returns to **Log in** with "Apple sign-in was cancelled."
 - [ ] Signed in with a password, **Settings → Security → Apple → Connect** returns to Security with "Apple connected." and you're still signed in.
 - [ ] With two-factor on, signing in with Apple asks for the code.
-- [ ] Set `APPLE_PRIVATE_KEY` as one line with `\n` for newlines, run `php artisan config:cache`: sign-in still works.
+- [ ] Set `APPLE_PRIVATE_KEY` as one base64 line, then as one line with `\n` for newlines, running `php artisan config:cache` each time: sign-in works both ways.

@@ -56,13 +56,18 @@ return [
     ],
 
     // Apple signs in with a Services ID and a Sign in with Apple key (.p8), not a fixed secret. APPLE_PRIVATE_KEY is
-    // the key's contents (newlines may be written as \n) or a path to the file.
+    // the key's contents (newlines may be written as \n), the contents base64-encoded (one line, for env vars), or a
+    // path to the file.
     'apple' => [
         'client_id' => env('APPLE_CLIENT_ID'),
         'client_secret' => null,
         'team_id' => env('APPLE_TEAM_ID'),
         'key_id' => env('APPLE_KEY_ID'),
-        'private_key' => str_replace('\\n', "\n", (string) env('APPLE_PRIVATE_KEY')),
+        'private_key' => (function (string $key): string {
+            $decoded = base64_decode($key, true);
+
+            return $decoded !== false && str_contains($decoded, 'PRIVATE KEY') ? $decoded : str_replace('\\n', "\n", $key);
+        })(trim((string) env('APPLE_PRIVATE_KEY'))),
         'redirect' => '/login/apple/callback',
     ],
 
