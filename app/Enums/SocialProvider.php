@@ -12,6 +12,7 @@ use Laravel\Socialite\Contracts\User as SocialiteUser;
 enum SocialProvider: string
 {
     case Google = 'google';
+    case Apple = 'apple';
     case Microsoft = 'microsoft';
     case GitHub = 'github';
     case GitLab = 'gitlab';
@@ -27,6 +28,7 @@ enum SocialProvider: string
     {
         return match ($this) {
             self::Google => 'Google',
+            self::Apple => 'Apple',
             self::Microsoft => 'Microsoft',
             self::GitHub => 'GitHub',
             self::GitLab => 'GitLab',
@@ -76,6 +78,11 @@ enum SocialProvider: string
             return false;
         }
 
+        // Apple's client secret is a short-lived token signed with the server's key, made on each sign-in.
+        if ($this === self::Apple) {
+            return filled($config['client_id'] ?? null) && filled($config['team_id'] ?? null) && filled($config['key_id'] ?? null) && filled($config['private_key'] ?? null);
+        }
+
         return filled($config['client_id'] ?? null) && filled($config['client_secret'] ?? null);
     }
 
@@ -89,7 +96,7 @@ enum SocialProvider: string
         $raw = method_exists($user, 'getRaw') ? $user->getRaw() : [];
 
         return match ($this) {
-            self::Google, self::Oidc => filter_var(Arr::get($raw, 'email_verified'), FILTER_VALIDATE_BOOLEAN),
+            self::Google, self::Apple, self::Oidc => filter_var(Arr::get($raw, 'email_verified'), FILTER_VALIDATE_BOOLEAN),
             // Socialite only returns GitHub's primary, verified address.
             self::GitHub => filled($user->getEmail()),
             self::GitLab => filled(Arr::get($raw, 'confirmed_at')),

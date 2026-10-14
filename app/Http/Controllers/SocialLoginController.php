@@ -20,8 +20,8 @@ use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
 /**
- * Log in, sign up, or connect an account with Google, Microsoft, GitHub,
- * GitLab, or an OIDC issuer. Signed-in users use the same flow to connect a
+ * Log in, sign up, or connect an account with Google, Apple, Microsoft,
+ * GitHub, GitLab, or an OIDC issuer. Signed-in users use the same flow to connect a
  * provider to their account.
  */
 class SocialLoginController extends Controller
@@ -73,6 +73,17 @@ class SocialLoginController extends Controller
         }
 
         return $this->logIn($request, $user, $provider);
+    }
+
+    /**
+     * Pass Apple's posted sign-in on to the callback as a visit, which brings the session cookie (SameSite=Lax) that
+     * its cross-site post didn't.
+     */
+    public function relay(Request $request): RedirectResponse
+    {
+        $query = http_build_query($request->only(['code', 'state', 'user', 'error']));
+
+        return redirect()->to(route('social.callback', SocialProvider::Apple).'?'.$query, 303);
     }
 
     /**

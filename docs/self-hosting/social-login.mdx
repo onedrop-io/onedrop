@@ -1,10 +1,10 @@
 ---
 title: 'Log in with Google, GitHub, and more'
 sidebarTitle: 'Social login'
-description: 'Let people log in with Google, Microsoft, GitHub, GitLab, or your own single sign-on (OIDC) provider.'
+description: 'Let people log in with Google, Apple, Microsoft, GitHub, GitLab, or your own single sign-on (OIDC) provider.'
 ---
 
-OneDrop can show **Continue with …** buttons on the log-in and sign-up pages. Each provider appears once you add its OAuth client ID and secret to `.env`. With none set, the pages look as they do out of the box.
+OneDrop can show **Continue with …** buttons on the log-in and sign-up pages. Each provider appears once you add its OAuth client ID and secret (for Apple, its key) to `.env`. With none set, the pages look as they do out of the box.
 
 ## How it works
 
@@ -20,6 +20,7 @@ OneDrop can show **Continue with …** buttons on the log-in and sign-up pages. 
 | Provider  | Email treated as verified when…                                  |
 | --------- | ---------------------------------------------------------------- |
 | Google    | Google reports `email_verified`                                  |
+| Apple     | Apple reports `email_verified`                                   |
 | GitHub    | Always. OneDrop only reads the account's primary, verified email |
 | GitLab    | The account's email is confirmed (`confirmed_at`)                |
 | OIDC      | The issuer reports `email_verified`                              |
@@ -33,7 +34,7 @@ When you create the OAuth app at each provider, use this redirect (callback) URL
 https://onedrop.example.com/login/{provider}/callback
 ```
 
-where `{provider}` is `google`, `microsoft`, `github`, `gitlab`, or `oidc`.
+where `{provider}` is `google`, `apple`, `microsoft`, `github`, `gitlab`, or `oidc`.
 
 ## Set up a provider
 
@@ -47,6 +48,26 @@ where `{provider}` is `google`, `microsoft`, `github`, `gitlab`, or `oidc`.
         GOOGLE_CLIENT_ID=...
         GOOGLE_CLIENT_SECRET=...
         ```
+    </Tab>
+    <Tab title="Apple">
+        Apple needs an Apple Developer Program membership and an `https://` address; it won't send people back to `localhost`.
+
+        1. In [Certificates, Identifiers & Profiles](https://developer.apple.com/account/resources/identifiers/list), create an **App ID** with **Sign in with Apple** turned on.
+        2. Create a **Services ID** (for example `com.example.onedrop.web`). Turn on **Sign in with Apple**, choose the App ID as its primary, and add your domain (`onedrop.example.com`) and the return URL `https://onedrop.example.com/login/apple/callback`.
+        3. Under **Keys**, create a key with **Sign in with Apple** for the same App ID and download the `.p8` file. Note its **Key ID** and your **Team ID** (top right of the developer site).
+        4. Add them to `.env`. The client ID is the Services ID, not the App ID:
+
+        ```bash
+        APPLE_CLIENT_ID=com.example.onedrop.web
+        APPLE_TEAM_ID=ABCDE12345
+        APPLE_KEY_ID=FGHIJ67890
+        # The .p8 file's contents, with newlines written as \n, or the path to the file
+        APPLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIGT...\n-----END PRIVATE KEY-----"
+        ```
+
+        OneDrop signs a fresh client secret with the key on each sign-in, so there's no secret to renew every six months.
+
+        Apple only shares the person's name the first time they sign in to OneDrop; later sign-ins send only the email. People who choose **Hide My Email** sign up with an `@privaterelay.appleid.com` address, so they aren't matched to an existing account with their real email. They can log in to that account and connect Apple from **Settings → Security** instead. For OneDrop's emails to reach relay addresses, register your sending domain under **Sign in with Apple for Email Communication** in the developer site.
     </Tab>
     <Tab title="Microsoft">
         1. In the [Microsoft Entra admin center](https://entra.microsoft.com), go to **App registrations → New registration**.

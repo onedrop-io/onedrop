@@ -39,6 +39,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 use InvalidArgumentException;
+use SocialiteProviders\Apple\Provider as AppleProvider;
 use SocialiteProviders\Manager\SocialiteWasCalled;
 use SocialiteProviders\Microsoft\Provider as MicrosoftProvider;
 
@@ -156,6 +157,7 @@ class AppServiceProvider extends ServiceProvider
         });
 
         Event::listen(fn (SocialiteWasCalled $event) => $event->extendSocialite('microsoft', MicrosoftProvider::class));
+        Event::listen(fn (SocialiteWasCalled $event) => $event->extendSocialite('apple', AppleProvider::class));
 
         // `composer run dev` runs the scheduler too, so idle Docker sandboxes are suspended locally (SBX-007).
         DevCommands::artisan('schedule:work', 'scheduler');

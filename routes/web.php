@@ -114,6 +114,10 @@ Route::middleware('throttle:20,1')->group(function () {
 
 // Preview/shell addresses on servers. No session here: the app's login cookie never reaches these hosts.
 Route::withoutMiddleware([StartSession::class, ShareErrorsFromSession::class, PreventRequestForgery::class, HandleInertiaRequests::class])->group(function () {
+    // Apple posts its sign-in back from its own site, which carries no session cookie; starting one here would replace
+    // the person's real session, so this only passes it on to the callback as a normal visit (AUTH-003).
+    Route::post('login/apple/callback', [SocialLoginController::class, 'relay'])->middleware('throttle:20,1')->name('social.apple-relay');
+
     // Used by Caddy to authorize preview/shell traffic and on-demand certificates.
     Route::get('sandbox-gateway/authorize', [SandboxGatewayController::class, 'authorize'])->name('sandbox-gateway.authorize');
     Route::get('sandbox-gateway/certificate', [SandboxGatewayController::class, 'certificate'])->name('sandbox-gateway.certificate');

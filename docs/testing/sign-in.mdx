@@ -1,0 +1,20 @@
+---
+title: 'Sign-in providers'
+description: 'Manual tests for signing in with real providers, which the Socialite fakes skip.'
+noindex: true
+---
+
+The Pest suite fakes each provider's answer, so it can't prove the real handshake: Apple's signed client secret, its cross-site post back, or a provider's own sign-in page. These checks need an `https://` address the provider accepts (a server install, or `tailscale funnel` locally) and that provider's credentials in `.env`.
+
+## AUTH-003: Sign in with Apple
+
+Set `APPLE_CLIENT_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID` and `APPLE_PRIVATE_KEY`, with the return URL `https://<your address>/login/apple/callback` on the Services ID.
+
+- [ ] **Continue with Apple** shows on the log-in and sign-up pages, with the Apple logo legible in light and dark themes.
+- [ ] Signing up with an Apple ID that has never used this Services ID creates an account with the Apple ID's name and lands on onboarding.
+- [ ] Signing up with **Hide My Email** creates an account with the `@privaterelay.appleid.com` address, already verified.
+- [ ] Logging out and signing in with Apple again logs in to the same account (Apple sends no name this time; the name is unchanged).
+- [ ] Cancelling on Apple's page returns to **Log in** with "Apple sign-in was cancelled."
+- [ ] Signed in with a password, **Settings → Security → Apple → Connect** returns to Security with "Apple connected." and you're still signed in.
+- [ ] With two-factor on, signing in with Apple asks for the code.
+- [ ] Set `APPLE_PRIVATE_KEY` as one line with `\n` for newlines, run `php artisan config:cache`: sign-in still works.

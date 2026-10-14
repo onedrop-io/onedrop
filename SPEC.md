@@ -17,11 +17,14 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Deleting an account deletes every one of its projects the same way deleting a project does: apps go offline, and chats, attachments, and sandboxes are removed.
 - User should be able to set up two-factor authentication and passkeys.
 
-## AUTH-003: Log in with Google, Microsoft, GitHub, GitLab, or single sign-on (OIDC)
+## AUTH-003: Log in with Google, Apple, Microsoft, GitHub, GitLab, or single sign-on (OIDC)
 
 - User should see a "Continue with …" button on the log-in and sign-up pages for each provider the server has credentials for, and none when no provider is set up.
 - User should be able to sign up with a provider when registration is open; the account has no password and uses the provider's name and email.
-- User's email should count as verified only when the provider says it is (Google, GitHub, GitLab, OIDC `email_verified`); Microsoft emails always need verifying.
+- User's email should count as verified only when the provider says it is (Google, Apple, GitHub, GitLab, OIDC `email_verified`); Microsoft emails always need verifying.
+- User should see "Continue with Apple" once the server has a Services ID, team ID, key ID and Sign in with Apple private key (`APPLE_*`); its client secret is signed from the key on each sign-in.
+- User signing up with Apple should get the name Apple shares on their first sign-in, and can sign up with a Hide My Email relay address.
+- User coming back from Apple (which posts its answer from its own site) should keep their session, so sign-in and connecting Apple from settings both work.
 - User should be able to log in again with a provider they've used before.
 - User should see their provider profile picture as their avatar after signing in or connecting a provider; it stays in sync with that provider and isn't replaced by providers connected later.
 - User who already has an account should be linked automatically when the provider's verified email matches it; if the email isn't verified, they should see an error telling them to log in and connect the provider from settings.

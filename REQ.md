@@ -33,7 +33,7 @@ Everything OneDrop has to be, in one place: the requirements (the stories in `SP
 ## Accounts, people and settings
 
 AUTH-001..003, GRP-001..003, USR-001..003, INV-001, SET-001..002, BRAND-001.
-Email/password (Fortify) plus Google, Microsoft, GitHub, GitLab and OIDC sign-in; two-factor and passkeys; groups with owners; admin user management; invite links; an account menu with settings in a modal; color themes.
+Email/password (Fortify) plus Google, Apple, Microsoft, GitHub, GitLab and OIDC sign-in; two-factor and passkeys; groups with owners; admin user management; invite links; an account menu with settings in a modal; color themes.
 
 ### Decisions
 
@@ -41,6 +41,9 @@ Email/password (Fortify) plus Google, Microsoft, GitHub, GitLab and OIDC sign-in
 - **2026-09-29: The first account on a server install can only be made from the installer's one-time setup link** (`SETUP_TOKEN`), so a stranger who finds a new server first can't make themselves admin. On a local Docker install the first person to sign up is admin.
 - **2026-09-30: Email verification is off by default when `APP_ENV=local`** (mail only goes to the log); on everywhere else. `AUTH_VERIFY_EMAIL` still wins.
 - **Provider emails count as verified only when the provider says so;** Microsoft's never do. An unverified email is never auto-linked to an existing account.
+- **2026-10-14: Sign in with Apple uses `socialiteproviders/apple` with the client secret signed from the `.p8` key on each sign-in (`APPLE_CLIENT_ID/TEAM_ID/KEY_ID/PRIVATE_KEY`).** A pasted `APPLE_CLIENT_SECRET` was ruled out: Apple caps it at six months, so sign-in would quietly break twice a year. The key can be its contents with `\n` for newlines (Laravel Cloud env vars are one line) or a path.
+- **2026-10-14: Apple's `form_post` callback is relayed, not handled.** Apple posts back from its own site, so the SameSite=Lax session cookie isn't sent, and starting a session there would replace the person's real one. `POST /login/apple/callback` runs without the session or CSRF middleware and 303s to the usual GET callback with `code`, `state`, `user` and `error`, which arrives with the session, so the normal state check, connecting from settings and two-factor all work unchanged. Rejected: a stateless Apple flow (loses the session-bound state check) and `SESSION_SAME_SITE=none` (weakens CSRF for the whole app). The cost: the name Apple sends on the first sign-in passes through the URL once.
+- **2026-10-14: Apple's `email_verified` is trusted like Google's,** including Hide My Email relay addresses, which Apple verifies. A relay address won't match an existing account's real email, so those people connect Apple from settings.
 - **2026-09-29: One GitHub App covers Tools → Git and "Continue with GitHub"** (`GITHUB_APP_CLIENT_ID/SECRET`); `GITHUB_CLIENT_*` override it for a separate OAuth app.
 - **2026-09-28: Trust Laravel Cloud's load balancer** so OAuth callbacks come out as `https://` (the loopback-only `trustProxies()` had turned Cloud's handling off).
 - **2026-09-28: Groups, Invite people and Users live in the settings modal,** not as top-level pages.

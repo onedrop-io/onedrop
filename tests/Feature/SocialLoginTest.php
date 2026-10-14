@@ -12,7 +12,15 @@ beforeEach(function () {
     foreach (['google', 'microsoft', 'github', 'gitlab'] as $provider) {
         config(["services.{$provider}.client_id" => "{$provider}-id", "services.{$provider}.client_secret" => "{$provider}-secret"]);
     }
+
+    // Off unless a test sets it up, whatever the local .env has.
+    config(['services.apple.client_id' => null]);
 });
+
+function configureApple(): void
+{
+    config(['services.apple' => [...config('services.apple'), 'client_id' => 'com.example.web', 'team_id' => 'TEAM123', 'key_id' => 'KEY123', 'private_key' => 'apple-key']]);
+}
 
 /**
  * @param  array<string, mixed>  $attributes
@@ -58,6 +66,73 @@ test('the OIDC provider shows once its issuer and credentials are set', function
     $this->get(route('login'))->assertInertia(fn (Assert $page) => $page->where('socialProviders.4', ['id' => 'oidc', 'label' => 'Okta']));
 })->group('AUTH-003');
 
+test('the Apple button shows once its Services ID, team, key ID and private key are set', function (?string $missing) {
+    configureApple();
+
+    if ($missing) {
+        config(["services.apple.{$missing}" => '']);
+    }
+
+    $this->get(route('login'))->assertInertia(fn (Assert $page) => $page->where(
+        'socialProviders.1',
+        $missing ? ['id' => 'microsoft', 'label' => 'Microsoft'] : ['id' => 'apple', 'label' => 'Apple'],
+    ));
+})->with([null, 'client_id', 'team_id', 'key_id', 'private_key'])->group('AUTH-003');
+
+test('signing in with Apple asks for name and email, posted back to the callback', function () {
+    configureApple();
+
+    $location = $this->get(route('social.redirect', 'apple'))->assertRedirect()->headers->get('Location');
+    parse_str((string) parse_url($location, PHP_URL_QUERY), $query);
+
+    expect($location)->toStartWith('https://appleid.apple.com/auth/authorize')
+        ->and($query)->toMatchArray([
+            'client_id' => 'com.example.web',
+            'redirect_uri' => route('social.callback', 'apple'),
+            'scope' => 'name email',
+            'response_mode' => 'form_post',
+        ]);
+})->group('AUTH-003');
+
+test('Apple\'s posted sign-in is passed on to the callback without a session or CSRF token', function () {
+    configureApple();
+
+    $user = json_encode(['name' => ['firstName' => 'Ada', 'lastName' => 'Lovelace'], 'email' => 'ada@example.com']);
+
+    $response = $this->post('/login/apple/callback', ['code' => 'abc', 'state' => 'xyz', 'user' => $user, 'extra' => 'dropped']);
+
+    $response->assertStatus(303)
+        ->assertRedirect(route('social.callback', ['provider' => 'apple', 'code' => 'abc', 'state' => 'xyz', 'user' => $user]));
+
+    // A new session cookie here would replace the person's own, losing the sign-in's state.
+    expect($response->headers->getCookies())->toBeEmpty();
+})->group('AUTH-003');
+
+test('signing up with Apple creates an account from the name it shares', function () {
+    configureApple();
+    fakeIdentity('apple', ['email' => 'ada@privaterelay.appleid.com', 'email_verified' => 'true']);
+
+    $this->get(route('social.callback', ['provider' => 'apple', 'code' => 'abc']))->assertRedirect('/dashboard');
+
+    $user = User::sole();
+
+    expect($user->name)->toBe('Ada Lovelace')
+        ->and($user->email)->toBe('ada@privaterelay.appleid.com')
+        ->and($user->email_verified_at)->not->toBeNull()
+        ->and($user->socialAccounts()->sole()->provider->value)->toBe('apple');
+})->group('AUTH-003');
+
+test('a cancelled Apple sign-in goes back to log in with an error', function () {
+    configureApple();
+
+    $this->post('/login/apple/callback', ['error' => 'user_cancelled_authorize'])
+        ->assertRedirect(route('social.callback', ['provider' => 'apple', 'error' => 'user_cancelled_authorize']));
+
+    $this->get(route('social.callback', ['provider' => 'apple', 'error' => 'user_cancelled_authorize']))
+        ->assertRedirect(route('login'))
+        ->assertSessionHasErrors(['social' => 'Apple sign-in was cancelled. Try again.']);
+})->group('AUTH-003');
+
 test('redirecting sends the person to the provider', function () {
     Socialite::fake('github');
 
@@ -87,6 +162,7 @@ test('signing up with a provider creates a password-less, verified account', fun
 })->group('AUTH-003');
 
 test('emails are only trusted when the provider verified them', function (string $driver, array $raw, bool $verified) {
+    configureApple();
     fakeIdentity($driver, $raw);
 
     $this->get(route('social.callback', ['provider' => $driver, 'code' => 'abc']));
@@ -98,6 +174,8 @@ test('emails are only trusted when the provider verified them', function (string
     'gitlab confirmed' => ['gitlab', ['confirmed_at' => '2024-01-01T00:00:00Z'], true],
     'gitlab unconfirmed' => ['gitlab', [], false],
     'microsoft' => ['microsoft', [], false],
+    'apple verified' => ['apple', ['email_verified' => 'true'], true],
+    'apple unverified' => ['apple', ['email_verified' => 'false'], false],
 ])->group('AUTH-003');
 
 test('signing in again logs in the linked user', function () {

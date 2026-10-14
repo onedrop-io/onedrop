@@ -92,3 +92,15 @@ test('the dev user reconnects GitHub to let their projects download private pack
 
     expect($dev->socialAccounts()->sole()->canReadPackages())->toBeTrue();
 })->group('GIT-016');
+
+test('a person sees Continue with Apple once Apple is set up', function () {
+    config(['services.apple' => [...config('services.apple'), 'client_id' => 'com.example.web', 'team_id' => 'TEAM123', 'key_id' => 'KEY123', 'private_key' => 'apple-key']]);
+
+    visit('/login')
+        ->assertSeeIn('@social-login-apple', 'Continue with Apple')
+        ->assertNoJavaScriptErrors();
+
+    visit('/register')
+        ->assertSeeIn('@social-login-apple', 'Continue with Apple')
+        ->assertNoJavaScriptErrors();
+})->group('AUTH-003');

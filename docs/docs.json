@@ -159,6 +159,7 @@
                             "testing/sandboxes",
                             "testing/publishing",
                             "testing/domains",
+                            "testing/sign-in",
                             "testing/desktop",
                             "testing/computers"
                         ]
