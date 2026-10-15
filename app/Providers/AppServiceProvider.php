@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Actions\Auth\AppleProvider;
 use App\Enums\SocialProvider;
 use App\Models\Impersonation;
 use App\Models\Organization;
@@ -39,7 +40,6 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 use InvalidArgumentException;
-use SocialiteProviders\Apple\Provider as AppleProvider;
 use SocialiteProviders\Manager\SocialiteWasCalled;
 use SocialiteProviders\Microsoft\Provider as MicrosoftProvider;
 

@@ -3,6 +3,8 @@
 use App\Models\Invitation;
 use App\Models\SocialAccount;
 use App\Models\User;
+use Firebase\JWT\JWT;
+use Firebase\JWT\Key;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Testing\AssertableInertia as Assert;
 use Laravel\Socialite\Facades\Socialite;
@@ -112,6 +114,25 @@ test('signing in with Apple asks for name and email, posted back to the callback
             'scope' => 'name email',
             'response_mode' => 'form_post',
         ]);
+})->group('AUTH-003');
+
+test('Apple\'s client secret is signed with the key, with whole-second times Apple accepts', function () {
+    $key = '';
+    $pem = openssl_pkey_new(['curve_name' => 'prime256v1', 'private_key_type' => OPENSSL_KEYTYPE_EC]);
+    openssl_pkey_export($pem, $key);
+
+    configureApple();
+    config(['services.apple.private_key' => $key]);
+
+    $secret = (fn () => $this->getClientSecret())->call(Socialite::driver('apple'));
+
+    $header = json_decode(base64_decode(explode('.', $secret)[0]), true);
+    $claims = (array) JWT::decode($secret, new Key(openssl_pkey_get_details($pem)['key'], 'ES256'));
+
+    expect($header)->toMatchArray(['alg' => 'ES256', 'kid' => 'KEY123'])
+        ->and($claims)->toMatchArray(['iss' => 'TEAM123', 'sub' => 'com.example.web', 'aud' => 'https://appleid.apple.com'])
+        ->and($claims['iat'])->toBeInt()
+        ->and($claims['exp'] - $claims['iat'])->toBe(3600);
 })->group('AUTH-003');
 
 test('Apple\'s posted sign-in is passed on to the callback without a session or CSRF token', function () {
