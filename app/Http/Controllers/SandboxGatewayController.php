@@ -97,8 +97,10 @@ class SandboxGatewayController extends Controller
         $destination = $gateway->url($sandbox, $target['kind']).self::safePath((string) $request->query('path', '/'));
 
         // In the desktop app the address is a frame on another site, where WebKit keeps only partitioned cookies,
-        // and only cross-site (SameSite=None) ones are sent to a frame there.
-        $partitioned = $gateway->wantsPartitionedPass($token);
+        // and only cross-site (SameSite=None) ones are sent to a frame there. So is the workspace's preview or shell
+        // frame when the gateway domain isn't the app's site (GW-002); a published app opens in a tab of its own.
+        $partitioned = $gateway->wantsPartitionedPass($token)
+            || ($target['kind'] !== Gateway::APP && $gateway->onAnotherSite());
 
         return redirect()->away($destination)->withCookie(new Cookie(
             Gateway::COOKIE,

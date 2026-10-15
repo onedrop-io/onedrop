@@ -64,6 +64,19 @@ class Gateway
     }
 
     /**
+     * Whether the gateway addresses are on another site than the app (onedrop.dev beside onedrop.io, GW-002), so the
+     * workspace's preview and shell frames are cross-site: their cookie must be partitioned and SameSite=None, since
+     * browsers send a Lax one only to a frame on its own site, and many keep only partitioned ones in a frame there.
+     * Sites are compared by their last two labels.
+     */
+    public function onAnotherSite(): bool
+    {
+        $site = fn (string $host) => implode('.', array_slice(explode('.', strtolower($host)), -2));
+
+        return $this->enabled() && $site((string) $this->domain) !== $site((string) parse_url((string) config('app.url'), PHP_URL_HOST));
+    }
+
+    /**
      * Whether a Cloudflare Worker, not Caddy on this server, serves the gateway addresses.
      */
     public function viaWorker(): bool

@@ -94,6 +94,8 @@ test('unknown hosts, sandboxes and stopped sandboxes are not found', function (C
 ])->group('GW-001');
 
 test('opening a preview hands the browser to that address, which sets its own cookie', function () {
+    config(['app.url' => 'https://example.com']);
+
     $open = $this->actingAs($this->owner)->get(route('projects.gateway.open', [$this->project, 'preview', 'path' => '/contacts?page=2']));
     $enterUrl = $open->assertRedirect()->headers->get('Location');
 
@@ -114,6 +116,20 @@ test('opening a preview hands the browser to that address, which sets its own co
         ->get(route('sandbox-gateway.authorize'))
         ->assertOk();
 })->group('GW-001');
+
+test('a preview on another site than the app gets a partitioned cross-site cookie, so it works in the workspace frame', function (string $kind, bool $partitioned) {
+    config(['app.url' => 'https://onedrop.io']);
+
+    $enter = $this->get(app(Gateway::class)->enterUrl($this->sandbox, $kind, $this->owner));
+    $cookie = collect($enter->headers->getCookies())->first(fn ($cookie) => $cookie->getName() === Gateway::COOKIE);
+
+    expect($cookie->isPartitioned())->toBe($partitioned)
+        ->and($cookie->getSameSite())->toBe($partitioned ? 'none' : 'lax')
+        ->and($cookie->isSecure())->toBeTrue();
+})->with([
+    'preview' => ['preview', true],
+    'shell' => ['shell', true],
+])->group('GW-002');
 
 test('hand-off tokens only work briefly, on their own address', function () {
     $url = app(Gateway::class)->enterUrl($this->sandbox, 'preview', $this->owner);
