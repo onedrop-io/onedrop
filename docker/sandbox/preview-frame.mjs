@@ -32,3 +32,29 @@ export function withoutFrameChecks(text) {
         match.slice(1, 5).find(Boolean).startsWith('!') ? 'false' : 'true',
     );
 }
+
+// That rewrite also hides the frame from sign-in libraries that check it to pick their cookies' SameSite (Clerk's
+// `self !== top`), and the workspace is on another site than the preview (GW-002) anyway: there a Lax cookie is
+// dropped, and browsers that block third-party cookies keep only partitioned ones. So the app's own cookies, from
+// its server and from its scripts, are made cross-site and partitioned; the app signs in inside the frame as it
+// does in a tab. This function is also put into the preview's script as it is, so it uses nothing from outside.
+
+/** A Set-Cookie value (or a `document.cookie` assignment) as a cross-site, partitioned cookie. */
+export function crossSiteCookie(cookie) {
+    const [pair, ...attributes] = String(cookie).split(';');
+    const kept = attributes
+        .map((attribute) => attribute.trim())
+        .filter(
+            (attribute) =>
+                attribute !== '' &&
+                !/^(samesite\s*=.*|secure|partitioned)$/i.test(attribute),
+        );
+
+    return [
+        pair.trim(),
+        ...kept,
+        'Secure',
+        'SameSite=None',
+        'Partitioned',
+    ].join('; ');
+}

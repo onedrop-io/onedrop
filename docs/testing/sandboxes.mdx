@@ -19,6 +19,16 @@ Run these against the provider you changed. Locally that's Docker; for Runtime C
 - [ ] NocoDB's sign-up and sign-in work in the preview.
 - [ ] At the published URL, `curl -I` still shows the Rails app's `X-Frame-Options`.
 
+## Signing in to the app inside the preview (GW-002)
+
+1. On the hosted install (workspace on onedrop.io, preview on onedrop.dev), open a project whose app signs in with Clerk (a development instance), and another with a plain server session cookie (a Laravel app with Breeze).
+2. Sign in to each inside the preview, then reload the preview.
+
+- [ ] Both stay signed in after the reload, with no "no-token" or sign-in loop. Try Chrome with third-party cookies blocked, and Safari.
+- [ ] In the preview's DevTools (Application → Cookies), the app's cookies show `SameSite=None`, `Secure` and `Partitioned`.
+- [ ] Signing out inside the preview signs out.
+- [ ] At the published URL, `curl -I` shows the app's `Set-Cookie` unchanged.
+
 ## Suspend and wake
 
 1. Leave a project's workspace closed for over a minute.

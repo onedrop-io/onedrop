@@ -26,7 +26,7 @@ import {
 import http from 'node:http';
 import net from 'node:net';
 import { createInterface } from 'node:readline';
-import { withoutFrameChecks } from './preview-frame.mjs';
+import { crossSiteCookie, withoutFrameChecks } from './preview-frame.mjs';
 
 const appPort = Number(process.env.PORT || 8000);
 const listenPort = Number(process.env.PROXY_PORT || 8081);
@@ -315,6 +315,14 @@ function relay(req, res, response) {
     if (isPreview(host)) {
         allowFraming(headers);
 
+        // Cookies the app sets must survive in the workspace's cross-site frame (see preview-frame.mjs). Not on a
+        // local http address, where a Secure cookie isn't kept.
+        if (headers['set-cookie'] && !isLocalHost(host)) {
+            headers['set-cookie'] = [headers['set-cookie']]
+                .flat()
+                .map(crossSiteCookie);
+        }
+
         if (
             response.statusCode === 304
                 ? req.onedropRevalidating
@@ -405,6 +413,11 @@ function record(file, entry) {
 /** Dev-server plumbing (Vite modules, HMR) isn't traffic worth counting. */
 function isInternal(url) {
     return /^\/(@|node_modules\/|__vite|src\/)/.test(url ?? '');
+}
+
+/** A local Docker sandbox's address, reached over plain http. */
+function isLocalHost(host) {
+    return /^(127\.0\.0\.1|localhost)(:\d+)?$/.test(host);
 }
 
 /** Preview traffic comes from the workspace; anything else reached the published address. */
@@ -800,6 +813,32 @@ const lastErrors = new Map();
 
 // Added to preview pages. Reports to the proxy (for errors.log) and to the app builder around the preview.
 // Server errors (the page itself, or fetch/XHR answers) are already logged by the proxy, so they're only shown.
+// The app's own cookies, set from its scripts, made cross-site and partitioned like the ones from its server (see
+// preview-frame.mjs), so a sign-in library's session cookie survives in the workspace's frame. Runs before the
+// app's scripts: it's the first script on the page. Only over https, where a Secure cookie is kept.
+const PREVIEW_COOKIES = `(() => {
+    if (window.__onedropCookies || location.protocol !== 'https:') return;
+    window.__onedropCookies = true;
+    const crossSiteCookie = ${crossSiteCookie};
+    const cookie = Object.getOwnPropertyDescriptor(Document.prototype, 'cookie');
+    if (cookie && cookie.get && cookie.set) {
+        Object.defineProperty(document, 'cookie', {
+            configurable: true,
+            get() { return cookie.get.call(this); },
+            set(value) { cookie.set.call(this, crossSiteCookie(value)); },
+        });
+    }
+    const store = window.cookieStore;
+    if (store && store.set && store.delete) {
+        const options = (name, value) => ({ ...(name && typeof name === 'object' ? name : { name, value }), sameSite: 'none', partitioned: true });
+        const set = store.set.bind(store);
+        const remove = store.delete.bind(store);
+        store.set = (name, value) => set(options(name, value));
+        store.delete = (name) => remove({ ...(name && typeof name === 'object' ? name : { name }), partitioned: true });
+    }
+})();
+`;
+
 const ERROR_REPORTER = `(() => {
     if (window.__onedropErrors) return;
     window.__onedropErrors = true;
@@ -1916,7 +1955,7 @@ const server = http.createServer((req, res) => {
             'content-type': 'text/javascript; charset=utf-8',
             'cache-control': 'no-cache',
         });
-        res.end(ERROR_REPORTER + PREVIEW_ANNOTATOR);
+        res.end(PREVIEW_COOKIES + ERROR_REPORTER + PREVIEW_ANNOTATOR);
 
         return;
     }
