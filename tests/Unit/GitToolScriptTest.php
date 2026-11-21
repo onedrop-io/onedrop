@@ -327,7 +327,7 @@ test('the history is searched by message, author or id across every commit, a pa
         ->and(($this->data)(['op' => 'log', 'limit' => 2, 'offset' => 2])['more'])->toBeFalse();
 })->group('GIT-001');
 
-test('one uncommitted change can be read as a diff: edits, new files, binary files and new folders', function () {
+test('one uncommitted change can be read as a diff: edits, new files, binary files and nested repositories', function () {
     ($this->write)('a.txt', "old\nsame\n");
     ($this->write)('logo.png', "\x89PNG\0");
     ($this->data)(['op' => 'commit', 'message' => 'Start']);
@@ -337,6 +337,10 @@ test('one uncommitted change can be read as a diff: edits, new files, binary fil
     File::ensureDirectoryExists("{$this->workspace}/docs");
     ($this->write)('docs/one.md', 'one');
     ($this->write)('docs/two.md', 'two');
+    File::ensureDirectoryExists("{$this->workspace}/lib");
+    ($this->write)('lib/index.js', 'lib');
+    Process::path("{$this->workspace}/lib")->run(['git', 'init', '-q'])->throw();
+    $paths = collect(($this->data)(['op' => 'status'])['changes'])->pluck('path');
 
     $edited = ($this->data)(['op' => 'change_diff', 'path' => 'a.txt']);
     $new = ($this->data)(['op' => 'change_diff', 'path' => 'new.txt']);
@@ -349,7 +353,9 @@ test('one uncommitted change can be read as a diff: edits, new files, binary fil
         ->and($new['patch'])->toBe("diff --git a/new.txt b/new.txt\nnew file mode 100644\n--- /dev/null\n+++ b/new.txt\n@@ -0,0 +1,2 @@\n+one\n+two\n\\ No newline at end of file\n")
         ->and($new['hash'])->toBe(sha1($new['patch']))
         ->and(($this->data)(['op' => 'change_diff', 'path' => 'logo.png']))->toMatchArray(['binary' => true, 'patch' => ''])
-        ->and(($this->data)(['op' => 'change_diff', 'path' => 'docs/'])['files'])->toEqualCanonicalizing(['docs/one.md', 'docs/two.md'])
+        ->and($paths)->toContain('docs/one.md', 'docs/two.md', 'lib/')->not->toContain('docs/')
+        ->and(($this->data)(['op' => 'change_diff', 'path' => 'docs/one.md'])['patch'])->toContain('+one')
+        ->and(($this->data)(['op' => 'change_diff', 'path' => 'lib/'])['files'])->toBe(['lib/index.js'])
         ->and(($this->tool)(['op' => 'change_diff', 'path' => 'unchanged.txt']))->toBe(['ok' => false, 'error' => 'That file has no unstaged changes.'])
         ->and(($this->tool)(['op' => 'change_diff', 'path' => '../etc/passwd']))->toBe(['ok' => false, 'error' => "That isn't a file in this project."]);
 })->group('GIT-006', 'SCM-001');

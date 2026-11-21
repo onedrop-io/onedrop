@@ -209,13 +209,14 @@ function snapshot(string $message, string $kind = 'edits'): ?string
 /**
  * Staged and unstaged changes: path, a one-letter state (M modified, A added, D deleted, R renamed, U conflicted,
  * ? new), the lines added and removed (null for binary files and new folders), and for renames the path it came from.
+ * New files are listed one by one, even in a new folder; only a folder holding its own repository is listed whole.
  * A file staged and then edited again is in both lists. Conflicted and new files are unstaged.
  *
  * @return array{list<array{path: string, status: string, additions: ?int, deletions: ?int, binary: bool, from?: string}>, list<array{path: string, status: string, additions: ?int, deletions: ?int, binary: bool, from?: string}>, bool}
  */
 function changes(): array
 {
-    $output = gitOrFail(['status', '--porcelain=v1', '-z', '--untracked-files=normal']);
+    $output = gitOrFail(['status', '--porcelain=v1', '-z', '--untracked-files=all']);
     $entries = $output === '' ? [] : explode("\0", rtrim($output, "\0"));
     $staged = [];
     $unstaged = [];
@@ -957,7 +958,7 @@ function changePatch(array $change, bool $staged): string
 /**
  * One change's patch ("staged": its staged part, otherwise its unstaged part), cut short when it's very large, with a
  * hash of the whole patch (so staging parts of it can check it's still what was shown). Binary files are only marked,
- * and a new folder lists its files instead.
+ * and a new folder with its own repository (the only folder git lists whole) lists its files instead.
  *
  * @return array{path: string, staged: bool, patch: string, hash: ?string, truncated: bool, binary: bool, files: list<string>|null}
  */
@@ -969,7 +970,10 @@ function changeDiff(array $request): array
     $result = ['path' => $path, 'staged' => $staged, 'patch' => '', 'hash' => null, 'truncated' => false, 'binary' => false, 'files' => null];
 
     if ($change['status'] === '?' && is_dir(workspace().'/'.rtrim($path, '/'))) {
-        $files = array_values(array_filter(explode("\0", git(['ls-files', '-z', '--others', '--exclude-standard', '--', $path])[1])));
+        // Only a folder holding its own repository is listed whole (new files are listed one by one); list its files.
+        $folder = rtrim($path, '/');
+        $files = array_values(array_filter(explode("\0", git(['-C', $folder, 'ls-files', '-z', '--cached', '--others', '--exclude-standard'])[1])));
+        $files = array_map(fn (string $file) => "{$folder}/{$file}", $files);
 
         return [...$result, 'files' => array_slice($files, 0, FILES_MAX), 'truncated' => count($files) > FILES_MAX];
     }
