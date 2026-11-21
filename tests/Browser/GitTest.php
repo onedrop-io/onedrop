@@ -279,7 +279,7 @@ test('the first time, the dialog explains installing the app on GitHub', functio
     visit("/projects/{$project->id}?tool=git")
         ->resize(1500, 1000)
         ->click('@git-connect-github')
-        ->assertSeeIn('@git-github-install', 'Install the OneDrop app')
+        ->assertSeeIn('@git-github-install', 'Sign in to GitHub')
         ->assertAttribute('@git-github-continue', 'href', route('projects.git.github-app.install', $project))
         ->assertNoJavaScriptErrors();
 })->group('GIT-005');

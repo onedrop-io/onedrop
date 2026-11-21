@@ -388,6 +388,48 @@ test('GitHub can be connected from the new-project page, which it comes back to 
         ->and($this->user->githubInstallations()->pluck('installation_id')->all())->toBe([777]);
 })->group('PRJ-009');
 
+test('someone with no installations signs in first, and picks up the app already on an organization they\'re in', function () {
+    $this->user->githubInstallations()->delete();
+
+    $this->get(route('github-app.install'))
+        ->assertRedirect('https://github.com/login/oauth/authorize?'.http_build_query(['client_id' => 'Iv1.client', 'state' => session('github_app.state')]));
+    expect(session('github_app.install_if_none'))->toBeTrue();
+
+    Http::fake([
+        'github.com/login/oauth/access_token' => Http::response(['access_token' => 'ghu_new']),
+        'api.github.com/user' => Http::response(['login' => 'dev']),
+        'api.github.com/user/installations*' => Http::response(['installations' => [
+            ['id' => 888, 'account' => ['login' => 'acme', 'type' => 'Organization', 'avatar_url' => null], 'repository_selection' => 'all'],
+        ]]),
+    ]);
+
+    $this->get(route('github-app.callback', ['state' => session('github_app.state'), 'code' => 'oauth-code']))
+        ->assertRedirect(route('dashboard'))
+        ->assertSessionHas('github_import', ['error' => null]);
+
+    expect($this->user->githubInstallations()->pluck('account_login')->all())->toBe(['acme']);
+})->group('PRJ-009', 'GIT-005');
+
+test('someone whose sign-in finds the app on no account is sent on to install it, once', function () {
+    $this->user->githubInstallations()->delete();
+
+    $this->get(route('projects.git.github-app.install', $this->project))
+        ->assertRedirect('https://github.com/login/oauth/authorize?'.http_build_query(['client_id' => 'Iv1.client', 'state' => $state = session('github_app.state')]));
+
+    Http::fake([
+        'github.com/login/oauth/access_token' => Http::response(['access_token' => 'ghu_new']),
+        'api.github.com/user' => Http::response(['login' => 'dev']),
+        'api.github.com/user/installations*' => Http::response(['installations' => []]),
+    ]);
+
+    $this->get(route('github-app.callback', ['state' => $state, 'code' => 'oauth-code']))
+        ->assertRedirect("https://github.com/apps/onedrop-test/installations/new?state={$state}");
+
+    // Back without installing: no second trip to the install page.
+    $this->get(route('github-app.callback', ['state' => $state, 'code' => 'oauth-code']))
+        ->assertRedirect(route('projects.show', $this->project).'?tab=source-control&github=connect');
+})->group('GIT-005');
+
 test('the new-project page offers the user\'s repositories to import, newest first, leaving out empty ones', function () {
     ($this->github)([
         'api.github.com/user/installations/888/repositories*' => Http::response(['repositories' => [

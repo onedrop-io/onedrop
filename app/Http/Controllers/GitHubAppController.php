@@ -38,10 +38,7 @@ class GitHubAppController extends Controller
         Gate::authorize('update', $project);
         abort_unless($github->configured(), 404);
 
-        $state = Str::random(40);
-        $request->session()->put('github_app', ['state' => $state, 'project' => $project->id]);
-
-        return redirect()->away($request->boolean('reconnect') ? $github->authorizeUrl($state) : $github->installUrl($state));
+        return $this->toGitHub($request, $github, $project->id);
     }
 
     /**
@@ -51,10 +48,21 @@ class GitHubAppController extends Controller
     {
         abort_unless($github->configured(), 404);
 
-        $state = Str::random(40);
-        $request->session()->put('github_app', ['state' => $state, 'project' => null]);
+        return $this->toGitHub($request, $github, null);
+    }
 
-        return redirect()->away($request->boolean('reconnect') ? $github->authorizeUrl($state) : $github->installUrl($state));
+    /**
+     * Off to GitHub. Someone with no installations remembered signs in first, since the app may already be on an
+     * account they're in (an organization a teammate installed it on), and GitHub's install page only shows its
+     * settings then, without sending them back; the callback sends them on to install it if none turn up.
+     */
+    protected function toGitHub(Request $request, GitHubApp $github, ?int $projectId): RedirectResponse
+    {
+        $state = Str::random(40);
+        $signInFirst = ! $request->boolean('reconnect') && $request->user()->githubInstallations()->doesntExist();
+        $request->session()->put('github_app', ['state' => $state, 'project' => $projectId, 'install_if_none' => $signInFirst]);
+
+        return redirect()->away($request->boolean('reconnect') || $signInFirst ? $github->authorizeUrl($state) : $github->installUrl($state));
     }
 
     /**
@@ -136,6 +144,13 @@ class GitHubAppController extends Controller
 
         // Installations the user can no longer reach (uninstalled, or they left the organization) go.
         $user->githubInstallations()->whereNotIn('installation_id', array_column($installations, 'installation_id'))->delete();
+
+        // Signed in first and the app isn't on any account they're in: install it now (once, so this can't loop).
+        if ($installations === [] && ($pending['install_if_none'] ?? false)) {
+            $request->session()->put('github_app', [...$pending, 'install_if_none' => false]);
+
+            return redirect()->away($github->installUrl($pending['state']));
+        }
 
         return $this->backToGit($request, $project);
     }

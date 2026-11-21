@@ -395,7 +395,7 @@ function InstallStep({
                 {[
                     installed
                         ? "Sign in to GitHub so OneDrop can see which accounts it's installed on."
-                        : 'Install the OneDrop app on your GitHub account or an organization.',
+                        : "Sign in to GitHub. If OneDrop isn't on your account or one of your organizations yet, GitHub asks you to install it.",
                     'Choose all repositories, or only the ones OneDrop may use. You can change this later.',
                     'GitHub brings you back here to pick or create a repository.',
                 ].map((text, index) => (
