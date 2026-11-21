@@ -1252,7 +1252,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Organization owners and admins should see each secret's name, which projects it reaches and when it was last changed, but never its value again once saved; they should be able to change its value (left empty to keep it) and its projects, and delete it after confirming.
 - Members shouldn't see or change the organization's secrets.
 - Every sandbox of a project a secret reaches (task copies too) should have it as an environment variable in the Shell, the running app and the agent, within moments of a change for running sandboxes and on waking for sleeping ones; the app restarts when its secrets changed. Shells already open keep the old values until a new one is opened.
-- A setting the platform gives the sandbox and any name in the project's own `.env` (Tools → Secrets) should win over an organization secret of the same name.
+- A setting the platform gives the sandbox should win over an organization secret of the same name everywhere. A name in the project's own `.env` (Tools → Secrets) should win in the running app; the Shell and the agent, which don't read `.env`, keep the organization's value, so writing a `.env` never takes a secret away from them.
 - Organization secrets should never be written into the project's files, so they don't go into commits, hosted apps, snapshots or remixes.
 - User should see the names of the organization's secrets that reach a project in Tools → Secrets, with ones its own secrets replace marked.
 - The agent may use organization secrets for what the user asks (e.g. an AWS profile to read a bucket), never prints their values, and asks before creating, changing, deleting or deploying real cloud resources.

@@ -288,13 +288,16 @@ test('Tools → Secrets lists the names of the organization\'s secrets that reac
         ->assertDontSee('us-east-1');
 })->group('SECRET-003');
 
-test('the Shell, the app and the agent read the file, with the platform\'s settings and the project\'s .env winning', function () {
+test('the Shell, the app and the agent read the file, with the platform\'s settings winning, and the project\'s .env in the app only', function () {
     $helper = file_get_contents(base_path('docker/sandbox/org-secrets'));
+    $forwarder = file_get_contents(base_path('docker/sandbox/forwarder.mjs'));
 
     expect($helper)->toContain(OrganizationSecrets::FILE)
-        ->and(file_get_contents(base_path('docker/sandbox/bashrc')))->toContain('. /opt/onedrop/org-secrets')
-        ->and(file_get_contents(base_path('docker/sandbox/start.sh')))->toContain('. /opt/onedrop/org-secrets')
-        ->and(file_get_contents(base_path('docker/sandbox/forwarder.mjs')))->toContain(OrganizationSecrets::FILE);
+        ->and(file_get_contents(base_path('docker/sandbox/bashrc')))->toContain('. /opt/onedrop/org-secrets shell')
+        ->and(file_get_contents(base_path('docker/sandbox/start.sh')))->toContain('. /opt/onedrop/org-secrets;')
+        ->and($forwarder)->toContain(OrganizationSecrets::FILE)
+        // The agent's environment doesn't read .env, so a name there mustn't leave the agent without it.
+        ->and($forwarder)->not->toContain('/workspace/.env');
 
     $root = sys_get_temp_dir().'/onedrop-org-env-'.bin2hex(random_bytes(4));
     mkdir($root);
@@ -307,7 +310,8 @@ test('the Shell, the app and the agent read the file, with the platform\'s setti
     ]));
     file_put_contents("{$root}/helper", str_replace([OrganizationSecrets::FILE, '/workspace/.env'], ["{$root}/secrets", "{$root}/.env"], $helper));
 
-    $output = shell_exec('env -i HOME=/home/sandbox PATH=/usr/bin:/bin bash -c '.escapeshellarg(". {$root}/helper; printf '%s|%s|%s' \"\${AWS_ACCESS_KEY_ID-unset}\" \"\$AWS_SECRET_ACCESS_KEY\" \"\$HOME\""));
+    $read = fn (string $as) => shell_exec('env -i HOME=/home/sandbox PATH=/usr/bin:/bin bash -c '.escapeshellarg(". {$root}/helper {$as}; printf '%s|%s|%s' \"\${AWS_ACCESS_KEY_ID-unset}\" \"\$AWS_SECRET_ACCESS_KEY\" \"\$HOME\""));
 
-    expect($output)->toBe("unset|two\nlines 'q' \$HOME|/home/sandbox");
+    expect($read(''))->toBe("unset|two\nlines 'q' \$HOME|/home/sandbox")
+        ->and($read('shell'))->toBe("AKIA-real|two\nlines 'q' \$HOME|/home/sandbox");
 })->group('SECRET-003');

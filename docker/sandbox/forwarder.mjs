@@ -209,8 +209,9 @@ function codexCommand(resume) {
     };
 }
 
-// The organization's secrets (SECRET-003), by the same rules as /opt/onedrop/org-secrets for the Shell and the app:
-// settings already in the environment and names the project's .env sets win over them.
+// The organization's secrets (SECRET-003), as /opt/onedrop/org-secrets gives them to the Shell: settings already in the
+// environment win over them. Names the project's .env sets don't, since the agent's environment doesn't read .env;
+// only the app's does.
 function organizationSecrets() {
     let lines;
 
@@ -220,30 +221,12 @@ function organizationSecrets() {
         return {};
     }
 
-    let projectNames = new Set();
-
-    try {
-        projectNames = new Set(
-            [
-                ...readFileSync('/workspace/.env', 'utf8').matchAll(
-                    /^[ \t]*(?:export[ \t]+)?([A-Za-z_][A-Za-z0-9_]*)[ \t]*=/gm,
-                ),
-            ].map((match) => match[1]),
-        );
-    } catch {
-        // No .env.
-    }
-
     const secrets = {};
 
     for (const line of lines) {
         const [name, value = ''] = line.split(' ');
 
-        if (
-            /^[A-Za-z_][A-Za-z0-9_]*$/.test(name) &&
-            !(name in process.env) &&
-            !projectNames.has(name)
-        ) {
+        if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(name) && !(name in process.env)) {
             secrets[name] = Buffer.from(value, 'base64').toString('utf8');
         }
     }
