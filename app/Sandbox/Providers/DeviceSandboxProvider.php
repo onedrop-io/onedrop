@@ -144,6 +144,14 @@ class DeviceSandboxProvider implements SandboxProvider
         return (bool) $this->call($device, 'outdated', ['id' => $container, 'image' => $this->config['image']])->json('outdated');
     }
 
+    /**
+     * The desktop app makes every sandbox the same way.
+     */
+    public function settingsChanged(string $id): bool
+    {
+        return false;
+    }
+
     public function copyOut(string $id, string $path, string $directory): void
     {
         ['device' => $device, 'container' => $container] = self::parse($id);

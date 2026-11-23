@@ -13,6 +13,7 @@ use App\Models\Sandbox;
 use App\Models\Task;
 use App\Sandbox\GitOrigin;
 use App\Sandbox\OrganizationSecrets;
+use App\Sandbox\SandboxCallback;
 use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxProvider;
 use App\Sandbox\SandboxSkills;
@@ -95,13 +96,13 @@ abstract class SandboxAgentRunner implements AgentRunner
     }
 
     /**
-     * The user's text, plus where their attachments are in the workspace.
+     * The user's text (or $text in its place, e.g. a command's details), plus where their attachments are in the workspace.
      *
      * @param  array<string, Attachment>  $attached
      */
-    protected function prompt(Message $message, array $attached): string
+    protected function prompt(Message $message, array $attached, ?string $text = null): string
     {
-        return $this->withBrowserNote($message, $this->withDecisionNote($message, $this->withAgentContext($message, $this->withAttachments($message, $attached))));
+        return $this->withBrowserNote($message, $this->withDecisionNote($message, $this->withAgentContext($message, $this->withAttachments($message, $attached, $text))));
     }
 
     /**
@@ -133,17 +134,19 @@ abstract class SandboxAgentRunner implements AgentRunner
     /**
      * @param  array<string, Attachment>  $attached
      */
-    protected function withAttachments(Message $message, array $attached): string
+    protected function withAttachments(Message $message, array $attached, ?string $text = null): string
     {
+        $text ??= $message->content;
+
         if ($attached === []) {
-            return $message->content;
+            return $text;
         }
 
         $list = collect($attached)
             ->map(fn (Attachment $attachment, string $path) => "- {$path} ({$attachment->mime_type}, ".Number::fileSize($attachment->size).')')
             ->implode("\n");
 
-        $text = $message->content !== '' ? $message->content : '(No message, just the attached files.)';
+        $text = $text !== '' ? $text : '(No message, just the attached files.)';
 
         return "{$text}\n\n---\nAttached files (see \"Attachments\" in your instructions):\n{$list}";
     }
@@ -225,9 +228,25 @@ abstract class SandboxAgentRunner implements AgentRunner
             ? route('sandbox-events.tasks.store', [$sandbox, $conversation], absolute: false)
             : route('sandbox-events.store', $sandbox, absolute: false);
 
+        // A sandbox that can't reach the app would leave the chat waiting forever (SBX-015).
+        $callback = app(SandboxCallback::class);
+
+        if ($problem = $callback->problem($sandbox->provider)) {
+            $this->fail($conversation, $problem);
+
+            return;
+        }
+
+        try {
+            // So its file watcher, Drive and `ask` reach the app too, if the tunnel changed while it slept.
+            $callback->announce($sandbox);
+        } catch (SandboxException $e) {
+            report($e);
+        }
+
         $env = [
             ...$env,
-            'APP_EVENTS_URL' => rtrim(config('sandbox.callback_url'), '/').$route,
+            'APP_EVENTS_URL' => $callback->url($sandbox->provider).$route,
             'APP_EVENTS_TOKEN' => $conversation->issueEventsToken(),
             'APP_SESSION_ID' => $conversation->agent_session_id ?? '',
             'APP_RUN' => $conversation->runKey(),

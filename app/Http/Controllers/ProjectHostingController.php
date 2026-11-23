@@ -69,8 +69,10 @@ class ProjectHostingController extends Controller
         if (isset($validated['size']) && $validated['size'] !== ($project->hosting_size ?? MachineSizes::DEFAULT)) {
             $project->update(['hosting_size' => $validated['size']]);
 
-            // Hosted with a server now: restart it on the new size. Otherwise the next deploy uses it.
-            if ($changes->live($project)?->kind === 'server') {
+            // Hosted with a server on Fly.io now: restart it on the new size. Otherwise the next deploy uses it.
+            $live = $changes->live($project);
+
+            if ($live?->kind === 'server' && $live->host === 'fly') {
                 try {
                     $deployer->resize($project, $request->user());
                 } catch (HostingException $e) {

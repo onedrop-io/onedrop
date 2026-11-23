@@ -69,10 +69,14 @@ class CodexRunner extends SandboxAgentRunner
             $selection = $vision;
         }
 
+        // Codex run this way has no slash commands: one of its commands (AGT-016) goes as the prompt it stands for.
+        $commands = app(AgentCommands::class);
+        $command = $commands->parse($project, $message->content);
+
         $this->launch($conversation, $sandbox, [
             'APP_AGENT' => AgentHarness::Codex->value,
             'CODEX_AUTH_CONTENT' => json_encode($connection->codexAuth(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES),
-            'APP_PROMPT' => $this->prompt($message, $attached),
+            'APP_PROMPT' => $this->prompt($message, $attached, $command ? $commands->codexPrompt(...$command) : null),
             'APP_FILES' => json_encode($images, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES),
             'APP_MODEL' => $selection['model'],
             'APP_VARIANT' => $selection['variant'] ?? '',

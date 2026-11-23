@@ -298,7 +298,7 @@ test('using a sandbox on E2B keeps it awake; other providers\' sandboxes aren\'t
     expect($provider->touched)->toBe(['e2b-1']);
 })->group('SBX-014');
 
-test('building on E2B asks E2B to make the template from the published sandbox image, at the configured size', function () {
+test('building on E2B asks E2B to make the template from the published sandbox image as it is now, at the configured size', function () {
     config(['sandbox.provider' => 'e2b', 'sandbox.providers.e2b.api_key' => 'e2b-secret', 'sandbox.providers.e2b.vcpu' => 4, 'sandbox.providers.e2b.memory_mib' => 8192]);
     Http::fake([
         E2B_API.'/v3/templates' => Http::response(['templateID' => 'tpl1', 'buildID' => 'build-8']),
@@ -417,7 +417,9 @@ test('a sandbox made with private ports is outdated once the gateway that sends 
     $public = new E2bSandboxProvider(['api_key' => 'e2b-test-key', 'url' => E2B_API, 'domain' => 'e2b.app', 'image' => 'onedrop-sandbox', 'idle_seconds' => 600, 'private_previews' => false]);
 
     expect($this->e2b->isOutdated(E2B_ID))->toBeFalse()
-        ->and($public->isOutdated(E2B_ID))->toBeTrue();
+        ->and($public->isOutdated(E2B_ID))->toBeTrue()
+        ->and($this->e2b->settingsChanged(E2B_ID))->toBeFalse()
+        ->and($public->settingsChanged(E2B_ID))->toBeTrue();
 })->group('SBX-014');
 
 test('the install\'s E2B previews are private only behind the Cloudflare gateway', function (array $gateway, bool $private) {
@@ -471,4 +473,31 @@ test('commands the platform runs during an agent run connect with the run\'s hol
     $this->e2b->exec(E2B_ID, ['true']);
 
     Http::assertSent(fn (Request $request) => str_ends_with($request->url(), '/connect') && $request['timeout'] === 3600);
+})->group('SBX-014');
+
+test('copying files in puts its pause off past the upload first, then back to the usual', function () {
+    Cache::flush();
+    Http::fake([
+        E2B_API.'/v2/sandboxes/'.E2B_ID.'/connect' => Http::response(e2bConnected()),
+        E2B_API.'/sandboxes/'.E2B_ID.'/timeout' => Http::response('', 204),
+        E2B_ENVD.'/files*' => Http::response([['path' => '/tmp/onedrop-copy.tgz']]),
+        E2B_ENVD.'/process.Process/Start' => Http::response(envdRan()),
+    ]);
+    $directory = sys_get_temp_dir().'/e2b-copy-'.uniqid();
+    mkdir($directory);
+    file_put_contents("{$directory}/app.txt", 'hello');
+
+    try {
+        $this->e2b->copyIn(E2B_ID, $directory, '/workspace');
+    } finally {
+        @unlink("{$directory}/app.txt");
+        @rmdir($directory);
+    }
+
+    $sent = Http::recorded()->map(fn (array $pair) => $pair[0])
+        ->filter(fn (Request $request) => str_ends_with($request->url(), '/timeout') || str_contains($request->url(), '/files'))
+        ->map(fn (Request $request) => str_ends_with($request->url(), '/timeout') ? $request['timeout'] : 'upload')
+        ->values()->all();
+
+    expect($sent)->toBe([E2bSandboxProvider::TRANSFER_SECONDS + E2bSandboxProvider::EXEC_SECONDS, 'upload', 600]);
 })->group('SBX-014');

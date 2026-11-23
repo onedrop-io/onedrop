@@ -171,6 +171,16 @@ How it differs from Runtime:
 - **Running time.** E2B stops a sandbox that runs without a break for 24 hours on its Pro plan, or 1 hour on its free plan. Each idle pause starts the clock again.
 - **Not available:** SSH (Tools → Developer → SSH) and Tailscale publishing.
 
+## Cloud sandboxes on a local install
+
+A sandbox on E2B, Runtime Cloud or Blaxel runs in the cloud, so it can't reach `http://host.docker.internal:8000` to send the agent's events back. When `SANDBOX_CALLBACK_URL` is a private address and [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) is installed (`brew install cloudflared`), `composer run dev` also runs `php artisan sandbox:tunnel`. That opens a free quick tunnel (no Cloudflare account), and cloud sandboxes report back through it. Sandboxes on Docker keep using `SANDBOX_CALLBACK_URL`.
+
+- **Only sandbox calls go through the tunnel.** Its address is public, so through it the app answers only agent events, the file watcher, `ask`, Drive and "Sign in with OneDrop": no login, no pages.
+- **The address changes each time the tunnel starts.** OneDrop gives the new one to every awake cloud sandbox (in `/etc/onedrop-callback`), so a running agent, the file watcher, `ask` and Drive keep reporting back. A sleeping sandbox gets it on its next agent run.
+- **Without a tunnel**, a message to a project on a cloud sandbox gets a reply saying the sandbox can't reach OneDrop, instead of **Thinking…** forever.
+
+For a stable address, set `SANDBOX_CALLBACK_URL` to a public one that reaches this machine (a named Cloudflare tunnel, or an ngrok static domain); then no quick tunnel starts.
+
 ## Switch providers
 
 Each sandbox keeps running on the provider it was created on, and sandboxes on Docker, Blaxel and Runtime Cloud can run side by side. Where projects run is set in **Settings → Sandboxes**: new projects go to the first provider that's turned on and set up.

@@ -39,6 +39,7 @@ const ROLES: Record<string, string> = {
     bucket: 'S3 file storage',
     postgres: 'Postgres',
     redis: 'Redis',
+    web: 'Front ends and Node apps',
 };
 
 const usedFor = (provider: Provider) =>

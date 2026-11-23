@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\DeploymentStatus;
 use App\Enums\HostedServiceKind;
 use App\Enums\PublishTarget;
 use App\Enums\SandboxStatus;
@@ -194,7 +195,9 @@ class ProjectDatabaseController extends Controller
     protected function fromSandbox(Request $request, Project $project, callable $call): JsonResponse
     {
         if ($request->input('where') === 'hosted') {
+            // Only a Fly machine can run the database tool; on Vercel there's nowhere to run it (HOST-011).
             $sandbox = $project->publish_target === PublishTarget::Hosting && $project->publish_status !== null
+                && in_array($project->deployments()->where('status', DeploymentStatus::Live)->latest('id')->value('host'), [null, 'fly'], true)
                 ? $project->hostedServices()->where('kind', HostedServiceKind::App)->first()
                 : null;
 

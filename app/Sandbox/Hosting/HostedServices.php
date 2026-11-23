@@ -24,6 +24,7 @@ class HostedServices
         'bucket' => 'bucket',
         'site' => 'static',
         'backup' => 'bucket',
+        'web' => 'web',
     ];
 
     public function __construct(protected HostingProviders $providers) {}
@@ -54,6 +55,7 @@ class HostedServices
             HostedServiceKind::Bucket, HostedServiceKind::Backup => $this->makeBucket($account, $name),
             // The site's Worker is made by uploading to it.
             HostedServiceKind::Site => ['external_id' => $name, 'details' => []],
+            HostedServiceKind::Web => ['external_id' => (new VercelApi($account))->createProject($name), 'details' => []],
         };
 
         return $project->hostedServices()->create([
@@ -196,12 +198,44 @@ class HostedServices
             HostedServiceKind::Redis => (new UpstashApi($account))->deleteDatabase((string) $service['external_id']),
             HostedServiceKind::Bucket, HostedServiceKind::Backup => (new CloudflareApi($account))->deleteBucket($service['name'], $service['details']['token_id'] ?? null),
             HostedServiceKind::Site => (new CloudflareApi($account))->deleteSite($service['name']),
+            HostedServiceKind::Web => (new VercelApi($account))->deleteProject((string) ($service['external_id'] ?? $service['name'])),
         };
     }
 
     /**
-     * A name for something new: the project's name and id, plus a few random letters, since Fly app and Worker names
-     * are shared by everyone.
+     * Stop serving the project from a host (fly, cloudflare or vercel; all of them when null): delete the Fly app's
+     * machine, the Cloudflare Worker or the Vercel project. Its data, and the Fly app with its volume, stay for the
+     * next deploy (HOST-002).
+     *
+     * @throws HostingException
+     */
+    public function takeDown(Project $project, ?string $host = null): void
+    {
+        $app = in_array($host, [null, 'fly'], true) ? $project->hostedServices()->where('kind', HostedServiceKind::App)->first() : null;
+
+        if ($app && isset($app->details['machine'])) {
+            (new FlyApi($this->accountFor($app)))->deleteMachine($app->name, $app->details['machine']);
+            $app->update(['details' => array_diff_key($app->details, ['machine' => true])]);
+        }
+
+        $site = in_array($host, [null, 'cloudflare'], true) ? $project->hostedServices()->where('kind', HostedServiceKind::Site)->first() : null;
+
+        if ($site) {
+            (new CloudflareApi($this->accountFor($site)))->deleteSite($site->name);
+            $site->delete();
+        }
+
+        $web = in_array($host, [null, 'vercel'], true) ? $project->hostedServices()->where('kind', HostedServiceKind::Web)->first() : null;
+
+        if ($web) {
+            (new VercelApi($this->accountFor($web)))->deleteProject((string) $web->external_id);
+            $web->delete();
+        }
+    }
+
+    /**
+     * A name for something new: the project's name and id, plus a few random letters, since Fly app, Worker and
+     * vercel.app names are shared by everyone.
      */
     public function name(Project $project, HostedServiceKind $kind): string
     {

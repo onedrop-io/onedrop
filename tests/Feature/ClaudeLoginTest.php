@@ -211,3 +211,82 @@ test('saved Claude subscription tokens become sign-ins and the tokens are delete
         ->and($connection->hint)->toBe('')
         ->and(DB::table('agent_connections')->where('user_id', $user->id)->value('credential'))->not->toContain('sk-ant-oat');
 })->group('AI-005');
+
+test('the chat starts Claude Code\'s own sign-in in the sandbox and gets Claude\'s sign-in page', function () {
+    $url = 'https://claude.com/cai/oauth/authorize?code=true&client_id=abc&state=xyz';
+    $this->provider->execUsing = fn (array $command) => new ExecResult(0, "{$url}\n");
+
+    $this->actingAs($this->user)
+        ->postJson(route('projects.claude-login.start', $this->project))
+        ->assertOk()
+        ->assertExactJson(['url' => $url]);
+
+    expect($this->provider->executed[0]['command'])->toBe(['/opt/onedrop/claude-login', 'start']);
+})->group('AI-005');
+
+test('a sign-in page that isn\'t Claude\'s is never passed on', function (string $output, int $exitCode) {
+    $this->provider->execUsing = fn () => new ExecResult($exitCode, $output);
+
+    $this->actingAs($this->user)
+        ->postJson(route('projects.claude-login.start', $this->project))
+        ->assertStatus(503)
+        ->assertJsonPath('message', 'Claude Code\'s sign-in didn\'t start. Sign in in the Shell instead.');
+})->with([
+    'another site' => ['https://claude.com.evil.test/oauth/authorize?x=1', 0],
+    'not https' => ['http://claude.com/cai/oauth/authorize?x=1', 0],
+    'not the sign-in page' => ['https://claude.com/download', 0],
+    'didn\'t start' => ['', 1],
+])->group('AI-005');
+
+test('the sign-in panel waits for the sandbox to be running', function () {
+    $this->sandbox->update(['status' => SandboxStatus::Paused]);
+
+    $this->actingAs($this->user)
+        ->postJson(route('projects.claude-login.start', $this->project))
+        ->assertConflict();
+
+    expect($this->provider->executed)->toBe([]);
+})->group('AI-005');
+
+test('the code from Claude\'s sign-in page is typed into Claude Code\'s sign-in, passed in its environment', function () {
+    $this->provider->execUsing = fn (array $command) => $command[1] === 'code'
+        ? new ExecResult(0, "signed-in\n")
+        : new ExecResult(0, json_encode(['loggedIn' => true, 'authMethod' => 'claude.ai', 'email' => 'dev@example.com']));
+
+    $this->actingAs($this->user)
+        ->postJson(route('projects.claude-login.code', $this->project), ['code' => ' abc_123-X#state-456 '])
+        ->assertOk()
+        ->assertExactJson(['signed_in' => true, 'email' => 'dev@example.com']);
+
+    expect($this->provider->executed[0])->toMatchArray([
+        'command' => ['/opt/onedrop/claude-login', 'code'],
+        'env' => ['CLAUDE_LOGIN_CODE' => 'abc_123-X#state-456'],
+    ]);
+})->group('AI-005');
+
+test('a code Claude rejects, or a sign-in that expired, shows an error to try again', function (string $output, string $error) {
+    $this->provider->execUsing = fn () => new ExecResult(1, $output);
+
+    $this->actingAs($this->user)
+        ->postJson(route('projects.claude-login.code', $this->project), ['code' => 'abc#def'])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['sign_in' => $error]);
+})->with([
+    'rejected' => ['failed Login failed: Request failed with status code 400', 'Claude didn\'t accept that code'],
+    'expired' => ['expired', 'This sign-in has expired'],
+    'no answer' => ['', 'didn\'t answer'],
+])->group('AI-005');
+
+test('only a code from Claude\'s sign-in page is typed into the sandbox', function () {
+    $this->actingAs($this->user)
+        ->postJson(route('projects.claude-login.code', $this->project), ['code' => "abc; rm -rf /\n"])
+        ->assertJsonValidationErrors(['code' => 'doesn\'t look like the code']);
+
+    expect($this->provider->executed)->toBe([]);
+})->group('AI-005');
+
+test('only people who can change the project can sign its sandbox in', function () {
+    $this->actingAs(User::factory()->has(AgentConnection::factory())->create())
+        ->postJson(route('projects.claude-login.start', $this->project))
+        ->assertForbidden();
+})->group('AI-005');

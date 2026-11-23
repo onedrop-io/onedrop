@@ -329,8 +329,8 @@ class SandboxMover
     }
 
     /**
-     * Moves for Settings → Sandboxes: under way, failed ones not tried again since, old sandboxes still being checked
-     * on, and recovered files not yet restored or dismissed (SBX-013).
+     * Moves for Settings → Sandboxes: under way, failed ones not tried again since (and still going where their project
+     * runs), old sandboxes still being checked on, and recovered files not yet restored or dismissed (SBX-013).
      *
      * @return list<array<string, mixed>>
      */
@@ -344,7 +344,7 @@ class SandboxMover
         });
 
         $moves = SandboxMove::query()
-            ->with(['project:id,name', 'sandbox.task:id,title', 'snapshot:id,created_at', 'recoveredSnapshot:id,created_at'])
+            ->with(['project:id,name', 'sandbox.project', 'sandbox.task:id,title', 'snapshot:id,created_at', 'recoveredSnapshot:id,created_at'])
             ->where(fn ($query) => $query->active()
                 ->orWhere(fn ($failed) => $failed->where('phase', SandboxMovePhase::Failed)->where('created_at', '>', now()->subDays(7)))
                 ->orWhereIn('old_status', [OldSandboxStatus::Waiting, OldSandboxStatus::Recovered]))
@@ -357,6 +357,8 @@ class SandboxMover
         return array_values($moves
             // A failed move counts until the same sandbox moves again.
             ->reject(fn (SandboxMove $move) => $move->phase === SandboxMovePhase::Failed && $latest[$move->sandbox_id] > $move->id)
+            // ...or until its project no longer runs on the provider it was going to: there's nothing left to try.
+            ->reject(fn (SandboxMove $move) => $move->phase === SandboxMovePhase::Failed && $move->to_provider !== $move->sandbox?->project?->sandboxProvider())
             ->reject(fn (SandboxMove $move) => $move->old_status === OldSandboxStatus::Recovered && ($move->recoveredSnapshot === null || isset($move->options['settled_at'])))
             ->map(fn (SandboxMove $move) => [
                 'id' => $move->id,

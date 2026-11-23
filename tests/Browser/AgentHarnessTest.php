@@ -71,7 +71,51 @@ test('users switch a project to Codex and pick from OpenAI models', function () 
         ->and($project->agent_session_id)->toBeNull();
 })->group('AGT-009');
 
-test('users sign in to Claude from the chat in Claude Code\'s own sign-in in the Shell tab, then see the Preview, and the chat carries on', function () {
+test('users sign in to Claude from the chat: open Claude\'s sign-in page, paste its code, and the chat carries on', function () {
+    $provider = new FakeSandboxProvider;
+    $signedIn = false;
+    $provider->execUsing = function (array $command, array $env) use (&$signedIn) {
+        return match ($command[1] ?? null) {
+            'start' => new ExecResult(0, "https://claude.com/cai/oauth/authorize?code=true&state=abc\n"),
+            'code' => ($signedIn = $env['CLAUDE_LOGIN_CODE'] === 'good#code')
+                ? new ExecResult(0, 'signed-in')
+                : new ExecResult(1, 'failed Login failed: Request failed with status code 400'),
+            default => new ExecResult($signedIn ? 0 : 1, json_encode($signedIn
+                ? ['loggedIn' => true, 'authMethod' => 'claude.ai', 'email' => 'dev@example.com']
+                : ['loggedIn' => false, 'authMethod' => 'none'])),
+        };
+    };
+    app()->instance(SandboxProvider::class, $provider);
+    $user = User::factory()->create();
+    AgentConnection::factory()->for($user)->claudeLogin()->create();
+    $project = Project::factory()->for($user)->create(['agent_harness' => AgentHarness::ClaudeCode]);
+    Sandbox::factory()->for($project)->create(['status' => SandboxStatus::Running, 'preview_url' => null, 'shell_url' => 'http://127.0.0.1:7681']);
+    $failed = $project->messages()->create(['role' => MessageRole::User, 'content' => 'Build a timer']);
+    $project->update(['sign_in_retry_message_id' => $failed->id]);
+    $this->actingAs($user);
+
+    $page = visit("/projects/{$project->id}")
+        ->click('@claude-sign-in')
+        ->assertAttribute('@claude-sign-in-page', 'href', 'https://claude.com/cai/oauth/authorize?code=true&state=abc')
+        ->assertAttribute('@claude-sign-in-page', 'target', '_blank')
+        // The workspace stays as it was: no Shell.
+        ->assertMissing('@shell-frame-2')
+        ->type('@claude-sign-in-code', 'wrong#code')
+        ->click('@claude-sign-in-submit')
+        ->assertSeeIn('@claude-sign-in-error', 'Claude didn\'t accept that code')
+        ->type('@claude-sign-in-code', 'good#code')
+        ->click('@claude-sign-in-submit')
+        ->assertSeeIn('@claude-login-status', 'Claude Code is signed in as dev@example.com')
+        ->assertMissing('@claude-sign-in-panel')
+        ->assertSee('Signed in to Claude, picking up where it left off')
+        ->assertNoJavaScriptErrors();
+
+    expect($project->fresh()->sign_in_retry_message_id)->toBeNull()
+        // A rejected code starts a fresh sign-in.
+        ->and(collect($provider->executed)->where('command', ['/opt/onedrop/claude-login', 'start']))->toHaveCount(2);
+})->group('AI-005');
+
+test('users can sign in to Claude in the Shell tab instead, then see the Preview, and the chat carries on', function () {
     $provider = new FakeSandboxProvider;
     $provider->execUsing = fn (array $command) => new ExecResult(1, json_encode(['loggedIn' => false, 'authMethod' => 'none']));
     app()->instance(SandboxProvider::class, $provider);
@@ -87,6 +131,7 @@ test('users sign in to Claude from the chat in Claude Code\'s own sign-in in the
     $page = visit("/projects/{$project->id}")
         ->assertSeeIn('@harness-picker', 'Claude Code')
         ->click('@claude-sign-in')
+        ->click('@claude-sign-in-shell')
         ->assertVisible('@shell-frame-2')
         ->assertScript('document.querySelector(\'[data-test="shell-frame-2"]\').getAttribute("src").startsWith("http://127.0.0.1:7681/?arg=claude-login&arg=session&arg=")', true)
         ->assertNoJavaScriptErrors();
@@ -104,7 +149,7 @@ test('users sign in to Claude from the chat in Claude Code\'s own sign-in in the
     expect($project->fresh()->sign_in_retry_message_id)->toBeNull();
 })->group('AI-005');
 
-test('on a phone, "Sign in to Claude" switches to the workspace, and signing in switches back to the chat', function () {
+test('on a phone, signing in in the Shell switches to the workspace, and signing in switches back to the chat', function () {
     $provider = new FakeSandboxProvider;
     $provider->execUsing = fn (array $command) => new ExecResult(1, json_encode(['loggedIn' => false, 'authMethod' => 'none']));
     app()->instance(SandboxProvider::class, $provider);
@@ -117,6 +162,7 @@ test('on a phone, "Sign in to Claude" switches to the workspace, and signing in 
     $page = visit("/projects/{$project->id}")
         ->resize(390, 844)
         ->click('@claude-sign-in')
+        ->click('@claude-sign-in-shell')
         ->assertAttribute('@mobile-bar-shell', 'aria-selected', 'true')
         ->assertVisible('@shell-frame-2')
         ->assertNoJavaScriptErrors();

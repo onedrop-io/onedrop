@@ -4,6 +4,7 @@ namespace App\Sandbox\Drive;
 
 use App\Models\Project;
 use App\Models\Sandbox;
+use App\Sandbox\SandboxCallback;
 use Illuminate\Support\Collection;
 
 /**
@@ -44,7 +45,7 @@ class DriveSync
     public static function environment(Sandbox $sandbox, Project $project): array
     {
         return [
-            'ONEDROP_DRIVE_URL' => rtrim((string) config('sandbox.callback_url'), '/').route('drive-sync.state', $sandbox, absolute: false),
+            'ONEDROP_DRIVE_URL' => app(SandboxCallback::class)->url($project->sandboxProvider()).route('drive-sync.state', $sandbox, absolute: false),
             'ONEDROP_DRIVE_TOKEN' => self::token($sandbox),
             'ONEDROP_DRIVE_DIR' => $project->isComputer() ? self::COMPUTER_DIR : self::PROJECT_DIR,
         ];

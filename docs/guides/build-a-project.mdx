@@ -93,8 +93,17 @@ Asking for React, Tailwind, a website, or a landing page still gets this setup, 
 The chat updates on its own while the agent works:
 
 - **Thinking…** appears as soon as you send a message
-- Short grey lines show each step, such as "Creating src/App.tsx" or "Running Install dependencies" (in Simple mode, in plain words, such as "Building the app", with a step repeated in a row shown once)
-- The agent's replies appear as it writes them, formatted with headings, lists, links, tables, and syntax-highlighted code blocks (links open in a new tab)
+- Short grey lines show each step, such as "Creating src/App.tsx" or "Running Install dependencies", as soon as the agent starts it: a spinner while it runs, a red cross if it fails (in Simple mode, in plain words, such as "Building the app", with a step repeated in a row shown once)
+- The agent's replies appear word by word as it writes them, formatted with headings, lists, links, tables, and syntax-highlighted code blocks (links open in a new tab), with every agent: OpenCode, Claude Code and Codex
+
+In Advanced mode, click a step to see what it did:
+
+- **A command**: the command and its output (the end of long output, where errors usually are)
+- **A file edit or a new file**: the change as a diff, colored like Source Control's
+- **A search or a page it looked up**: what it looked for
+- **Thinking**: the model's reasoning, which also shows live under **Thinking…** while it's written (Codex shows a summary of it)
+
+Secrets in the sandbox, such as your organization's secrets and AI keys, never show in steps or replies: they read `[hidden]`. File contents the agent reads aren't kept; open the file in the Files panel instead.
 
 When the agent sets up the app's dev server, the preview switches from the placeholder to your app. It updates while the agent works: apps with hot reload (Vite, Next.js) update in place, and Laravel apps reload each time a rebuild changes their assets or a PHP file changes. It reloads once more when the agent finishes. The bar above the preview works like a browser's toolbar: **Back**, **Forward** and **Reload** on the left, then the address of the page you're on, then the preview's tools (size, inspect and annotate). A thin line runs under the bar while the page loads. To go to another page of your app, click the address, type a path such as `/orders`, and press Enter (Esc puts it back). To copy the address, hover it and click the copy button; the arrow beside it opens the page in a new tab, and the window button next to that opens it in a window of its own, as big as your screen, with no tabs or toolbars.
 
@@ -112,6 +121,18 @@ Send follow-up messages to change the app, for example "make the Start button bl
 Messages you send while the agent is working are queued and run when it finishes. Press ⌘/Ctrl+Enter to stop the current run and send yours right away, or ⌥/Alt+Enter to always queue it.
 
 When OpenRouter is set up (your connection or the platform's key), [Jev](https://openrouter.ai/docs/guides/community/jev) also reads a message you send with Enter while the agent works. If it corrects or changes what the agent is doing ("actually, put the form on the About page"), it's sent right away instead of waiting, and the chat says "Sent now: it changes what the agent is doing". A separate request still waits its turn.
+
+### The agent's slash commands
+
+Type **/** at the start of the message box to see the commands your project's agent has, each with what it does. Keep typing to filter, use **Up** and **Down** to move, and **Enter**, **Tab** or a click to pick one: it goes in the box as `/name `, so you can add details (`/review the checkout flow`) before sending.
+
+| Agent | Built-in commands | Also listed |
+| --- | --- | --- |
+| Claude Code | `/compact`, `/context`, `/init`, `/security-review`, `/usage` | Its plugins' commands, the project's `.claude/commands`, and skills |
+| OpenCode | `/init`, `/review` | The [skills](/guides/agent-skills) turned on in the project |
+| Codex | `/init`, `/review` | The skills turned on in the project |
+
+Commands that only show something, like Claude Code's `/context`, show their output as the reply. Commands the chat already has a control for (the model and reasoning picker, a new chat, sign-in) aren't listed. Claude Code reports its full list each time it runs, so after its first turn the menu also has everything it found in the project. Press **Escape** to close the menu; text like `/etc/hosts is wrong` that isn't a command is sent as a normal message.
 
 ### Before a message is sent
 

@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# Claude Code's own sign-in (`claude auth login`), driven from the chat's sign-in panel instead of the Shell (AI-005).
+# "start" runs it in a hidden tmux session and prints the sign-in page's address it shows. "code" types the code the
+# user pasted ($CLAUDE_LOGIN_CODE, kept off the command line) into it, then prints "signed-in", or "failed" with
+# Claude Code's reason; "expired" when no sign-in is waiting (never started, timed out, or already used).
+set -uo pipefail
+
+tmux=(tmux -L onedrop-claude-login)
+session=login
+
+screen() {
+    "${tmux[@]}" capture-pane -p -J -t "=$session:" 2>/dev/null
+}
+
+case "${1:-}" in
+start)
+    # One sign-in at a time: a new start replaces the last one, whose page can't be used any more.
+    "${tmux[@]}" kill-server 2>/dev/null
+    # Wide enough that the address is on one line; given up after 15 minutes, like an unused sign-in page.
+    "${tmux[@]}" new-session -d -s "$session" -x 1000 -y 50 "timeout --foreground 900 claude auth login --claudeai; sleep 30"
+
+    for _ in $(seq 1 40); do
+        url="$(screen | grep -o 'https://[^ ]*/oauth/authorize?[^ ]*' | head -n1)"
+
+        if [ -n "$url" ]; then
+            echo "$url"
+            exit 0
+        fi
+
+        sleep 0.5
+    done
+
+    screen
+    "${tmux[@]}" kill-server 2>/dev/null
+    exit 1
+    ;;
+code)
+    code="${CLAUDE_LOGIN_CODE:-}"
+
+    if ! screen | grep -q 'Paste code here'; then
+        echo expired
+        exit 1
+    fi
+
+    "${tmux[@]}" send-keys -t "=$session:" -l -- "$code"
+    "${tmux[@]}" send-keys -t "=$session:" Enter
+
+    for _ in $(seq 1 40); do
+        output="$(screen)"
+
+        if grep -q 'Login successful' <<<"$output"; then
+            "${tmux[@]}" kill-server 2>/dev/null
+            echo signed-in
+            exit 0
+        fi
+
+        if reason="$(grep -o 'Login failed.*' <<<"$output")"; then
+            "${tmux[@]}" kill-server 2>/dev/null
+            echo "failed ${reason}"
+            exit 1
+        fi
+
+        sleep 0.5
+    done
+
+    "${tmux[@]}" kill-server 2>/dev/null
+    echo "failed Claude Code didn't answer"
+    exit 1
+    ;;
+*)
+    echo "usage: claude-login start | code" >&2
+    exit 2
+    ;;
+esac

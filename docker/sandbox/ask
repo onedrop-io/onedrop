@@ -34,6 +34,11 @@ fi
 
 [ -n "${ONEDROP_AI_URL:-}" ] || die "this sandbox is older than ask. It works once the project's sandbox is updated."
 
+# A cloud sandbox reaching a local install goes through its dev tunnel, whose address changes when it restarts; the
+# platform writes the current one here (SBX-015), and it replaces the address's origin.
+origin=$(cat /etc/onedrop-callback 2>/dev/null || true)
+[ -z "$origin" ] || ONEDROP_AI_URL="${origin%/}/${ONEDROP_AI_URL#*://*/}"
+
 setup=$(mktemp)
 trap 'rm -f "$setup"' EXIT
 status=$(curl -sS --retry 2 --max-time 30 -o "$setup" -w '%{http_code}' "$ONEDROP_AI_URL") || die "couldn't reach OneDrop. Try again in a minute."

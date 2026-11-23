@@ -242,9 +242,22 @@ class RuntimeSandboxProvider implements SandboxProvider
             return false;
         }
 
-        // Docker inside sandboxes turned on or off (SBX-008): recreate it with (or without) its own Docker.
-        return ($sandbox->json('labels')[self::IMAGE_LABEL] ?? null) !== $current->json('id')
-            || ($sandbox->json('labels')[self::DOCKER_LABEL] ?? 'off') !== ($this->runsDocker() ? 'on' : 'off');
+        return ($sandbox->json('labels')[self::IMAGE_LABEL] ?? null) !== $current->json('id') || $this->madeDifferently($sandbox);
+    }
+
+    public function settingsChanged(string $id): bool
+    {
+        $sandbox = $this->request('get', "sandboxes/{$id}");
+
+        return $sandbox->successful() && $this->madeDifferently($sandbox);
+    }
+
+    /**
+     * Docker inside sandboxes turned on or off (SBX-008): recreate it with (or without) its own Docker.
+     */
+    protected function madeDifferently(Response $sandbox): bool
+    {
+        return ($sandbox->json('labels')[self::DOCKER_LABEL] ?? 'off') !== ($this->runsDocker() ? 'on' : 'off');
     }
 
     /**

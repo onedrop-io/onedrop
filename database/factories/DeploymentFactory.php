@@ -34,6 +34,8 @@ class DeploymentFactory extends Factory
     {
         return $this->state(fn () => [
             'kind' => 'server',
+            // A front end went to Cloudflare, an app with a server to Fly.io.
+            'host' => fn (array $attributes) => $attributes['kind'] === 'static' ? 'cloudflare' : 'fly',
             'status' => DeploymentStatus::Live,
             'step' => 'done',
             'image' => 'registry.fly.io/onedrop-1:deployment-1',

@@ -19,6 +19,34 @@ const fallbackName = import.meta.env.VITE_APP_NAME || 'OneDrop';
 // Every page, loaded when it's first shown.
 const pages = import.meta.glob<{ default: ComponentType }>('./pages/**/*.tsx');
 
+const reloadedKey = 'onedrop:reloaded-for-page';
+
+/**
+ * Load a page's code. When it can't be fetched (a deploy replaced the build, or the dev server restarted), load the
+ * page's address in full instead, so a redirect, like the one after deleting the open project, still lands there
+ * rather than leaving the browser on the old address (PRJ-003). Once per address, so a broken page can't loop.
+ */
+async function resolvePage(
+    name: string,
+    page?: { url: string },
+): Promise<ComponentType> {
+    try {
+        const component = (await pages[`./pages/${name}.tsx`]()).default;
+        sessionStorage.removeItem(reloadedKey);
+
+        return component;
+    } catch (error) {
+        if (!page || sessionStorage.getItem(reloadedKey) === page.url) {
+            throw error;
+        }
+
+        sessionStorage.setItem(reloadedKey, page.url);
+        window.location.assign(page.url);
+
+        return new Promise<never>(() => {});
+    }
+}
+
 /**
  * Start the app: in the browser (app.tsx), and in the desktop app (DESK-001), which gives it the first page and its
  * own HTTP client to reach the server.
@@ -31,7 +59,7 @@ export function startApp(
 ): void {
     void createInertiaApp({
         ...options,
-        resolve: async (name) => (await pages[`./pages/${name}.tsx`]()).default,
+        resolve: resolvePage,
         // The name an admin set (ADMIN-001) comes with every page.
         title: (title, page) => {
             const appName =

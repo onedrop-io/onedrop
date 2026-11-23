@@ -11,10 +11,13 @@ use App\Enums\ProjectStatus;
 use Illuminate\Support\Str;
 
 /**
- * Turns Codex CLI `codex exec --json` events (compacted by the forwarder) into chat messages.
- * Bumping Codex? Re-check these against its output.
+ * Turns Codex CLI `codex exec --json` events into chat messages. The forwarder runs Codex's app server (for replies
+ * as they're written, AGT-017) and turns its notifications into these events, with items' output, diffs and
+ * thinking added; older forwarders ran `codex exec --json` itself. Bumping Codex? Re-check the forwarder's
+ * translation (docker/sandbox/agent-stream.mjs) against `codex app-server`.
  *
  * @see https://developers.openai.com/codex/noninteractive
+ * @see https://developers.openai.com/codex/app-server
  */
 class CodexEvents extends AgentEvents
 {
@@ -30,6 +33,7 @@ class CodexEvents extends AgentEvents
             'thread.started' => $this->rememberSession($conversation, $event['thread_id'] ?? null),
             'item.started' => $this->started($conversation, $item),
             'item.completed' => $this->completed($conversation, $item),
+            'onedrop.delta' => $this->streamed($conversation, $event),
             // Codex retries a failed request a few times before giving up with turn.failed.
             'error' => str_starts_with((string) ($event['message'] ?? ''), 'Reconnecting') ? $this->say($conversation, MessageRole::Activity, 'Reconnecting to OpenAI') : null,
             'turn.completed' => $this->turnCompleted($conversation, is_array($event['usage'] ?? null) ? $event['usage'] : [], $event['model'] ?? null),
@@ -46,34 +50,99 @@ class CodexEvents extends AgentEvents
      */
     protected function started(Conversation $conversation, array $item): void
     {
-        $line = match ($item['type'] ?? null) {
-            'command_execution' => 'Running `'.Str::limit($this->command((string) ($item['command'] ?? '')), 80).'`',
-            'mcp_tool_call' => 'Using '.($item['tool'] ?? 'a tool'),
-            'web_search' => 'Looking things up',
-            'todo_list' => 'Planning next steps',
-            default => null,
-        };
+        if (($item['type'] ?? null) === 'todo_list') {
+            $this->say($conversation, MessageRole::Activity, 'Planning next steps');
+
+            return;
+        }
+
+        $line = $this->describeItem($item);
 
         if ($line !== null) {
-            $this->say($conversation, MessageRole::Activity, $line);
+            $this->step($conversation, $line, $this->itemId($item), 'running', $this->itemDetail($item));
         }
     }
 
     /**
-     * A finished step: replies, thinking and file changes.
+     * A finished step: replies, thinking, file changes, and the commands and lookups started earlier, now with what
+     * they did (AGT-017).
      *
      * @param  array<string, mixed>  $item
      */
     protected function completed(Conversation $conversation, array $item): void
     {
+        $id = $this->itemId($item);
+
         match ($item['type'] ?? null) {
-            'agent_message' => $this->say($conversation, MessageRole::Assistant, trim((string) ($item['text'] ?? ''))),
-            'reasoning' => $this->say($conversation, MessageRole::Activity, 'Thinking'),
+            'agent_message' => $this->say($conversation, MessageRole::Assistant, trim((string) ($item['text'] ?? '')), $id),
+            'reasoning' => $this->think($conversation, (string) ($item['text'] ?? ''), $id),
             'file_change' => collect((array) ($item['changes'] ?? []))
                 ->filter(fn ($change) => is_array($change))
-                ->each(fn (array $change) => $this->say($conversation, MessageRole::Activity, $this->describeChange($change))),
+                ->values()
+                ->each(fn (array $change, int $index) => $this->step($conversation, $this->describeChange($change), $id !== null ? "{$id}:{$index}" : null, ($item['status'] ?? null) === 'failed' ? 'failed' : 'done', [
+                    'path' => Str::after((string) ($change['path'] ?? ''), '/workspace/'),
+                    'diff' => $change['diff'] ?? null,
+                ])),
+            // Without an id it can't be matched to its line from when it started.
+            'command_execution', 'mcp_tool_call', 'web_search' => $id !== null
+                ? $this->step($conversation, (string) $this->describeItem($item), $id, $this->failed($item) ? 'failed' : 'done', $this->itemDetail($item))
+                : null,
             default => null,
         };
+    }
+
+    /**
+     * The line for a command, tool call or lookup.
+     *
+     * @param  array<string, mixed>  $item
+     */
+    protected function describeItem(array $item): ?string
+    {
+        return match ($item['type'] ?? null) {
+            'command_execution' => 'Running `'.Str::limit($this->command((string) ($item['command'] ?? '')), 80).'`',
+            'mcp_tool_call' => 'Using '.($item['tool'] ?? 'a tool'),
+            'web_search' => 'Looking things up',
+            default => null,
+        };
+    }
+
+    /**
+     * What a command, tool call or lookup did, for its step's details.
+     *
+     * @param  array<string, mixed>  $item
+     * @return array<string, mixed>
+     */
+    protected function itemDetail(array $item): array
+    {
+        return match ($item['type'] ?? null) {
+            'command_execution' => [
+                'command' => $this->command((string) ($item['command'] ?? '')),
+                'output' => $item['aggregated_output'] ?? null,
+            ],
+            'mcp_tool_call' => ['error' => $item['error'] ?? null],
+            'web_search' => ['query' => $item['query'] ?? null],
+            default => [],
+        };
+    }
+
+    /**
+     * Whether a command or tool call failed: a command's non-zero exit, or a failed status.
+     *
+     * @param  array<string, mixed>  $item
+     */
+    protected function failed(array $item): bool
+    {
+        return ($item['status'] ?? null) === 'failed' || (isset($item['exit_code']) && (int) $item['exit_code'] !== 0);
+    }
+
+    /**
+     * Codex's id for an item.
+     *
+     * @param  array<string, mixed>  $item
+     */
+    protected function itemId(array $item): ?string
+    {
+        return is_string($item['id'] ?? null) && $item['id'] !== '' ? $item['id'] : null;
     }
 
     /**

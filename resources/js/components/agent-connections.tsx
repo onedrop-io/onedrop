@@ -56,7 +56,7 @@ export const providers: ProviderInfo[] = [
                 <>
                     Builds on your Claude Pro or Max plan with the Claude Code
                     agent. You sign in to Claude from your project, in Claude
-                    Code's own sign-in: OneDrop never sees your Claude login.
+                    Code's own sign-in: OneDrop never keeps your Claude login.
                 </>
             ),
         },

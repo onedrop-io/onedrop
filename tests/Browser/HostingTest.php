@@ -138,3 +138,64 @@ test('on a narrow window, Manage hosting switches from the chat to the workspace
         ->assertVisible('@hosted-services')
         ->assertNoJavaScriptErrors();
 })->group('HOST-001');
+
+test('a project picks Vercel in the Publish panel and goes live there', function () {
+    config([
+        'hosting.providers.fly.enabled' => true,
+        'hosting.providers.fly.api_token' => 'fly-token',
+        'hosting.providers.vercel' => ['enabled' => true, 'api_token' => 'vercel-token', 'team_id' => null],
+    ]);
+    fakeHostingProviders();
+    fakeVercel();
+    $sandboxes = hostingSandbox();
+    $sandboxes->manifest = ['static' => null, 'services' => [], 'data' => [], 'sqlite' => [], 'storage' => false, 'vercel' => 'nextjs'];
+    $sandboxes->packed = 'source 2048';
+    $sandboxes->packedFiles = ['package.json' => '{"dependencies":{"next":"15"}}'];
+    $project = Project::factory()->for($this->dev)->create(['name' => 'Bake Sale']);
+    Sandbox::factory()->for($project)->create(['preview_url' => null, 'external_id' => 'sbx-1']);
+
+    visit('/login')
+        ->fill('email', 'dev@example.com')
+        ->fill('password', 'password')
+        ->press('@login-button')
+        ->navigate("/projects/{$project->id}")
+        ->click('@publish-button')
+        ->click('[data-test="publish-panel"] label:has-text("Hosting")')
+        ->assertSeeIn('@publish-panel', 'Host on')
+        ->click('[data-test="publish-panel"] label:has-text("Vercel")')
+        ->click('@publish-submit')
+        ->assertSeeIn('@published-url', 'bake-sale.vercel.app')
+        ->assertSeeIn('@published-target', 'Hosting · Vercel')
+        ->click('@manage-hosting')
+        ->assertSeeIn('@hosted-services', 'Vercel')
+        ->assertMissing('@machine-size')
+        ->assertNoJavaScriptErrors();
+
+    expect($project->fresh()->hosting_platform)->toBe('vercel');
+})->group('HOST-011');
+
+test('an app that does not start in the sandbox fails at once, and the agent is asked to fix it', function () {
+    config(['hosting.providers.fly.enabled' => true, 'hosting.providers.fly.api_token' => 'fly-token']);
+    $sandboxes = hostingSandbox();
+    $sandboxes->starts = false;
+    $sandboxes->checked = "it stopped as it started (exit 1)\nError: Cannot find module './server'";
+    $project = Project::factory()->for($this->dev)->create(['name' => 'Bake Sale']);
+    Sandbox::factory()->for($project)->create(['preview_url' => null, 'external_id' => 'sbx-1']);
+    $this->actingAs($this->dev);
+
+    visit("/projects/{$project->id}")
+        ->click('@publish-button')
+        ->click('[data-test="publish-panel"] label:has-text("Hosting")')
+        ->click('@publish-submit')
+        ->assertSeeIn('@publish-status', 'Failed')
+        ->assertSeeIn('@publish-error', "The app didn't start in the sandbox")
+        ->click('[data-test="publish-panel"] summary')
+        ->assertSeeIn('@deploy-log', "Cannot find module './server'")
+        ->click('@publish-fix')
+        ->assertNoJavaScriptErrors();
+
+    $message = $project->messages()->latest('id')->first();
+    expect($message?->content)->toContain("Publishing to Hosting failed: The app didn't start in the sandbox")
+        ->toContain("Cannot find module './server'")
+        ->toContain('/opt/onedrop/hosting check');
+})->group('HOST-012');

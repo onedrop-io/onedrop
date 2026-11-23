@@ -28,6 +28,9 @@ enum HostedServiceKind: string
     /** An R2 bucket Litestream backs the app's SQLite databases up to, continuously (HOST-008). */
     case Backup = 'backup';
 
+    /** A Vercel project serving the app: a front end's files, or a Node app and its functions (HOST-011). */
+    case Web = 'web';
+
     public function label(): string
     {
         return match ($this) {
@@ -38,6 +41,7 @@ enum HostedServiceKind: string
             self::Bucket => 'File storage (S3)',
             self::Site => 'Static site',
             self::Backup => 'SQLite backups',
+            self::Web => 'Web app',
         };
     }
 

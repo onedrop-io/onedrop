@@ -18,6 +18,21 @@ Start a new project on the agent and model under test, with a small prompt.
 - [ ] A follow-up message ("make the heading blue") continues the same conversation; the agent knows what it built.
 - [ ] **Source Control → Timeline** shows an **Agent turn** checkpoint for the turn, and **History** a commit for it while **Commit after each agent turn** is on.
 
+### Live replies and steps (AGT-017)
+
+Run once per agent (OpenCode, Claude Code, Codex), in Advanced mode, with a prompt like "run `ls`, then add a footer to the home page and tell me what you changed, in three paragraphs".
+
+- [ ] The reply appears word by word as it's written, not all at once; bold text, links and code blocks never flash as raw markdown.
+- [ ] Each step appears when it starts, with a spinner while it runs; a step that fails (ask for `npm run nope`) gets a red cross.
+- [ ] Clicking the `ls` step shows the command and its output; clicking the footer edit shows a diff; a new file shows as all added lines.
+- [ ] **Thinking…** shows the thinking as it's written (Codex: a summary, with a model and reasoning level that give one), and the saved **Thinking** line expands to it.
+- [ ] Ask the agent to run `printenv | grep -i key` and to repeat a key it sees: the output and the reply show `[hidden]`, never the key.
+- [ ] Reload mid-reply: the reply so far comes back and keeps growing.
+- [ ] Without Reverb (`BROADCAST_CONNECTION=log`), the reply still grows about once a second.
+- [ ] In Simple mode the steps are plain lines that don't expand, and replies still stream.
+- [ ] Stop mid-turn: no step keeps spinning.
+- [ ] A sandbox that hasn't picked up the new tool files yet (or older chats) shows plain step lines, and nothing breaks.
+
 ### Stop and queue
 
 1. Send a message that takes a while ("add a settings page with five fields").
@@ -56,6 +71,17 @@ Start a new project on the agent and model under test, with a small prompt.
 - [ ] **Auto** picks a model per message and shows which one it picked.
 - [ ] A reasoning level other than **Default** is accepted and the turn runs.
 
+### Slash commands (AGT-016)
+
+1. Type **/** in the message box.
+
+- [ ] A menu lists the agent's commands with descriptions, and the skills turned on in the project; typing filters it, **Tab** fills in `/name `, **Escape** closes it.
+- [ ] Sending `/init` runs the agent's own init: an `AGENTS.md` (OpenCode, Codex) or `CLAUDE.md` (Claude Code) appears in the project.
+- [ ] Sending `/review` (OpenCode, Codex) or `/security-review` (Claude Code) after a change reviews it without editing files.
+- [ ] Sending a skill as `/skill-name details` makes the agent use that skill.
+- [ ] Claude Code: `/context` shows the context usage table as the reply, and `/compact` runs without an error line.
+- [ ] Claude Code: after one turn, the menu (on reload) also lists the project's `.claude/commands` and Claude Code's bundled commands, and never `/model` or `/clear`.
+
 ## OpenCode
 
 - [ ] Runs on an OpenRouter key, an Anthropic or OpenAI API key, a Gemini key, an Ollama key, and a ChatGPT sign-in (pick an OpenAI model).
@@ -64,15 +90,19 @@ Start a new project on the agent and model under test, with a small prompt.
 
 ## Claude Code
 
-### Claude subscription sign-in
+### Claude subscription sign-in (AI-005)
 
 Needs a Claude Pro or Max account. Disconnect Claude first if `DEV_CLAUDE_CREDENTIAL` seeded one.
 
 1. Connect Claude with **Use my Claude subscription** and open a project on Claude Code.
 2. Click **Sign in to Claude** above the chat box.
 
-- [ ] A **Shell** tab opens running `claude auth login`.
-- [ ] After pasting Claude's code, the Shell says **Login successful**, the workspace switches back to **Preview**, and the line above the chat says who is signed in.
+- [ ] A panel opens above the chat box; within a few seconds **Open Claude's sign-in page** is enabled, and the workspace doesn't change.
+- [ ] The link opens Claude's sign-in in a new tab, and the code input has focus when you come back.
+- [ ] A made-up code (`abc#def`) shows "Claude didn't accept that code" and a fresh sign-in page; the real code from it signs in.
+- [ ] After pasting Claude's real code and clicking **Sign in**, the panel closes and the line above the chat says who is signed in.
+- [ ] On Runtime (or another hosted provider), the same works through the panel: no Shell needed.
+- [ ] **Sign in in the Shell instead** opens a **Shell** tab running `claude auth login`; after pasting the code there it says **Login successful**, the workspace switches back to **Preview**, and the line above the chat says who is signed in.
 - [ ] A message runs on the subscription.
 - [ ] On Docker sandboxes, a second project is already signed in.
 - [ ] A message sent before signing in picks itself back up after sign-in, even after a page reload.

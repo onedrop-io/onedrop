@@ -75,6 +75,9 @@ class E2bSandboxProvider implements SandboxProvider
     /** How often using a sandbox puts its pause off again (one API call). */
     public const TOUCH_SECONDS = 60;
 
+    /** Longest a file upload or download may take; the sandbox's pause is put off past it first. */
+    public const TRANSFER_SECONDS = 600;
+
     /** How long an agent run keeps it awake, renewed as it's used: E2B's longest continuous run on its free plan. */
     public const HOLD_SECONDS = 3600;
 
@@ -214,6 +217,24 @@ class E2bSandboxProvider implements SandboxProvider
     protected function timeout(string $id): int
     {
         return Cache::has("e2b-held:{$id}") ? self::HOLD_SECONDS : $this->idleSeconds();
+    }
+
+    /**
+     * Move a file in or out. Its pause is a deadline that a long transfer doesn't put off (a slow upload of a project's
+     * files once outlasted a new sandbox's first ten minutes, and E2B paused it mid-upload), so put it off past the
+     * longest transfer first, then back to the usual.
+     *
+     * @throws SandboxException
+     */
+    protected function transferring(string $id, callable $transfer): void
+    {
+        $this->pauseAfter($id, max($this->timeout($id), self::TRANSFER_SECONDS + self::EXEC_SECONDS));
+
+        try {
+            $transfer();
+        } finally {
+            rescue(fn () => $this->pauseAfter($id, $this->timeout($id)), report: false);
+        }
     }
 
     /**
@@ -360,12 +381,25 @@ class E2bSandboxProvider implements SandboxProvider
             return false;
         }
 
+        return ($sandbox->json('metadata')[self::BUILD_METADATA] ?? null) !== ($template['buildID'] ?? null) || $this->madeDifferently($sandbox);
+    }
+
+    public function settingsChanged(string $id): bool
+    {
+        $sandbox = $this->request('get', "sandboxes/{$id}");
+
+        return $sandbox->successful() && $this->madeDifferently($sandbox);
+    }
+
+    /**
+     * Docker inside sandboxes turned on or off (SBX-008), or the gateway that sends private previews' token came or
+     * went: recreate it to match.
+     */
+    protected function madeDifferently(Response $sandbox): bool
+    {
         $metadata = $sandbox->json('metadata') ?? [];
 
-        // Docker inside sandboxes turned on or off (SBX-008), or the gateway that sends private previews' token came or
-        // went: recreate it to match.
-        return ($metadata[self::BUILD_METADATA] ?? null) !== ($template['buildID'] ?? null)
-            || ($metadata[self::DOCKER_METADATA] ?? 'off') !== ($this->runsDocker() ? 'on' : 'off')
+        return ($metadata[self::DOCKER_METADATA] ?? 'off') !== ($this->runsDocker() ? 'on' : 'off')
             || ($metadata[self::PRIVATE_METADATA] ?? 'yes') !== ($this->privatePreviews() ? 'yes' : 'no');
     }
 
@@ -387,7 +421,7 @@ class E2bSandboxProvider implements SandboxProvider
         $local = tempnam(sys_get_temp_dir(), 'onedrop-copy-');
 
         try {
-            $this->throwUnlessOk($this->files($id, 'root', 600)->sink($local)->get('files', ['path' => $archive, 'username' => 'root']));
+            $this->transferring($id, fn () => $this->throwUnlessOk($this->files($id, 'root', self::TRANSFER_SECONDS)->sink($local)->get('files', ['path' => $archive, 'username' => 'root'])));
 
             $result = Process::forever()->run(['tar', '-xzf', $local, '-C', $directory]);
 
@@ -531,8 +565,8 @@ class E2bSandboxProvider implements SandboxProvider
             $stream = fopen($local, 'r') ?: throw new SandboxException("Couldn't read {$local} to upload it to the sandbox.");
 
             try {
-                $this->throwUnlessOk($this->files($id, 'root', 600)->withBody(Utils::streamFor($stream), 'application/octet-stream')
-                    ->post('files?'.http_build_query(['path' => $archive, 'username' => 'root'])));
+                $this->transferring($id, fn () => $this->throwUnlessOk($this->files($id, 'root', self::TRANSFER_SECONDS)->withBody(Utils::streamFor($stream), 'application/octet-stream')
+                    ->post('files?'.http_build_query(['path' => $archive, 'username' => 'root']))));
             } finally {
                 if (is_resource($stream)) {
                     fclose($stream);

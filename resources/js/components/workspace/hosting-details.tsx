@@ -33,6 +33,8 @@ export const DEPLOY_STEPS: Record<string, string> = {
     building: 'Building the image',
     release: 'Starting the app',
     verify: 'Waiting for it to answer',
+    deploying: 'Building on Vercel',
+    promote: 'Putting it back',
 };
 
 /** The latest deploy to hosting, its log, and what the app has there, with whose account (HOST-001..003). */
@@ -220,7 +222,7 @@ export default function HostingManager({
                         />
                     </div>
                 )}
-                {history.length > 0 && (
+                {history.length > 0 && hosting.machine && (
                     <label className={row}>
                         <span>
                             Machine size

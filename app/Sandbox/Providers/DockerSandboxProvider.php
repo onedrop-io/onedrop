@@ -284,10 +284,18 @@ class DockerSandboxProvider implements SandboxProvider
             return false;
         }
 
+        return trim($current->output()) !== trim($used->output()) || $this->settingsChanged($id);
+    }
+
+    public function settingsChanged(string $id): bool
+    {
+        if (Process::timeout(15)->run(['docker', 'inspect', '--format', '{{.Id}}', $id])->failed()) {
+            return false;
+        }
+
         // Made before App Storage (or Claude's sign-in) moved to a host folder: recreate it to move them there.
         // Docker inside sandboxes turned on or off (SBX-008): recreate it with (or without) its own Docker.
-        return trim($current->output()) !== trim($used->output())
-            || $this->mounts($id, self::DOCKER_MOUNT) !== $this->runsDocker()
+        return $this->mounts($id, self::DOCKER_MOUNT) !== $this->runsDocker()
             || ($this->runsDocker() && $this->isPrivileged($id) !== (($this->config['nested_docker'] ?? null) === 'privileged'))
             || (filled($this->config['storage_path'] ?? null) && (! $this->mounts($id, self::STORAGE_MOUNT) || ! $this->mounts($id, self::CLAUDE_MOUNT)));
     }

@@ -5,6 +5,7 @@ use App\Http\Middleware\EnsureAgentConnected;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\LimitSandboxWaits;
+use App\Http\Middleware\OnlySandboxCallsThroughTunnel;
 use App\Http\Middleware\PreventRequestForgery;
 use App\Http\Middleware\ResolveOrganization;
 use App\Http\Middleware\UseBuiltAssetsForRemoteRequests;
@@ -31,6 +32,13 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->encryptCookies(except: ['appearance', 'theme-light', 'theme-dark', 'sidebar_state', 'sidebar_width', 'open_project']);
         $middleware->validateCsrfTokens(except: ['sandbox-events/*']);
+        // An agent's events carry text exactly as written: a streamed piece of a reply starts with its space, and
+        // command output keeps its blank lines (AGT-017).
+        $middleware->trimStrings(except: [fn (Request $request) => $request->is('sandbox-events/*')]);
+        $middleware->convertEmptyStringsToNull(except: [fn (Request $request) => $request->is('sandbox-events/*')]);
+
+        // Cloud sandboxes reach a local install through a public tunnel (SBX-015) that serves nothing else.
+        $middleware->prepend(OnlySandboxCallsThroughTunnel::class);
 
         // Saved file contents must reach the sandbox byte for byte (trailing newlines included).
         $middleware->trimStrings(except: [

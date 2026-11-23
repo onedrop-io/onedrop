@@ -18,6 +18,7 @@ use App\Jobs\CheckTurnOutcome;
 use App\Jobs\ExplainAgentFailure;
 use App\Jobs\SyncPullRequestTask;
 use App\Jobs\UpdateProjectIcon;
+use App\Models\Message;
 use App\Models\Project;
 use App\Models\Task;
 use App\Sandbox\AbuseCheck;
@@ -53,10 +54,15 @@ abstract class AgentEvents
     }
 
     /**
-     * Store a chat line, skipping empty ones and repeated "Thinking" lines.
+     * Store a chat line, skipping empty ones and repeated "Thinking" lines. A reply the agent streamed ($block, its id
+     * for it) replaces the text shown so far (AGT-017).
      */
-    protected function say(Conversation $conversation, MessageRole $role, string $content): void
+    protected function say(Conversation $conversation, MessageRole $role, string $content, ?string $block = null): void
     {
+        if ($block !== null) {
+            app(AgentStream::class)->end($conversation, $block);
+        }
+
         if ($content === '') {
             return;
         }
@@ -67,7 +73,146 @@ abstract class AgentEvents
             return;
         }
 
-        $conversation->messages()->create(['role' => $role, 'content' => $content]);
+        $conversation->messages()->create(['role' => $role, 'content' => $content, 'meta' => $block !== null ? ['blocks' => [$block]] : null]);
+    }
+
+    /**
+     * A piece of the reply or thinking the agent is writing (AGT-017), sent by the forwarder as `onedrop.delta`.
+     *
+     * @param  array<string, mixed>  $event
+     */
+    protected function streamed(Conversation $conversation, array $event): void
+    {
+        $block = (string) ($event['block'] ?? '');
+
+        if ($block !== '') {
+            app(AgentStream::class)->append($conversation, $block, (string) ($event['kind'] ?? ''), (string) ($event['delta'] ?? ''));
+        }
+    }
+
+    /**
+     * The model thought: a "Thinking" line, which expands to the thinking itself (AGT-017). Thinking right after
+     * thinking joins the same line, as repeated "Thinking" lines always did.
+     */
+    protected function think(Conversation $conversation, string $text = '', ?string $block = null): void
+    {
+        if ($block !== null) {
+            app(AgentStream::class)->end($conversation, $block);
+        }
+
+        $text = trim($text);
+        $last = $conversation->messages()->reorder()->latest('id')->first();
+
+        if ($last?->role === MessageRole::Activity && $last->content === 'Thinking') {
+            $joined = trim(($last->detail['text'] ?? '')."\n\n".$text);
+
+            $last->update([
+                'meta' => [...$last->meta ?? [], 'step' => ['kind' => 'thinking'], 'blocks' => array_values(array_filter([...$last->meta['blocks'] ?? [], $block]))],
+                'detail' => $joined !== '' ? ['text' => self::clip($joined)] : null,
+            ]);
+
+            return;
+        }
+
+        $conversation->messages()->create([
+            'role' => MessageRole::Activity,
+            'content' => 'Thinking',
+            'meta' => ['step' => ['kind' => 'thinking'], 'blocks' => $block !== null ? [$block] : []],
+            'detail' => $text !== '' ? ['text' => self::clip($text)] : null,
+        ]);
+    }
+
+    /**
+     * A tool call: its one-line description, and what it did for the user to expand (AGT-017). $id is the agent's own
+     * id for the call, so a call reported again (when it finishes) updates its line instead of adding one. Without an
+     * id or details (an older forwarder) it's a plain line, as before.
+     *
+     * @param  'running'|'done'|'failed'  $status
+     * @param  array<string, mixed>  $detail  command, path, query, output, diff, error
+     */
+    protected function step(Conversation $conversation, string $line, ?string $id = null, string $status = 'done', array $detail = []): void
+    {
+        $detail = self::cleanDetail($detail);
+
+        if (($id === null || $id === '') && $detail === []) {
+            $this->say($conversation, MessageRole::Activity, $line);
+
+            return;
+        }
+
+        $existing = $id !== null && $id !== '' ? $this->findStep($conversation, $id) : null;
+
+        if ($existing !== null) {
+            $existing->update([
+                'content' => $line !== '' ? $line : $existing->content,
+                'meta' => [...$existing->meta ?? [], 'step' => [...$existing->meta['step'] ?? [], 'status' => $status]],
+                'detail' => [...$existing->detail ?? [], ...$detail] ?: null,
+            ]);
+
+            return;
+        }
+
+        if ($line === '') {
+            return;
+        }
+
+        $conversation->messages()->create([
+            'role' => MessageRole::Activity,
+            'content' => $line,
+            'meta' => ['step' => array_filter(['kind' => 'tool', 'id' => $id ?: null, 'status' => $status])],
+            'detail' => $detail ?: null,
+        ]);
+    }
+
+    /**
+     * A tool call the agent reported finishing separately from starting it (Claude Code's tool results).
+     *
+     * @param  array<string, mixed>  $detail
+     */
+    protected function finishStep(Conversation $conversation, string $id, bool $failed, array $detail = []): void
+    {
+        $existing = $id !== '' ? $this->findStep($conversation, $id) : null;
+
+        $existing?->update([
+            'meta' => [...$existing->meta ?? [], 'step' => [...$existing->meta['step'] ?? [], 'status' => $failed ? 'failed' : 'done']],
+            'detail' => [...$existing->detail ?? [], ...self::cleanDetail($detail)] ?: null,
+        ]);
+    }
+
+    /**
+     * The step for the agent's call $id in this chat's current turn (Codex numbers its calls afresh each run).
+     */
+    protected function findStep(Conversation $conversation, string $id): ?Message
+    {
+        $turn = (int) $conversation->messages()->reorder()->where('role', MessageRole::User)->max('id');
+
+        return $conversation->messages()->reorder()
+            ->where('id', '>', $turn)
+            ->where('role', MessageRole::Activity)
+            ->where('meta->step->id', $id)
+            ->latest('id')
+            ->first();
+    }
+
+    /**
+     * A step's details as strings, empty ones left out, each clipped (the forwarder already clips them; this keeps an
+     * older or misbehaving one from filling the database).
+     *
+     * @param  array<string, mixed>  $detail
+     * @return array<string, string>
+     */
+    protected static function cleanDetail(array $detail): array
+    {
+        return collect($detail)
+            ->only(['command', 'path', 'query', 'output', 'diff', 'error'])
+            ->filter(fn ($value) => is_string($value) && trim($value) !== '')
+            ->map(fn (string $value) => self::clip($value))
+            ->all();
+    }
+
+    protected static function clip(string $text): string
+    {
+        return mb_strlen($text) > 40_000 ? mb_substr($text, 0, 40_000)."\n…" : $text;
     }
 
     /**

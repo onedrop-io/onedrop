@@ -375,7 +375,9 @@ export default function ToolsPanel({
                             running={running}
                             hosted={
                                 publication.target === 'hosting' &&
-                                publication.status !== null
+                                publication.status !== null &&
+                                // Only a Fly.io machine runs the database tool (HOST-011).
+                                (publication.hosting?.host ?? 'fly') === 'fly'
                             }
                         />
                     ) : (

@@ -37,6 +37,8 @@ The records depend on where the project is published:
 
 A front end on Hosting is served by Cloudflare, which adds the DNS record itself. For that, the domain's DNS has to be in the same Cloudflare account the app is hosted in. If your [organization connected its own Cloudflare account](/guides/hosting), add the domain to that account first.
 
+An app hosted on Vercel gets the records Vercel recommends: a CNAME for a subdomain, or an A record for a root domain. Vercel issues the certificate once they're in place.
+
 <Info>
     DNS changes can take a while to show up, from a minute to a few hours. While a domain is waiting, the panel says what's wrong, for example which address it points at now.
 </Info>
@@ -58,6 +60,6 @@ A project published privately to Your domain stays private on its custom domains
 
 - **Unpublishing** keeps the domains. They serve the app again when you publish.
 - **Publishing somewhere else** moves the domains there. The DNS records may change, so check the panel and update them.
-- **Deleting the project** removes its domains from Fly.io and Cloudflare.
+- **Deleting the project** removes its domains from Fly.io, Cloudflare and Vercel.
 
 A domain can only be added to one project on the install.

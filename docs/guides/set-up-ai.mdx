@@ -32,18 +32,23 @@ OneDrop asks **Which AI do you use?** and shows five icons: Claude, Codex, OpenR
         A subscription only works with the [Claude Code agent](#choose-the-agent). Anthropic lets its own agent use a subscription, but not other agents like OpenCode.
       </Step>
       <Step title="Sign in to Claude">
-        Above the chat box, click **Sign in to Claude**. A new **Shell** tab opens and runs `claude auth login` (on a phone, the page switches to **Workspace** to show it).
+        Above the chat box, click **Sign in to Claude**. A small panel opens there, and Claude Code starts its own sign-in in your project's sandbox.
       </Step>
       <Step title="Approve on Claude">
-        Open the link it shows, sign in to Claude and approve. Copy the code Claude gives you and paste it into the Shell tab.
+        Click **Open Claude's sign-in page**. In the new tab, sign in to Claude and approve. Copy the code Claude shows you.
+      </Step>
+      <Step title="Paste the code">
+        Paste the code into the panel and click **Sign in**. If Claude turns the code down, the panel gets a fresh sign-in page: open it again for a new code, since each code works once.
       </Step>
       <Step title="Start building">
-        Once the Shell says **Login successful**, the workspace switches back to the **Preview** tab (on a phone, the page switches back to **Chat**) and the line above the chat box says who Claude Code is signed in as. Send your message.
+        The line above the chat box says who Claude Code is signed in as. Send your message.
       </Step>
     </Steps>
 
+    Prefer a terminal? Click **Sign in in the Shell instead** in the panel. A new **Shell** tab runs `claude auth login` (on a phone, the page switches to **Workspace**); paste the code there, and once it says **Login successful** the workspace goes back to **Preview**.
+
     <Note>
-      OneDrop never sees or stores your Claude login: it stays inside Claude Code, in your sandboxes, as Anthropic requires. On OneDrop installs that use Docker sandboxes, one sign-in works in all of your projects. On other sandbox providers, sign in once in each project.
+      OneDrop never stores your Claude login: it stays inside Claude Code, in your sandboxes, as Anthropic requires. The code you paste only passes through on its way to Claude Code, works once, and is useless without the secret Claude Code holds for that sign-in. On OneDrop installs that use Docker sandboxes, one sign-in works in all of your projects. On other sandbox providers, sign in once in each project.
     </Note>
 
     If Claude turns down your sign-in, the chat tries your message once more by itself. If Claude Code isn't signed in, or your sign-in has really expired, the chat tells you to sign in again and **Sign in to Claude** comes back above the chat box. Once you've signed in, the chat picks your message back up by itself (even if you reloaded the page meanwhile), so you don't need to send it again. Disconnecting Claude in **Settings → AI** signs Claude Code out of your sandboxes. Claude subscription tokens from `claude setup-token` can't be pasted.

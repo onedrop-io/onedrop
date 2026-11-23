@@ -2,6 +2,11 @@ import type { ComponentProps, ElementType, HTMLAttributes } from 'react';
 import ReactMarkdown from 'react-markdown';
 import type { Components, ExtraProps } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import {
+    defaultRehypePlugins,
+    defaultUrlTransform,
+    Streamdown,
+} from 'streamdown';
 import CodeHighlight from '@/components/code-highlight';
 import { cn } from '@/lib/utils';
 
@@ -67,6 +72,8 @@ const components: Components = {
         'my-2 border-l-2 pl-3 text-muted-foreground',
     ),
     hr: styled('hr', 'my-4 border-border'),
+    strong: styled('strong', 'font-semibold'),
+    em: styled('em', 'italic'),
     pre: styled(
         'pre',
         'my-2 overflow-x-auto rounded-lg bg-muted p-3 text-xs leading-normal [&>code]:bg-transparent [&>code]:p-0',
@@ -97,6 +104,40 @@ export default function Markdown({
             >
                 {content}
             </ReactMarkdown>
+        </div>
+    );
+}
+
+/**
+ * The agent's replies in the chat (AGT-005), with the same look. Built on Streamdown, so a reply still being written
+ * (AGT-017) renders cleanly: half-written bold, a link or a code block isn't shown as raw markdown, and new words
+ * fade in. Raw HTML is shown as text, never rendered (no `raw` plugin; the URL transform turns HTML into text).
+ */
+export function ChatMarkdown({
+    content,
+    streaming = false,
+    className,
+    ...props
+}: {
+    content: string;
+    /** Still being written. */
+    streaming?: boolean;
+} & ComponentProps<'div'>) {
+    return (
+        <div className={cn('min-w-0 break-words', className)} {...props}>
+            <Streamdown
+                mode={streaming ? 'streaming' : 'static'}
+                parseIncompleteMarkdown={streaming}
+                isAnimating={streaming}
+                animated={{ animation: 'fadeIn', sep: 'word' }}
+                rehypePlugins={[defaultRehypePlugins.harden]}
+                urlTransform={defaultUrlTransform}
+                controls={false}
+                linkSafety={{ enabled: false }}
+                components={components}
+            >
+                {content}
+            </Streamdown>
         </div>
     );
 }

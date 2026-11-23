@@ -20,11 +20,12 @@ use Illuminate\Support\Carbon;
  * @property MessageRole $role
  * @property string $content
  * @property bool $queued
- * @property array<string, mixed>|null $meta what was decided when it was sent: the model Auto picked (`selection`, and the chat line saying so, `auto_note`), an earlier decision it changes (`changes_decision`), notes for the agent that the chat doesn't show (`agent_context`, e.g. what a marked-up picture of the preview points at, AGT-013)
+ * @property array<string, mixed>|null $meta what was decided when it was sent: the model Auto picked (`selection`, and the chat line saying so, `auto_note`), an earlier decision it changes (`changes_decision`), notes for the agent that the chat doesn't show (`agent_context`, e.g. what a marked-up picture of the preview points at, AGT-013); for an agent's step, what kind it is (`step`: kind, the agent's id for it, status), and for a reply or thinking, the streamed blocks it holds (`blocks`, AGT-017)
+ * @property array{command?: string, path?: string, query?: string, output?: string, diff?: string, error?: string, text?: string}|null $detail what an agent's step did, shown when it's expanded (AGT-017)
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['role', 'content', 'queued', 'meta'])]
+#[Fillable(['role', 'content', 'queued', 'meta', 'detail'])]
 class Message extends Model
 {
     use BroadcastsProjectChanges;
@@ -43,6 +44,7 @@ class Message extends Model
             'role' => MessageRole::class,
             'queued' => 'boolean',
             'meta' => 'array',
+            'detail' => 'array',
         ];
     }
 

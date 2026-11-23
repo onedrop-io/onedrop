@@ -83,6 +83,8 @@ class AgentQueue
             $conversation->update(['stage' => TaskStage::Review, 'position' => $conversation->project->nextTaskPosition(TaskStage::Review)]);
         }
 
+        $this->settleSteps($conversation, 'done');
+
         [$next, $attachments] = DB::transaction(function () use ($conversation) {
             $conversation->update(['status' => ProjectStatus::Idle]);
 
@@ -179,9 +181,25 @@ class AgentQueue
             UpdateProjectIcon::dispatch($project)->delay(now()->addSeconds(15));
         }
 
+        $this->settleSteps($conversation, 'stopped');
         $conversation->messages()->create(['role' => MessageRole::Activity, 'content' => 'Stopped']);
         $conversation->update(['status' => ProjectStatus::Idle]);
         $conversation->agentSandbox()?->releaseAwake();
+    }
+
+    /**
+     * The run is over: steps it never reported finishing stop showing as running, and the reply it was writing is
+     * dropped (what it finished is already saved) (AGT-017).
+     */
+    protected function settleSteps(Conversation $conversation, string $status): void
+    {
+        app(AgentStream::class)->end($conversation);
+
+        $conversation->messages()->reorder()
+            ->where('role', MessageRole::Activity)
+            ->where('meta->step->status', 'running')
+            ->get()
+            ->each(fn (Message $step) => $step->update(['meta' => [...$step->meta, 'step' => [...$step->meta['step'], 'status' => $status]]]));
     }
 
     /**

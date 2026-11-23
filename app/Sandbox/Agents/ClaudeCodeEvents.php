@@ -33,7 +33,14 @@ class ClaudeCodeEvents extends AgentEvents
         match ($event['type'] ?? null) {
             'onedrop.start' => $conversation->update(['status' => ProjectStatus::Working]),
             'assistant' => $this->assistant($conversation, is_array($event['message'] ?? null) ? $event['message'] : []),
-            'system' => ($event['subtype'] ?? null) === 'api_retry' ? $this->say($conversation, MessageRole::Activity, 'Claude is busy, retrying') : null,
+            'user' => $this->toolResults($conversation, is_array($event['message'] ?? null) ? $event['message'] : []),
+            'onedrop.delta' => $this->streamed($conversation, $event),
+            'system' => match ($event['subtype'] ?? null) {
+                'api_retry' => $this->say($conversation, MessageRole::Activity, 'Claude is busy, retrying'),
+                // Its slash commands, for the chat's menu (AGT-016).
+                'commands_changed' => app(AgentCommands::class)->remember($conversation->ownerProject(), AgentHarness::ClaudeCode, (array) ($event['commands'] ?? [])),
+                default => null,
+            },
             'result' => $this->result($conversation, $event),
             'onedrop.exit' => $this->finish($conversation, (int) ($event['code'] ?? 0), (string) ($event['stderr'] ?? ''), (bool) ($event['reported'] ?? false)),
             default => null,
@@ -63,8 +70,27 @@ class ClaudeCodeEvents extends AgentEvents
     }
 
     /**
+     * What a tool call works on, shown when its step is expanded (AGT-017): the command, the file, or what it searched
+     * for or looked up.
+     *
+     * @param  array<string, mixed>  $input
+     * @return array<string, mixed>
+     */
+    public function toolDetail(string $tool, array $input): array
+    {
+        $path = Str::after((string) ($input['file_path'] ?? $input['notebook_path'] ?? $input['path'] ?? ''), '/workspace/');
+
+        return [
+            'command' => $tool === 'Bash' ? ($input['command'] ?? null) : null,
+            'path' => $path !== '' ? $path : null,
+            'query' => $input['pattern'] ?? $input['url'] ?? $input['query'] ?? null,
+        ];
+    }
+
+    /**
      * One assistant message: its thinking, replies and tool calls, in order. Claude Code's
      * own error notices ("<synthetic>" messages) are skipped; the result event explains them.
+     * A block streamed as it was written (AGT-017) carries the forwarder's id for it, `block`.
      *
      * @param  array<string, mixed>  $message
      */
@@ -75,12 +101,43 @@ class ClaudeCodeEvents extends AgentEvents
         }
 
         foreach ((array) ($message['content'] ?? []) as $block) {
-            match (is_array($block) ? ($block['type'] ?? null) : null) {
-                'thinking', 'redacted_thinking' => $this->say($conversation, MessageRole::Activity, 'Thinking'),
-                'text' => $this->say($conversation, MessageRole::Assistant, trim((string) ($block['text'] ?? ''))),
-                'tool_use' => $this->say($conversation, MessageRole::Activity, $this->describeTool((string) ($block['name'] ?? 'a tool'), is_array($block['input'] ?? null) ? $block['input'] : [])),
+            if (! is_array($block)) {
+                continue;
+            }
+
+            $streamed = is_string($block['block'] ?? null) ? $block['block'] : null;
+            $input = is_array($block['input'] ?? null) ? $block['input'] : [];
+            $tool = (string) ($block['name'] ?? 'a tool');
+
+            match ($block['type'] ?? null) {
+                'thinking', 'redacted_thinking' => $this->think($conversation, (string) ($block['thinking'] ?? ''), $streamed),
+                'text' => $this->say($conversation, MessageRole::Assistant, trim((string) ($block['text'] ?? '')), $streamed),
+                'tool_use' => $this->step($conversation, $this->describeTool($tool, $input), is_string($block['id'] ?? null) ? $block['id'] : null, 'running', $this->toolDetail($tool, $input)),
                 default => null,
             };
+        }
+    }
+
+    /**
+     * Tool calls finishing (AGT-017): Claude Code sends their results back to the model as a user message. The
+     * forwarder keeps a little of each output, and turns a file edit into a diff.
+     *
+     * @param  array<string, mixed>  $message
+     */
+    protected function toolResults(Conversation $conversation, array $message): void
+    {
+        foreach ((array) ($message['content'] ?? []) as $block) {
+            if (! is_array($block) || ($block['type'] ?? null) !== 'tool_result' || ! is_string($block['tool_use_id'] ?? null)) {
+                continue;
+            }
+
+            $failed = (bool) ($block['is_error'] ?? false);
+            $output = is_string($block['content'] ?? null) ? $block['content'] : null;
+
+            $this->finishStep($conversation, $block['tool_use_id'], $failed, [
+                $failed ? 'error' : 'output' => $output,
+                'diff' => $block['diff'] ?? null,
+            ]);
         }
     }
 
@@ -105,6 +162,12 @@ class ClaudeCodeEvents extends AgentEvents
         }
 
         if (! ($event['is_error'] ?? false)) {
+            // A command that only shows something (e.g. /context, AGT-016) takes no turns: its output, sent as a
+            // "<synthetic>" message, is the reply.
+            if (($event['num_turns'] ?? null) === 0) {
+                $this->say($conversation, MessageRole::Assistant, trim((string) ($event['result'] ?? '')));
+            }
+
             return;
         }
 

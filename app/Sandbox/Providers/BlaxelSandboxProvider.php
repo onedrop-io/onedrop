@@ -244,6 +244,14 @@ class BlaxelSandboxProvider implements SandboxProvider
         return ($sandbox->json('metadata.labels')[self::IMAGE_LABEL] ?? null) !== $current;
     }
 
+    /**
+     * Blaxel makes every sandbox the same way.
+     */
+    public function settingsChanged(string $id): bool
+    {
+        return false;
+    }
+
     public function copyOut(string $id, string $path, string $directory): void
     {
         $archive = '/tmp/onedrop-copy-'.Str::random(8).'.tgz';

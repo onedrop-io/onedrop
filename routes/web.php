@@ -226,6 +226,7 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
         Route::delete('projects/{project}', [ProjectController::class, 'destroy'])->name('projects.destroy');
         Route::post('projects/{project}/name', [ProjectController::class, 'regenerateName'])->name('projects.name.regenerate');
         Route::post('projects/{project}/messages', [ProjectMessageController::class, 'store'])->name('projects.messages.store');
+        Route::get('projects/{project}/messages/{message}/detail', [ProjectMessageController::class, 'detail'])->name('projects.messages.detail');
         Route::get('projects/{project}/attachments/{attachment}', [ProjectAttachmentController::class, 'show'])->name('projects.attachments.show');
         Route::post('projects/{project}/sandbox/activity', [SandboxActivityController::class, 'store'])->name('projects.sandbox.activity');
         Route::get('projects/{project}/files', [ProjectFileController::class, 'index'])->name('projects.files.index');
@@ -384,6 +385,8 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
         Route::patch('projects/{project}/agent', [ProjectAgentController::class, 'update'])->name('projects.agent.update');
         Route::get('projects/{project}/claude-login', [ClaudeLoginController::class, 'show'])->middleware('throttle:claude-login')->name('projects.claude-login.show');
         Route::post('projects/{project}/claude-login/resume', [ClaudeLoginController::class, 'resume'])->middleware('throttle:claude-login')->name('projects.claude-login.resume');
+        Route::post('projects/{project}/claude-login/start', [ClaudeLoginController::class, 'start'])->middleware('throttle:claude-login')->name('projects.claude-login.start');
+        Route::post('projects/{project}/claude-login/code', [ClaudeLoginController::class, 'code'])->middleware('throttle:claude-login')->name('projects.claude-login.code');
         Route::patch('projects/{project}/agent/autofix', [ProjectAgentController::class, 'autofix'])->name('projects.agent.autofix');
         Route::post('projects/{project}/agent/stop', [ProjectAgentController::class, 'stop'])->name('projects.agent.stop');
         Route::delete('projects/{project}/messages/{message}', [ProjectMessageController::class, 'destroy'])->name('projects.messages.destroy');
@@ -414,11 +417,11 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
 
     // Another organization, owned by its maker, on the hosted install (ORG-003).
     Route::post('organizations', [OrganizationController::class, 'store'])->name('organizations.store');
+    // One that verified the domain of the user's email (ORG-008). Not under `o/{organization}`, which is for members.
+    Route::post('organizations/{joinable:slug}/join', JoinOrganizationController::class)->name('organizations.join');
 
     // An organization's settings, members, usage, invites and groups (ORG-004, ORG-005). Anything from another
     // organization is a 404.
-    // One that verified the domain of the user's email (ORG-008). Not under `o/{organization}`, which is for members.
-    Route::post('organizations/{joinable:slug}/join', JoinOrganizationController::class)->name('organizations.join');
     Route::prefix('o/{organization}')->group(function () {
         Route::get('settings', [OrganizationController::class, 'edit'])->name('organizations.edit');
         Route::get('settings/members', [OrganizationMemberController::class, 'index'])->name('organizations.members.index');
@@ -437,6 +440,9 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
         Route::post('secrets', [OrganizationSecretController::class, 'store'])->name('organizations.secrets.store');
         Route::put('secrets/{secret}', [OrganizationSecretController::class, 'update'])->name('organizations.secrets.update');
         Route::delete('secrets/{secret}', [OrganizationSecretController::class, 'destroy'])->name('organizations.secrets.destroy');
+        Route::post('domains', [OrganizationDomainController::class, 'store'])->name('organizations.domains.store');
+        Route::post('domains/{domain}/verify', [OrganizationDomainController::class, 'verify'])->name('organizations.domains.verify');
+        Route::delete('domains/{domain}', [OrganizationDomainController::class, 'destroy'])->name('organizations.domains.destroy');
 
         // The organization's Apps page (APPS-001..003): open without an AI connection, like the apps themselves.
         Route::get('apps', [AppController::class, 'index'])->name('apps.index');
@@ -446,9 +452,6 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
 
         // The user's own computer (CMP-001): only theirs, made the first time they open it.
         Route::put('computers', [OrganizationController::class, 'updateComputers'])->name('organizations.computers.update');
-        Route::post('domains', [OrganizationDomainController::class, 'store'])->name('organizations.domains.store');
-        Route::post('domains/{domain}/verify', [OrganizationDomainController::class, 'verify'])->name('organizations.domains.verify');
-        Route::delete('domains/{domain}', [OrganizationDomainController::class, 'destroy'])->name('organizations.domains.destroy');
         Route::get('computer', [ComputerController::class, 'show'])->name('computers.show');
         Route::post('computer/retry', [ComputerController::class, 'retry'])->name('computers.retry');
         Route::post('computer/restart', [ComputerController::class, 'restart'])->name('computers.restart');

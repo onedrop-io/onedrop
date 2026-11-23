@@ -112,8 +112,9 @@ class SandboxUpdater
         if ($this->tools->available()) {
             ['base' => $base, 'changed' => $changed] = $this->tools->compare($this->provider, $sandbox->external_id);
 
+            // Settings only a new sandbox changes (Docker inside, private previews) need one even over the current base.
             if ($base) {
-                return $changed ?: null;
+                return $this->provider->settingsChanged($sandbox->external_id) ? 'rebuild' : ($changed ?: null);
             }
         }
 

@@ -88,6 +88,14 @@ interface SandboxProvider
     public function isOutdated(string $id): bool;
 
     /**
+     * Whether the sandbox was made with settings new sandboxes no longer get (Docker inside, private previews, host
+     * folders), which only a new sandbox changes. Part of isOutdated(), but true even when the image is current.
+     *
+     * @throws SandboxException
+     */
+    public function settingsChanged(string $id): bool;
+
+    /**
      * Copy a directory's contents out of a sandbox into a local directory.
      *
      * @throws SandboxException

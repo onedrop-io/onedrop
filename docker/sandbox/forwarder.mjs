@@ -1,12 +1,16 @@
 #!/usr/bin/env node
 // Runs one agent task (OpenCode, Claude Code or Codex) and forwards its JSON events to the platform.
 // The platform never holds a connection open: we POST batches of events to a signed webhook.
+// Each agent streams its replies and tool calls (AGT-017): Claude Code prints them, OpenCode's are read from its
+// server's events (`opencode serve`, with `opencode run --attach` giving it the prompt) and Codex's from its app server
+// (`codex app-server`). agent-stream.mjs turns them into the events the platform reads, with secrets hidden.
 //
 // Env: APP_AGENT ("opencode", the default, "claude_code" or "codex"), APP_PROMPT, APP_MODEL, APP_EVENTS_URL,
 // APP_EVENTS_TOKEN, optional APP_RUN (which chat: "main" or "task-<id>"; several may run at once),
 // APP_SESSION_ID, APP_VARIANT (reasoning level) and, for OpenCode and Codex,
 // APP_FILES (JSON list of image paths the model should see with the prompt). For Claude Code,
 // APP_CLAUDE_AUTH is "subscription" when it runs on the user's own `claude auth login` (AI-005).
+// For OpenCode, APP_COMMAND is one of its commands to run (AGT-016), with APP_PROMPT as its details.
 // For Codex, CODEX_AUTH_CONTENT is its auth.json (the ChatGPT sign-in or OpenAI key), written before it starts.
 // APP_REQUIREMENTS is "1" when the agent keeps the project's requirements and their tests (REQ-002, TEST-002): those
 // guides join the instructions. APP_MODE is "computer" on a person's computer (CMP-002): the agent works its desktop
@@ -14,8 +18,19 @@
 // when the turn's changes are left for the user to commit (SCM-003): the checkpoint is private.
 // Provider keys (ANTHROPIC_API_KEY, OPENAI_API_KEY, ...) are read by the agent; a Claude subscription is Claude Code's own sign-in.
 import { spawn, spawnSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { createInterface } from 'node:readline';
+import {
+    ClaudeTranslator,
+    CodexTranslator,
+    OpenCodeTranslator,
+    StreamRedactor,
+    coalesce,
+    redact,
+    secretValues,
+} from './agent-stream.mjs';
 
 const INSTRUCTIONS = '/opt/onedrop/instructions.md';
 const COMPUTER_INSTRUCTIONS = '/opt/onedrop/computer.md';
@@ -25,10 +40,28 @@ const REQUIREMENTS_GUIDES = [
 ];
 const OPENCODE_CONFIG = '/opt/onedrop/opencode.json';
 const CHECKPOINT = '/opt/onedrop/checkpoint';
+// A cloud sandbox reaching a local install goes through its dev tunnel, whose address changes when it restarts; the
+// platform writes the current one to this file (SBX-015), and it replaces the address's origin.
+const CALLBACK_FILE = '/etc/onedrop-callback';
+
+function current(url) {
+    let origin = '';
+    try {
+        origin = readFileSync(CALLBACK_FILE, 'utf8').trim();
+    } catch {
+        return url;
+    }
+    if (!origin) {
+        return url;
+    }
+    const target = new URL(url);
+    return origin.replace(/\/+$/, '') + target.pathname + target.search;
+}
 
 const {
     APP_AGENT = 'opencode',
     APP_PROMPT,
+    APP_COMMAND,
     APP_MODEL,
     APP_EVENTS_URL,
     APP_EVENTS_TOKEN,
@@ -84,10 +117,16 @@ const PID_FILE =
 
 const claude = APP_AGENT === 'claude_code';
 const codex = APP_AGENT === 'codex';
+// Names this run's streamed blocks, so they can't be confused with another run's (AGT-017).
+const RUN_ID = randomBytes(4).toString('hex');
 
-function opencodeCommand() {
+// `opencode run` gives the prompt to the run's own OpenCode server (`server`), whose events are read instead of the
+// run's: it only prints finished parts.
+function opencodeCommand(server) {
     const args = [
         'run',
+        '--attach',
+        server,
         '--format',
         'json',
         '--thinking',
@@ -110,23 +149,27 @@ function opencodeCommand() {
         args.push('--file', file);
     }
 
-    // `--file` takes a list, so end the options or the prompt would be read as another file.
-    args.push('--', APP_PROMPT);
+    if (APP_COMMAND) {
+        args.push('--command', APP_COMMAND);
+    }
 
-    return {
-        command: 'opencode',
-        args,
-        env: { OPENCODE_CONFIG: opencodeConfig() },
-    };
+    // `--file` takes a list, so end the options or the prompt would be read as another file.
+    // A command's details are optional.
+    if (!APP_COMMAND || APP_PROMPT) {
+        args.push('--', APP_PROMPT);
+    }
+
+    return { command: 'opencode', args };
 }
 
-// The prompt goes in on stdin, so one starting with "-" isn't read as an option.
 function claudeCommand(resume) {
     const args = [
         '-p',
         '--output-format',
         'stream-json',
         '--verbose',
+        // Replies and thinking as they're written (AGT-017).
+        '--include-partial-messages',
         '--model',
         APP_MODEL,
         '--permission-mode',
@@ -160,53 +203,34 @@ function claudeCommand(resume) {
     };
 }
 
-// The prompt goes in on stdin ("-"). Resuming a session takes the same options, except the directory.
-function codexCommand(resume) {
+// Codex reads its sign-in or key from auth.json.
+function writeCodexAuth() {
     const home = process.env.CODEX_HOME || `${process.env.HOME}/.codex`;
 
     if (CODEX_AUTH_CONTENT) {
         mkdirSync(home, { recursive: true });
         writeFileSync(`${home}/auth.json`, CODEX_AUTH_CONTENT, { mode: 0o600 });
     }
+}
 
-    const args = [
-        'exec',
-        ...(resume && APP_SESSION_ID ? ['resume'] : ['--cd', '/workspace']),
-        '--json',
-        '--dangerously-bypass-approvals-and-sandbox',
-        '--skip-git-repo-check',
-        '--model',
-        APP_MODEL,
-        // TOML string: JSON's escaping is valid TOML.
-        '--config',
-        `developer_instructions=${JSON.stringify(instructions())}`,
-    ];
+// The long strings in Codex's auth.json (its tokens and key), to hide wherever they'd show.
+function codexAuthValues() {
+    try {
+        const values = [];
+        const collect = (value) => {
+            if (typeof value === 'string' && value.length >= 16) {
+                values.push(value);
+            } else if (value && typeof value === 'object') {
+                Object.values(value).forEach(collect);
+            }
+        };
 
-    if (APP_VARIANT) {
-        args.push(
-            '--config',
-            `model_reasoning_effort=${JSON.stringify(APP_VARIANT)}`,
-        );
+        collect(JSON.parse(CODEX_AUTH_CONTENT || '{}'));
+
+        return values;
+    } catch {
+        return [];
     }
-
-    // "=" so a list-taking option can't swallow the arguments after it.
-    for (const file of JSON.parse(APP_FILES || '[]')) {
-        args.push(`--image=${file}`);
-    }
-
-    if (resume && APP_SESSION_ID) {
-        args.push(APP_SESSION_ID);
-    }
-
-    args.push('-');
-
-    return {
-        command: 'codex',
-        args,
-        env: {},
-        unset: ['CODEX_AUTH_CONTENT'],
-        input: APP_PROMPT,
-    };
 }
 
 // The organization's secrets (SECRET-003), as /opt/onedrop/org-secrets gives them to the Shell: settings already in the
@@ -232,133 +256,6 @@ function organizationSecrets() {
     }
 
     return secrets;
-}
-
-function pick(object, keys) {
-    const picked = {};
-
-    for (const key of keys) {
-        if (object?.[key] !== undefined) {
-            picked[key] = object[key];
-        }
-    }
-
-    return picked;
-}
-
-// Claude Code's events carry whole files and tool output; the platform only needs a little of each.
-function compactClaudeEvent(event) {
-    switch (event.type) {
-        case 'assistant':
-            return {
-                type: 'assistant',
-                session_id: event.session_id,
-                message: {
-                    model: event.message?.model,
-                    content: (event.message?.content ?? []).map((block) => {
-                        if (block.type === 'text') {
-                            return { type: 'text', text: block.text };
-                        }
-
-                        if (block.type === 'tool_use') {
-                            const input = pick(block.input, [
-                                'file_path',
-                                'notebook_path',
-                                'path',
-                                'command',
-                                'description',
-                                'pattern',
-                            ]);
-
-                            if (typeof input.command === 'string') {
-                                input.command = input.command.slice(0, 500);
-                            }
-
-                            return {
-                                type: 'tool_use',
-                                name: block.name,
-                                input,
-                            };
-                        }
-
-                        return { type: block.type };
-                    }),
-                },
-            };
-        case 'result':
-            return {
-                ...pick(event, [
-                    'type',
-                    'subtype',
-                    'is_error',
-                    'result',
-                    'errors',
-                    'api_error_status',
-                    'session_id',
-                ]),
-                // Tokens and estimated cost per model, for the Usage page.
-                modelUsage: Object.fromEntries(
-                    Object.entries(event.modelUsage ?? {}).map(
-                        ([model, usage]) => [
-                            model,
-                            pick(usage, [
-                                'inputTokens',
-                                'outputTokens',
-                                'cacheReadInputTokens',
-                                'cacheCreationInputTokens',
-                                'costUSD',
-                            ]),
-                        ],
-                    ),
-                ),
-            };
-        case 'system':
-            return ['init', 'api_retry'].includes(event.subtype)
-                ? pick(event, ['type', 'subtype', 'session_id', 'error'])
-                : null;
-        default:
-            return null;
-    }
-}
-
-// Codex's events carry whole command output; the platform only needs what each step was.
-function compactCodexEvent(event) {
-    switch (event.type) {
-        case 'item.started':
-        case 'item.completed': {
-            const item = event.item ?? {};
-
-            return {
-                type: event.type,
-                item: {
-                    ...pick(item, ['id', 'type', 'status', 'tool', 'server']),
-                    ...(typeof item.text === 'string' &&
-                    item.type === 'agent_message'
-                        ? { text: item.text }
-                        : {}),
-                    ...(typeof item.command === 'string'
-                        ? { command: item.command.slice(0, 500) }
-                        : {}),
-                    ...(Array.isArray(item.changes)
-                        ? {
-                              changes: item.changes.map((change) =>
-                                  pick(change, ['path', 'kind']),
-                              ),
-                          }
-                        : {}),
-                },
-            };
-        }
-        case 'turn.completed':
-            // Codex doesn't say which model ran the turn.
-            return { type: event.type, usage: event.usage, model: APP_MODEL };
-        case 'thread.started':
-        case 'turn.failed':
-        case 'error':
-            return event;
-        default:
-            return null;
-    }
 }
 
 // Before the turn: save edits made since the last checkpoint (in the Shell, the Files panel) as their own
@@ -389,7 +286,9 @@ function checkpoint() {
         return;
     }
 
-    const prompt = (APP_PROMPT ?? '').trim();
+    const prompt = (
+        APP_COMMAND ? `/${APP_COMMAND} ${APP_PROMPT ?? ''}` : (APP_PROMPT ?? '')
+    ).trim();
     const firstLine = prompt.split('\n')[0];
     const subject =
         firstLine.length > 72 ? `${firstLine.slice(0, 71)}…` : firstLine;
@@ -411,7 +310,8 @@ function flush() {
         return sending;
     }
 
-    const events = pending;
+    // A batch's pieces of the same reply go as one (AGT-017).
+    const events = coalesce(pending);
     pending = [];
 
     // Chain posts so the platform receives events in order.
@@ -423,7 +323,7 @@ function flush() {
 async function post(events) {
     for (let attempt = 1; attempt <= 5; attempt++) {
         try {
-            const response = await fetch(APP_EVENTS_URL, {
+            const response = await fetch(current(APP_EVENTS_URL), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -446,6 +346,28 @@ async function post(events) {
     }
 }
 
+// Secrets the sandbox holds never leave it in the agent's events (AGT-017): settings that look secret, the
+// organization's secrets (SECRET-003) and Codex's tokens. Streamed text holds back a little in case one is being written.
+const SECRETS = secretValues(process.env, [
+    ...Object.values(organizationSecrets()),
+    ...codexAuthValues(),
+]);
+const streamRedactor = new StreamRedactor(SECRETS);
+
+function emit(events) {
+    for (const event of events) {
+        if (event.type === 'onedrop.delta') {
+            const delta = streamRedactor.push(event.block, event.delta);
+
+            if (delta !== '') {
+                pending.push({ ...event, delta });
+            }
+        } else {
+            pending.push(redact(event, SECRETS));
+        }
+    }
+}
+
 // Tell the platform we're alive before the model's first token.
 pending.push({ type: 'onedrop.start' });
 
@@ -453,16 +375,19 @@ writeFileSync(PID_FILE, String(process.pid));
 
 const timer = setInterval(flush, 300);
 
-let agent;
+// The run's processes (the agent, and OpenCode's server), each in its own process group.
+const children = new Set();
 let stopped = false;
-// The agent already explained why it failed (Claude Code's error results), so the exit needn't.
+// The agent already explained why it failed (Claude Code's error results, Codex's failed turns), so the exit needn't.
 let reported = false;
 
 function kill(signal) {
-    try {
-        process.kill(-agent.pid, signal);
-    } catch {
-        // Already gone.
+    for (const child of children) {
+        try {
+            process.kill(-child.pid, signal);
+        } catch {
+            // Already gone.
+        }
     }
 }
 
@@ -477,25 +402,16 @@ process.on('SIGTERM', () => {
     }, 3000).unref();
 });
 
-function run(resume) {
-    const {
-        command,
-        args,
-        env,
-        unset = [],
-        input,
-    } = claude
-        ? claudeCommand(resume)
-        : codex
-          ? codexCommand(resume)
-          : opencodeCommand();
-    // Claude Code and Codex can't resume a session they no longer have (e.g. a new sandbox); then start a fresh one.
-    let retryFresh = false;
-    let stderr = '';
-
-    agent = spawn(command, args, {
+// Start one of the run's processes with the organization's secrets in its environment (minus `unset`), in its own
+// process group, so stopping also ends anything it started (npm, builds, ...). `closed` gives its exit code.
+function start(
+    command,
+    args,
+    { env = {}, unset = [], input, stdin = 'ignore' } = {},
+) {
+    const child = spawn(command, args, {
         cwd: '/workspace',
-        stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
+        stdio: [input === undefined ? stdin : 'pipe', 'pipe', 'pipe'],
         env: Object.fromEntries(
             Object.entries({
                 ...organizationSecrets(),
@@ -503,47 +419,51 @@ function run(resume) {
                 ...env,
             }).filter(([name]) => !unset.includes(name)),
         ),
-        // Own process group, so stopping also ends anything the agent started (npm, builds, ...).
         detached: true,
     });
 
+    children.add(child);
+
     if (input !== undefined) {
-        agent.stdin.end(input);
+        child.stdin.end(input);
     }
 
-    agent.stderr.on('data', (chunk) => {
+    let stderr = '';
+
+    child.stderr.on('data', (chunk) => {
         stderr = (stderr + chunk).slice(-4000);
     });
 
-    createInterface({ input: agent.stdout }).on('line', (line) => {
+    const closed = new Promise((resolve) => {
+        child.on('error', (error) => {
+            stderr += `\n${error.message}`;
+        });
+        child.on('close', (code) => {
+            children.delete(child);
+            resolve(code ?? 1);
+        });
+    });
+
+    return { child, closed, stderr: () => stderr };
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Claude Code prints its events, partial messages included. Claude Code can't resume a session it no longer has (e.g.
+// a new sandbox); then `retryFresh` starts a fresh one.
+async function runClaude(resume) {
+    const { command, args, env, unset, input } = claudeCommand(resume);
+    const translator = new ClaudeTranslator(RUN_ID);
+    const agent = start(command, args, { env, unset, input });
+    let retryFresh = false;
+
+    createInterface({ input: agent.child.stdout }).on('line', (line) => {
         let event;
 
         try {
             event = JSON.parse(line);
         } catch {
             // Not JSON (e.g. a warning); ignore.
-            return;
-        }
-
-        if (codex) {
-            const compact = compactCodexEvent(event);
-
-            if (compact) {
-                reported ||= compact.type === 'turn.failed';
-                pending.push(compact);
-            }
-
-            return;
-        }
-
-        if (!claude) {
-            // OpenCode's steps say what they used but not with which model.
-            pending.push(
-                event.type === 'step_finish'
-                    ? { ...event, model: APP_MODEL }
-                    : event,
-            );
-
             return;
         }
 
@@ -577,45 +497,278 @@ function run(resume) {
             return;
         }
 
-        const compact = compactClaudeEvent(event);
-
-        if (compact) {
-            reported ||= compact.type === 'result' && compact.is_error;
-            pending.push(compact);
-        }
+        const events = translator.translate(event);
+        reported ||= events.some(
+            (compact) => compact.type === 'result' && compact.is_error,
+        );
+        emit(events);
     });
 
-    agent.on('close', async (code) => {
-        // Codex fails before its first event when it can't find the session.
-        retryFresh ||=
-            codex &&
-            resume &&
-            code !== 0 &&
-            stderr.includes('no rollout found');
+    const code = await agent.closed;
 
-        if (retryFresh && !stopped) {
-            run(false);
+    return { code, stderr: agent.stderr(), retryFresh };
+}
+
+// A free port on this machine for OpenCode's server.
+function freePort() {
+    return new Promise((resolve, reject) => {
+        const server = createServer();
+
+        server.on('error', reject);
+        server.listen(0, '127.0.0.1', () => {
+            const { port } = server.address();
+            server.close(() => resolve(port));
+        });
+    });
+}
+
+// Read a server's events (`text/event-stream`), retrying until the server is up. Resolves once connected; the events
+// keep arriving until `signal` aborts.
+async function subscribe(url, headers, onEvent, signal) {
+    for (let attempt = 0; attempt < 300 && !stopped; attempt++) {
+        let response;
+
+        try {
+            response = await fetch(url, { headers, signal });
+        } catch {
+            if (signal.aborted) {
+                return false;
+            }
+        }
+
+        if (response?.ok) {
+            void (async () => {
+                const decoder = new TextDecoder();
+                let buffer = '';
+                let data = [];
+
+                try {
+                    for await (const chunk of response.body) {
+                        buffer += decoder.decode(chunk, { stream: true });
+                        const lines = buffer.split('\n');
+                        buffer = lines.pop();
+
+                        for (const line of lines) {
+                            if (line.startsWith('data:')) {
+                                data.push(line.slice(5).trimStart());
+                            } else if (line.trim() === '' && data.length > 0) {
+                                try {
+                                    onEvent(JSON.parse(data.join('\n')));
+                                } catch {
+                                    // Not JSON; ignore.
+                                }
+                                data = [];
+                            }
+                        }
+                    }
+                } catch {
+                    // Aborted at the end of the run.
+                }
+            })();
+
+            return true;
+        }
+
+        await sleep(200);
+    }
+
+    return false;
+}
+
+// OpenCode runs as a server of its own for this run, whose events say what the agent does as it does it; `opencode
+// run --attach` gives it the prompt (and its files and command) and answers its permission prompts.
+async function runOpenCode() {
+    const port = await freePort();
+    const password = randomBytes(18).toString('base64url');
+    const base = `http://127.0.0.1:${port}`;
+    const env = {
+        OPENCODE_CONFIG: opencodeConfig(),
+        OPENCODE_SERVER_PASSWORD: password,
+    };
+    const server = start(
+        'opencode',
+        ['serve', '--hostname', '127.0.0.1', '--port', String(port)],
+        { env },
+    );
+    const translator = new OpenCodeTranslator(APP_MODEL, APP_SESSION_ID);
+    const events = new AbortController();
+    const connected = await subscribe(
+        `${base}/event`,
+        {
+            Authorization: `Basic ${Buffer.from(`opencode:${password}`).toString('base64')}`,
+        },
+        (event) => emit(translator.translate(event)),
+        events.signal,
+    );
+
+    let code = 1;
+    let stderr = '';
+
+    if (connected) {
+        const { command, args } = opencodeCommand(base);
+        const agent = start(command, args, { env });
+
+        // Its own output repeats the server's events; only the server's are complete.
+        agent.child.stdout.resume();
+        code = await agent.closed;
+        stderr = agent.stderr();
+
+        // The last events can arrive just after the run exits.
+        for (
+            let waited = 0;
+            !translator.idle &&
+            waited < (code === 0 ? 15000 : 2000) &&
+            !stopped;
+            waited += 100
+        ) {
+            await sleep(100);
+        }
+    } else {
+        stderr = server.stderr() || "OpenCode's server didn't start";
+    }
+
+    events.abort();
+    kill('SIGTERM');
+    await server.closed;
+
+    return { code, stderr: stderr || server.stderr(), retryFresh: false };
+}
+
+// Codex runs as its app server, spoken to over stdin and stdout (JSON-RPC), which reports replies and thinking as
+// they're written. A thread it no longer has (e.g. a new sandbox) is started afresh.
+async function runCodex() {
+    writeCodexAuth();
+
+    const translator = new CodexTranslator(RUN_ID, APP_MODEL);
+    const server = start('codex', ['app-server'], {
+        unset: ['CODEX_AUTH_CONTENT'],
+        stdin: 'pipe',
+    });
+    const waiting = new Map();
+    let next = 0;
+    let finish;
+    const finished = new Promise((resolve) => (finish = resolve));
+
+    const write = (message) => {
+        if (server.child.stdin.writable) {
+            server.child.stdin.write(`${JSON.stringify(message)}\n`);
+        }
+    };
+
+    const request = (method, params) =>
+        new Promise((resolve, reject) => {
+            const id = ++next;
+            waiting.set(id, { resolve, reject });
+            write({ id, method, params });
+        });
+
+    createInterface({ input: server.child.stdout }).on('line', (line) => {
+        let message;
+
+        try {
+            message = JSON.parse(line);
+        } catch {
+            return;
+        }
+
+        // A reply to one of our requests.
+        if (message.id !== undefined && !message.method) {
+            const call = waiting.get(message.id);
+            waiting.delete(message.id);
+
+            if (message.error) {
+                call?.reject(new Error(message.error.message ?? 'Codex error'));
+            } else {
+                call?.resolve(message.result);
+            }
 
             return;
         }
 
-        clearInterval(timer);
-        rmSync(PID_FILE, { force: true });
-        checkpoint();
+        // Codex asking for approval: everything is approved in the sandbox (as `--dangerously-bypass-approvals-and-
+        // sandbox` did), and anything else it asks is declined.
+        if (message.id !== undefined) {
+            write(
+                /requestApproval$|Approval$/.test(message.method)
+                    ? { id: message.id, result: { decision: 'accept' } }
+                    : {
+                          id: message.id,
+                          error: { code: -32601, message: 'Not supported' },
+                      },
+            );
 
-        // A stopped run's events are ignored by the platform anyway; don't report it as a crash.
-        if (!stopped) {
-            pending.push({
-                type: 'onedrop.exit',
-                code,
-                stderr: code === 0 ? '' : stderr,
-                reported,
-            });
-            await flush();
+            return;
         }
 
-        process.exit(0);
+        emit(translator.translate(message));
+
+        if (translator.result !== null) {
+            finish();
+        }
     });
+
+    void server.closed.then(() => finish());
+
+    try {
+        await request('initialize', {
+            clientInfo: { name: 'onedrop', title: 'onedrop', version: '1' },
+            capabilities: null,
+        });
+        write({ method: 'initialized', params: {} });
+
+        const thread = {
+            model: APP_MODEL,
+            cwd: '/workspace',
+            approvalPolicy: 'never',
+            sandbox: 'danger-full-access',
+            developerInstructions: instructions(),
+        };
+        let started = null;
+
+        if (APP_SESSION_ID) {
+            started = await request('thread/resume', {
+                ...thread,
+                threadId: APP_SESSION_ID,
+                excludeTurns: true,
+            }).catch(() => null);
+        }
+
+        started ??= await request('thread/start', thread);
+        emit([{ type: 'thread.started', thread_id: started.thread.id }]);
+
+        await request('turn/start', {
+            threadId: started.thread.id,
+            input: [
+                { type: 'text', text: APP_PROMPT ?? '', text_elements: [] },
+                ...JSON.parse(APP_FILES || '[]').map((path) => ({
+                    type: 'localImage',
+                    path,
+                })),
+            ],
+            ...(APP_VARIANT ? { effort: APP_VARIANT } : {}),
+            summary: 'auto',
+        });
+
+        await finished;
+    } catch (error) {
+        emit([{ type: 'turn.failed', error: { message: error.message } }]);
+        translator.result ??= 'failed';
+    }
+
+    kill('SIGTERM');
+    await server.closed;
+
+    reported ||= translator.result === 'failed';
+
+    return {
+        code: translator.result === 'completed' ? 0 : 1,
+        stderr: server.stderr(),
+        retryFresh: false,
+    };
+}
+
+function runAgent(resume) {
+    return claude ? runClaude(resume) : codex ? runCodex() : runOpenCode();
 }
 
 await snapshot();
@@ -625,4 +778,25 @@ if (stopped) {
     process.exit(0);
 }
 
-run(true);
+let result = await runAgent(true);
+
+if (result.retryFresh && !stopped) {
+    result = await runAgent(false);
+}
+
+clearInterval(timer);
+rmSync(PID_FILE, { force: true });
+checkpoint();
+
+// A stopped run's events are ignored by the platform anyway; don't report it as a crash.
+if (!stopped) {
+    pending.push({
+        type: 'onedrop.exit',
+        code: result.code,
+        stderr: result.code === 0 ? '' : result.stderr,
+        reported,
+    });
+    await flush();
+}
+
+process.exit(0);

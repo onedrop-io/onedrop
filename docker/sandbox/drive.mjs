@@ -34,6 +34,23 @@ const ROOT = process.env.ONEDROP_DRIVE_DIR || '/home/sandbox/drive';
 const HOME = process.env.HOME || '/home/sandbox';
 const STATE_FILE = `${HOME}/.onedrop/drive-${createHash('sha256').update(BASE).digest('hex').slice(0, 12)}.json`;
 const ACTIVE_FILE = '/tmp/onedrop-active';
+// A cloud sandbox reaching a local install goes through its dev tunnel, whose address changes when it restarts; the
+// platform writes the current one to this file (SBX-015), and it replaces the address's origin.
+const CALLBACK_FILE = '/etc/onedrop-callback';
+
+function current(url) {
+    let origin = '';
+    try {
+        origin = readFileSync(CALLBACK_FILE, 'utf8').trim();
+    } catch {
+        return url;
+    }
+    if (!origin) {
+        return url;
+    }
+    const target = new URL(url);
+    return origin.replace(/\/+$/, '') + target.pathname + target.search;
+}
 const BUSY_MS = 3000;
 const IDLE_SCAN_MS = 5000;
 const IN_USE_MS = 120_000;
@@ -91,7 +108,7 @@ function log(...args) {
 }
 
 async function api(method, path, { json, body, headers = {} } = {}) {
-    const response = await fetch(`${BASE}${path}`, {
+    const response = await fetch(current(`${BASE}${path}`), {
         method,
         headers: {
             authorization: `Bearer ${TOKEN}`,

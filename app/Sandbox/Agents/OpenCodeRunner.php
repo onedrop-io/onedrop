@@ -83,10 +83,14 @@ class OpenCodeRunner extends SandboxAgentRunner
             $selection = $vision;
         }
 
+        // One of OpenCode's commands (AGT-016) runs as `opencode run --command`, with its details as the message.
+        [$command, $details] = app(AgentCommands::class)->parse($project, $message->content) ?? [null, null];
+
         $this->launch($conversation, $sandbox, [
             ...($onCredits ? $environment : $connection->sandboxEnvironment()),
             'APP_AGENT' => AgentHarness::OpenCode->value,
-            'APP_PROMPT' => $this->prompt($message, $attached),
+            'APP_COMMAND' => $command ?? '',
+            'APP_PROMPT' => $this->prompt($message, $attached, $details),
             'APP_FILES' => json_encode($images, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES),
             'APP_MODEL' => $this->catalog->opencodeId($selection['provider'], $selection['model']),
             'APP_VARIANT' => $selection['variant'] ?? '',

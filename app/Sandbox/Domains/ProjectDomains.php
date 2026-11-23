@@ -15,6 +15,7 @@ use App\Sandbox\Hosting\FlyApi;
 use App\Sandbox\Hosting\HostedServices;
 use App\Sandbox\Hosting\HostingAccount;
 use App\Sandbox\Hosting\HostingException;
+use App\Sandbox\Hosting\VercelApi;
 use App\Sandbox\Publishing\Publishers;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -303,6 +304,9 @@ class ProjectDomains
                 'cloudflare-worker' => ($site = $domain->project->hostedServices()->where('kind', HostedServiceKind::Site)->first())
                     ? new CloudflareWorkerConnector(new CloudflareApi($this->services->accountFor($site)), $site->name)
                     : null,
+                'vercel' => ($web = $domain->project->hostedServices()->where('kind', HostedServiceKind::Web)->first())
+                    ? new VercelConnector(new VercelApi($this->services->accountFor($web)), (string) $web->external_id)
+                    : null,
                 default => null,
             };
         } catch (HostingException) {
@@ -334,15 +338,16 @@ class ProjectDomains
     }
 
     /**
-     * Hosted apps: a Fly certificate for an app with a server, a Workers custom domain for a front end, going by
-     * what the latest live deploy was.
+     * Hosted apps: a Fly certificate for an app with a server, a Workers custom domain for a front end, or the domain
+     * on its Vercel project, going by where the latest live deploy went.
      */
     protected function hostingConnector(Project $project): Connector|string
     {
-        $kind = $project->deployments()->where('status', DeploymentStatus::Live)->latest('id')->value('kind');
-        $service = match ($kind) {
-            'static' => $project->hostedServices()->where('kind', HostedServiceKind::Site)->first(),
-            'server' => $project->hostedServices()->where('kind', HostedServiceKind::App)->first(),
+        $host = $project->deployments()->where('status', DeploymentStatus::Live)->latest('id')->value('host');
+        $service = match ($host) {
+            'cloudflare' => $project->hostedServices()->where('kind', HostedServiceKind::Site)->first(),
+            'fly' => $project->hostedServices()->where('kind', HostedServiceKind::App)->first(),
+            'vercel' => $project->hostedServices()->where('kind', HostedServiceKind::Web)->first(),
             default => null,
         };
 
@@ -356,8 +361,10 @@ class ProjectDomains
             return $e->getMessage();
         }
 
-        return $kind === 'static'
-            ? new CloudflareWorkerConnector(new CloudflareApi($account), $service->name)
-            : new FlyConnector(new FlyApi($account), $service->name);
+        return match ($host) {
+            'cloudflare' => new CloudflareWorkerConnector(new CloudflareApi($account), $service->name),
+            'vercel' => new VercelConnector(new VercelApi($account), (string) $service->external_id),
+            default => new FlyConnector(new FlyApi($account), $service->name),
+        };
     }
 }

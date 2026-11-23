@@ -20,6 +20,7 @@ use App\Sandbox\Providers\RuntimeSandboxProvider;
 use App\Sandbox\Publishing\FakePublisher;
 use App\Sandbox\Publishing\Publisher;
 use App\Sandbox\Publishing\TailscalePublisher;
+use App\Sandbox\SandboxCallback;
 use App\Sandbox\SandboxProvider;
 use App\Sandbox\SandboxWaitLimit;
 use App\Sandbox\SystemConfig;
@@ -42,6 +43,7 @@ use Illuminate\Validation\Rules\Password;
 use InvalidArgumentException;
 use SocialiteProviders\Manager\SocialiteWasCalled;
 use SocialiteProviders\Microsoft\Provider as MicrosoftProvider;
+use Symfony\Component\Process\ExecutableFinder;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -161,6 +163,11 @@ class AppServiceProvider extends ServiceProvider
 
         // `composer run dev` runs the scheduler too, so idle Docker sandboxes are suspended locally (SBX-007).
         DevCommands::artisan('schedule:work', 'scheduler');
+
+        // And a public tunnel, so sandboxes in the cloud can report back to this machine (SBX-015).
+        if (app()->runningInConsole() && ! app()->runningUnitTests() && ! SandboxCallback::isPublic((string) config('sandbox.callback_url')) && (new ExecutableFinder)->find('cloudflared')) {
+            DevCommands::artisan('sandbox:tunnel', 'tunnel');
+        }
     }
 
     /**

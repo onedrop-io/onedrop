@@ -51,11 +51,31 @@ Build two apps: a front end only, and a server app with a database ("a Laravel a
 - [ ] A broken update puts the previous version back and says why.
 - [ ] A Vite app with no `.onedrop/host.json` (delete it) goes to Cloudflare, and the deploy log says it was taken for a front end.
 - [ ] On a Mac (arm64 sandbox), a server app with native packages (anything on Vite 8, or `sharp`) starts on Fly.io; the builder log says it installed the packages again for x86_64.
-- [ ] An app whose `.onedrop/start` exits at once (`exit 1`) fails within about a minute, with its output in the deploy log.
+- [ ] HOST-012: an app whose `.onedrop/start` exits at once (`exit 1`) fails in seconds at **Checking that the app starts**, with its output in the deploy log, nothing new at Fly.io, and the live version still answering.
+- [ ] HOST-012: an app that listens on a fixed port instead of `$PORT` fails the check with "nothing answered on $PORT" after about two minutes; the preview keeps working throughout.
+- [ ] HOST-012: a working server app's deploy log says "The app started in Ns."; afterwards no second copy of it is running in the sandbox (`ps aux` in the Shell).
+- [ ] HOST-012: after a failed deploy, **Fix with agent** puts the error and the log's end in the main chat; the agent fixes it, runs `/opt/onedrop/hosting check` until it prints `ok`, and the next **Publish** goes live.
+- [ ] HOST-012: an app that passes the check but never answers on Fly.io (e.g. it needs an env var only the sandbox has) fails with its last output, read from the machine, in the deploy log.
 - [ ] **Roll back** to an earlier deploy works in seconds.
 - [ ] **Update automatically** updates the hosted app about a minute after a clean turn.
 - [ ] **Unpublish** stops the app and keeps its data; **Delete hosted data** removes it at each provider.
 - [ ] With an organization's own provider account connected in **Settings → Organization → Hosting accounts**, new apps go there.
+
+## Hosting on Vercel (HOST-011)
+
+Turn on Vercel in **Settings → Hosting** (a token, and the team ID for a team) next to Fly.io and Cloudflare.
+
+- [ ] The Publish panel shows **Host on** with **Fly.io & Cloudflare** and **Vercel** once Hosting is picked; Vercel shows its logo in Settings → Hosting.
+- [ ] A Vite front end on **Vercel** goes live at a `vercel.app` address that opens in a private window (no Vercel sign-in), and a deep link (`/about`) loads the app.
+- [ ] A Next.js app ("a Next.js guestbook on Postgres") on Vercel: the log says Vercel builds it, the Neon database is made and holds the sandbox's rows, and the hosted app shows them.
+- [ ] An Express or Hono API ("an Express API with a /health route") deploys to Vercel and answers.
+- [ ] A Laravel or SQLite app with **Vercel** picked goes to Fly.io, and the log says why.
+- [ ] A broken build (add a type error) fails with the end of Vercel's build log, and the live version keeps working.
+- [ ] **Update** sends only the changed files (check the deployment's file count in Vercel's dashboard); **Roll back** puts an earlier deploy back in seconds.
+- [ ] Moving a Fly.io app to Vercel stops its Fly machine once Vercel has it; its Neon data is the same.
+- [ ] A custom domain shows Vercel's CNAME (or A record for a root domain) and turns Active once the DNS is set.
+- [ ] **Unpublish** deletes the Vercel project; the Neon database stays.
+- [ ] An organization that connected only its own Vercel account publishes there by default, billed to it.
 
 ## Review before going public
 

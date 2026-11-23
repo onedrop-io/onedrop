@@ -19,6 +19,8 @@ use Illuminate\Support\Carbon;
  * @property int|null $user_id
  * @property int $number
  * @property string|null $kind server or static
+ * @property string|null $host where it went: fly, cloudflare or vercel (HOST-011)
+ * @property string|null $external_id the deployment at the provider (Vercel's), to put it back
  * @property DeploymentStatus $status
  * @property string $step
  * @property array<string, mixed>|null $state
@@ -32,7 +34,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['user_id', 'number', 'kind', 'status', 'step', 'state', 'polls', 'image', 'commit', 'url', 'log', 'error', 'finished_at'])]
+#[Fillable(['user_id', 'number', 'kind', 'host', 'external_id', 'status', 'step', 'state', 'polls', 'image', 'commit', 'url', 'log', 'error', 'finished_at'])]
 class Deployment extends Model
 {
     /** @use HasFactory<DeploymentFactory> */

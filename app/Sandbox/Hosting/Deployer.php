@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
+use Symfony\Component\Finder\SplFileInfo;
 use Throwable;
 
 /**
@@ -31,6 +32,7 @@ use Throwable;
  *  inspect    read .onedrop/host.json in the sandbox: a front end (static) or an app with a server, its services and data
  *  package    build and pack it in the sandbox, which uploads the files straight to release storage (ReleaseStorage)
  *             through signed links (with its data too, the first time)
+ *  check      (apps with a server) start it in the sandbox the way it's hosted, and stop there if it doesn't answer
  *  provision  make what it's missing: the Fly app, a volume, Postgres, Redis, a bucket
  *  upload     (front ends) put the files on a Cloudflare Worker; done
  *  build      start a builder machine in the Fly app that adds the release to the base image and pushes it to Fly's
@@ -38,6 +40,15 @@ use Throwable;
  *  building   wait for it to finish
  *  release    start (or update) the app's machine on the new image
  *  verify     wait until it answers; if it never does, put the last good image back
+ *
+ * On Vercel (HOST-011), Vercel builds it instead:
+ *
+ *  inspect    as above, and whether it fits Vercel
+ *  provision  make the Vercel project and what the app is missing, and give the project their addresses
+ *  package    pack it in the sandbox (a front end built, an app with a server as its source), copy it out, and send
+ *             Vercel the files it doesn't have yet with a new production deployment
+ *  deploying  wait for Vercel to build it and make it live
+ *  promote    (putting an earlier deploy back) make that Vercel deployment the live one again
  *
  * Provider keys stay here: the sandbox only gets signed links, the builder only its own account's token.
  */
@@ -60,6 +71,32 @@ class Deployer
     /** The port the sandbox's proxy listens on (it rewrites addresses, then hands requests to the app). */
     protected const PROXY_PORT = 8081;
 
+    /** Where a deploy can go, by its host. */
+    public const HOSTS = ['fly' => 'Fly.io', 'cloudflare' => 'Cloudflare', 'vercel' => 'Vercel'];
+
+    /** The frameworks `hosting inspect` recognizes for Vercel (its own framework presets), by preset. */
+    public const VERCEL_FRAMEWORKS = [
+        'nextjs' => 'Next.js',
+        'nuxtjs' => 'Nuxt',
+        'sveltekit' => 'SvelteKit',
+        'astro' => 'Astro',
+        'remix' => 'Remix',
+        'react-router' => 'React Router',
+        'tanstack-start' => 'TanStack Start',
+        'nitro' => 'Nitro',
+        'nestjs' => 'NestJS',
+        'hono' => 'Hono',
+        'express' => 'Express',
+        'fastify' => 'Fastify',
+        'koa' => 'Koa',
+        'h3' => 'H3',
+        'elysia' => 'Elysia',
+        'node' => 'Node',
+    ];
+
+    /** The most files Vercel takes in one deployment. */
+    protected const VERCEL_FILES = 15000;
+
     public function __construct(
         protected SandboxProvider $sandboxes,
         protected SandboxTools $tools,
@@ -78,10 +115,11 @@ class Deployer
     public function unavailableReason(Project $project): ?string
     {
         if (! $this->providers->available($project->organization)) {
-            return __('Hosting needs Fly.io or Cloudflare: an admin can set them up in Settings → Hosting, or your organization can connect its own accounts.');
+            return __('Hosting needs Fly.io, Cloudflare or Vercel: an admin can set them up in Settings → Hosting, or your organization can connect its own accounts.');
         }
 
-        if (! $this->releases->available($project)) {
+        // Vercel gets the files straight from here, so only Fly.io and Cloudflare need somewhere to keep releases.
+        if (! $this->releases->available($project) && $this->providers->account($project->organization, 'vercel') === null) {
             return __('Hosting needs somewhere to keep releases: turn on Cloudflare in Settings → Hosting, or use an S3-compatible SANDBOX_SNAPSHOT_DISK.');
         }
 
@@ -134,8 +172,11 @@ class Deployer
         try {
             return match ($deployment->step) {
                 'inspect' => $this->inspect($deployment),
-                'package' => $this->package($deployment),
+                'package' => $deployment->host === 'vercel' ? $this->packageForVercel($deployment) : $this->package($deployment),
+                'check' => $this->check($deployment),
                 'provision' => $this->provision($deployment),
+                'deploying' => $this->deploying($deployment),
+                'promote' => $this->promote($deployment),
                 'upload' => $this->upload($deployment),
                 'build' => $this->build($deployment),
                 'building' => $this->building($deployment),
@@ -178,20 +219,86 @@ class Deployer
         $kind = filled($manifest['static'] ?? null) ? 'static' : 'server';
         $deployment->update(['kind' => $kind]);
         $deployment->remember(['manifest' => $manifest]);
-        $deployment->note($kind === 'static'
-            ? ($manifest['guessed'] ?? false ? 'A Vite app with no .onedrop/host.json, so a front end' : 'A front end').": serving {$manifest['static']}/ from Cloudflare."
-            : 'An app with a server: running it on Fly.io.'.($manifest['services'] !== [] ? ' Services: '.implode(', ', $manifest['services']).'.' : ''));
+        $host = $this->chooseHost($deployment, $manifest);
+        $deployment->update(['host' => $host]);
+        $deployment->note(match (true) {
+            $host === 'vercel' && $kind === 'static' => ($manifest['guessed'] ?? false ? 'A Vite app with no .onedrop/host.json, so a front end' : 'A front end').": serving {$manifest['static']}/ from Vercel.",
+            $host === 'vercel' => sprintf('A %s app with a server: Vercel builds and runs it.', self::VERCEL_FRAMEWORKS[$manifest['vercel']] ?? 'Node').($manifest['services'] !== [] ? ' Services: '.implode(', ', $manifest['services']).'.' : ''),
+            $kind === 'static' => ($manifest['guessed'] ?? false ? 'A Vite app with no .onedrop/host.json, so a front end' : 'A front end').": serving {$manifest['static']}/ from Cloudflare.",
+            default => 'An app with a server: running it on Fly.io.'.($manifest['services'] !== [] ? ' Services: '.implode(', ', $manifest['services']).'.' : ''),
+        });
 
         // Every account it needs, before anything is made.
         foreach ($this->kindsFor($deployment) as $kind) {
             $this->services->account($deployment->project, $kind);
         }
 
-        if ($deployment->kind === 'server' && ($manifest['sqlite'] ?? []) !== [] && ! in_array(HostedServiceKind::Backup, $this->kindsFor($deployment), true)) {
+        if ($host === 'fly' && ($manifest['sqlite'] ?? []) !== [] && ! in_array(HostedServiceKind::Backup, $this->kindsFor($deployment), true)) {
             $deployment->note('No Cloudflare account to keep backups in, so its SQLite databases rely on the volume\'s daily snapshots.');
         }
 
+        // Vercel builds it, so its services (and their addresses) come first.
+        if ($host === 'vercel') {
+            return $this->next($deployment, 'provision');
+        }
+
         return $this->next($deployment, 'package');
+    }
+
+    /**
+     * Where this deploy goes (HOST-011): the project's platform when it can take the app, otherwise the other one. A
+     * front end goes to Vercel or Cloudflare; an app with a server to Vercel when it's a Node app Vercel knows that
+     * keeps nothing on disk, otherwise to Fly.io.
+     *
+     * @param  array<string, mixed>  $manifest
+     *
+     * @throws HostingException
+     */
+    protected function chooseHost(Deployment $deployment, array $manifest): string
+    {
+        $project = $deployment->project;
+        $organization = $project->organization;
+        $static = $deployment->kind === 'static';
+        $own = $static ? 'cloudflare' : 'fly';
+        $prefersVercel = ($project->hosting_platform ?? $this->providers->defaultPlatform($organization)) === HostingProviders::VERCEL;
+        $vercel = $this->providers->account($organization, 'vercel') !== null;
+        $ownWorks = $this->providers->account($organization, $own) !== null && $this->releases->available($project);
+        $problem = $static ? null : $this->vercelProblem($manifest);
+
+        if ($vercel && $problem === null && ($prefersVercel || ! $ownWorks)) {
+            return 'vercel';
+        }
+
+        if ($ownWorks) {
+            if ($prefersVercel && $vercel) {
+                $deployment->note("Vercel can't run this app: {$problem}. Running it on Fly.io instead.");
+            }
+
+            return $own;
+        }
+
+        throw new HostingException($vercel
+            ? __("Vercel can't run this app (:problem), and Fly.io isn't set up: an admin can turn it on in Settings → Hosting, or your organization can connect its own account.", ['problem' => $problem])
+            : __(':provider isn\'t set up: an admin can turn it on in Settings → Hosting, or your organization can connect its own account.', ['provider' => self::HOSTS[$own]]));
+    }
+
+    /**
+     * Why Vercel can't run an app with a server, or null when it can: only Node apps on a framework it builds, since it
+     * runs them as functions, and nothing they write to disk lasts.
+     *
+     * @param  array<string, mixed>  $manifest
+     */
+    protected function vercelProblem(array $manifest): ?string
+    {
+        $kept = array_values(array_diff($manifest['data'] ?? [], ['.onedrop/data']));
+
+        return match (true) {
+            ($manifest['sqlite'] ?? []) !== [] => sprintf('it keeps its data in SQLite (%s)', implode(', ', $manifest['sqlite'])),
+            $kept !== [] => sprintf('it keeps data on disk (%s)', implode(', ', $kept)),
+            (bool) ($manifest['storage'] ?? false) => 'it keeps files in App Storage',
+            blank($manifest['vercel'] ?? null) => 'it isn\'t a Node app on a framework Vercel builds (Next.js, Express, Hono…)',
+            default => null,
+        };
     }
 
     /**
@@ -248,6 +355,34 @@ class Deployer
 
         $deployment->remember(['files' => $files]);
 
+        return $this->next($deployment, $deployment->kind === 'server' ? 'check' : 'provision');
+    }
+
+    /**
+     * Start the app in the sandbox the way it's hosted, before anything is made or built for it (HOST-012): an app that
+     * doesn't start there fails in seconds with its output, rather than after the image is built and released.
+     *
+     * @throws HostingException|SandboxException
+     */
+    protected function check(Deployment $deployment): int
+    {
+        $deployment->note('Checking that the app starts.');
+        $result = $this->sandboxes->exec($this->sandbox($deployment->project)->external_id, [self::SCRIPT, 'check']);
+        $lines = preg_split('/\R/', trim($result->output)) ?: [];
+        $first = (string) array_shift($lines);
+
+        if (! $result->successful()) {
+            $reason = $first !== '' ? $first : (trim($result->errorOutput) ?: 'unknown error');
+            $output = trim(implode("\n", $lines));
+            $deployment->note("The app didn't start in the sandbox: {$reason}.".($output !== '' ? "\nIts last output:\n{$output}" : ''));
+
+            throw new HostingException("The app didn't start in the sandbox ({$reason}), so nothing was deployed. Its output is in the deploy log.");
+        }
+
+        $deployment->note(str_starts_with($first, 'skip ')
+            ? 'Skipped checking that the app starts: '.substr($first, 5).'.'
+            : sprintf('The app started in %ss.', substr($first, 3) ?: '0'));
+
         return $this->next($deployment, 'provision');
     }
 
@@ -260,12 +395,20 @@ class Deployer
     {
         $project = $deployment->project;
 
+        $seed = $deployment->host === 'vercel' && $this->needsSeed($deployment);
+
         foreach ($this->kindsFor($deployment) as $kind) {
             if (! $project->hostedServices()->where('kind', $kind)->exists()) {
                 $service = $this->services->ensure($project, $kind);
                 $deployment->note(sprintf('Made the %s on %s%s.', strtolower($kind->label()), HostingProviders::PROVIDERS[$service->provider]['label'], $service->owner === HostedService::OWNER_ORGANIZATION ? " (your organization's account)" : ''));
                 $deployment->remember(['made' => [...$deployment->remembered('made', []), $kind->value => true]]);
             }
+        }
+
+        if ($deployment->host === 'vercel') {
+            $this->prepareVercel($deployment, $seed);
+
+            return $this->next($deployment, 'package');
         }
 
         return $this->next($deployment, $deployment->kind === 'static' ? 'upload' : 'build');
@@ -433,12 +576,183 @@ class Deployer
         }
 
         if ($deployment->polls >= self::VERIFY_POLLS) {
+            $output = $this->hostedOutput($app);
+            $deployment->note($output !== null ? "The app never answered. Its last output:\n{$output}" : "The app never answered, and its output couldn't be read.");
             $this->rollBack($deployment, $app);
 
-            throw new HostingException("The app didn't start. Check that .onedrop/start (or .onedrop/dev) starts it on \$PORT.");
+            throw new HostingException("The app didn't start. Check that .onedrop/start (or .onedrop/dev) starts it on \$PORT; its output is in the deploy log.");
         }
 
         return $this->wait($deployment, self::VERIFY_POLLS, '');
+    }
+
+    /**
+     * Set the Vercel project up for this deploy: how Vercel builds it, and its services' addresses as its environment.
+     * The first deploy that makes its Postgres copies the sandbox's into it, from the sandbox (Vercel has no builder of
+     * ours to do it).
+     *
+     * @throws HostingException|SandboxException
+     */
+    protected function prepareVercel(Deployment $deployment, bool $seed): void
+    {
+        $project = $deployment->project;
+        $web = $this->services->ensure($project, HostedServiceKind::Web);
+        $vercel = new VercelApi($this->services->accountFor($web));
+        $deployment->remember(['vercel_project' => $web->external_id]);
+
+        $vercel->configureProject((string) $web->external_id, [
+            'framework' => $deployment->kind === 'static' ? null : $deployment->remembered('manifest.vercel'),
+        ]);
+        $vercel->setEnvironment((string) $web->external_id, [...$this->services->environment($project), 'ONEDROP_HOSTED' => '1']);
+
+        $postgres = $project->hostedServices()->where('kind', HostedServiceKind::Postgres)->first();
+
+        if ($seed && $postgres && $deployment->remembered('made.postgres')) {
+            $deployment->note("Copying the sandbox's Postgres into the new database.");
+            $result = $this->sandboxes->exec($this->sandbox($project)->external_id, [self::SCRIPT, 'copy-postgres'], [
+                'ONEDROP_POSTGRES_URL' => (string) $postgres->details['url'],
+            ]);
+            $output = trim($result->output."\n".$result->errorOutput);
+
+            if ($output !== '') {
+                $deployment->note($output);
+            }
+        }
+    }
+
+    /**
+     * Pack it in the sandbox (a front end built there, an app with a server as its source, for Vercel to build), copy
+     * it out, and start a production deployment with it, sending Vercel only the files it doesn't have.
+     *
+     * @throws HostingException|SandboxException
+     */
+    protected function packageForVercel(Deployment $deployment): int
+    {
+        $project = $deployment->project;
+        $sandbox = $this->sandbox($project);
+        $web = $this->services->ensure($project, HostedServiceKind::Web);
+        $static = $deployment->kind === 'static';
+        $name = $static ? 'static' : 'source';
+        $remote = '/tmp/onedrop-hosting-'.Str::lower(Str::random(8));
+        $local = storage_path('framework/hosting-'.Str::lower(Str::random(8)));
+        $deployment->update(['commit' => $this->changes->head($project, $sandbox)]);
+        $deployment->note($static ? 'Building and packing the app.' : 'Packing its source for Vercel to build.');
+
+        try {
+            $packed = $this->run($sandbox, [self::SCRIPT, 'pack', $remote, ...($static ? [] : ['source'])], [], $static ? "Couldn't build the app" : "Couldn't pack the app");
+
+            foreach (preg_split('/\R/', trim($packed)) ?: [] as $line) {
+                if (str_starts_with($line, 'note ')) {
+                    $deployment->note(substr($line, 5));
+                }
+            }
+
+            if (! preg_match('/^'.$name.' (\d+)$/m', $packed, $size)) {
+                throw new HostingException("Packing the app didn't make a release.");
+            }
+
+            File::ensureDirectoryExists("{$local}/files");
+            $this->sandboxes->copyOut($sandbox->external_id, $remote, $local);
+            $result = Process::run(['tar', '-xzf', "{$local}/{$name}.tar.gz", '-C', "{$local}/files"]);
+
+            if ($result->failed()) {
+                throw new HostingException("Couldn't unpack the app: {$result->errorOutput()}");
+            }
+
+            // A single-page app: paths that aren't files get index.html (Vercel tries files before rewrites).
+            if ($static && ! File::exists("{$local}/files/vercel.json")) {
+                File::put("{$local}/files/vercel.json", (string) json_encode(['rewrites' => [['source' => '/(.*)', 'destination' => '/index.html']]]));
+            }
+
+            $files = $this->filesIn("{$local}/files");
+
+            if (count($files) > self::VERCEL_FILES) {
+                throw new HostingException(sprintf('The app has %d files; Vercel takes at most %d.', count($files), self::VERCEL_FILES));
+            }
+
+            $deployment->note(sprintf('Sending it to Vercel (%d files, %s).', count($files), $this->size((int) $size[1])));
+            $id = (new VercelApi($this->services->accountFor($web)))->deploy($web->name, (string) $web->external_id, $files);
+        } finally {
+            $this->sandboxes->exec($sandbox->external_id, ['rm', '-rf', $remote]);
+            File::deleteDirectory($local);
+        }
+
+        $deployment->update(['external_id' => $id]);
+        $deployment->note($static ? "Vercel is putting it live ({$id})." : "Vercel is building it ({$id}).");
+
+        return $this->next($deployment, 'deploying');
+    }
+
+    /**
+     * Wait for Vercel to build the deployment and put it live; a failed build adds Vercel's log to the deploy's. The
+     * live version stays until the new one is ready.
+     *
+     * @throws HostingException
+     */
+    protected function deploying(Deployment $deployment): ?int
+    {
+        $web = $this->vercelProject($deployment);
+        $vercel = new VercelApi($this->services->accountFor($web));
+        $status = $vercel->deployment((string) $deployment->external_id);
+
+        if ($status['state'] === 'READY' && $status['url'] !== null) {
+            $this->finish($deployment, $status['url']);
+
+            return null;
+        }
+
+        if (in_array($status['state'], ['ERROR', 'CANCELED', 'BLOCKED'], true)) {
+            $log = $vercel->buildLog((string) $deployment->external_id);
+
+            if ($log !== '') {
+                $deployment->note("Vercel's build log:\n{$log}");
+            }
+
+            throw new HostingException(sprintf("Vercel couldn't build it%s. See the log for details.", filled($status['error']) ? " ({$status['error']})" : ''));
+        }
+
+        return $this->wait($deployment, self::BUILD_POLLS, 'Building on Vercel took too long.');
+    }
+
+    /**
+     * Make an earlier Vercel deployment the live one again.
+     *
+     * @throws HostingException
+     */
+    protected function promote(Deployment $deployment): ?int
+    {
+        $web = $this->vercelProject($deployment);
+
+        (new VercelApi($this->services->accountFor($web)))->promote((string) $web->external_id, (string) $deployment->external_id);
+        $this->finish($deployment, (string) ($deployment->remembered('url') ?? $deployment->project->published_default_url));
+
+        return null;
+    }
+
+    /**
+     * The project's Vercel project, which the deploy started in.
+     *
+     * @throws HostingException
+     */
+    protected function vercelProject(Deployment $deployment): HostedService
+    {
+        return $deployment->project->hostedServices()->where('kind', HostedServiceKind::Web)->first()
+            ?? throw new HostingException('The Vercel project is gone.');
+    }
+
+    /**
+     * Every file under a folder, as Vercel takes them: the path from the folder, its local copy, its SHA-1 and size.
+     *
+     * @return list<array{file: string, path: string, sha: string, size: int}>
+     */
+    protected function filesIn(string $directory): array
+    {
+        return array_values(array_map(fn (SplFileInfo $file) => [
+            'file' => str_replace(DIRECTORY_SEPARATOR, '/', $file->getRelativePathname()),
+            'path' => $file->getPathname(),
+            'sha' => (string) sha1_file($file->getPathname()),
+            'size' => (int) $file->getSize(),
+        ], File::allFiles($directory, hidden: true)));
     }
 
     /**
@@ -496,6 +810,23 @@ class Deployer
     }
 
     /**
+     * The hosted app's last output (HOST-012), read from its machine, or null when it can't be read (e.g. it failed).
+     */
+    protected function hostedOutput(HostedService $app): ?string
+    {
+        try {
+            $result = (new FlyApi($this->services->accountFor($app)))
+                ->exec($app->name, (string) ($app->details['machine'] ?? ''), ['tail', '-n', '40', '/tmp/onedrop-app.log'], timeout: 10);
+        } catch (HostingException) {
+            return null;
+        }
+
+        $output = trim((string) preg_replace('/\e\[[0-9;]*[A-Za-z]/', '', $result->output));
+
+        return $result->successful() && $output !== '' ? $output : null;
+    }
+
+    /**
      * Put the last good image back after a release that never answered.
      */
     protected function rollBack(Deployment $deployment, HostedService $app): void
@@ -525,6 +856,7 @@ class Deployer
         return $deployment->project->deployments()
             ->where('status', DeploymentStatus::Live)
             ->where('kind', 'server')
+            ->where('host', 'fly')
             ->where('id', '<', $deployment->id)
             ->latest('id')
             ->value('image');
@@ -536,6 +868,18 @@ class Deployer
         if ($this->moving($deployment)) {
             $deployment->project->update(['hosting_sqlite_import' => null]);
             $deployment->note('Moved its SQLite data into Postgres. The SQLite file stays on the volume.');
+        }
+
+        // Moved to another platform (HOST-011): the old one stops serving it once the new one is live. Data stays.
+        $before = $deployment->project->deployments()->where('status', DeploymentStatus::Live)->where('id', '<', $deployment->id)->latest('id')->value('host');
+
+        if ($before !== null && $before !== $deployment->host) {
+            try {
+                $this->services->takeDown($deployment->project, $before);
+                $deployment->note(sprintf('Stopped the copy on %s.', self::HOSTS[$before] ?? $before));
+            } catch (HostingException $e) {
+                $deployment->note(sprintf("Couldn't stop the copy on %s: %s", self::HOSTS[$before] ?? $before, $e->getMessage()));
+            }
         }
 
         $deployment->note("Live at {$url}.");
@@ -556,7 +900,7 @@ class Deployer
     public function hostedSqlite(Project $project): ?string
     {
         $live = $this->changes->live($project);
-        $sqlite = $live?->kind === 'server' ? $live->remembered('manifest.sqlite', []) : [];
+        $sqlite = $live?->kind === 'server' && $live->host === 'fly' ? $live->remembered('manifest.sqlite', []) : [];
 
         if ($sqlite === [] || $project->hostedServices()->where('kind', HostedServiceKind::Postgres)->exists()) {
             return null;
@@ -575,6 +919,7 @@ class Deployer
 
         return $project->hosting_sqlite_import !== null
             && $deployment->kind === 'server'
+            && $deployment->host === 'fly'
             && $project->hostedServices()->whereIn('kind', [HostedServiceKind::Postgres, HostedServiceKind::Volume])->count() === 2;
     }
 
@@ -586,11 +931,29 @@ class Deployer
      */
     public function putBack(Project $project, Deployment $to, ?User $user): Deployment
     {
-        if ($to->project_id !== $project->id || $to->kind !== 'server' || $to->status !== DeploymentStatus::Live || $to->image === null) {
+        if ($to->project_id === $project->id && $to->host === 'vercel' && $to->status === DeploymentStatus::Live && $to->external_id !== null
+            && $to->remembered('vercel_project') === $project->hostedServices()->where('kind', HostedServiceKind::Web)->value('external_id')) {
+            return $this->promoteAgain($project, $to, $user);
+        }
+
+        if ($to->project_id !== $project->id || $to->kind !== 'server' || $to->host !== 'fly' || $to->status !== DeploymentStatus::Live || $to->image === null) {
             throw new HostingException('Only an earlier deploy of this app with a server can be put back.');
         }
 
         return $this->restart($project, $to, $user, "Putting deploy #{$to->number} back ({$to->image}).", ['rollback_of' => $to->number]);
+    }
+
+    /**
+     * Make an earlier Vercel deployment live again (HOST-005): Vercel keeps every deployment, so nothing is built.
+     */
+    protected function promoteAgain(Project $project, Deployment $to, ?User $user): Deployment
+    {
+        return $this->restart($project, $to, $user, "Putting deploy #{$to->number} back ({$to->external_id}).", ['rollback_of' => $to->number, 'url' => $to->url, 'vercel_project' => $to->remembered('vercel_project')], [
+            'kind' => $to->kind,
+            'host' => 'vercel',
+            'step' => 'promote',
+            'external_id' => $to->external_id,
+        ]);
     }
 
     /**
@@ -602,8 +965,8 @@ class Deployer
     {
         $live = $this->changes->live($project);
 
-        if ($live?->kind !== 'server' || $live->image === null) {
-            throw new HostingException('Only a hosted app with a server has a machine to resize.');
+        if ($live?->kind !== 'server' || $live->host !== 'fly' || $live->image === null) {
+            throw new HostingException('Only a hosted app with a server on Fly.io has a machine to resize.');
         }
 
         $label = MachineSizes::SIZES[$project->hosting_size ?? MachineSizes::DEFAULT]['label'];
@@ -612,13 +975,17 @@ class Deployer
     }
 
     /**
-     * A deployment that starts the app on an earlier deployment's image, skipping straight to releasing it.
+     * A deployment that starts the app on an earlier deployment's image, skipping straight to releasing it (or, on
+     * Vercel, to promoting it).
      *
      * @param  array<string, mixed>  $state
+     * @param  array<string, mixed>|null  $attributes
      */
-    protected function restart(Project $project, Deployment $to, ?User $user, string $note, array $state): Deployment
+    protected function restart(Project $project, Deployment $to, ?User $user, string $note, array $state, ?array $attributes = null): Deployment
     {
-        $deployment = DB::transaction(function () use ($project, $to, $user, $state) {
+        $attributes ??= ['kind' => 'server', 'host' => 'fly', 'step' => 'release', 'image' => $to->image];
+
+        $deployment = DB::transaction(function () use ($project, $to, $user, $state, $attributes) {
             $project->deployments()->where('status', DeploymentStatus::Running)->update([
                 'status' => DeploymentStatus::Failed,
                 'error' => 'A newer deploy replaced this one.',
@@ -628,10 +995,8 @@ class Deployer
             return $project->deployments()->create([
                 'user_id' => $user?->id,
                 'number' => (int) $project->deployments()->max('number') + 1,
-                'kind' => 'server',
+                ...$attributes,
                 'status' => DeploymentStatus::Running,
-                'step' => 'release',
-                'image' => $to->image,
                 'commit' => $to->commit,
                 'state' => ['manifest' => $to->remembered('manifest', []), ...$state],
             ]);
@@ -699,12 +1064,22 @@ class Deployer
      */
     protected function kindsFor(Deployment $deployment): array
     {
+        $manifest = $deployment->remembered('manifest', []);
+        $services = $manifest['services'] ?? [];
+
+        // Vercel keeps nothing on disk, so an app there has its project and its managed services only (HOST-011).
+        if ($deployment->host === 'vercel') {
+            return array_values(array_filter([
+                HostedServiceKind::Web,
+                $deployment->kind === 'server' && in_array('postgres', $services, true) ? HostedServiceKind::Postgres : null,
+                $deployment->kind === 'server' && in_array('redis', $services, true) ? HostedServiceKind::Redis : null,
+                $deployment->kind === 'server' && in_array('s3', $services, true) ? HostedServiceKind::Bucket : null,
+            ]));
+        }
+
         if ($deployment->kind === 'static') {
             return [HostedServiceKind::Site];
         }
-
-        $manifest = $deployment->remembered('manifest', []);
-        $services = $manifest['services'] ?? [];
 
         return array_values(array_filter([
             HostedServiceKind::App,

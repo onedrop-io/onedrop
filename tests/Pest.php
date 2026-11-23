@@ -11,6 +11,7 @@ use App\Sandbox\WorkspaceSecrets;
 use App\Sandbox\WorkspaceStorage;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Vite;
@@ -327,7 +328,7 @@ function fakeStripeKey(): string
 }
 
 /**
- * A fake sandbox that answers the hosting tool: `inspect` with $manifest, `pack` with $packed.
+ * A fake sandbox that answers the hosting tool: `inspect` with $manifest, `pack` with $packed, `check` with $checked.
  */
 function hostingSandbox(): FakeSandboxProvider
 {
@@ -340,6 +341,11 @@ function hostingSandbox(): FakeSandboxProvider
 
         public ?string $packError = null;
 
+        /** What `hosting check` says (HOST-012), and whether it passed. */
+        public string $checked = 'ok 3';
+
+        public bool $starts = true;
+
         /** The workspace's commit, and what `git log` says since the live deploy (count, then "sha<TAB>subject" lines). */
         public string $head = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
@@ -347,6 +353,32 @@ function hostingSandbox(): FakeSandboxProvider
 
         /** Lines of the preview's errors.log, for the check after a turn. */
         public string $previewErrors = '';
+
+        /** @var array<string, string> What a pack for Vercel copies out (HOST-011): the app's files by path. */
+        public array $packedFiles = ['index.html' => '<h1>Bake sale</h1>'];
+
+        /**
+         * A pack's folder copied out: the Vercel pack ($packed's static or source) holding $packedFiles.
+         */
+        public function copyOut(string $id, string $path, string $directory): void
+        {
+            parent::copyOut($id, $path, $directory);
+
+            if (! str_starts_with($path, '/tmp/onedrop-hosting-') || ! preg_match('/^(static|source) /m', $this->packed, $name)) {
+                return;
+            }
+
+            $files = "{$directory}/packed";
+            File::ensureDirectoryExists($files);
+
+            foreach ($this->packedFiles as $file => $content) {
+                File::ensureDirectoryExists(dirname("{$files}/{$file}"));
+                File::put("{$files}/{$file}", $content);
+            }
+
+            Process::run(['tar', '-czf', "{$directory}/{$name[1]}.tar.gz", '-C', $files, '.']);
+            File::deleteDirectory($files);
+        }
 
         public function exec(string $id, array $command, array $env = [], bool $detach = false, bool $root = false): ExecResult
         {
@@ -357,6 +389,7 @@ function hostingSandbox(): FakeSandboxProvider
                 // Every tool current, on the current base.
                 isset($env['ONEDROP_TOOL_PATHS']) => new ExecResult(0, collect(app(SandboxTools::class)->expected())->map(fn ($hash, $path) => "{$hash}  {$path}")->implode("\n")),
                 $command === [$tool, 'inspect'] => new ExecResult(0, json_encode($this->manifest)),
+                $command === [$tool, 'check'] => new ExecResult($this->starts ? 0 : 1, $this->checked),
                 str_contains($command[2] ?? '', 'rev-parse --verify') => new ExecResult(0, $this->head."\n"),
                 isset($env['ONEDROP_FROM']) => new ExecResult(0, $this->changes),
                 ($command[0] ?? null) === 'sh' && str_contains($command[2] ?? '', 'errors.log') => new ExecResult(0, "200\n{$this->previewErrors}"),
@@ -406,6 +439,8 @@ function fakeHostingProviders(array $options = []): void
             ? Http::response(['state' => 'stopped', 'config' => [], 'events' => [['request' => ['exit_event' => ['exit_code' => $options['builder_exit'] ?? 0]]]]])
             : Http::response([]),
         // $GLOBALS['hostedMachineState'] changes the app machine's state (e.g. suspended).
+        // $GLOBALS['hostedAppOutput'] is the app's last output, read from its machine (HOST-012).
+        'api.machines.dev/v1/apps/*/machines/machine_app/exec' => fn () => Http::response(['exit_code' => 0, 'stdout' => $GLOBALS['hostedAppOutput'] ?? '']),
         'api.machines.dev/v1/apps/*/machines/machine_app*' => fn () => Http::response(['state' => $GLOBALS['hostedMachineState'] ?? 'started', 'config' => ['image' => 'x']]),
         'api.machines.dev/v1/apps/*' => Http::response([], 202),
         'console.neon.tech/api/v2/projects' => Http::response(['project' => ['id' => 'neon_1'], 'connection_uris' => [['connection_uri' => 'postgresql://u:p@ep-1.neon.tech/neondb']]], 201),
@@ -421,6 +456,60 @@ function fakeHostingProviders(array $options = []): void
         'api.cloudflare.com/*' => Http::response(['success' => true, 'result' => ['status' => 'COMPLETED']]),
         // The app's own answer: $GLOBALS['hostedAppStatus'] (and hostedAppBody, hostedAppHeaders) change it between deploys.
         '*.fly.dev' => fn () => Http::response($GLOBALS['hostedAppBody'] ?? 'ok', $GLOBALS['hostedAppStatus'] ?? 200, $GLOBALS['hostedAppHeaders'] ?? []),
+    ]);
+}
+
+/**
+ * Vercel as a deploy sees it (HOST-011): projects, their settings, file uploads (it asks for the files it doesn't have
+ * yet) and deployments. $GLOBALS['vercelState'] sets a deployment's state (READY by default).
+ */
+function fakeVercel(): void
+{
+    $GLOBALS['vercelUploaded'] = [];
+    $GLOBALS['vercelDeployments'] = 0;
+    $GLOBALS['vercelState'] = 'READY';
+
+    Http::fake([
+        'api.vercel.com/v3/deployments/*' => Http::response([
+            ['type' => 'command', 'payload' => ['text' => 'Running "npm run build"']],
+            ['type' => 'stderr', 'payload' => ['text' => 'Error: Cannot find module "./db"']],
+        ]),
+        'api.vercel.com/v13/deployments/*' => fn () => Http::response([
+            'id' => 'dpl_1',
+            'readyState' => $GLOBALS['vercelState'],
+            'errorMessage' => $GLOBALS['vercelState'] === 'ERROR' ? 'Command "npm run build" exited with 1' : null,
+            'aliasAssigned' => $GLOBALS['vercelState'] === 'READY',
+            'alias' => ['bake-sale.vercel.app'],
+        ]),
+        'api.vercel.com/v13/deployments*' => function (Request $request) {
+            // Every stub is asked, so this one also sees the GETs of a deployment.
+            if ($request->method() !== 'POST') {
+                return null;
+            }
+
+            $missing = collect($request['files'])->pluck('sha')->diff($GLOBALS['vercelUploaded'])->values()->all();
+
+            return $missing !== []
+                ? Http::response(['error' => ['code' => 'missing_files', 'message' => 'Missing files', 'missing' => $missing]], 400)
+                : Http::response(['id' => 'dpl_'.++$GLOBALS['vercelDeployments'], 'readyState' => 'QUEUED'], 200);
+        },
+        'api.vercel.com/v2/files*' => function (Request $request) {
+            $GLOBALS['vercelUploaded'][] = $request->header('x-vercel-digest')[0];
+
+            return Http::response([]);
+        },
+        'api.vercel.com/v10/projects/*/promote/*' => Http::response([], 201),
+        'api.vercel.com/v10/projects/*/env*' => Http::response(['created' => [], 'failed' => []], 201),
+        'api.vercel.com/v10/projects/*/domains*' => Http::response(['name' => 'app.example.com', 'verified' => true]),
+        'api.vercel.com/v9/projects/*/domains/*' => Http::response(['name' => 'app.example.com', 'verified' => true]),
+        'api.vercel.com/v9/projects/*' => Http::response(['id' => 'prj_1']),
+        'api.vercel.com/v11/projects*' => Http::response(['id' => 'prj_1', 'name' => 'bake-sale'], 200),
+        // $GLOBALS['vercelMisconfigured'] says the domain's DNS doesn't point at Vercel yet.
+        'api.vercel.com/v6/domains/*' => fn () => Http::response([
+            'misconfigured' => $GLOBALS['vercelMisconfigured'] ?? false,
+            'recommendedIPv4' => [['rank' => 1, 'value' => ['76.76.21.21']]],
+            'recommendedCNAME' => [['rank' => 2, 'value' => 'cname.vercel-dns.com.'], ['rank' => 1, 'value' => 'd1d4fc829fe7bc7c.vercel-dns-017.com.']],
+        ]),
     ]);
 }
 

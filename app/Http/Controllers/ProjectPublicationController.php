@@ -10,6 +10,7 @@ use App\Enums\SandboxStatus;
 use App\Jobs\PublishProject;
 use App\Models\Project;
 use App\Sandbox\AbuseCheck;
+use App\Sandbox\Hosting\HostingProviders;
 use App\Sandbox\Publishing\Publishers;
 use App\Sandbox\Publishing\PublishException;
 use Illuminate\Http\RedirectResponse;
@@ -31,6 +32,8 @@ class ProjectPublicationController extends Controller
         $validated = $request->validate([
             'visibility' => ['required', Rule::enum(PublishVisibility::class)],
             'target' => ['nullable', Rule::enum(PublishTarget::class)],
+            // Where on Hosting (HOST-011): Vercel, or Fly.io and Cloudflare.
+            'platform' => ['nullable', Rule::in([HostingProviders::VERCEL, HostingProviders::FLY_CLOUDFLARE])],
         ]);
         $visibility = PublishVisibility::from($validated['visibility']);
         $target = isset($validated['target']) ? PublishTarget::from($validated['target']) : $publishers->default($project);
@@ -57,6 +60,10 @@ class ProjectPublicationController extends Controller
             }
 
             $project->update(['published_url' => null, 'published_default_url' => null]);
+        }
+
+        if ($target === PublishTarget::Hosting && isset($validated['platform'])) {
+            $project->update(['hosting_platform' => $validated['platform']]);
         }
 
         $project->update([

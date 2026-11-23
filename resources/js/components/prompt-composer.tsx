@@ -26,6 +26,9 @@ type PickedFile = {
 /** A file attached from outside the box, with an optional note for the agent that the chat doesn't show. */
 export type AttachedFile = { file: File; context?: string };
 
+/** One of the agent's own slash commands, offered when "/" starts the message (AGT-016). */
+export type AgentCommand = { name: string; description: string; hint: string };
+
 /** The file open in the workspace's editor, sent along for the agent (AGT-015). */
 export type ContextFile = { path: string; dirty: boolean };
 
@@ -77,6 +80,7 @@ export default function PromptComposer({
     contextFile = null,
     onRemoveContextFile,
     renderHeld,
+    commands = [],
 }: {
     action: RouteDefinition<'post'>;
     field: string;
@@ -117,6 +121,8 @@ export default function PromptComposer({
      * The text and files stay in the box until it's sent.
      */
     renderHeld?: (held: HeldMessage, actions: HeldActions) => React.ReactNode;
+    /** The agent's slash commands, listed in a menu while "/name" is typed at the start (AGT-016). */
+    commands?: AgentCommand[];
 }) {
     const form = useForm<Record<string, string>>({ [field]: '' });
     const text = value ?? form.data[field];
@@ -127,6 +133,8 @@ export default function PromptComposer({
     };
 
     const fileInput = useRef<HTMLInputElement>(null);
+    const textarea = useRef<HTMLTextAreaElement>(null);
+    const menu = useRef<HTMLDivElement>(null);
     const [picked, setPicked] = useState<PickedFile[]>([]);
     const [attachError, setAttachError] = useState<string | null>(null);
     const [dragging, setDragging] = useState(false);
@@ -135,6 +143,43 @@ export default function PromptComposer({
     const replies = useRef<Record<string, string>>({});
     const lastMode = useRef<SendMode>('auto');
     const canSend = allowEmpty || text.trim() !== '' || picked.length > 0;
+
+    // The command menu (AGT-016): open while the box holds just "/" and part of a name; Escape closes it
+    // until the text changes.
+    const [commandIndex, setCommandIndex] = useState(0);
+    const [menuClosedFor, setMenuClosedFor] = useState<string | null>(null);
+    const commandQuery = /^\/([^\s]*)$/.exec(text)?.[1]?.toLowerCase();
+    const matchingCommands =
+        commandQuery === undefined
+            ? []
+            : commands
+                  .filter((command) =>
+                      command.name.toLowerCase().includes(commandQuery),
+                  )
+                  .sort(
+                      (a, b) =>
+                          Number(
+                              !a.name.toLowerCase().startsWith(commandQuery),
+                          ) -
+                          Number(
+                              !b.name.toLowerCase().startsWith(commandQuery),
+                          ),
+                  );
+    const menuOpen = matchingCommands.length > 0 && menuClosedFor !== text;
+    const activeCommand =
+        matchingCommands[Math.min(commandIndex, matchingCommands.length - 1)];
+
+    useEffect(() => {
+        menu.current
+            ?.querySelector('[aria-selected="true"]')
+            ?.scrollIntoView({ block: 'nearest' });
+    }, [commandIndex, menuOpen]);
+
+    const pickCommand = (command: AgentCommand) => {
+        setText(`/${command.name} `);
+        setCommandIndex(0);
+        textarea.current?.focus();
+    };
 
     const addFiles = (items: (File | AttachedFile)[]) => {
         const added = items.map((item) =>
@@ -332,7 +377,51 @@ export default function PromptComposer({
         });
     };
 
+    const onCommandKey = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+        const count = matchingCommands.length;
+
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault();
+            const current = Math.min(commandIndex, count - 1);
+            setCommandIndex(
+                (current + (event.key === 'ArrowDown' ? 1 : count - 1)) % count,
+            );
+
+            return true;
+        }
+
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            setMenuClosedFor(text);
+
+            return true;
+        }
+
+        // Enter on a name typed in full sends it; otherwise Enter and Tab fill in the highlighted one.
+        const typedInFull = text === `/${activeCommand.name}`;
+
+        if (
+            event.key === 'Tab' ||
+            (event.key === 'Enter' &&
+                !event.shiftKey &&
+                !event.metaKey &&
+                !event.ctrlKey &&
+                !typedInFull)
+        ) {
+            event.preventDefault();
+            pickCommand(activeCommand);
+
+            return true;
+        }
+
+        return false;
+    };
+
     const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+        if (menuOpen && onCommandKey(event)) {
+            return;
+        }
+
         if (event.key === 'Enter' && !event.shiftKey) {
             event.preventDefault();
             submit(
@@ -364,7 +453,7 @@ export default function PromptComposer({
                     submit();
                 }}
                 className={cn(
-                    '@container rounded-2xl border border-input bg-card shadow-xs focus-within:ring-2 focus-within:ring-ring/30',
+                    '@container relative rounded-2xl border border-input bg-card shadow-xs focus-within:ring-2 focus-within:ring-ring/30',
                     dragging && 'border-dashed border-ring ring-2 ring-ring/30',
                 )}
                 {...dragHandlers}
@@ -403,16 +492,72 @@ export default function PromptComposer({
                         </span>
                     </div>
                 )}
+                {menuOpen && (
+                    <div
+                        ref={menu}
+                        id={`composer-${field}-commands`}
+                        role="listbox"
+                        aria-label="Agent commands"
+                        data-test="command-menu"
+                        className="absolute inset-x-0 bottom-full z-20 mb-2 max-h-72 overflow-y-auto rounded-xl border bg-popover p-1 text-popover-foreground shadow-md"
+                    >
+                        {matchingCommands.map((command) => (
+                            <div
+                                key={command.name}
+                                id={`composer-command-${command.name}`}
+                                role="option"
+                                aria-selected={command === activeCommand}
+                                data-test="command-option"
+                                // Keep the focus in the box.
+                                onMouseDown={(event) => event.preventDefault()}
+                                onClick={() => pickCommand(command)}
+                                onMouseMove={() =>
+                                    setCommandIndex(
+                                        matchingCommands.indexOf(command),
+                                    )
+                                }
+                                className="cursor-pointer rounded-lg px-3 py-1.5 text-sm aria-selected:bg-muted"
+                            >
+                                <div className="flex items-baseline gap-2">
+                                    <span className="shrink-0 font-mono">
+                                        /{command.name}
+                                    </span>
+                                    {command.hint && (
+                                        <span className="truncate font-mono text-xs text-muted-foreground">
+                                            {command.hint}
+                                        </span>
+                                    )}
+                                </div>
+                                {command.description && (
+                                    <p className="line-clamp-2 text-xs text-muted-foreground">
+                                        {command.description}
+                                    </p>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                )}
                 {header}
                 <label htmlFor={`composer-${field}`} className="sr-only">
                     {placeholder}
                 </label>
                 <textarea
+                    ref={textarea}
                     id={`composer-${field}`}
                     name={field}
                     value={text}
+                    aria-autocomplete={commands.length > 0 ? 'list' : undefined}
+                    aria-controls={
+                        menuOpen ? `composer-${field}-commands` : undefined
+                    }
+                    aria-activedescendant={
+                        menuOpen
+                            ? `composer-command-${activeCommand.name}`
+                            : undefined
+                    }
                     onChange={(event) => {
                         recallIndex.current = null;
+                        setCommandIndex(0);
                         setText(event.target.value);
                     }}
                     onKeyDown={onKeyDown}

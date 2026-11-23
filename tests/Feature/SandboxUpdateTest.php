@@ -312,6 +312,14 @@ test('a sandbox whose tools match is left alone, even when the image was rebuilt
     expect($this->provider->executed)->toHaveCount($asked);
 })->group('SBX-002');
 
+test('a sandbox whose tools match still gets a new one when it was made with settings new sandboxes no longer get', function () {
+    $this->provider->settingsChanged = ['old-ctr'];
+    $this->provider->execUsing = sandboxToolHashes();
+
+    expect(app(SandboxUpdater::class)->updateIfOutdated($this->project))->toBeTrue()
+        ->and($this->sandbox->fresh()->external_id)->not->toBe('old-ctr');
+})->group('SBX-002', 'SBX-014');
+
 test('a sandbox on an older base gets no tool files, and a new sandbox once a newer image is built', function () {
     $this->provider->execUsing = sandboxToolHashes(missing: [SandboxTools::PATH.'/host-proxy.mjs'], oldBase: true);
 

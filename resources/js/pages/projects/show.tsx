@@ -68,12 +68,17 @@ import AgentModelPicker from '@/components/agent-model-picker';
 import HeldMessagePrompt from '@/components/held-message-prompt';
 import ClaudeLoginStatus from '@/components/claude-login-status';
 import HeaderActions from '@/components/header-actions';
-import Markdown from '@/components/markdown';
+import { AgentStep, StreamingBlock } from '@/components/agent-steps';
+import { ChatMarkdown } from '@/components/markdown';
 import MessageAttachments from '@/components/message-attachments';
 import NotificationsPrompt from '@/components/notifications-prompt';
 import type { AttachmentPreview } from '@/components/message-attachments';
 import PromptComposer from '@/components/prompt-composer';
-import type { AttachedFile, ContextFile } from '@/components/prompt-composer';
+import type {
+    AgentCommand,
+    AttachedFile,
+    ContextFile,
+} from '@/components/prompt-composer';
 import PreviewAnnotator, {
     annotationText,
     capturePreview,
@@ -148,6 +153,7 @@ import {
 } from '@/hooks/use-build-mode';
 import { useAppearance } from '@/hooks/use-appearance';
 import { useClipboard } from '@/hooks/use-clipboard';
+import { useAgentStream } from '@/hooks/use-agent-stream';
 import { useResizableWidth } from '@/hooks/use-resizable-width';
 import { useSandboxActivity } from '@/hooks/use-sandbox-activity';
 import {
@@ -186,6 +192,7 @@ import {
 import type { RouteDefinition } from '@/wayfinder';
 import type {
     AgentSelection,
+    AgentStream,
     ChatMessage,
     MessageAttachment,
     QueuedMessage,
@@ -249,9 +256,11 @@ export default function ShowProject({
     task,
     newTask,
     agent,
+    agentCommands,
     sandbox,
     messages,
     queued,
+    stream: streamSoFar,
     publication,
     sharing,
     claudeSubscription,
@@ -262,9 +271,13 @@ export default function ShowProject({
     /** An empty chat whose first message starts a new task. */
     newTask: boolean;
     agent: AgentSelection | null;
+    /** The agent's own slash commands, for the chat box's "/" menu (AGT-016). */
+    agentCommands: AgentCommand[];
     sandbox: SandboxState | null;
     messages: ChatMessage[];
     queued: QueuedMessage[];
+    /** The reply or thinking the agent is writing, so far (AGT-017). */
+    stream: AgentStream | null;
     publication: Publication;
     sharing: Sharing;
     /** Claude Code runs on the owner's own Claude sign-in in the sandbox (AI-005). */
@@ -280,13 +293,19 @@ export default function ShowProject({
         null,
     );
 
-    // Bumped by "Sign in to Claude": the workspace opens the Shell tab on Claude Code's sign-in.
+    // Bumped by "Sign in in the Shell instead": the workspace opens the Shell tab on Claude Code's sign-in.
     const [claudeSignIns, setClaudeSignIns] = useState(0);
+    const shellSignInOpened = useRef(false);
     // Bumped when that sign-in succeeds: the workspace goes back to the Preview tab,
     // and a phone back to the chat, where the waiting message picks up (LAYOUT-006).
+    // A sign-in from the chat's own panel left the workspace alone, so it stays as it is.
     const [claudeSignInsDone, setClaudeSignInsDone] = useState(0);
     const claudeSignedIn = useCallback(() => {
-        setClaudeSignInsDone((count) => count + 1);
+        if (shellSignInOpened.current) {
+            shellSignInOpened.current = false;
+            setClaudeSignInsDone((count) => count + 1);
+        }
+
         setMobileView('chat');
     }, []);
     const working = task
@@ -378,10 +397,19 @@ export default function ShowProject({
     const [filesChanges, setFilesChanges] = useState(0);
     // The file open in the editor, which the chat sends along for the agent (AGT-015).
     const [openFile, setOpenFile] = useState<ContextFile | null>(null);
+    // The reply or thinking the agent is writing, as it's written (AGT-017).
+    const { stream, onStreamed } = useAgentStream(
+        task ? `task-${task.id}` : newTask ? null : 'main',
+        streamSoFar,
+        messages,
+        working,
+        reloadLive,
+    );
     // Pushed updates (LIVE-001): the chat, the agent's progress and the sandbox's status, as they change.
     const live = useProjectChannel(project.id, {
         ProjectUpdated: reloadLive,
         ProjectFilesChanged: () => setFilesChanges((count) => count + 1),
+        AgentStreamed: onStreamed,
     });
     const { start, stop } = usePoll(
         1000,
@@ -465,8 +493,10 @@ export default function ShowProject({
                     newTask={newTask}
                     routes={routes}
                     agent={agent}
+                    agentCommands={agentCommands}
                     queued={queued}
                     messages={messages}
+                    stream={stream}
                     working={working}
                     width={chatWidth}
                     hidden={!chatOpen}
@@ -474,6 +504,7 @@ export default function ShowProject({
                     claudeSignIn={
                         claudeSubscription && agent?.harness === 'claude_code'
                             ? () => {
+                                  shellSignInOpened.current = true;
                                   setClaudeSignIns((count) => count + 1);
                                   setMobileView('workspace');
                               }
@@ -527,8 +558,10 @@ function ChatPanel({
     newTask,
     routes,
     agent,
+    agentCommands,
     queued,
     messages,
+    stream,
     working,
     width,
     hidden,
@@ -542,15 +575,18 @@ function ChatPanel({
     newTask: boolean;
     routes: ChatRoutes;
     agent: AgentSelection | null;
+    agentCommands: AgentCommand[];
     queued: QueuedMessage[];
     messages: ChatMessage[];
+    /** The reply or thinking the agent is writing (AGT-017). */
+    stream: AgentStream | null;
     working: boolean;
     width: number;
     /** Hidden by the user (LAYOUT-001); stays mounted so a draft survives. */
     hidden: boolean;
     /** The workspace tab is showing on a small screen (LAYOUT-006). */
     mobileHidden: boolean;
-    /** Open Claude Code's sign-in, when the agent runs on the user's Claude subscription. */
+    /** Open Claude Code's sign-in in the Shell, when the agent runs on the user's Claude subscription (the chat has its own panel too). */
     claudeSignIn: (() => void) | null;
     /** That sign-in succeeded. */
     onClaudeSignedIn: () => void;
@@ -682,6 +718,21 @@ function ChatPanel({
         bottom.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages.length, queued.length, working]);
 
+    // A reply being written stays in view as it grows, unless the user scrolled up to read (AGT-017).
+    const streamLength = stream?.text.length ?? 0;
+
+    useEffect(() => {
+        const box = scroller.current;
+
+        if (
+            streamLength > 0 &&
+            box &&
+            box.scrollHeight - box.scrollTop - box.clientHeight < 120
+        ) {
+            box.scrollTop = box.scrollHeight;
+        }
+    }, [streamLength]);
+
     return (
         <section
             aria-label="Chat"
@@ -730,12 +781,19 @@ function ChatPanel({
                 {shownMessages.map((message, index) => (
                     <MessageItem
                         key={message.id}
+                        projectId={project.id}
                         message={message}
                         simple={simple}
-                        live={working && index === shownMessages.length - 1}
+                        working={working}
+                        live={
+                            working &&
+                            !stream &&
+                            index === shownMessages.length - 1
+                        }
                     />
                 ))}
-                {working && (
+                {stream && <StreamingBlock stream={stream} simple={simple} />}
+                {working && !stream && (
                     <p
                         className="flex items-center gap-2 text-sm text-muted-foreground"
                         data-test="agent-working"
@@ -794,7 +852,7 @@ function ChatPanel({
                         waitingForSignIn={
                             (task ?? project).waiting_for_sign_in ?? false
                         }
-                        onSignIn={claudeSignIn}
+                        onShellSignIn={claudeSignIn}
                         onSignedIn={onClaudeSignedIn}
                     />
                 )}
@@ -804,6 +862,7 @@ function ChatPanel({
                     working={working}
                     onStop={stop}
                     attachments
+                    commands={agentCommands}
                     incomingFiles={incomingFiles}
                     onIncomingFilesAdded={() => setIncomingFiles([])}
                     contextFile={contextFile}
@@ -885,13 +944,18 @@ function sentAttachments(
 }
 
 function MessageItem({
+    projectId,
     message,
     live = false,
+    working = false,
     simple = false,
 }: {
+    projectId: number;
     message: ChatMessage;
     /** The agent's current step: its dot pulses green. */
     live?: boolean;
+    /** The agent is at work, so its running steps show as running (AGT-017). */
+    working?: boolean;
     /** Steps in plain words (PRJ-013). */
     simple?: boolean;
 }) {
@@ -916,23 +980,18 @@ function MessageItem({
 
     if (message.role === 'activity') {
         return (
-            <p
-                className="flex items-center gap-2 text-sm text-muted-foreground"
-                data-test="message-activity"
-            >
-                <span
-                    className={cn(
-                        'size-1.5 rounded-full',
-                        live ? 'animate-pulse bg-emerald-500' : 'bg-current',
-                    )}
-                />
-                {simple ? (message.plain ?? message.content) : message.content}
-            </p>
+            <AgentStep
+                projectId={projectId}
+                message={message}
+                live={live}
+                working={working}
+                simple={simple}
+            />
         );
     }
 
     return (
-        <Markdown
+        <ChatMarkdown
             content={message.content}
             className="text-sm leading-relaxed"
             data-test="message-assistant"
@@ -3294,6 +3353,7 @@ const LIVE_PROPS = [
     'agent',
     'sandbox',
     'messages',
+    'stream',
     'queued',
     'publication',
     'sharing',

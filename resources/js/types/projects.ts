@@ -201,6 +201,36 @@ export type ChatMessage = {
     plain: string | null;
     attachments: MessageAttachment[];
     created_at: string | null;
+    /** An agent's step: a tool call or thinking, which may expand to what it did (AGT-017). */
+    step: AgentStepSummary | null;
+    /** The streamed blocks this reply or thinking holds, once saved (AGT-017). */
+    blocks: string[];
+};
+
+export type AgentStepSummary = {
+    kind: 'tool' | 'thinking';
+    status: 'running' | 'done' | 'failed' | 'stopped';
+    /** It has details, fetched when it's expanded. */
+    expandable: boolean;
+};
+
+/** What an agent's step did (AGT-017), fetched when it's expanded. */
+export type AgentStepDetail = {
+    command?: string;
+    path?: string;
+    query?: string;
+    output?: string;
+    diff?: string;
+    error?: string;
+    text?: string;
+};
+
+/** The reply or thinking the agent is writing right now (AGT-017). `seq` counts its pieces. */
+export type AgentStream = {
+    block: string;
+    kind: 'text' | 'thinking';
+    seq: number;
+    text: string;
 };
 
 export type SandboxState = {
@@ -253,11 +283,25 @@ export type Publication = {
     targets: PublishTargetOption[];
     /** Its latest deploy to hosting and what it has there (HOST-001, HOST-002); null when it never had any. */
     hosting: Hosting | null;
+    /** The platforms it can be hosted on (HOST-011); a choice only when there's more than one. */
+    platforms: HostingPlatformOption[];
+    /** The platform it's hosted on: its own choice, or the organization's default. */
+    platform: HostingPlatform;
     /** Whether the organization's Apps page lists it (APPS-003); null where it can't be (a private Tailscale app). */
     apps_listed: boolean | null;
 };
 
+export type HostingPlatform = 'vercel' | 'fly-cloudflare';
+
+export type HostingPlatformOption = {
+    value: HostingPlatform;
+    label: string;
+    description: string;
+};
+
 export type PublishTarget = 'domain' | 'tailscale' | 'hosting';
+
+export type HostingHost = 'fly' | 'cloudflare' | 'vercel';
 
 export type PublishTargetOption = {
     target: PublishTarget;
@@ -272,6 +316,8 @@ export type Hosting = {
     deployment: {
         number: number;
         kind: 'server' | 'static' | null;
+        /** Where it went (HOST-011). */
+        host: HostingHost | null;
         status: 'running' | 'live' | 'failed';
         step: string;
         url: string | null;
@@ -288,12 +334,16 @@ export type Hosting = {
         owner: 'organization' | 'platform';
         holds_data: boolean;
     }[];
+    /** Where the live version runs (HOST-011). */
+    host: HostingHost | null;
+    /** It runs on a Fly.io machine of its own, which can be resized (HOST-010). */
+    machine: boolean;
     /** What the sandbox has that the hosted app doesn't yet (HOST-004). */
     changes: {
         count: number;
         commits: { sha: string; message: string }[];
     } | null;
-    /** Recent deploys of an app with a server, the live one marked, to put one back (HOST-005). */
+    /** Recent deploys where it's hosted now, the live one marked, to put one back (HOST-005). */
     history: {
         id: number;
         number: number;

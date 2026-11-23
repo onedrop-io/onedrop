@@ -31,8 +31,9 @@ test('an admin turns a provider off, sees its projects moving, tries a failed mo
     $blog = Project::factory()->for($this->dev)->create(['name' => 'Blog']);
     $failed = SandboxMove::query()->create([
         'project_id' => $blog->id,
-        'sandbox_id' => Sandbox::factory()->for($blog)->create(['provider' => 'docker', 'external_id' => 'blog-ctr'])->id,
-        'reason' => 'provider', 'phase' => SandboxMovePhase::Failed, 'from_provider' => 'docker', 'to_provider' => 'blaxel',
+        'sandbox_id' => Sandbox::factory()->for($blog)->create(['provider' => 'blaxel', 'external_id' => 'blog-bl'])->id,
+        // Going to Docker, where its project runs: a failed move to a provider that's off isn't listed.
+        'reason' => 'provider', 'phase' => SandboxMovePhase::Failed, 'from_provider' => 'blaxel', 'to_provider' => 'docker',
         'error' => 'Blaxel: quota exceeded', 'finished_at' => now(),
     ]);
 

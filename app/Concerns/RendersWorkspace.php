@@ -6,6 +6,7 @@ use App\Enums\AbuseReviewStatus;
 use App\Enums\AgentProvider;
 use App\Enums\CredentialType;
 use App\Enums\DeploymentStatus;
+use App\Enums\HostedServiceKind;
 use App\Enums\MessageRole;
 use App\Enums\PublishStatus;
 use App\Enums\PublishTarget;
@@ -18,6 +19,8 @@ use App\Models\Deployment;
 use App\Models\Message;
 use App\Models\Project;
 use App\Models\Task;
+use App\Sandbox\Agents\AgentCommands;
+use App\Sandbox\Agents\AgentStream;
 use App\Sandbox\Agents\Conversation;
 use App\Sandbox\Agents\MessageChecks;
 use App\Sandbox\Agents\ModelCatalog;
@@ -26,6 +29,7 @@ use App\Sandbox\Gateway;
 use App\Sandbox\GitHubPulls;
 use App\Sandbox\Hosting\Deployer;
 use App\Sandbox\Hosting\HostedServices;
+use App\Sandbox\Hosting\HostingProviders;
 use App\Sandbox\Hosting\MachineSizes;
 use App\Sandbox\Publishing\Publishers;
 use App\Sandbox\SandboxException;
@@ -114,6 +118,8 @@ trait RendersWorkspace
             'newTask' => $newTask,
             // With Auto (AGT-011), the provider and its default model, which a message runs on when Jev can't size it.
             'agent' => ($selection = $catalog->selectionFor($project)) ? [...$catalog->describe($selection, $catalog->harnessFor($project)), 'auto' => $project->agent_auto] : null,
+            // The agent's own slash commands, for the chat box's "/" menu (AGT-016).
+            'agentCommands' => fn () => app(AgentCommands::class)->for($project),
             // Claude Code runs on the owner's own Claude sign-in in the sandbox (AI-005).
             'claudeSubscription' => $project->user->agentConnections()
                 ->where('provider', AgentProvider::Claude)
@@ -137,6 +143,9 @@ trait RendersWorkspace
                     ? app(Publishers::class)->options($project)[0]['unavailable']
                     : null,
                 'hosting' => $this->hostingProps($project),
+                // The platforms it can be hosted on, and the one it uses (HOST-011); a choice only with more than one.
+                'platforms' => app(HostingProviders::class)->platforms($project->organization),
+                'platform' => $project->hosting_platform ?? app(HostingProviders::class)->defaultPlatform($project->organization),
                 // Whether the organization's Apps page lists it (APPS-003); null where it can't, being a private Tailscale app.
                 'apps_listed' => $project->publish_target === PublishTarget::Tailscale && $project->publish_visibility !== PublishVisibility::Public ? null : $project->apps_listed,
             ],
@@ -171,7 +180,18 @@ trait RendersWorkspace
                 'plain' => $message->role === MessageRole::Activity ? PlainActivity::describe($message->content) : null,
                 'attachments' => $message->attachments->map(fn (Attachment $attachment): array => $this->attachmentProps($project, $attachment)),
                 'created_at' => $message->created_at?->toIso8601String(),
+                // An agent's step (AGT-017): a tool call or thinking, whether it's running, and whether it has details
+                // to expand (fetched when it's expanded, so live reloads stay small).
+                'step' => isset($message->meta['step']['kind']) ? [
+                    'kind' => $message->meta['step']['kind'],
+                    'status' => $message->meta['step']['status'] ?? 'done',
+                    'expandable' => $message->detail !== null,
+                ] : null,
+                // The streamed blocks it holds, so the page stops showing them as being written.
+                'blocks' => $message->meta['blocks'] ?? [],
             ]),
+            // The reply or thinking the agent is writing right now (AGT-017).
+            'stream' => $newTask ? null : app(AgentStream::class)->current($conversation),
         ]);
     }
 
@@ -193,23 +213,33 @@ trait RendersWorkspace
 
         $live = $project->deployments()->where('status', DeploymentStatus::Live)->latest('id')->first();
 
+        $web = $project->hostedServices()->where('kind', HostedServiceKind::Web)->first();
+
         return [
             'deployment' => $deployment ? [
-                ...$deployment->only('number', 'kind', 'status', 'step', 'url', 'log', 'error'),
+                ...$deployment->only('number', 'kind', 'host', 'status', 'step', 'url', 'log', 'error'),
                 'created_at' => $deployment->created_at?->toIso8601String(),
             ] : null,
+            // Where it's hosted (HOST-011), and whether that's a machine of its own to size (HOST-010).
+            'host' => $live?->host,
+            'machine' => $live?->host === 'fly' && $live->kind === 'server',
             // What the sandbox has that the hosted app doesn't yet (HOST-004).
             'changes' => $hosted ? $project->hosting_changes : null,
-            // Recent deploys of an app with a server, to put one back (HOST-005); the live one first.
-            'history' => $hosted ? $project->deployments()
-                ->where('status', DeploymentStatus::Live)->where('kind', 'server')->whereNotNull('image')
-                ->latest('id')->limit(5)->get()
+            // Recent deploys where it's hosted now that can be put back (HOST-005), the live one first: images of an app
+            // with a server on Fly.io, or deployments of its current Vercel project.
+            'history' => $hosted && $live ? $project->deployments()
+                ->where('status', DeploymentStatus::Live)->where('host', $live->host)
+                ->when($live->host === 'vercel', fn ($query) => $query->whereNotNull('external_id'), fn ($query) => $query->where('kind', 'server')->whereNotNull('image'))
+                ->latest('id')->limit(20)->get()
+                // A Vercel project made again (after hosting elsewhere) no longer has the old one's deployments.
+                ->filter(fn (Deployment $past) => $past->host !== 'vercel' || $past->remembered('vercel_project') === $web?->external_id)
+                ->take(5)
                 ->map(fn (Deployment $past) => [
                     'id' => $past->id,
                     'number' => $past->number,
                     'commit' => $past->commit ? substr($past->commit, 0, 7) : null,
                     'finished_at' => $past->finished_at?->toIso8601String(),
-                    'live' => $past->id === $live?->id,
+                    'live' => $past->id === $live->id,
                 ])->values()->all() : [],
             'auto_deploy' => $project->auto_deploy,
             // Move to Postgres (HOST-009): the SQLite file it would move, and whether a move is waiting for the next deploy.

@@ -7,6 +7,13 @@ Published to Hosting, the app runs on its own, off this sandbox: a front end is 
 server runs on a Fly.io machine with this sandbox's tools, a copy of /workspace and its own data. Deploying again
 ships the code only; the hosted data stays where it is.
 
+A project can be hosted on Vercel instead (the user picks it when publishing). There, a front end is served by Vercel,
+and a Node app on a framework Vercel builds (Next.js, Nuxt, SvelteKit, Astro, Express, Hono, Fastify, NestJS…) is built
+by Vercel from its source: no `.onedrop/build`, no `.onedrop/start`, and nothing it writes to disk lasts. Keep its data
+in the services below. Vercel runs Express/Hono-style apps from `app`, `index`, `server` (or `src/…`) `.js`/`.ts`
+files that import the framework and either export the app or call `listen`. An app that keeps data on disk, or isn't
+Node, is hosted on Fly.io instead.
+
 ## .onedrop/host.json
 
 Describe how the app is hosted in /workspace/.onedrop/host.json. Every field is optional:
@@ -62,8 +69,9 @@ Describe how the app is hosted in /workspace/.onedrop/host.json. Every field is 
 
 - The hosted database starts as a copy of the sandbox's on the first deploy (Postgres, and files kept on the volume),
   then lives on its own. Migrations must work on it as it is: never reset or seed it from .onedrop/start.
-- Check it the way it will run: `ONEDROP_HOSTED=1 .onedrop/start` must start the app with the build from
-  .onedrop/build. Stop it again afterwards; the preview keeps using .onedrop/dev.
+- Check it the way it will run: run `.onedrop/build`, then `/opt/onedrop/hosting check`, which starts .onedrop/start
+  (or .onedrop/dev) with `ONEDROP_HOSTED=1` on a spare $PORT, waits until it answers, and stops it again. It prints `ok` and the seconds it took, or why not with the app's last output. Every deploy runs it first and
+  stops there if it fails, so make it pass before telling the user to publish.
 
 ## Moving to Postgres
 

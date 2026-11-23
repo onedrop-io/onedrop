@@ -9,6 +9,7 @@ use App\Models\Task;
 use App\Sandbox\Drive\DriveSync;
 use App\Sandbox\GitOrigin;
 use App\Sandbox\OrganizationSecrets;
+use App\Sandbox\SandboxCallback;
 use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxProvider;
 use App\Sandbox\SandboxSpec;
@@ -87,6 +88,7 @@ class CreateSandbox implements ShouldQueue
     public function spec(Sandbox $sandbox): SandboxSpec
     {
         $port = config('sandbox.port');
+        $callback = app(SandboxCallback::class)->url($this->project->sandboxProvider());
         $connection = $this->project->user->agentConnections()->firstWhere('is_default', true);
 
         return new SandboxSpec(
@@ -94,9 +96,9 @@ class CreateSandbox implements ShouldQueue
             env: [
                 'APP_PROJECT_NAME' => $this->project->name,
                 // Where the file watcher reports added, removed or renamed files (FILE-004).
-                'APP_FILES_CHANGED_URL' => rtrim(config('sandbox.callback_url'), '/').URL::signedRoute('sandbox-events.files', $sandbox, absolute: false),
+                'APP_FILES_CHANGED_URL' => $callback.URL::signedRoute('sandbox-events.files', $sandbox, absolute: false),
                 // Where `ask` in the shell gets the project's AI for each question (SBX-012).
-                'ONEDROP_AI_URL' => rtrim(config('sandbox.callback_url'), '/').URL::signedRoute('sandbox-ai.show', $sandbox, absolute: false),
+                'ONEDROP_AI_URL' => $callback.URL::signedRoute('sandbox-ai.show', $sandbox, absolute: false),
                 ...($connection?->sandboxEnvironment() ?? []),
                 // Keeps the sandbox's copy of Drive in step (DRIVE-003, DRIVE-004).
                 ...DriveSync::environment($sandbox, $this->project),

@@ -78,7 +78,7 @@ test('publishing an app with a server to hosting runs it on a Fly machine with i
         ->and($deployment->status)->toBe(DeploymentStatus::Live)
         ->and($deployment->kind)->toBe('server')
         ->and($deployment->image)->toBe("registry.fly.io/{$app->name}:deployment-1")
-        ->and($this->sandboxes->hostingCommands())->toBe(['inspect', 'pack seed', 'put', 'put']);
+        ->and($this->sandboxes->hostingCommands())->toBe(['inspect', 'pack seed', 'put', 'put', 'check']);
 
     // The sandbox uploads through signed links only; the provider's token goes to the builder in Fly.
     expect(collect($this->sandboxes->executed)->pluck('env')->flatten()->implode(' '))->not->toContain('fly-platform');
@@ -162,7 +162,7 @@ test('deploying again ships code only, keeps the data and updates the same machi
 
     expect($project->publish_status)->toBe(PublishStatus::Live)
         ->and($latest->number)->toBe(2)
-        ->and($this->sandboxes->hostingCommands())->toBe(['inspect', 'pack seed', 'put', 'put', 'inspect', 'pack', 'put'])
+        ->and($this->sandboxes->hostingCommands())->toBe(['inspect', 'pack seed', 'put', 'put', 'check', 'inspect', 'pack', 'put', 'check'])
         ->and(Http::recorded(fn (Request $request) => str_ends_with($request->url(), '/volumes'))->count())->toBe($volumes)
         ->and(appMachineRequest()['config']['env'])->not->toHaveKey('ONEDROP_SEED_URL');
 
@@ -222,20 +222,70 @@ test('a failed build in the sandbox is reported with its output', function () {
         ->and($this->project->hostedServices()->count())->toBe(0);
 })->group('HOST-001');
 
-test('a release that never answers puts the last good version back', function () {
+test('a release that never answers puts the last good version back, with its output in the log', function () {
     fakeHostingProviders();
     publishToHosting($this->project, $this->user);
     $good = $this->project->deployments()->first()->image;
 
     $GLOBALS['hostedAppStatus'] = 502;
+    $GLOBALS['hostedAppOutput'] = "\e[31mSQLSTATE[08006] could not connect to server\e[0m";
     publishToHosting($this->project, $this->user);
-    unset($GLOBALS['hostedAppStatus']);
+    unset($GLOBALS['hostedAppStatus'], $GLOBALS['hostedAppOutput']);
 
     $project = $this->project->fresh();
     expect($project->publish_status)->toBe(PublishStatus::Failed)
         ->and($project->publish_error)->toContain("didn't start")
+        ->and($project->deployments()->latest('id')->first()->log)->toContain("The app never answered. Its last output:\nSQLSTATE[08006] could not connect to server")
         ->and(appMachineRequest()['config']['image'])->toBe($good);
-})->group('HOST-001');
+
+    Http::assertSent(fn (Request $request) => str_ends_with($request->url(), '/machines/machine_app/exec')
+        && $request['command'] === ['tail', '-n', '40', '/tmp/onedrop-app.log']);
+})->group('HOST-001', 'HOST-012');
+
+test('an app that does not start in the sandbox fails before anything is made or built, with its output', function () {
+    fakeHostingProviders();
+    $this->sandboxes->starts = false;
+    $this->sandboxes->checked = "it stopped as it started (exit 1)\nError: listen EADDRINUSE: address already in use :::3000";
+
+    publishToHosting($this->project, $this->user);
+
+    $project = $this->project->fresh();
+    $deployment = $project->deployments()->first();
+    expect($project->publish_status)->toBe(PublishStatus::Failed)
+        ->and($project->publish_error)->toBe("The app didn't start in the sandbox (it stopped as it started (exit 1)), so nothing was deployed. Its output is in the deploy log.")
+        ->and($deployment->step)->toBe('check')
+        ->and($deployment->log)->toContain("Its last output:\nError: listen EADDRINUSE")
+        ->and($project->hostedServices()->count())->toBe(0);
+
+    // Nothing at Fly, and the uploaded release is deleted.
+    Http::assertNotSent(fn (Request $request) => str_contains($request->url(), 'api.machines.dev'));
+    Storage::disk('releases')->assertMissing("hosting/{$project->id}/1/release.tar.gz");
+})->group('HOST-012');
+
+test('the deploy log says how long the app took to start in the sandbox, or why it was not checked', function () {
+    fakeHostingProviders();
+    $this->sandboxes->checked = 'ok 4';
+    publishToHosting($this->project, $this->user);
+
+    $this->sandboxes->checked = "skip it runs a Docker Compose stack, which can't be started twice";
+    publishToHosting($this->project, $this->user);
+
+    [$first, $second] = $this->project->deployments()->oldest('id')->get()->all();
+    expect($first->log)->toContain('The app started in 4s.')
+        ->and($second->log)->toContain("Skipped checking that the app starts: it runs a Docker Compose stack, which can't be started twice.")
+        ->and($second->status)->toBe(DeploymentStatus::Live);
+})->group('HOST-012');
+
+test('a front end is not started in the sandbox', function () {
+    fakeHostingProviders();
+    $this->sandboxes->manifest = ['static' => 'dist', 'services' => [], 'data' => [], 'storage' => false];
+    $this->sandboxes->packed = 'static 120';
+    Storage::disk('releases')->put("hosting/{$this->project->id}/1/static.tar.gz", '');
+
+    publishToHosting($this->project, $this->user);
+
+    expect($this->sandboxes->hostingCommands())->not->toContain('check');
+})->group('HOST-012');
 
 test('a release that keeps stopping as it starts fails at once with its output, and puts the last good version back', function () {
     fakeHostingProviders();

@@ -456,6 +456,29 @@ test('a move that fails leaves the project on its old sandbox, and an admin can 
         ->assertInertia(fn (AssertableInertia $page) => $page->has('moves', 0));
 })->group('SBX-013');
 
+test('a failed move drops off the list once its project no longer runs on the provider it was going to', function () {
+    $failing = new class extends FakeSandboxProvider
+    {
+        public function create(SandboxSpec $spec): string
+        {
+            throw new SandboxException('Blaxel: quota exceeded');
+        }
+    };
+    app()->instance(SandboxProvider::class, new RoutingSandboxProvider(['runtime' => fn () => $this->runtime, 'blaxel' => fn () => $failing], 'blaxel'));
+    app()->forgetInstance(SandboxMover::class);
+    app(SandboxMover::class)->moveMisplaced();
+    $admin = User::factory()->admin()->create();
+
+    $this->actingAs($admin)->get(route('admin.sandboxes.index'))
+        ->assertInertia(fn (AssertableInertia $page) => $page->where('moves.0.phase', 'failed'));
+
+    // Blaxel is turned off: the sandbox is already where its project runs.
+    config(['sandbox.provider' => 'runtime']);
+
+    $this->actingAs($admin)->get(route('admin.sandboxes.index'))
+        ->assertInertia(fn (AssertableInertia $page) => $page->has('moves', 0));
+})->group('SBX-013');
+
 test('a provider that is full is waited on, not failed', function () {
     $full = new class extends FakeSandboxProvider
     {

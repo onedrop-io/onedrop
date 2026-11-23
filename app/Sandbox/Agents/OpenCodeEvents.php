@@ -28,9 +28,10 @@ class OpenCodeEvents extends AgentEvents
 
         match ($event['type'] ?? null) {
             'onedrop.start' => $conversation->update(['status' => ProjectStatus::Working]),
-            'reasoning' => $this->say($conversation, MessageRole::Activity, 'Thinking'),
-            'text' => $this->say($conversation, MessageRole::Assistant, trim((string) ($part['text'] ?? ''))),
-            'tool_use' => $this->say($conversation, MessageRole::Activity, $this->describeTool($part)),
+            'reasoning' => $this->think($conversation, (string) ($part['text'] ?? ''), $this->partId($part)),
+            'text' => $this->say($conversation, MessageRole::Assistant, trim((string) ($part['text'] ?? '')), $this->partId($part)),
+            'tool_use' => $this->toolUsed($conversation, $part),
+            'onedrop.delta' => $this->streamed($conversation, $event),
             'step_finish' => $this->stepFinished($conversation, $part, $event['model'] ?? null),
             'error' => $this->sayFailure($conversation, $this->explainError($conversation, $this->errorMessage($event['error'] ?? null))),
             'onedrop.exit' => $this->finish($conversation, (int) ($event['code'] ?? 0), (string) ($event['stderr'] ?? '')),
@@ -63,6 +64,45 @@ class OpenCodeEvents extends AgentEvents
         };
 
         return $failed ? "{$line} (failed)" : $line;
+    }
+
+    /**
+     * A tool call, reported when it starts and again when it finishes (AGT-017; older forwarders only send the
+     * finished one), with what it did for the user to expand.
+     *
+     * @param  array<string, mixed>  $part
+     */
+    protected function toolUsed(Conversation $conversation, array $part): void
+    {
+        $state = is_array($part['state'] ?? null) ? $part['state'] : [];
+        $input = is_array($state['input'] ?? null) ? $state['input'] : [];
+        $metadata = is_array($state['metadata'] ?? null) ? $state['metadata'] : [];
+        $path = Str::after((string) ($input['filePath'] ?? $input['path'] ?? ''), '/workspace/');
+        $tool = $part['tool'] ?? null;
+
+        $this->step($conversation, $this->describeTool($part), $part['callID'] ?? $this->partId($part), match ($state['status'] ?? null) {
+            'pending', 'running' => 'running',
+            'error' => 'failed',
+            default => 'done',
+        }, [
+            'command' => $tool === 'bash' ? ($input['command'] ?? null) : null,
+            'path' => $path !== '' ? $path : null,
+            'query' => $input['pattern'] ?? $input['url'] ?? $input['query'] ?? null,
+            // A file's contents add nothing the Files panel doesn't show.
+            'output' => $tool === 'read' ? null : ($state['output'] ?? null),
+            'diff' => $metadata['diff'] ?? null,
+            'error' => $state['error'] ?? null,
+        ]);
+    }
+
+    /**
+     * OpenCode's id for a part (a reply, thinking or tool call).
+     *
+     * @param  array<string, mixed>  $part
+     */
+    protected function partId(array $part): ?string
+    {
+        return is_string($part['id'] ?? null) && $part['id'] !== '' ? $part['id'] : null;
     }
 
     /**

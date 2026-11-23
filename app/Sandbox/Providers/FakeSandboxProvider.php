@@ -30,6 +30,9 @@ class FakeSandboxProvider implements SandboxProvider
     /** @var list<string> ids isOutdated() reports as outdated */
     public array $outdated = [];
 
+    /** @var list<string> ids settingsChanged() reports (and isOutdated() with them) */
+    public array $settingsChanged = [];
+
     /** @var list<array{string, string, string, string}> [direction, id, path, directory] */
     public array $copied = [];
 
@@ -108,7 +111,12 @@ class FakeSandboxProvider implements SandboxProvider
 
     public function isOutdated(string $id): bool
     {
-        return in_array($id, $this->outdated, true);
+        return in_array($id, $this->outdated, true) || $this->settingsChanged($id);
+    }
+
+    public function settingsChanged(string $id): bool
+    {
+        return in_array($id, $this->settingsChanged, true);
     }
 
     public function copyOut(string $id, string $path, string $directory): void

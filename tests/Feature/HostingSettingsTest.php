@@ -27,7 +27,7 @@ test('admins see every hosting provider, what it is for and what it still needs'
     $this->actingAs(User::factory()->admin()->create())
         ->get(route('admin.hosting.index'))
         ->assertInertia(fn (AssertableInertia $page) => $page->component('admin/hosting')
-            ->has('providers', 4)
+            ->has('providers', 5)
             ->where('providers.0.name', 'fly')
             ->where('providers.0.roles', ['server', 'volume'])
             ->where('providers.0.enabled', false)
@@ -35,7 +35,9 @@ test('admins see every hosting provider, what it is for and what it still needs'
             ->where('providers.0.services', 2)
             ->where('providers.1.name', 'cloudflare')
             ->where('providers.2.name', 'neon')
-            ->where('providers.3.name', 'upstash'));
+            ->where('providers.3.name', 'upstash')
+            ->where('providers.4.name', 'vercel')
+            ->where('providers.4.roles', ['web']));
 })->group('ADMIN-007');
 
 test('admins can set up a provider; keys are stored encrypted, never shown, and kept when left blank', function () {

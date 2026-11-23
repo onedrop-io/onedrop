@@ -1,6 +1,15 @@
 import { router, usePage } from '@inertiajs/react';
-import { Check, Copy, ExternalLink, Globe, Lock, Rocket } from 'lucide-react';
+import {
+    Check,
+    Copy,
+    ExternalLink,
+    Globe,
+    Lock,
+    Rocket,
+    Wrench,
+} from 'lucide-react';
 import { useState } from 'react';
+import ProjectMessageController from '@/actions/App/Http/Controllers/ProjectMessageController';
 import ProjectPublicationController from '@/actions/App/Http/Controllers/ProjectPublicationController';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,7 +30,12 @@ import { useOrganization } from '@/hooks/use-organization';
 import { openWorkspaceTool } from '@/lib/workspace-view';
 import { cn } from '@/lib/utils';
 import { index as apps, update as updateApp } from '@/routes/apps';
-import type { Publication, PublishTarget } from '@/types';
+import type {
+    Hosting,
+    HostingPlatform,
+    Publication,
+    PublishTarget,
+} from '@/types';
 
 type Visibility = 'private' | 'public';
 
@@ -70,6 +84,25 @@ function timeAgo(iso: string): string {
     return 'just now';
 }
 
+/**
+ * The message asking the agent to fix a failed deploy (HOST-012): the error, the end of the deploy log, and, for an app
+ * with a server on Fly.io, to check it starts in the sandbox before handing it back.
+ */
+export function deployFixRequest(
+    deployment: NonNullable<Hosting['deployment']>,
+): string {
+    const log = (deployment.log ?? '').trim().split('\n').slice(-40).join('\n');
+    const check =
+        deployment.kind === 'server' && deployment.host !== 'vercel'
+            ? 'Then run `/opt/onedrop/hosting check` (it starts the app the way it runs hosted) until it prints "ok", and tell me'
+            : 'Then tell me';
+
+    return `Publishing to Hosting failed: ${deployment.error ?? 'unknown error'}\n\nThe end of the deploy log:\n\n\`\`\`\n${log}\n\`\`\`\n\nFind the cause and fix it, following /opt/onedrop/guides/hosting.md. ${check} when it's ready to publish again.`;
+}
+
+/** Where a hosted app runs (HOST-011). */
+const HOSTS = { fly: 'Fly.io', cloudflare: 'Cloudflare', vercel: 'Vercel' };
+
 export default function PublishMenu({
     projectId,
     publication,
@@ -89,6 +122,10 @@ export default function PublishMenu({
     const chosen =
         publication.targets.find((option) => option.target === target) ??
         publication.targets[0];
+    // Where on Hosting (HOST-011), when there's more than one platform.
+    const [platform, setPlatform] = useState<HostingPlatform>(
+        publication.platform,
+    );
     // Where it can't be private (hosting), it's public.
     const chosenVisibility: Visibility =
         chosen?.private === null ? 'public' : visibility;
@@ -118,7 +155,11 @@ export default function PublishMenu({
     const publish = () =>
         router.post(
             ProjectPublicationController.store.url(projectId),
-            { visibility: chosenVisibility, target },
+            {
+                visibility: chosenVisibility,
+                target,
+                ...(target === 'hosting' ? { platform } : {}),
+            },
             { preserveScroll: true },
         );
 
@@ -127,6 +168,21 @@ export default function PublishMenu({
         router.patch(
             updateApp.url([organization.slug, projectId]),
             { listed },
+            { preserveScroll: true },
+        );
+
+    // A failed deploy goes to the agent to fix (HOST-012).
+    const failedDeploy =
+        publication.status === 'failed' &&
+        publication.target === 'hosting' &&
+        hosting?.deployment?.status === 'failed'
+            ? hosting.deployment
+            : null;
+    const fixDeploy = () =>
+        failedDeploy &&
+        router.post(
+            ProjectMessageController.store.url(projectId),
+            { content: deployFixRequest(failedDeploy) },
             { preserveScroll: true },
         );
 
@@ -216,6 +272,9 @@ export default function PublishMenu({
                                         </dt>
                                         <dd data-test="published-target">
                                             {publishedTo.label}
+                                            {publication.target === 'hosting' &&
+                                                hosting?.host &&
+                                                ` · ${HOSTS[hosting.host]}`}
                                         </dd>
                                     </>
                                 )}
@@ -356,6 +415,51 @@ export default function PublishMenu({
                             </fieldset>
                         )}
 
+                        {target === 'hosting' &&
+                            publication.platforms.length > 1 && (
+                                <fieldset>
+                                    <legend className="mb-2 text-sm text-muted-foreground">
+                                        Host on
+                                    </legend>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {publication.platforms.map((option) => (
+                                            <label
+                                                key={option.value}
+                                                className={cn(
+                                                    'cursor-pointer rounded-lg border p-2 text-sm',
+                                                    platform === option.value
+                                                        ? 'border-primary bg-raised'
+                                                        : 'border-input hover:bg-muted/50',
+                                                )}
+                                            >
+                                                <input
+                                                    type="radio"
+                                                    name="platform"
+                                                    value={option.value}
+                                                    checked={
+                                                        platform ===
+                                                        option.value
+                                                    }
+                                                    onChange={() =>
+                                                        setPlatform(
+                                                            option.value,
+                                                        )
+                                                    }
+                                                    className="sr-only"
+                                                    data-test={`platform-${option.value}`}
+                                                />
+                                                <span className="block font-medium">
+                                                    {option.label}
+                                                </span>
+                                                <span className="text-xs text-muted-foreground">
+                                                    {option.description}
+                                                </span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </fieldset>
+                            )}
+
                         {chosen?.unavailable && (
                             <p
                                 className="text-sm text-muted-foreground"
@@ -474,6 +578,17 @@ export default function PublishMenu({
                             >
                                 {error}
                             </p>
+                        )}
+
+                        {failedDeploy && (
+                            <DropdownMenuItem
+                                onSelect={fixDeploy}
+                                className="cursor-pointer justify-center rounded-md border border-input text-sm"
+                                data-test="publish-fix"
+                            >
+                                <Wrench className="size-4" />
+                                Fix with agent
+                            </DropdownMenuItem>
                         )}
 
                         <div className="flex gap-2">

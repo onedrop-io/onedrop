@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
 # Hosting (HOST-001, HOST-002): packs the app for its hosted copy in the sandbox, and runs it there.
 #
-#   hosting inspect           what the app needs hosted, as JSON: {static, services, data, storage}
-#                             (from .onedrop/host.json and the files that are there)
+#   hosting inspect           what the app needs hosted, as JSON: {static, services, data, sqlite, storage, vercel}
+#                             (from .onedrop/host.json and the files that are there; vercel is the Vercel framework
+#                             preset of a Node app with a server, HOST-011)
+#   hosting check             start the app as it's hosted (.onedrop/start, or .onedrop/dev) on a spare port until it
+#                             answers, then stop it: "ok SECONDS", or why not with its last output (HOST-012)
 #   hosting pack DIR [seed]   build it (.onedrop/build) and pack it: DIR/release.tar.gz (the workspace and this
 #                             script, for the base image), or DIR/static.tar.gz (a front end's files). With "seed", also
 #                             its data for the first deploy: DIR/seed.tar.gz (data paths and App Storage) and
 #                             DIR/postgres.dump (its local Postgres). Prints "name size" per file, and "note …" for the log.
+#   hosting pack DIR source   pack the app's source for Vercel to build: DIR/source.tar.gz (no build, packages, git,
+#                             .onedrop or data)
+#   hosting copy-postgres     copy the app's local Postgres into $ONEDROP_POSTGRES_URL (a new hosted one on Vercel)
 #   hosting put FILE          upload FILE to $ONEDROP_HOSTING_URL (headers in $ONEDROP_HOSTING_HEADERS), then delete it
 #   hosting deps [DIR]        install a workspace's packages again for this machine (the builder, when the sandbox that
 #                             packed it has another CPU, e.g. arm64 Docker on a Mac): native ones only work on their own
@@ -100,9 +106,44 @@ const sqliteIn = (rel, depth = 0) => {
     return fs.readdirSync(full).flatMap((name) => sqliteIn(path.posix.join(rel, name), depth + 1));
 };
 const sqlite = [...new Set(data.flatMap((p) => sqliteIn(p)))];
+// The Vercel framework preset of a Node app with a server (HOST-011), or null when Vercel can't build it: a framework
+// it knows, or a Node server it runs as one function (Express, Hono… imported from app/index/server.*, or server.*).
+const vercel = () => {
+    const has = (p) => fs.existsSync(path.join(workspace, p));
+    let pkg;
+    try {
+        pkg = JSON.parse(fs.readFileSync(path.join(workspace, 'package.json'), 'utf8'));
+    } catch {
+        return null;
+    }
+    if (['composer.json', 'artisan', 'Gemfile', 'requirements.txt', 'pyproject.toml', 'go.mod'].some(has)) {
+        return null;
+    }
+    const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+    const frameworks = [['next', 'nextjs'], ['nuxt', 'nuxtjs'], ['@sveltejs/kit', 'sveltekit'], ['astro', 'astro'],
+        ['@react-router/dev', 'react-router'], ['@remix-run/dev', 'remix'], ['@tanstack/react-start', 'tanstack-start'],
+        ['nitropack', 'nitro'], ['nitro', 'nitro']];
+    const framework = frameworks.find(([name]) => deps[name]);
+    if (framework) {
+        return framework[1];
+    }
+    const entries = ['', 'src/'].flatMap((dir) => ['app', 'index', 'server', 'main'].flatMap((name) =>
+        ['js', 'cjs', 'mjs', 'ts', 'cts', 'mts'].map((ext) => `${dir}${name}.${ext}`))).filter(has);
+    const imports = (name) => entries.some((entry) => {
+        const source = fs.readFileSync(path.join(workspace, entry), 'utf8');
+        return source.includes(`'${name}'`) || source.includes(`"${name}"`);
+    });
+    const servers = [['@nestjs/core', 'nestjs'], ['hono', 'hono'], ['express', 'express'], ['fastify', 'fastify'],
+        ['koa', 'koa'], ['h3', 'h3'], ['elysia', 'elysia']];
+    const server = servers.find(([name]) => deps[name] && imports(name));
+    if (server) {
+        return server[1];
+    }
+    return entries.some((entry) => /(^|\/)server\./.test(entry)) ? 'node' : null;
+};
 let staticDir = typeof raw.static === 'string' && clean(raw.static) ? clean(raw.static) : null;
 const guessed = !described && (staticDir = frontEnd()) !== null;
-console.log(JSON.stringify({ static: staticDir, services: [...new Set(services)], data, sqlite, storage: buckets.length > 0, ...(guessed ? { guessed } : {}) }));
+console.log(JSON.stringify({ static: staticDir, services: [...new Set(services)], data, sqlite, storage: buckets.length > 0, vercel: vercel(), ...(guessed ? { guessed } : {}) }));
 NODE
 }
 
@@ -185,6 +226,20 @@ pack() {
     json="$(manifest)"
     static="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).static ?? "")' "$json")"
 
+    # Vercel builds it from its source (HOST-011): everything but what it makes again (packages, builds) and what stays
+    # here (git, .onedrop, its data).
+    if [ "$seed" = source ]; then
+        local excludes=() path
+        while IFS= read -r path; do
+            [ -n "$path" ] && excludes+=("--exclude=./$path")
+        done < <(node -e 'for (const p of JSON.parse(process.argv[1]).data) console.log(p)' "$json")
+        tar_ok -czf "$dir/source.tar.gz" --exclude=./.git --exclude=./.onedrop --exclude=./.vercel \
+            --exclude=node_modules --exclude=./.next --exclude=./.nuxt --exclude=./.output --exclude=./.svelte-kit \
+            --exclude=./.react-router --exclude=./.tanstack "${excludes[@]}" -C "$WORKSPACE" .
+        echo "source $(stat -c %s "$dir/source.tar.gz")"
+        return
+    fi
+
     local build=./.onedrop/build
     if [ ! -x "$WORKSPACE/.onedrop/build" ]; then
         build=
@@ -261,6 +316,27 @@ pack() {
     fi
     thaw
     echo "seed $(stat -c %s "$dir/seed.tar.gz")"
+}
+
+# The app's local Postgres, into a new hosted one ($ONEDROP_POSTGRES_URL) on its first deploy to Vercel (HOST-011).
+copy_postgres() {
+    local url
+    url="$(postgres_url)"
+    if [ -z "$url" ]; then
+        echo "There's no local Postgres to copy, so the hosted one starts empty."
+        return 0
+    fi
+    local dump
+    dump="$(mktemp)"
+    if ! pg_dump -Fc --no-owner --no-acl -f "$dump" "$url" 2>"$dump.log"; then
+        echo "Couldn't dump the local Postgres, so the hosted one starts empty. $(tail -n 1 "$dump.log")"
+        rm -f "$dump" "$dump.log"
+        return 0
+    fi
+    pg_restore --no-owner --no-acl -d "$ONEDROP_POSTGRES_URL" "$dump" 2>"$dump.log" \
+        && echo "Copied the sandbox's Postgres." \
+        || echo "pg_restore reported problems; the app may still work. $(tail -n 3 "$dump.log")"
+    rm -f "$dump" "$dump.log"
 }
 
 curl_headers() {
@@ -344,6 +420,63 @@ run() {
 
 # For a minute, answer every request with a 503 and the end of /tmp/onedrop-app.log: the app can't start, and the deploy
 # watching it shows why (it looks for X-OneDrop-App: crashed).
+# Before a deploy (HOST-012): start the app the way it's hosted (.onedrop/start, or .onedrop/dev, with ONEDROP_HOSTED=1)
+# on a spare port, wait until it answers or stops, then stop it again. Prints "ok SECONDS", or "skip WHY" for an app
+# this can't check here; otherwise why it didn't answer and its last output, and fails.
+check() {
+    cd "$WORKSPACE"
+    local command=.onedrop/dev limit="${ONEDROP_CHECK_SECONDS:-120}" started=$SECONDS result='' status port log pid
+    [ -x .onedrop/start ] && command=.onedrop/start
+    if [ ! -x "$command" ]; then
+        echo "there's no .onedrop/start (or .onedrop/dev) to start it with"
+        return 1
+    fi
+    # A Compose stack is the preview's own containers: starting it again here would take them over, then stop them.
+    if grep -qE '/opt/onedrop/compose|docker[ -]compose' "$command"; then
+        echo "skip it runs a Docker Compose stack, which can't be started twice"
+        return 0
+    fi
+
+    port=$(node -e 'const s = require("net").createServer().listen(0, () => { console.log(s.address().port); s.close(); })')
+    log=$(mktemp)
+    # Its own process group, so everything it starts stops with it.
+    ONEDROP_HOSTED=1 PORT="$port" setsid bash -c "[ -f /opt/onedrop/org-secrets ] && . /opt/onedrop/org-secrets; cd $WORKSPACE && exec ./$command" >"$log" 2>&1 </dev/null &
+    pid=$!
+
+    while (( SECONDS - started < limit )); do
+        if ! kill -0 "$pid" 2>/dev/null; then
+            wait "$pid" && status=0 || status=$?
+            result="it stopped as it started (exit $status)"
+            break
+        fi
+        # Any answer will do, as hosted: an error page still means it's up.
+        if curl -s -o /dev/null --max-time 5 "http://localhost:$port/"; then
+            result=ok
+            break
+        fi
+        sleep 1
+    done
+    [ -n "$result" ] || result="nothing answered on \$PORT ($port) within $limit seconds"
+
+    kill -TERM -- "-$pid" 2>/dev/null || true
+    for _ in $(seq 20); do
+        kill -0 -- "-$pid" 2>/dev/null || break
+        sleep 0.5
+    done
+    kill -KILL -- "-$pid" 2>/dev/null || true
+
+    if [ "$result" = ok ]; then
+        rm -f "$log"
+        echo "ok $((SECONDS - started))"
+        return 0
+    fi
+
+    echo "$result"
+    sed 's/\x1b\[[0-9;]*[A-Za-z]//g' "$log" | tail -n 40
+    rm -f "$log"
+    return 1
+}
+
 say_why() {
     timeout 60 node -e '
         const body = require("fs").readFileSync("/tmp/onedrop-app.log", "utf8").replace(/\x1b\[[0-9;]*m/g, "").split("\n").slice(-40).join("\n");
@@ -416,6 +549,7 @@ app() {
 
 case "${1:-}" in
     inspect) manifest ;;
+    check) check ;;
     pack) pack "$2" "${3:-}" ;;
     put)
         mapfile -t headers < <(curl_headers)
@@ -423,10 +557,11 @@ case "${1:-}" in
         rm -f "$2"
         ;;
     deps) deps "${2:-}" ;;
+    copy-postgres) copy_postgres ;;
     run) run ;;
     app) app ;;
     *)
-        echo "Usage: hosting inspect | pack DIR [seed] | put FILE | deps [DIR] | run | app" >&2
+        echo "Usage: hosting inspect | check | pack DIR [seed|source] | put FILE | deps [DIR] | copy-postgres | run | app" >&2
         exit 2
         ;;
 esac

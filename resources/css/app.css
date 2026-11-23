@@ -4,7 +4,11 @@
 
 @import './themes.css';
 
+/* New words of a reply fading in as the agent writes it (AGT-017). */
+@import 'streamdown/styles.css';
+
 @source '../views';
+@source '../../node_modules/streamdown/dist/*.js';
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 
 @custom-variant dark (&:is(.dark *));
@@ -481,4 +485,39 @@
 /* Follow the pointer while the sidebar is dragged wider or narrower. */
 [data-slot='sidebar-wrapper']:has(> [data-dragging]) [data-slot='sidebar'] * {
     transition: none;
+}
+
+/* "Thinking…" while the model thinks (AGT-017): a highlight sweeps across the words. */
+.shimmer-text {
+    background:
+        linear-gradient(
+                90deg,
+                transparent 35%,
+                var(--color-foreground) 50%,
+                transparent 65%
+            )
+            0 0 / 250% 100% no-repeat,
+        var(--color-muted-foreground);
+    background-clip: text;
+    color: transparent;
+    animation: shimmer-text 1.8s linear infinite;
+}
+
+@keyframes shimmer-text {
+    from {
+        background-position: 100% 0;
+    }
+    to {
+        background-position: -150% 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .shimmer-text {
+        animation: none;
+    }
+
+    [data-sd-animate] {
+        animation: none;
+    }
 }

@@ -97,6 +97,11 @@ class RoutingSandboxProvider implements SandboxProvider
         return $this->for($id)->isOutdated($id);
     }
 
+    public function settingsChanged(string $id): bool
+    {
+        return $this->for($id)->settingsChanged($id);
+    }
+
     public function copyOut(string $id, string $path, string $directory): void
     {
         $this->for($id)->copyOut($id, $path, $directory);

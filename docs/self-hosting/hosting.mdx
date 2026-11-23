@@ -1,6 +1,6 @@
 ---
 title: 'Hosting providers'
-description: 'Set up Fly.io, Cloudflare, Neon and Upstash so published apps can run off their sandbox.'
+description: 'Set up Fly.io, Cloudflare, Neon, Upstash and Vercel so published apps can run off their sandbox.'
 ---
 
 [Hosting](/guides/hosting) deploys published apps to outside providers so they run on their own. Admins set up the install's accounts in **Settings → Hosting**. Each organization can also connect its own accounts in **Settings → Organization → Hosting accounts**, which are used instead of the install's.
@@ -13,12 +13,13 @@ Each provider does one job:
 | Cloudflare | Front ends (Workers static assets), R2 buckets for apps that use S3, and continuous SQLite backups |
 | Neon       | Postgres, one Neon project per app                                                                 |
 | Upstash    | Redis, one database per app                                                                        |
+| Vercel     | Instead of Fly.io and Cloudflare, for projects that pick it: front ends, and Node apps that keep nothing on disk |
 
-Hosting is offered once Fly.io or Cloudflare is turned on. An app that needs a service whose provider isn't set up fails to deploy and says which one is missing.
+Hosting is offered once Fly.io, Cloudflare or Vercel is turned on. When Vercel and Fly.io or Cloudflare are both on, people choose per project in the Publish panel; projects that don't choose use Fly.io and Cloudflare, unless their organization connected only its own Vercel account. An app that needs a service whose provider isn't set up fails to deploy and says which one is missing.
 
 ## Before you start
 
-- **Release storage.** Sandboxes upload each release through signed links, and the providers download it from there. When `SANDBOX_SNAPSHOT_DISK` is S3-compatible (S3, R2, MinIO), releases go there. Otherwise, such as on a laptop, OneDrop makes an `onedrop-releases` R2 bucket in your Cloudflare account the first time, so turn Cloudflare on. See [Project snapshots](/self-hosting/sandboxes#project-snapshots).
+- **Release storage.** (Fly.io and Cloudflare only; Vercel gets the files from OneDrop directly.) Sandboxes upload each release through signed links, and the providers download it from there. When `SANDBOX_SNAPSHOT_DISK` is S3-compatible (S3, R2, MinIO), releases go there. Otherwise, such as on a laptop, OneDrop makes an `onedrop-releases` R2 bucket in your Cloudflare account the first time, so turn Cloudflare on. See [Project snapshots](/self-hosting/sandboxes#project-snapshots).
 - **A public base image.** Hosted apps run on the sandbox image, which Fly.io pulls. The default, `ghcr.io/onedrop-io/onedrop-sandbox:latest`, is public. A locally built `onedrop-sandbox` image isn't reachable by Fly.io.
 - **Builder logs (optional).** The machine that builds each image sends its log back to OneDrop when it can reach `APP_URL`. On a laptop it can't, and the log only shows OneDrop's own steps.
 
@@ -48,6 +49,14 @@ Hosting is offered once Fly.io or Cloudflare is turned on. An app that needs a s
         Enter the account's email and a Developer API key (from an account made
         on upstash.com, not through Fly.io or Vercel).
     </Accordion>
+    <Accordion title="Vercel">
+        Create an access token at vercel.com/account/tokens, scoped to the team
+        apps should go in, and enter it with the team's ID (Team Settings →
+        General). Leave the team ID blank for a personal account. OneDrop makes
+        one Vercel project per app and turns off Vercel Authentication on it, so
+        its `vercel.app` address is public. Hobby accounts allow 100 deployments
+        and 5,000 file uploads a day.
+    </Accordion>
 </AccordionGroup>
 
 Keys are stored encrypted and never shown again. Leave a key blank to keep the saved one. Settings saved here win over `.env`, and queue workers pick them up without a restart.
@@ -61,6 +70,13 @@ Keys are stored encrypted and never shown again. Leave a key blank to keep the s
 5. If the new version never answers, the previous image is put back.
 
 Fly snapshots volumes daily and keeps 14 days of snapshots.
+
+On Vercel, Vercel builds the app instead:
+
+1. The sandbox packs the app: a front end built (`.onedrop/build`), an app with a server as its source, without `node_modules`, `.git`, `.onedrop` or its data. OneDrop copies it out of the sandbox.
+2. OneDrop makes the Vercel project and the app's managed services, and sets their addresses as the project's production environment variables (as sensitive variables). On the first deploy that makes a Postgres, the sandbox copies its own into it.
+3. OneDrop sends Vercel only the files it doesn't have yet and starts a production deployment. A failed build leaves the live version as it was, and the deploy log shows the end of Vercel's build log.
+4. An app that keeps data on disk (SQLite, data folders, App Storage), or isn't a Node app on a framework Vercel builds, goes to Fly.io instead.
 
 ## Environment variables
 
@@ -84,5 +100,8 @@ Fly snapshots volumes daily and keeps 14 days of snapshots.
 | `UPSTASH_EMAIL`              | empty                                       | Upstash account email.                                      |
 | `UPSTASH_API_KEY`            | empty                                       | Upstash Developer API key.                                  |
 | `UPSTASH_REGION`             | `us-east-1`                                 | Where Redis databases go.                                   |
+| `HOSTING_VERCEL_ENABLED`     | `false`                                     | Turn Vercel on.                                             |
+| `VERCEL_TOKEN`               | empty                                       | Vercel access token.                                        |
+| `VERCEL_TEAM_ID`             | empty                                       | Vercel team ID; empty for a personal account.               |
 | `HOSTING_CRANE_VERSION`      | `v0.20.6`                                   | crane version the builder downloads.                        |
 | `HOSTING_LITESTREAM_VERSION` | `v0.3.13`                                   | Litestream version hosted apps download for SQLite backups. |

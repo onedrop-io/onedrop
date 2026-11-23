@@ -183,8 +183,11 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 ## AI-005: Use a Claude subscription through Claude Code's own sign-in
 
 - User should be able to choose "Use my Claude subscription" on the Claude card (the first option; pasting a key is the small link); OneDrop never asks for, receives or stores their Claude login or token (Anthropic requires sign-in to go through its own flow).
-- User should be able to sign in from the project: "Sign in to Claude" above the chat box opens the Shell tab running Claude Code's own `claude auth login`.
-- User should be taken back to the Preview tab once that sign-in succeeds (e.g. after pasting the code in the Shell and seeing "Login successful").
+- User should be able to sign in from the chat: "Sign in to Claude" above the chat box opens a small panel there, which starts Claude Code's own `claude auth login` in the sandbox, out of sight.
+- User should be able to open Claude's sign-in page from that panel in a new tab, then paste the code Claude shows into the panel's one field; OneDrop types it into Claude Code's sign-in and keeps nothing.
+- User should see an error in the panel when the code is wrong or the sign-in timed out, and be able to try again with a fresh sign-in page.
+- User should be able to sign in in the Shell tab instead (a small link in the panel), e.g. when the sandbox's sign-in can't be started.
+- User should be taken back to the Preview tab once a Shell sign-in succeeds (e.g. after pasting the code in the Shell and seeing "Login successful").
 - User should see who they're signed in to Claude as above the chat box, once signed in.
 - One sign-in should work in all of the user's sandboxes where the sandbox provider supports a shared login folder (Docker); elsewhere each sandbox signs in once. The folder is only mounted into sandboxes of projects the user owns.
 - User should be told to sign in to Claude, or sign in again, when a Claude Code run finds they aren't signed in or their sign-in expired.
@@ -260,6 +263,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be able to copy the project's link (C).
 - User should be able to archive a project (A), which moves it to a collapsed "Archived" section, and unarchive it from there.
 - User should be able to delete a project (D) after confirming; this takes the app offline and removes its chat, attachments, and sandbox. Deleting the open project takes them to the new-project page. Any other tab still open on a deleted project moves to the new-project page too, never a "not found" page.
+- User should still land on the next page when its code can't be fetched (a new build was deployed, or the dev server restarted): the app loads that page in full instead of staying on the old one, so deleting the open project never leaves them on its "not found" address.
 - A deleted project's sandbox is removed from the provider it was created on, even if the configured provider has changed since.
 - Renaming, regenerating the title, pinning, marking, and archiving should not change a project's place in "Recent".
 - Admins opening someone's project should not mark it read for its owner.
@@ -446,7 +450,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see in the workspace that the project was moved from an earlier snapshot, and from when, so they know changes made after it may be missing.
 - A sandbox that didn't answer should never be deleted while it may hold newer files. The platform should check on it whenever an admin opens Settings → Sandboxes (at most every 10 minutes, for 7 days), not on a timer; when it answers again, its files should be saved as a "recovered" snapshot (only if they differ from what the project got), and then it should be deleted.
 - An admin should see recovered files in Settings → Sandboxes and be able to restore them into the project with one click (after a warning that changes made since the move would be replaced).
-- A move that fails should leave the project on its old sandbox with every file, and the new sandbox should be deleted; the admin should see why and be able to try again.
+- A move that fails should leave the project on its old sandbox with every file, and the new sandbox should be deleted; the admin should see why and be able to try again. A failed move should drop off the list once the sandbox moves again, or once its project no longer runs on the provider it was going to.
 
 ## SBX-014: Sandboxes on E2B
 
@@ -463,6 +467,14 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Keeping a sandbox awake should cost at most one E2B call a minute while someone uses it, plus one when a run starts, one when it ends and one when the workspace is left; the app never polls E2B.
 - Pausing, resuming, updating (files kept), snapshots, moves (SBX-005) and deleting a sandbox should work as they do on Runtime.
 - A provider that can't run Docker (Blaxel) should tell the agent so, and the agent should tell the user to have an admin put a provider that can first, not to turn on a setting that isn't there.
+
+## SBX-015: Cloud sandboxes report back to a local install
+
+- Developer should be able to run projects on a cloud provider (E2B, Runtime, Blaxel) from a local install: `composer run dev` opens a public cloudflared tunnel (`php artisan sandbox:tunnel`) when `SANDBOX_CALLBACK_URL` is private and cloudflared is installed, and cloud sandboxes report agent events through it.
+- User should see the agent's work stream into the chat on a cloud sandbox as it does on Docker, including after the tunnel restarts with a new address mid-turn.
+- User should see a message saying why, instead of "Thinking…" forever, when a cloud sandbox has no address it can reach the app at.
+- Through the tunnel, the app should answer only what sandboxes call (agent events, the file watcher, `ask`, Drive, "Sign in with OneDrop"), never the login or any page.
+- Sandboxes on this machine (Docker, computers), and every sandbox when `SANDBOX_CALLBACK_URL` is public, should keep using `SANDBOX_CALLBACK_URL`.
 
 ## SBX-006: Checkpoints and code backups
 
@@ -651,15 +663,6 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - It should work with the files panel closed, list hidden files, and never list files inside `node_modules`, `vendor`, `.git` or `.cache`.
 - User should see a message instead of results while the sandbox isn't running.
 
-## FILE-007: Restart after saving a startup file
-
-- After saving a file the app only reads when it starts (a `.env` file, `.onedrop/dev`, or a Docker Compose file), user should be asked whether to restart the preview.
-- User should be able to restart the preview from that prompt, or dismiss it with "Not now".
-- User should see when the preview is restarting, or why it couldn't restart.
-- Saving example env files (`.env.example`, `.env.sample`, …) or any other file should not ask.
-
-## TAB-001: Workspace tabs
-
 ## FILE-008: Search inside files
 
 - User should see a "Search in files" box below "Search files" in the files panel, and be able to press Cmd+Shift+F (Ctrl+Shift+F on Windows and Linux) anywhere in the workspace to open the panel with the cursor in it.
@@ -670,6 +673,15 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - The search should stop at 1,000 matches (or 10 seconds) and say the results were cut short; long lines are shown around the match.
 - A folder chosen with "Search this folder" should limit this search too; Escape clears the box and shows the tree again.
 - Only the project's owner (or an admin) should be able to search its files, and only inside the project's workspace.
+
+## FILE-007: Restart after saving a startup file
+
+- After saving a file the app only reads when it starts (a `.env` file, `.onedrop/dev`, or a Docker Compose file), user should be asked whether to restart the preview.
+- User should be able to restart the preview from that prompt, or dismiss it with "Not now".
+- User should see when the preview is restarting, or why it couldn't restart.
+- Saving example env files (`.env.example`, `.env.sample`, …) or any other file should not ask.
+
+## TAB-001: Workspace tabs
 
 - User should see Shell, Services and Console tabs open next to Tools and Preview when opening a project, with Preview showing.
 - User should be able to add tabs next to Preview from a "+" menu, and close them.
@@ -738,7 +750,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be able to switch between them without losing the chat's draft or reloading the preview.
 - User should see that the agent is working on the Chat tab while the workspace is showing.
 - Sending something to the chat from the workspace (a marked-up or inspected preview) should switch to the Chat tab.
-- "Sign in to Claude" should switch to the Workspace tab (where the Shell runs the sign-in), and a successful sign-in should switch back to the Chat tab.
+- "Sign in to Claude" should keep the Chat tab, where its panel is; signing in in the Shell instead should switch to the Workspace tab, and a successful sign-in should switch back to the Chat tab.
 - On a phone, the workspace's tab bar should leave out the preview's address, the preview size menu and the split menu, so its buttons fit on one line.
 
 ## LAYOUT-007: Tabs and header buttons on a phone
@@ -1085,6 +1097,27 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be able to remove the chip so the message goes without it; it stays removed for that file until they open another one.
 - Opening another file should show that one instead; closing the file should remove the chip.
 
+## AGT-016: The agent's own slash commands
+
+- User should see a menu of the project agent's commands when they type "/" at the start of the chat box: its built-in ones (like `/compact`, `/context` and `/init` in Claude Code, `/init` and `/review` in OpenCode and Codex), its plugins' and the project's commands, and the skills turned on in the project, each with its description.
+- User should be able to filter the menu by typing, move through it with Up and Down, pick with Enter, Tab or a click (which puts `/name ` in the box to add details), and close it with Escape.
+- Sending `/name details` should run that command in the project's agent: Claude Code runs it as it is, OpenCode runs it as one of its commands, and Codex runs `/init` and `/review` as their usual prompts and a skill by its name.
+- Commands that only show something (like Claude Code's `/context` or `/usage`) should show their output as the agent's reply.
+- Commands the chat already has its own controls for (the model, effort, new chat, sign-in, settings) or that only work in the agent's terminal shouldn't be offered.
+- The menu should list what the agent reported on its last run, and its usual built-in commands and the project's skills before the first one.
+
+## AGT-017: Live replies and expandable steps
+
+- User should see the agent's reply appear word by word as the model writes it, with every agent (Claude Code, OpenCode and Codex), formatted as markdown while it streams (half-written bold text, a link or a code block doesn't flash as raw markdown).
+- User should see a step as soon as the agent starts it (e.g. "Running npm install" with a spinner), and see it marked failed when it fails.
+- User should be able to expand a step to see what it did: the command and its output, a file edit or new file as a diff, a search and what it found, or a page the agent looked up.
+- User should see "Thinking…" while the model thinks and be able to expand it to read the thinking, live while it's written and afterwards (Codex shows a summary of it).
+- Secrets the sandbox holds (the organization's secrets, provider keys, tokens) should never appear in a step's output, the thinking or a reply; they show as `[hidden]`.
+- In Simple mode, steps should stay plain one-line descriptions that don't expand, and replies should still stream.
+- Opening or reloading the chat while the agent writes should show the reply written so far, and continue it.
+- Without live updates (an install without Reverb), the reply should still appear as it's written, about once a second.
+- Steps from before this change, or from a sandbox not yet updated, should still show as plain lines.
+
 ## AGT-008: Laravel by default
 
 - When the user doesn't name a stack, the agent should build the app on Laravel's React starter kit (sign-in, SQLite database, queues, realtime with Reverb, file storage), so it can grow without a rewrite.
@@ -1145,7 +1178,6 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - The SQL runner should highlight SQL in the database's dialect and autocomplete keywords, table names and the column names of tables the statement uses while typing.
 - Database passwords and connection details should stay inside the sandbox; the app builder only sees connection names.
 - User should see a clear message when the sandbox isn't running, no database is found yet, or the database can't be reached.
-
 - User should be able to drag the edge of the table list to make it wider or narrower (double-click puts it back), and the browser should remember the width.
 
 ## DB-002: MongoDB in the database browser
@@ -1594,7 +1626,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## HOST-001: Deploy a project to hosting
 
-- When an admin turned on Fly.io or Cloudflare (ADMIN-007), or the project's organization connected its own account (HOST-003), user should be able to choose Hosting in the Publish panel, beside Your domain and Tailscale, and the project remembers it. Without either, Hosting isn't offered.
+- When an admin turned on Fly.io, Cloudflare or Vercel (ADMIN-007), or the project's organization connected its own account (HOST-003), user should be able to choose Hosting in the Publish panel, beside Your domain and Tailscale, and the project remembers it. Without either, Hosting isn't offered.
 - Hosted apps should be public for now (anyone with the URL); publishing privately is for Your domain and Tailscale.
 - Deploying should read the app's `.onedrop/host.json` in the sandbox, run its `.onedrop/build`, and pack it there. A front end (`"static"` in host.json) should be served from a Cloudflare Worker at a workers.dev address, with unknown paths getting its index.html. An app with a server should run on a Fly.io machine at https://<app>.fly.dev: the sandbox's own image plus the project's files, started with `.onedrop/start` (or `.onedrop/dev`) behind the sandbox's proxy, as in the preview.
 - The sandbox should only get signed links to upload the release; provider keys never reach it. Releases wait on the snapshot disk when it's S3-compatible, otherwise in an R2 bucket made once in the Cloudflare account (with a key for that bucket only); with neither, the Publish panel says so.
@@ -1620,7 +1652,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## HOST-003: Use your own hosting accounts
 
-- Organization owners and admins should be able to connect the organization's own account for each hosting provider (Fly.io, Cloudflare, Neon, Upstash) in Settings → Organization → Hosting accounts, with its keys stored encrypted and never shown again (blank keeps the saved key).
+- Organization owners and admins should be able to connect the organization's own account for each hosting provider (Fly.io, Cloudflare, Neon, Upstash, Vercel) in Settings → Organization → Hosting accounts, with its keys stored encrypted and never shown again (blank keeps the saved key).
 - When the organization connected its own account for a provider, new things for its apps should be made there and billed to it by the provider; otherwise they use the install's account (ADMIN-007), if it's turned on. Things already made stay in the account they were made in.
 - User should see for each provider whether it's connected, uses OneDrop's account, or isn't set up, and how many things of its apps are in its own account.
 - User should see each provider's logo beside its name, here and in Admin → Hosting.
@@ -1636,7 +1668,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 - User should see the recent deploys of a hosted app with a server in Tools → Publishing, the live one marked, and be able to put an earlier one back after confirming.
 - Rolling back should start the app on that deploy's image without building again, keep the app's data as it is now, and show in the deploy log which deploy it put back.
-- Only this project's own earlier live deploys of an app with a server can be put back (a front end has no images to go back to).
+- Only this project's own earlier live deploys of an app with a server on Fly.io, or any of its deploys on its current Vercel project, can be put back (a front end on Cloudflare has no images to go back to). On Vercel, putting one back makes that Vercel deployment live again.
 
 ## HOST-006: Update the hosted app automatically
 
@@ -1673,10 +1705,30 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Changing it on a hosted app with a server should ask first, then restart the live version on the new size within seconds, without building again; chosen before the app is hosted, the first deploy uses it.
 - The panel should say that larger machines wake a little slower after sleeping.
 
+## HOST-011: Host on Vercel
+
+- When Vercel is set up (by an admin, or the organization's own account), user should be able to choose where to host in the Publish panel under Hosting: Fly.io & Cloudflare, or Vercel; the project remembers it. Without a choice it's Fly.io & Cloudflare when they're set up, and Vercel when the organization connected only its own Vercel account (or Vercel is all there is).
+- On Vercel, a front end should be served from a Vercel project at its vercel.app address, public, with unknown paths getting its index.html.
+- On Vercel, a Node app with a server on a framework Vercel builds (Next.js, Nuxt, SvelteKit, Astro, React Router, Remix, TanStack Start, Nitro, NestJS, Hono, Express, Fastify, Koa, H3, Elysia, or a plain `server.js`) should be built and run by Vercel from its source, with its Postgres, Redis and S3 on Neon, Upstash and R2 and their addresses as the project's production environment variables. The first deploy that makes its Postgres copies the sandbox's into it.
+- An app that keeps data on disk (SQLite, data paths in host.json, App Storage), or isn't such a Node app, should go to Fly.io instead, with the reason in the deploy log; with no Fly.io either, the deploy fails and says why.
+- User should see the deploy send only the files Vercel doesn't have yet, wait for Vercel's build, and on a failed build show the end of Vercel's build log, leaving the live version alone.
+- Moving a hosted app between Vercel and Fly.io/Cloudflare should stop the old copy once the new one is live, keeping its data.
+- Unpublishing should delete the app's Vercel project; its data stays. Machine size and the hosted database (HOST-007, HOST-010) are for apps on Fly.io only.
+- Vercel's key should never reach the sandbox; Vercel doesn't need release storage, since OneDrop copies the packed app out of the sandbox itself.
+
+## HOST-012: The app is checked before it's deployed
+
+- Before anything is made or built for an app with a server on Fly.io, the deploy should start it in the sandbox the way it's hosted (`.onedrop/start`, or `.onedrop/dev`, with `ONEDROP_HOSTED=1` on a spare `$PORT`), wait up to two minutes for it to answer, and stop it again; the deploy log should say how long it took.
+- An app that stops as it starts, or doesn't answer on `$PORT`, should fail the deploy at once, with why and its last output in the deploy log, nothing made at the providers, and the live version left alone.
+- An app whose start runs a Docker Compose stack should not be checked (the log says so), since that would take over the preview's containers.
+- When a released app never answers, the deploy log should show its last output, read from its machine.
+- When a deploy to Hosting failed, user should be able to press Fix with agent in the Publish panel, which sends the agent the error and the end of the deploy log, asking it to fix it, check it with `hosting check`, and say when it's ready to publish again.
+- The agent should be able to run the same check itself (`/opt/onedrop/hosting check`).
+
 ## DOM-001: Connect your own domain
 
 - User should be able to add a domain they own (e.g. `example.com` or `app.example.com`) to a project in Tools → Domains, and remove it.
-- User should see the DNS records to add for each domain, each with a button to copy it. Which records depends on where the project is published: on Your domain, a CNAME to the server's domain (an A/AAAA record for a root domain); on Laravel Cloud, a CNAME to the install's custom-domain target (CNAME flattening or ALIAS for a root domain); on Hosting with a server, a CNAME to the app's fly.dev address (A/AAAA for a root domain); on Hosting as a front end, none, since Cloudflare adds the record when the domain's DNS is in the same Cloudflare account.
+- User should see the DNS records to add for each domain, each with a button to copy it. Which records depends on where the project is published: on Your domain, a CNAME to the server's domain (an A/AAAA record for a root domain); on Laravel Cloud, a CNAME to the install's custom-domain target (CNAME flattening or ALIAS for a root domain); on Hosting with a server, a CNAME to the app's fly.dev address (A/AAAA for a root domain); on Vercel, the CNAME (or A record for a root domain) Vercel recommends; on Hosting as a front end on Cloudflare, none, since Cloudflare adds the record when the domain's DNS is in the same Cloudflare account.
 - User should see each domain's status: Waiting for DNS (with what's wrong, e.g. which address it points at now), Active, or Not connected (the project isn't published somewhere that can use it, with why).
 - OneDrop should check a waiting domain by itself (often for the first 10 minutes, then less often for two days), and the user should be able to check again now.
 - Once the DNS is right, the domain should get its own HTTPS certificate automatically and serve the published app.
@@ -1750,7 +1802,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## ADMIN-007: Hosting providers
 
-- Admin should see Settings → Hosting listing each hosting provider (Fly.io, Cloudflare, Neon, Upstash) with what it's used for (apps with a server and data volumes; front ends and S3 file storage; Postgres; Redis), an on/off switch, and how many things are in its account, next to a details pane for the selected one. There's one provider per role, so no ordering.
+- Admin should see Settings → Hosting listing each hosting provider (Fly.io, Cloudflare, Neon, Upstash, Vercel) with what it's used for (apps with a server and data volumes; front ends and S3 file storage; Postgres; Redis; front ends and Node apps), an on/off switch, and how many things are in its account, next to a details pane for the selected one. There's one provider per role, so no ordering.
 - Admin should be able to change a provider's settings in the details pane (API keys, account or organization IDs, region; for Fly.io also the base image, memory and volume size); keys are stored encrypted and never shown again, and leaving a key blank keeps the saved one.
 - Admin should see what a turned-on provider still needs before apps can be hosted on it.
 - Settings saved here should win over the ones in `.env`, and running queue workers should pick them up without a restart.

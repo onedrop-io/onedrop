@@ -46,7 +46,7 @@ test('an app packed in its sandbox runs hosted from the release, with its data c
         $docker(['exec', $source, 'bash', '-c', $setup]);
 
         $manifest = json_decode($docker(['exec', $source, '/opt/onedrop/hosting', 'inspect'])->output(), true);
-        expect($manifest)->toBe(['static' => null, 'services' => ['redis'], 'data' => ['.onedrop/data', 'database/database.sqlite', 'uploads'], 'sqlite' => ['database/database.sqlite'], 'storage' => true]);
+        expect($manifest)->toBe(['static' => null, 'services' => ['redis'], 'data' => ['.onedrop/data', 'database/database.sqlite', 'uploads'], 'sqlite' => ['database/database.sqlite'], 'storage' => true, 'vercel' => null]);
 
         $packed = $docker(['exec', $source, '/opt/onedrop/hosting', 'pack', '/tmp/out', 'seed'])->output();
         expect($packed)->toMatch('/^release \d+$/m')->toMatch('/^seed \d+$/m');
@@ -174,3 +174,87 @@ test('packages are installed again from the lockfile, and an app that keeps stop
         Process::run(['docker', 'rm', '-f', $name]);
     }
 })->group('HOST-001');
+
+test('the app is started in the sandbox the way it is hosted, and stopped again, before a deploy', function () {
+    $image = config('sandbox.providers.docker.image');
+    $name = 'onedrop-hosting-check-'.bin2hex(random_bytes(3));
+    $docker = fn (array $command) => Process::timeout(180)->run(['docker', ...$command])->throw();
+    $check = fn () => Process::timeout(60)->run(['docker', 'exec', '-e', 'ONEDROP_CHECK_SECONDS=8', $name, '/opt/onedrop/hosting', 'check']);
+
+    try {
+        $docker(['run', '-d', '--name', $name, '-v', base_path('docker/sandbox/hosting').':/opt/onedrop/hosting:ro', $image, 'sleep', '600']);
+        $docker(['exec', $name, 'mkdir', '-p', '/workspace/.onedrop']);
+        $start = fn (string $script) => $docker(['exec', $name, 'bash', '-c', 'printf %s "$0" > /workspace/.onedrop/start && chmod +x /workspace/.onedrop/start', $script]);
+
+        // Answers on $PORT, hosted: it passes, and nothing of it is left running.
+        $start(<<<'BASH'
+            #!/usr/bin/env bash
+            [ "$ONEDROP_HOSTED" = 1 ] || exit 3
+            exec node -e 'require("http").createServer((q, r) => r.end("hi")).listen(process.env.PORT, "0.0.0.0")'
+            BASH);
+        $passed = $check();
+        expect($passed->successful())->toBeTrue()
+            ->and($passed->output())->toMatch('/^ok \d+$/m')
+            ->and(Process::run(['docker', 'exec', $name, 'pgrep', '-f', 'createServer'])->successful())->toBeFalse();
+
+        // Stops as it starts: why, and its output.
+        $start(<<<'BASH'
+            #!/usr/bin/env bash
+            echo 'Error: Cannot find module ./server' >&2
+            exit 1
+            BASH);
+        $crashed = $check();
+        expect($crashed->successful())->toBeFalse()
+            ->and($crashed->output())->toStartWith('it stopped as it started (exit 1)')->toContain('Cannot find module ./server');
+
+        // Listens somewhere else: it says nothing answered on $PORT.
+        $start(<<<'BASH'
+            #!/usr/bin/env bash
+            echo listening on 5555
+            exec node -e 'require("http").createServer((q, r) => r.end()).listen(5555)'
+            BASH);
+        $elsewhere = $check();
+        expect($elsewhere->successful())->toBeFalse()
+            ->and($elsewhere->output())->toContain('nothing answered on $PORT')->toContain('listening on 5555')
+            ->and(Process::run(['docker', 'exec', $name, 'pgrep', '-f', 'listen\\(5555'])->successful())->toBeFalse();
+    } finally {
+        Process::run(['docker', 'rm', '-f', $name]);
+    }
+})->group('HOST-012');
+
+test('a Node app is recognized for Vercel and packed as its source, without its packages, git or data', function () {
+    $image = config('sandbox.providers.docker.image');
+    $sandbox = 'onedrop-hosting-vercel-'.bin2hex(random_bytes(3));
+    $docker = fn (array $command) => Process::timeout(120)->run(['docker', ...$command])->throw();
+
+    try {
+        $docker(['run', '-d', '--name', $sandbox, '-v', base_path('docker/sandbox/hosting').':/opt/onedrop/hosting:ro', $image, 'sleep', '300']);
+        $setup = <<<'BASH'
+            set -e
+            cd /workspace
+            mkdir -p src node_modules/hono .git .onedrop/data .next
+            echo '{"dependencies": {"hono": "^4"}}' > package.json
+            echo 'import { Hono } from "hono"; export default new Hono()' > src/index.ts
+            echo x > node_modules/hono/index.js && echo x > .git/HEAD && echo x > .onedrop/data/pg && echo x > .next/cache && echo A=1 > .env
+            BASH;
+        $docker(['exec', $sandbox, 'bash', '-c', $setup]);
+
+        expect(json_decode($docker(['exec', $sandbox, '/opt/onedrop/hosting', 'inspect'])->output(), true)['vercel'])->toBe('hono');
+
+        $docker(['exec', $sandbox, 'bash', '-c', 'echo \'{"dependencies": {"next": "15"}}\' > /workspace/package.json']);
+        expect(json_decode($docker(['exec', $sandbox, '/opt/onedrop/hosting', 'inspect'])->output(), true)['vercel'])->toBe('nextjs');
+
+        expect($docker(['exec', $sandbox, '/opt/onedrop/hosting', 'pack', '/tmp/out', 'source'])->output())->toMatch('/^source \d+$/m');
+        $files = $docker(['exec', $sandbox, 'tar', '-tzf', '/tmp/out/source.tar.gz'])->output();
+
+        expect($files)->toContain('./package.json')
+            ->toContain('./src/index.ts')
+            ->toContain('./.env')
+            ->not->toContain('node_modules')
+            ->not->toContain('.git/')
+            ->not->toContain('.onedrop')
+            ->not->toContain('.next');
+    } finally {
+        Process::run(['docker', 'rm', '-f', $sandbox]);
+    }
+})->group('HOST-011');

@@ -43,7 +43,7 @@ class GitOrigin
         return [
             'url' => $url,
             'repository' => $repository,
-            'token_url' => $repository === null ? null : rtrim(config('sandbox.callback_url'), '/')
+            'token_url' => $repository === null ? null : app(SandboxCallback::class)->url($project->sandboxProvider())
                 .URL::signedRoute('sandbox-git.token', $sandbox, absolute: false),
         ];
     }

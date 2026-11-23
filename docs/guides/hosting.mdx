@@ -24,6 +24,19 @@ Hosting appears in the Publish panel once an admin has set it up in **Settings �
 | An app that stores files through the S3 API      | Fly.io, with a Cloudflare R2 bucket                          |
 | An app that keeps data on disk (SQLite, uploads) | Fly.io, with a volume holding that data and your App Storage |
 
+### On Vercel
+
+If your install or organization has Vercel set up, the Publish panel asks where to **Host on**: **Fly.io & Cloudflare**, or **Vercel**. Your choice is remembered for the project. On Vercel:
+
+| Your app                                                                       | Where it goes                                            |
+| ------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| A front end only                                                               | Vercel, at `https://<name>.vercel.app`                   |
+| A Node app Vercel builds (Next.js, Nuxt, SvelteKit, Astro, Express, Hono, …)   | Vercel builds it from its source and runs it             |
+| Either, with Postgres, Redis or S3 files                                       | Vercel, with the database on Neon, Upstash or R2 as above |
+| An app that keeps data on disk (SQLite, uploads, App Storage), or isn't Node   | Fly.io instead; the deploy log says why                  |
+
+Vercel doesn't keep anything an app writes to disk, so apps that do still run on Fly.io. Switching a hosted app between Vercel and Fly.io moves it on the next **Update**: the old copy stops once the new one is live, and databases on Neon, Upstash and R2 stay where they are. Apps on Vercel have no **Machine size** and no **Hosted (live)** view in **Tools → Database**.
+
 The agent decides which of these your app is and writes it down in the project (in `.onedrop/host.json`), so you don't have to. If it hasn't, a plain Vite app (React, Vue or similar, with no server of its own) is served as a front end, and anything else runs on Fly.io. If you want to check, ask it: "is this app ready for Hosting?"
 
 <Note>
@@ -40,15 +53,22 @@ The agent decides which of these your app is and writes it down in the project (
     </Step>
     <Step title="Choose Hosting">
         Hosted apps are public: anyone with the URL can open them. To keep an
-        app private, publish to your domain or Tailscale instead.
+        app private, publish to your domain or Tailscale instead. If both are
+        set up, choose **Host on**: Fly.io & Cloudflare, or Vercel.
     </Step>
     <Step title="Click Publish">
         The status follows the deploy: reading the app, building and packing it,
-        setting up its services, building the image, and starting it. The first
-        deploy of an app with a server takes a few minutes; later ones are
-        faster.
+        checking that it starts, setting up its services, building the image,
+        and starting it. The first deploy of an app with a server takes a few
+        minutes; later ones are faster.
     </Step>
 </Steps>
+
+### If it doesn't start
+
+Before anything is built for an app with a server, OneDrop starts it in your sandbox the way it runs hosted, then stops it again. If it doesn't answer there, the deploy stops within seconds and its log shows the app's own output; nothing changes at the providers, and the live version keeps running. If a deployed app never answers, the log shows its last output too.
+
+Click **Fix with agent** in the Publish panel to send the error and the log to the agent. It fixes the app, checks that it starts, and tells you when to publish again.
 
 Open **Deploy #n** in the panel to see the deploy's log, and the list below it for what your app has at each provider and whether it's in your organization's own account.
 
@@ -84,7 +104,7 @@ Your hosted app doesn't change while you keep building. It only updates when you
 
 - **What's changed.** After each turn, a dot on **Publish** shows the sandbox has changes the hosted app doesn't. The panel lists them ("3 changes since you published", with what each one did) and its button says **Update**. With [Commit after each agent turn](/guides/source-control#commit-after-each-agent-turn) off, it counts the agent's turns instead of commits.
 - **Update** deploys the sandbox's latest code to the same address. If the new version doesn't start, the previous one is put back and the panel says what went wrong. If it crashes as it starts, the deploy stops within a minute and its log shows the app's last output.
-- **Roll back.** Under **Earlier deploys**, pick an earlier version and click **Roll back**. It comes back in a few seconds, without building again. Your data stays as it is now, so anything the newer version changed in the database stays changed. Front ends can't roll back yet.
+- **Roll back.** Under **Earlier deploys**, pick an earlier version and click **Roll back**. It comes back in a few seconds, without building again. Your data stays as it is now, so anything the newer version changed in the database stays changed. On Vercel, front ends can roll back too; elsewhere they can't yet.
 - **Update automatically** (off by default) updates the hosted app by itself about a minute after a turn, when the agent finished without waiting on you and the preview showed no new errors. Leave it off if you often build a feature over several messages.
 
 ## Unpublish and delete
@@ -94,7 +114,7 @@ Your hosted app doesn't change while you keep building. It only updates when you
 
 ## Use your organization's own accounts
 
-Organization owners and admins can connect the organization's own Fly.io, Cloudflare, Neon and Upstash accounts in **Settings → Organization → Hosting accounts**. New apps are then hosted there, billed to you by the provider, instead of on OneDrop's accounts. Each provider is separate: you can connect Neon and keep using OneDrop's Fly.io.
+Organization owners and admins can connect the organization's own Fly.io, Cloudflare, Neon, Upstash and Vercel accounts in **Settings → Organization → Hosting accounts**. New apps are then hosted there, billed to you by the provider, instead of on OneDrop's accounts. Each provider is separate: you can connect Neon and keep using OneDrop's Fly.io. When your organization connects only Vercel, its projects are hosted on Vercel unless you pick otherwise.
 
 Things already made stay in the account they were made in. You can't disconnect an account while your apps still have something in it; delete their hosted data first.
 

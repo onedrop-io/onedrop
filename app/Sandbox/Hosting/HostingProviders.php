@@ -9,14 +9,21 @@ use App\Sandbox\SystemConfig;
 use Illuminate\Support\Arr;
 
 /**
- * The hosting providers published apps can run on (HOST-001..003, ADMIN-007), one for each role: Fly.io runs apps with
- * a server (and their volumes), Cloudflare serves front ends and holds R2 buckets, Neon has Postgres and Upstash Redis.
- * The install's accounts are admin settings, saved in the "hosting" SystemSetting and laid over config/hosting.php by
- * SystemConfig; an organization can connect its own account for any of them, which is used instead.
+ * The hosting providers published apps can run on (HOST-001..003, HOST-011, ADMIN-007), one for each role: Fly.io runs
+ * apps with a server (and their volumes), Cloudflare serves front ends and holds R2 buckets, Neon has Postgres and
+ * Upstash Redis. Vercel is the other platform a project can pick instead of Fly.io and Cloudflare: it serves front ends
+ * and runs Node apps that keep nothing on disk. The install's accounts are admin settings, saved in the "hosting"
+ * SystemSetting and laid over config/hosting.php by SystemConfig; an organization can connect its own account for any
+ * of them, which is used instead.
  */
 class HostingProviders
 {
     public const SETTING = 'hosting';
+
+    /** The platforms a project can be hosted on (HOST-011): Vercel, or Fly.io for servers and Cloudflare for front ends. */
+    public const VERCEL = 'vercel';
+
+    public const FLY_CLOUDFLARE = 'fly-cloudflare';
 
     /**
      * Each provider, what it's used for, and its settings. A "secret" is never sent back to the browser; an "account"
@@ -69,6 +76,16 @@ class HostingProviders
                 'email' => ['label' => 'Account email', 'type' => 'text', 'account' => true],
                 'api_key' => ['label' => 'API key', 'type' => 'secret', 'account' => true],
                 'region' => ['label' => 'Region', 'type' => 'text', 'account' => true, 'help' => 'e.g. us-east-1.'],
+            ],
+        ],
+        'vercel' => [
+            'label' => 'Vercel',
+            'description' => 'Front ends, and Node apps with a server that keep nothing on disk (Next.js, Express, Hono…), for projects hosted on Vercel.',
+            'roles' => ['web'],
+            'required' => ['api_token'],
+            'fields' => [
+                'api_token' => ['label' => 'Access token', 'type' => 'secret', 'account' => true, 'help' => 'From vercel.com/account/tokens, scoped to the team.'],
+                'team_id' => ['label' => 'Team ID', 'type' => 'text', 'account' => true, 'help' => 'Team Settings → General, e.g. team_…. Blank for a personal account.'],
             ],
         ],
     ];
@@ -153,7 +170,45 @@ class HostingProviders
      */
     public function available(?Organization $organization): bool
     {
-        return $this->account($organization, 'fly') !== null || $this->account($organization, 'cloudflare') !== null;
+        return $this->platforms($organization) !== [];
+    }
+
+    /**
+     * The platforms projects in this organization can be hosted on (HOST-011), for the Publish panel.
+     *
+     * @return list<array{value: string, label: string, description: string}>
+     */
+    public function platforms(?Organization $organization): array
+    {
+        return array_values(array_filter([
+            $this->account($organization, 'fly') !== null || $this->account($organization, 'cloudflare') !== null ? [
+                'value' => self::FLY_CLOUDFLARE,
+                'label' => 'Fly.io & Cloudflare',
+                'description' => __('Any app: front ends on Cloudflare, servers on a Fly.io machine with their data.'),
+            ] : null,
+            $this->account($organization, 'vercel') !== null ? [
+                'value' => self::VERCEL,
+                'label' => 'Vercel',
+                'description' => __('Front ends and Node apps that keep nothing on disk; others go to Fly.io.'),
+            ] : null,
+        ]));
+    }
+
+    /**
+     * Where a project that didn't pick a platform is hosted: Vercel when it's the organization's own account and Fly.io
+     * and Cloudflare aren't, otherwise Fly.io and Cloudflare when they're set up.
+     */
+    public function defaultPlatform(?Organization $organization): string
+    {
+        $own = fn (string $provider): bool => $organization !== null && $this->organizationAccount($organization, $provider) !== null;
+
+        if ($own('vercel') && ! $own('fly') && ! $own('cloudflare')) {
+            return self::VERCEL;
+        }
+
+        return $this->account($organization, 'fly') !== null || $this->account($organization, 'cloudflare') !== null
+            ? self::FLY_CLOUDFLARE
+            : self::VERCEL;
     }
 
     /**

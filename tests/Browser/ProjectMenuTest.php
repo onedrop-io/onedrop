@@ -176,3 +176,26 @@ test('deleting the open project goes to the new-project page without its name le
         ->assertDontSeeIn('nav[aria-label="breadcrumb"]', 'Blog')
         ->assertNoJavaScriptErrors();
 })->group('PRJ-003');
+
+test('deleting the open project leaves its address even when the next page\'s code can\'t be fetched', function () {
+    $blog = Project::factory()->for($this->user)->create(['name' => 'Blog', 'read_at' => now()]);
+    $manifest = json_decode(file_get_contents(public_path('build/manifest.json')), true);
+    $chunk = public_path('build/'.$manifest['resources/js/pages/projects/create.tsx']['file']);
+
+    $page = visit('/projects/'.$blog->id)->assertSeeIn('nav[aria-label="breadcrumb"]', 'Blog');
+
+    // A deploy replaced the build (or the dev server restarted) while the workspace was open.
+    rename($chunk, "{$chunk}.hidden");
+
+    try {
+        $page->click('[aria-label="Actions for Blog"]')
+            ->click('@project-menu-delete')
+            ->click('@project-delete-confirm')
+            ->wait(2)
+            ->assertPathIs(orgPath());
+    } finally {
+        rename("{$chunk}.hidden", $chunk);
+    }
+
+    expect(Project::find($blog->id))->toBeNull();
+})->group('PRJ-003');

@@ -123,6 +123,19 @@ With `E2B_API_KEY` set and the template built (`SANDBOX_PROVIDER=e2b php artisan
 - [ ] After a merge to `main` that changes `docker/sandbox`, the **sandbox image** workflow runs after **images** and Settings shows a new E2B build.
 - [ ] During a move, the queue shows no job waiting or re-running every few seconds: the move's next step starts when the sandbox calls back.
 
+## Cloud sandboxes on a local install (SBX-015)
+
+On a local install with `SANDBOX_CALLBACK_URL=http://host.docker.internal:8000`, cloudflared installed, and E2B turned on and first in **Settings → Sandboxes**.
+
+1. Start `composer run dev`.
+
+- [ ] A **tunnel** process prints **Cloud sandboxes reach this app at https://….trycloudflare.com**.
+- [ ] Opening that address, or its `/login`, in a browser gives **404**.
+- [ ] Sending a message in a project on E2B streams the agent's thinking, tool calls and reply into the chat, as on Docker.
+- [ ] Restart `composer run dev` while that agent is working: a new tunnel address is printed, and the chat keeps streaming the same turn.
+- [ ] Stop the tunnel process (or `composer run dev` without cloudflared on the `PATH`), then send another message: the chat replies at once that the sandbox can't reach OneDrop, and the project isn't left on **Thinking…**.
+- [ ] A project on Docker works the same with or without the tunnel.
+
 ## Switch providers (SBX-005)
 
 Use an install with two remote providers set up (Runtime Cloud and Blaxel) and a bucket as the snapshot disk, on a Flex queue (production, or a staging environment on Laravel Cloud). Have two projects on Runtime: one with a database the agent set up in `/home/sandbox`, one with a Shell open.
@@ -149,3 +162,4 @@ Use an install with two remote providers set up (Runtime Cloud and Blaxel) and a
 - [ ] After it answers again (stop and restart it in Runtime, which keeps its disk), within 15 minutes **Moves** says its newer files were saved, and the old sandbox is gone from Runtime.
 - [ ] **Restore** asks first, then brings the later change back. **Dismiss** removes the entry and leaves the project as it is.
 - [ ] A project with no snapshot and no code backup on a provider that doesn't answer fails with that reason, stays where it is, and **Try again** works once the provider answers.
+- [ ] Turn the provider a failed move was going to off (or put another first): the failed move drops off **Moves**.

@@ -6,6 +6,7 @@ use App\Models\Attachment;
 use App\Models\Message;
 use App\Models\Project;
 use App\Sandbox\Agents\MessageChecks;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -46,6 +47,19 @@ class ProjectMessageController extends Controller
         }
 
         return to_route('projects.show', $project);
+    }
+
+    /**
+     * What an agent's step did, shown when the user expands it (AGT-017): its command and output, a diff, or the
+     * model's thinking. Any of the project's chats (a task's messages belong to its project too).
+     */
+    public function detail(Project $project, Message $message): JsonResponse
+    {
+        Gate::authorize('view', $project);
+
+        abort_unless($message->project_id === $project->id && $message->detail !== null, 404);
+
+        return response()->json($message->detail);
     }
 
     /**

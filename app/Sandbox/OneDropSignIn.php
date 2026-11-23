@@ -41,7 +41,7 @@ class OneDropSignIn
         ]);
 
         // The browser goes to the public address; the app's server calls the one sandboxes can reach.
-        $internal = rtrim((string) config('sandbox.callback_url'), '/');
+        $internal = app(SandboxCallback::class)->url($project->sandbox->provider ?? $project->sandboxProvider());
 
         return [
             'client_id' => $project->onedrop_client_id,

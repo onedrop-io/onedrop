@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 const LOGOS: Record<string, { tile: string; mark: string }> = {
     fly: { tile: 'bg-[#24175B]', mark: 'bg-white' },
     cloudflare: { tile: 'bg-[#F38020]', mark: 'bg-white' },
+    vercel: { tile: 'bg-black', mark: 'bg-white' },
     neon: { tile: 'bg-black', mark: 'bg-[#34D59A]' },
     upstash: { tile: 'bg-black', mark: 'bg-[#00E9A3]' },
 };

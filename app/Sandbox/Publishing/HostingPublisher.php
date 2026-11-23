@@ -3,12 +3,9 @@
 namespace App\Sandbox\Publishing;
 
 use App\Enums\DeploymentStatus;
-use App\Enums\HostedServiceKind;
 use App\Enums\PublishVisibility;
 use App\Models\Project;
-use App\Sandbox\Hosting\CloudflareApi;
 use App\Sandbox\Hosting\Deployer;
-use App\Sandbox\Hosting\FlyApi;
 use App\Sandbox\Hosting\HostedServices;
 use App\Sandbox\Hosting\HostingException;
 
@@ -50,24 +47,12 @@ class HostingPublisher implements Publisher
     }
 
     /**
-     * Stop the app (its machine, or its site), keeping its data and its Fly app for the next deploy.
+     * Stop the app (its machine, its site, or its Vercel project), keeping its data and its Fly app for the next deploy.
      */
     public function stop(Project $project): void
     {
         try {
-            $app = $project->hostedServices()->where('kind', HostedServiceKind::App)->first();
-
-            if ($app && isset($app->details['machine'])) {
-                (new FlyApi($this->services->accountFor($app)))->deleteMachine($app->name, $app->details['machine']);
-                $app->update(['details' => array_diff_key($app->details, ['machine' => true])]);
-            }
-
-            $site = $project->hostedServices()->where('kind', HostedServiceKind::Site)->first();
-
-            if ($site) {
-                (new CloudflareApi($this->services->accountFor($site)))->deleteSite($site->name);
-                $site->delete();
-            }
+            $this->services->takeDown($project);
         } catch (HostingException $e) {
             throw new PublishException($e->getMessage(), previous: $e);
         }

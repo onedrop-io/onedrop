@@ -9,7 +9,8 @@ return [
     |
     | Where published apps run off their sandbox (HOST-001..003): Fly.io for
     | apps with a server, Cloudflare for front ends and R2 buckets, Neon for
-    | Postgres and Upstash for Redis. These are the install's own accounts;
+    | Postgres and Upstash for Redis; or Vercel, for projects that pick it
+    | (HOST-011). These are the install's own accounts;
     | admins can set them in Settings → Hosting (ADMIN-007), which wins over
     | `.env`, and organizations can connect their own instead.
     |
@@ -31,6 +32,11 @@ return [
             'enabled' => (bool) env('HOSTING_CLOUDFLARE_ENABLED', false),
             'account_id' => env('CLOUDFLARE_ACCOUNT_ID'),
             'api_token' => env('CLOUDFLARE_API_TOKEN'),
+        ],
+        'vercel' => [
+            'enabled' => (bool) env('HOSTING_VERCEL_ENABLED', false),
+            'api_token' => env('VERCEL_TOKEN'),
+            'team_id' => env('VERCEL_TEAM_ID'),
         ],
         'neon' => [
             'enabled' => (bool) env('HOSTING_NEON_ENABLED', false),

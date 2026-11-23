@@ -5,10 +5,27 @@
 //
 // Env: APP_FILES_CHANGED_URL (set when the sandbox is created).
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 
 const { APP_FILES_CHANGED_URL } = process.env;
+// A cloud sandbox reaching a local install goes through its dev tunnel, whose address changes when it restarts; the
+// platform writes the current one to this file (SBX-015), and it replaces the address's origin.
+const CALLBACK_FILE = '/etc/onedrop-callback';
+
+function current(url) {
+    let origin = '';
+    try {
+        origin = readFileSync(CALLBACK_FILE, 'utf8').trim();
+    } catch {
+        return url;
+    }
+    if (!origin) {
+        return url;
+    }
+    const target = new URL(url);
+    return origin.replace(/\/+$/, '') + target.pathname + target.search;
+}
 
 // Folders the Files panel lists but doesn't expand (WorkspaceFiles::COLLAPSED); not watched at all.
 const EXCLUDE = '/(node_modules|\\.git|vendor|\\.cache)(/|$)';
@@ -30,7 +47,7 @@ let firstEventAt = 0;
 
 async function report() {
     try {
-        await fetch(APP_FILES_CHANGED_URL, {
+        await fetch(current(APP_FILES_CHANGED_URL), {
             method: 'POST',
             headers: { Accept: 'application/json' },
         });
