@@ -79,6 +79,18 @@ test('shows what the preview runs, the sandbox\'s containers with their state an
         ->assertJsonPath('ports.1.service', 'app');
 })->group('SVC-001');
 
+test('the preview\'s script is shown whole, with its comments and indentation', function () {
+    $dev = tempnam(sys_get_temp_dir(), 'dev');
+    $script = "#!/usr/bin/env bash\nset -euo pipefail\n# Fetch secrets once\nif [ ! -f .env ]; then\n    ./fetch.sh\nfi\n".implode("\n", array_map(fn (int $i) => "echo {$i}", range(1, 20)));
+    file_put_contents($dev, $script."\n\n");
+
+    $code = (new ReflectionClassConstant(SandboxServices::class, 'SCRIPT'))->getValue();
+    $output = shell_exec(implode(' ', array_map('escapeshellarg', [PHP_BINARY, '-r', $code, $dev])));
+    unlink($dev);
+
+    expect(json_decode($output, true)['dev'])->toBe($script);
+})->group('SVC-001');
+
 test('a sandbox without Docker, or whose Docker is down, says so', function (bool $socket, ?array $containers, string $docker) {
     $this->services = [...$this->services, 'docker' => $socket, 'containers' => $containers];
 

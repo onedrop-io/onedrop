@@ -21,16 +21,14 @@ class SandboxServices
     public const MAX_LOG_LINES = 2000;
 
     /**
-     * The preview server's command (.onedrop/dev without comments) and whether it's running, and every container
-     * Docker has, if the sandbox has a Docker that answers. Prints JSON: {dev, running, docker, containers}.
+     * The preview server's script (all of .onedrop/dev, up to 64 KB) and whether it's running, and every container
+     * Docker has, if the sandbox has a Docker that answers. Prints JSON: {dev, running, docker, containers}. A path
+     * given as the first argument is read instead of .onedrop/dev (for tests).
      */
     protected const SCRIPT = <<<'PHP'
-        $dev = '/workspace/.onedrop/dev';
-        $command = null;
-        if (is_file($dev)) {
-            $lines = array_values(array_filter(array_map('trim', @file($dev) ?: []), fn ($line) => $line !== '' && $line[0] !== '#'));
-            $command = implode("\n", array_slice($lines, 0, 8));
-        }
+        $dev = $argv[1] ?? '/workspace/.onedrop/dev';
+        $command = is_file($dev) ? rtrim((string) @file_get_contents($dev, false, null, 0, 65536)) : '';
+        $command = $command === '' ? null : $command;
         $pid = (int) @file_get_contents('/tmp/onedrop-server.pid');
         $containers = null;
         if (file_exists('/var/run/docker.sock')) {

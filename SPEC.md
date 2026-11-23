@@ -551,7 +551,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 ## SVC-001: Services tab
 
 - User should be able to open a Services tab from the workspace's "+" menu and see what's running in the project's sandbox, updated every few seconds while it's shown.
-- User should see what the preview runs (the command in `.onedrop/dev`, or the placeholder page), whether it's running, and be able to restart it.
+- User should see what the preview runs (the whole `.onedrop/dev` script with its comments and indentation, syntax-highlighted and scrollable when long, or the placeholder page), whether it's running, and be able to restart it.
 - User should see every container the sandbox's own Docker runs (SBX-008), grouped by compose project, with each one's service, state (running, restarting with its exit code, stopped), how long, and its published ports.
 - User should be able to read a container's recent logs by clicking its row (or its arrow, from the keyboard), and restart, stop or start it without the row opening.
 - User should see logs in color: the colors a program prints itself (ANSI), otherwise timestamps, levels (errors in red, warnings in amber), keys, quoted strings, URLs and durations (amber from 100ms, red from 500ms), with dot leaders dimmed.

@@ -19,6 +19,7 @@ import {
     useState,
 } from 'react';
 import ProjectServiceController from '@/actions/App/Http/Controllers/ProjectServiceController';
+import CodeHighlight from '@/components/code-highlight';
 import { highlightLog } from '@/components/log-highlight';
 import { Button } from '@/components/ui/button';
 import {
@@ -193,8 +194,14 @@ export default function ServicesView({
                     />
                     <div className="min-w-0 flex-1">
                         {services.preview.command ? (
-                            <pre className="overflow-x-auto font-mono text-xs whitespace-pre-wrap text-muted-foreground">
-                                {services.preview.command}
+                            <pre
+                                className="max-h-80 overflow-auto font-mono text-xs leading-relaxed"
+                                data-test="services-preview-command"
+                            >
+                                <CodeHighlight
+                                    code={services.preview.command}
+                                    language="shell"
+                                />
                             </pre>
                         ) : (
                             <p className="text-muted-foreground">
