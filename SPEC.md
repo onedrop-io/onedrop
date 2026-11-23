@@ -1116,6 +1116,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Visitors to an app should see live updates (WebSockets) in the preview and at its published address, whatever the framework.
 - Servers that handle WebSockets on the app's own port should work with no setup.
 - An app should be able to put a second local server (e.g. Laravel Reverb on 8080) behind the same address by mapping path prefixes to ports in `/workspace/.onedrop/routes.json`; HTTP requests and WebSockets under a prefix go to that port.
+- Links in pages and API answers to a routed server's own localhost address (an API's file URLs at `http://127.0.0.1:8080/api/...`) should point at the preview or published address, so images and downloads load from the sandbox, not the visitor's computer.
 - Routes should never reach the sandbox's own services (the proxy, the web terminal, SSH), so they stay behind the platform's sign-in.
 - The sandbox's PHP should have the extensions Reverb and queue workers need (`pcntl`).
 

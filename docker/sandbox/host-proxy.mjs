@@ -89,14 +89,19 @@ function readRoutes() {
         .sort(([a], [b]) => b.length - a.length);
 }
 
-/** The local port a request goes to: a routed server's, or the app's. */
-function targetPort(url) {
+/** The routes in routes.json, read again at most once a second. */
+function currentRoutes() {
     if (Date.now() - routes.at > ROUTES_TTL_MS) {
         routes = { at: Date.now(), list: readRoutes() };
     }
 
+    return routes.list;
+}
+
+/** The local port a request goes to: a routed server's, or the app's. */
+function targetPort(url) {
     const path = String(url ?? '/').split('?')[0];
-    const route = routes.list.find(
+    const route = currentRoutes().find(
         ([prefix]) => path === prefix || path.startsWith(`${prefix}/`),
     );
 
@@ -235,17 +240,26 @@ const REWRITABLE =
     /^(text\/(html|css|javascript|plain|xml)|application\/(javascript|json|xml|xhtml\+xml|manifest\+json)|image\/svg\+xml)/i;
 const MAX_REWRITE_BYTES = 20_000_000;
 
-/** Every way a page may spell the app's localhost address, plain and JSON-escaped. */
+/**
+ * Every way a page may spell a localhost address it's served from, plain and JSON-escaped: the app's, and each
+ * routed server's (routes.json), whose links (an API's file URLs, `http://127.0.0.1:8080/api/files/1`) reach it
+ * at the visitor's address under its prefix. Left as they are, they'd point at the visitor's own computer.
+ */
 function localAddresses() {
-    return ['localhost', '127.0.0.1', '0.0.0.0'].flatMap((name) => [
-        [`http://${name}:${appPort}`, 'http'],
-        [`http:\\/\\/${name}:${appPort}`, 'http-escaped'],
-        [`ws://${name}:${appPort}`, 'ws'],
-        [`ws:\\/\\/${name}:${appPort}`, 'ws-escaped'],
-    ]);
-}
+    // Longer first, so :8080 isn't taken for :80 followed by 80.
+    const ports = [
+        ...new Set([appPort, ...currentRoutes().map(([, port]) => port)]),
+    ].sort((a, b) => String(b).length - String(a).length);
 
-const LOCAL_ADDRESSES = localAddresses();
+    return ['localhost', '127.0.0.1', '0.0.0.0'].flatMap((name) =>
+        ports.flatMap((port) => [
+            [`http://${name}:${port}`, 'http'],
+            [`http:\\/\\/${name}:${port}`, 'http-escaped'],
+            [`ws://${name}:${port}`, 'ws'],
+            [`ws:\\/\\/${name}:${port}`, 'ws-escaped'],
+        ]),
+    );
+}
 
 /** Point links at the app's localhost address at the address the visitor used instead. */
 function toVisitor(text, req) {
@@ -259,7 +273,7 @@ function toVisitor(text, req) {
         'ws-escaped': `${secure ? 'wss' : 'ws'}:\\/\\/${host}`,
     };
 
-    return LOCAL_ADDRESSES.reduce(
+    return localAddresses().reduce(
         (result, [local, kind]) => result.split(local).join(targets[kind]),
         text,
     );
