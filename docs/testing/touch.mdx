@@ -22,6 +22,19 @@ The browser tests emulate an iPad, which can't hover, but not a real one: an iPa
 
 - [ ] Split the workspace, then **Move this tab to pane 2** from pane 1's split menu moves the tab showing; a Shell keeps its session.
 - [ ] With more tabs than fit, opening Source Control from the header's **Commit** scrolls its tab into view; the tab bar scrolls with a swipe.
+
+## Tabs that don't fit (LAYOUT-008)
+
+1. Open a running project and add tabs until they don't fit the pane (on a laptop, narrow the window; on a tablet, hold it upright).
+
+- [ ] The edge the tabs go past fades out; the fade goes away at the first and last tab.
+- [ ] The tabs scroll with a swipe (tablet), two fingers on a trackpad, and an ordinary mouse wheel turned up and down.
+- [ ] **˅** after **+** lists every tab in the pane, with a dot on the one showing; picking one shows it and scrolls it into view. Close tabs until they fit: **˅** goes away and **+** doesn't move.
+- [ ] Narrow the window with a tab near the end showing: it stays in view. **+**, split and the files toggle stay where they are and never overlap the tabs.
+
+2. On a real phone:
+
+- [ ] Swipe left along the bottom tab bar: it steps Chat → Preview → Tools → Shell → the tabs behind More, and the right way back; it stops at Chat. A tap still presses the button under the finger, and a swipe that starts on a button doesn't press it.
 - [ ] The dividers between panes, and beside the chat and files panel, can be dragged with a finger.
 
 2. Attach a trackpad (or use a laptop).

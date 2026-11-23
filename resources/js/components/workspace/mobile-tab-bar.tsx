@@ -1,5 +1,5 @@
 import { FolderTree, MessageSquare, MoreHorizontal, X } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
     Sheet,
     SheetContent,
@@ -39,9 +39,13 @@ export type BarItem = {
     onSelect: () => void;
 };
 
+/** How far a finger moves sideways along the bar, in pixels, for a swipe to change tabs. */
+const SWIPE = 40;
+
 /**
  * The project's tabs on a phone (LAYOUT-007): one bar along the bottom, in thumb's reach, with Chat, the workspace's
- * main tabs, and More, a sheet with every open tab (to switch to or close) and the tabs that can be opened.
+ * main tabs, and More, a sheet with every open tab (to switch to or close) and the tabs that can be opened. Swiping
+ * along the bar goes to the next or previous open tab, Chat first, so tabs behind More are a swipe away (LAYOUT-008).
  */
 export default function MobileTabBar({
     chatActive,
@@ -78,6 +82,50 @@ export default function MobileTabBar({
     const otherShowing = chatActive
         ? undefined
         : others.find((tab) => tab.active);
+    const touch = useRef<{ x: number; y: number } | null>(null);
+    // What a swipe steps through, in the order the bar shows it: Chat, the bar's tabs, then the tabs behind More.
+    const ordered = [
+        ...items.flatMap((item) => item.tabIds),
+        ...others.map((tab) => tab.id),
+    ].flatMap((id) => tabs.filter((tab) => tab.id === id));
+    const order = [
+        { id: 'chat', onSelect: onChat },
+        ...ordered.map((tab) => ({ id: tab.id, onSelect: tab.onSelect })),
+    ];
+    const current = chatActive
+        ? 0
+        : order.findIndex(
+              (entry) => tabs.find((tab) => tab.active)?.id === entry.id,
+          );
+    const onTouchStart = (event: React.TouchEvent) => {
+        touch.current =
+            event.touches.length === 1
+                ? { x: event.touches[0].clientX, y: event.touches[0].clientY }
+                : null;
+    };
+    const onTouchEnd = (event: React.TouchEvent) => {
+        const start = touch.current;
+        const end = event.changedTouches[0];
+        touch.current = null;
+
+        if (!start || !end) {
+            return;
+        }
+
+        const dx = end.clientX - start.x;
+        const dy = end.clientY - start.y;
+
+        if (Math.abs(dx) < SWIPE || Math.abs(dx) < Math.abs(dy) * 1.5) {
+            return;
+        }
+
+        // A swipe, not a tap: the button it started on isn't pressed too.
+        event.preventDefault();
+        // Swiping left moves on, like turning a page.
+        const next = order[Math.max(0, current) + (dx < 0 ? 1 : -1)];
+
+        next?.onSelect();
+    };
     const pick = (action: () => void) => {
         setOpen(false);
         action();
@@ -123,6 +171,9 @@ export default function MobileTabBar({
                 aria-label="Chat and workspace tabs"
                 className="flex shrink-0 border-t border-sidebar-border/70 bg-toolbar pb-[env(safe-area-inset-bottom)] md:hidden dark:border-sidebar-border"
                 data-test="mobile-tab-bar"
+                onTouchStart={onTouchStart}
+                onTouchEnd={onTouchEnd}
+                onTouchCancel={() => (touch.current = null)}
             >
                 {button(
                     'chat',

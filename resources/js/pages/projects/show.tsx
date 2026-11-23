@@ -119,6 +119,7 @@ import FileTree, {
 import FilesMenu from '@/components/workspace/files-menu';
 import QuickOpen from '@/components/workspace/quick-open';
 import MobileTabBar from '@/components/workspace/mobile-tab-bar';
+import TabStrip from '@/components/workspace/tab-strip';
 import * as panes from '@/components/workspace/panes';
 import type { Layout, PaneTab, ShellTab } from '@/components/workspace/panes';
 import {
@@ -1207,19 +1208,6 @@ function WorkspacePanel({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [shownTabs, startedShells]);
 
-    // A tab that's opened or shown is scrolled into view in its pane's tab bar, which scrolls when the tabs don't fit:
-    // on a narrow pane (a tablet) a tab opened from elsewhere could otherwise be off the edge (TOUCH-001).
-    useEffect(() => {
-        layout.panes.forEach((pane) =>
-            document
-                .querySelector(
-                    `[data-tabs="${pane.id}"] [data-test="tab-${pane.active}"]`,
-                )
-                ?.scrollIntoView({ block: 'nearest', inline: 'nearest' }),
-        );
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [shownTabs]);
-
     // Clicking into a pane's preview or Shell (iframes, whose clicks the page never sees) makes it the pane last used.
     useEffect(() => {
         const onBlur = () =>
@@ -2142,6 +2130,15 @@ function WorkspacePanel({
     const shellReady = running && !!sandbox.shell_url && !shellUnreachable;
     const filesTogglePane = rowLayout ? layout.panes.length - 1 : 0;
 
+    /** Shows a tab from its pane's tab bar, with the cursor in it if it's a Shell. */
+    const selectTab = (kind: PaneTab) => {
+        showTab(kind);
+
+        if (panes.isShell(kind)) {
+            shellFrames.current[kind]?.focus();
+        }
+    };
+
     const tabButton = (kind: PaneTab, paneId: number) => {
         const active = panes.paneOf(layout, kind)?.active === kind;
 
@@ -2203,13 +2200,7 @@ function WorkspacePanel({
             <TabButton
                 key={kind}
                 active={active}
-                onClick={() => {
-                    showTab(kind);
-
-                    if (panes.isShell(kind)) {
-                        shellFrames.current[kind]?.focus();
-                    }
-                }}
+                onClick={() => selectTab(kind)}
                 onClose={() => closeTab(kind)}
                 testId={`tab-${kind}`}
                 {...draggableTab(kind, paneId)}
@@ -2435,60 +2426,86 @@ function WorkspacePanel({
                                     <PanelLeft className="size-4" />
                                 </IconButton>
                             )}
-                            <div className="flex min-w-0 items-center gap-1 max-md:hidden">
-                                {/* The tabs scroll when they don't fit, so the status and the tab's buttons stay in view. */}
-                                <div
-                                    className="flex min-w-0 [scrollbar-width:none] items-center gap-1 overflow-x-auto"
-                                    data-tabs={pane.id}
+                            <div className="contents max-md:hidden">
+                                {/* The tabs scroll when they don't fit, so the status and the tab's buttons stay in view.
+                                    No box of its own (contents): it would be as wide as every tab, and push the bar's
+                                    buttons off the edge, or squeezed, put "+" on top of them. */}
+                                <TabStrip
+                                    paneId={pane.id}
+                                    tabs={switcherTabs
+                                        .filter((item) =>
+                                            pane.tabs.includes(item.id),
+                                        )
+                                        .map((item) => ({
+                                            ...item,
+                                            active: pane.active === item.id,
+                                            onSelect: () => selectTab(item.id),
+                                        }))}
+                                    onMenuCloseAutoFocus={(event) => {
+                                        if (panes.isShell(tab)) {
+                                            event.preventDefault();
+                                            shellFrames.current[tab]?.focus();
+                                        }
+                                    }}
+                                    after={
+                                        <DropdownMenu modal={false}>
+                                            <DropdownMenuTrigger asChild>
+                                                <button
+                                                    type="button"
+                                                    aria-label="Add tab"
+                                                    title="Add tab"
+                                                    data-test="add-tab"
+                                                    className="rounded p-1 text-muted-foreground hover:bg-muted"
+                                                >
+                                                    <Plus className="size-4" />
+                                                </button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent
+                                                align="start"
+                                                onFocusOutside={(event) =>
+                                                    event.preventDefault()
+                                                }
+                                                onCloseAutoFocus={(event) => {
+                                                    // The menu hands focus back to "+" as it closes; keep it in the shell instead.
+                                                    if (panes.isShell(tab)) {
+                                                        event.preventDefault();
+                                                        shellFrames.current[
+                                                            tab
+                                                        ]?.focus();
+                                                    }
+                                                }}
+                                            >
+                                                {toolTabs.map((kind) => (
+                                                    <DropdownMenuItem
+                                                        key={kind}
+                                                        onSelect={() =>
+                                                            addTab(
+                                                                kind,
+                                                                pane.id,
+                                                            )
+                                                        }
+                                                        data-test={`add-tab-${kind}`}
+                                                    >
+                                                        {TOOL_TABS[kind].icon}
+                                                        {TOOL_TABS[kind].label}
+                                                    </DropdownMenuItem>
+                                                ))}
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    }
                                 >
                                     {pane.tabs.map((kind) =>
                                         tabButton(kind, pane.id),
                                     )}
-                                </div>
-                                <DropdownMenu modal={false}>
-                                    <DropdownMenuTrigger asChild>
-                                        <button
-                                            type="button"
-                                            aria-label="Add tab"
-                                            title="Add tab"
-                                            data-test="add-tab"
-                                            className="rounded p-1 text-muted-foreground hover:bg-muted"
-                                        >
-                                            <Plus className="size-4" />
-                                        </button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent
-                                        align="start"
-                                        onFocusOutside={(event) =>
-                                            event.preventDefault()
-                                        }
-                                        onCloseAutoFocus={(event) => {
-                                            // The menu hands focus back to "+" as it closes; keep it in the shell instead.
-                                            if (panes.isShell(tab)) {
-                                                event.preventDefault();
-                                                shellFrames.current[
-                                                    tab
-                                                ]?.focus();
-                                            }
-                                        }}
-                                    >
-                                        {toolTabs.map((kind) => (
-                                            <DropdownMenuItem
-                                                key={kind}
-                                                onSelect={() =>
-                                                    addTab(kind, pane.id)
-                                                }
-                                                data-test={`add-tab-${kind}`}
-                                            >
-                                                {TOOL_TABS[kind].icon}
-                                                {TOOL_TABS[kind].label}
-                                            </DropdownMenuItem>
-                                        ))}
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
+                                </TabStrip>
                             </div>
                             <span
-                                className="ml-2 min-w-0 flex-[1_1_8rem] truncate text-muted-foreground"
+                                className={cn(
+                                    'min-w-0 truncate text-muted-foreground',
+                                    // The tabs come first: the status gets what they leave, and at least a few letters.
+                                    'flex-[1_1_0%]',
+                                    statusFor(pane.active) && 'ml-2 min-w-16',
+                                )}
                                 data-test="sandbox-status"
                             >
                                 {statusFor(pane.active)}
@@ -3440,6 +3457,7 @@ function TabButton({
     return (
         <div
             {...dragProps}
+            data-active={active}
             className={cn(
                 'flex shrink-0 items-center rounded-md whitespace-nowrap transition-colors',
                 active

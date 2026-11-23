@@ -484,3 +484,75 @@ test('on a tablet, a tab moves to another pane from the split menu, and a tab op
         ->assertScript($inView('tab-source-control'), true)
         ->assertNoJavaScriptErrors();
 })->group('TOUCH-001', 'LAYOUT-002');
+
+test('tabs that don\'t fit scroll with a mouse wheel, fade at the edges, and are all in a menu', function () {
+    $user = User::factory()->has(AgentConnection::factory())->create();
+    $project = Project::factory()->for($user)->create();
+    Sandbox::factory()->for($project)->create(['preview_url' => null, 'shell_url' => 'about:blank']);
+    $this->actingAs($user);
+
+    $strip = "document.querySelector('[data-tabs]')";
+    $inView = fn (string $tab) => "(() => { const tab = document.querySelector('[data-test=\"{$tab}\"]'); const bar = tab.closest('[data-tabs]').getBoundingClientRect(); const rect = tab.getBoundingClientRect(); return rect.left >= bar.left - 1 && rect.right <= bar.right + 1; })()";
+
+    // With the chat hidden, the default tabs fit: no menu and no fades.
+    $page = visit("/projects/{$project->id}")->resize(1600, 900)
+        ->click('@toggle-chat')
+        ->assertMissing('@all-tabs')
+        ->assertScript("{$strip}.dataset.overflowEnd === undefined", true)
+        ->click('@toggle-chat');
+
+    // Source Control last: it takes the focus as it loads, which would close a menu opened right after it.
+    foreach (['tests', 'requirements', 'browser', 'source-control'] as $kind) {
+        $page->click('@add-tab')->click("@add-tab-{$kind}")->wait(0.5); // the menu finishes closing
+    }
+
+    $page->resize(1280, 900)
+        ->assertVisible('@all-tabs')
+        ->assertScript("{$strip}.dataset.overflowStart", 'true')
+        // The tab just opened stays in view as the window narrows.
+        ->assertScript($inView('tab-source-control'), true)
+        ->assertScript("(() => { const strip = {$strip}; const before = strip.scrollLeft; strip.dispatchEvent(new WheelEvent('wheel', { deltaY: -200, bubbles: true, cancelable: true })); return strip.scrollLeft < before; })()", true)
+        ->click('@all-tabs')
+        ->click('@all-tabs-tools')
+        ->wait(0.5) // the strip scrolls smoothly to the tab
+        ->assertScript($inView('tab-tools'), true)
+        ->assertScript("document.querySelector('[data-tabs] [data-active=true] [data-test]').dataset.test", 'tab-tools')
+        ->assertNoJavaScriptErrors();
+})->group('LAYOUT-008');
+
+test('on a phone, swiping along the tab bar goes to the next or previous tab', function () {
+    $user = User::factory()->has(AgentConnection::factory())->create();
+    $project = Project::factory()->for($user)->create();
+    Sandbox::factory()->for($project)->create(['preview_url' => 'http://127.0.0.1:49152', 'shell_url' => 'about:blank']);
+    $this->actingAs($user);
+
+    // A swipe along the bar, from one x to another, starting on a button (which mustn't be pressed too).
+    $swipe = fn (int $from, int $to) => "(() => { const target = document.querySelector('[data-test=\"mobile-bar-tools\"]'); const touch = (x) => new Touch({ identifier: 1, target, clientX: x, clientY: 800 }); target.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, cancelable: true, touches: [touch({$from})], changedTouches: [touch({$from})] })); const end = new TouchEvent('touchend', { bubbles: true, cancelable: true, touches: [], changedTouches: [touch({$to})] }); target.dispatchEvent(end); return end.defaultPrevented; })()";
+
+    $page = visit("/projects/{$project->id}")
+        ->on()->mobile()
+        ->assertAttribute('@mobile-bar-chat', 'aria-selected', 'true')
+        // Left goes on, in the bar's order: Chat, Preview, Tools, Shell, then what's behind More.
+        ->assertScript($swipe(300, 150), true)
+        ->assertAttribute('@mobile-bar-preview', 'aria-selected', 'true')
+        ->assertScript($swipe(300, 150), true)
+        ->assertAttribute('@mobile-bar-tools', 'aria-selected', 'true')
+        ->assertScript($swipe(300, 150), true)
+        ->assertAttribute('@mobile-bar-shell', 'aria-selected', 'true')
+        ->assertScript($swipe(300, 150), true)
+        ->assertSeeIn('@mobile-bar-more', 'Services')
+        // Right goes back.
+        ->assertScript($swipe(150, 300), true)
+        ->assertAttribute('@mobile-bar-shell', 'aria-selected', 'true')
+        // Too short to be a swipe: a tap, left alone.
+        ->assertScript($swipe(150, 170), false)
+        ->assertAttribute('@mobile-bar-shell', 'aria-selected', 'true')
+        ->assertNoJavaScriptErrors();
+
+    // Back past Chat stays on Chat.
+    foreach (range(1, 5) as $step) {
+        $page->assertScript($swipe(150, 300), true);
+    }
+
+    $page->assertAttribute('@mobile-bar-chat', 'aria-selected', 'true');
+})->group('LAYOUT-008');

@@ -765,6 +765,15 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - The "⋯" menu should hold the git actions (Commit…, with how many files changed, Push, Undo last commit, Create PR) and Share; Share should open as a sheet from the bottom. A dot on "⋯" should show there are changes to commit.
 - Panels opened from the header (Share, Publish) should fit the phone's screen.
 
+## LAYOUT-008: Reach every tab when they don't fit
+
+- When a pane's tabs don't fit its bar, user should be able to scroll them sideways by swiping, with a trackpad, or with a mouse wheel turned up and down.
+- An edge the tabs go past should fade out, so it's clear there are more.
+- User should be able to pick any of the pane's tabs from a menu (˅) at the end of its tabs, shown only while they don't fit.
+- The showing tab should stay in view: when it's opened, picked from the menu, or the pane gets narrower.
+- The tabs should get the room before the pane's status, and the bar's buttons ("+", split, the files toggle) should stay in place, whatever the width.
+- On a phone, user should be able to swipe along the bottom tab bar to go to the next tab (left) or the previous one (right), in the bar's order: Chat, Preview, Tools, Shell, then the tabs behind More. A short swipe should count as a tap.
+
 ## TOUCH-001: Tablets and phones show what others show on hover
 
 - On a screen that can't hover (a tablet or phone), user should always see the buttons other screens show only on hover: a file's actions in Source Control and the files panel, each list's stage and discard all, a commit's menu, a project's New task and menu in the sidebar, a task card's actions on the board, Run and Take over in Tests, Copy address on the preview, Pin on the Apps page, Copy in App Storage commands, the model picker's row action, and the screenshot arrows.
