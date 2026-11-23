@@ -51,11 +51,16 @@ class GitRemote
             GIT_CONFIG_KEY_2=http.extraHeader GIT_CONFIG_VALUE_2="$ONEDROP_FETCH_AUTH"
         unset ONEDROP_FETCH_AUTH
         ref="refs/heads/$ONEDROP_FETCH_BRANCH"
+        # Every branch and tag, so the agent can check out any of them (GIT-021); the one asked for must be there.
         git init --bare -q "$dir/repo.git" \
-            && timeout "$2" git -C "$dir/repo.git" fetch -q "$ONEDROP_FETCH_URL" "+$ref:$ref" 2>"$dir/error"
+            && timeout "$2" git -C "$dir/repo.git" fetch -q "$ONEDROP_FETCH_URL" '+refs/heads/*:refs/heads/*' '+refs/tags/*:refs/tags/*' 2>"$dir/error"
         code=$?
+        if [ "$code" = 0 ] && ! git -C "$dir/repo.git" rev-parse --verify -q "$ref" >/dev/null; then
+            echo "fatal: couldn't find remote ref $ref" >"$dir/error"
+            code=128
+        fi
         if [ "$code" = 0 ]; then
-            GIT_CONFIG_COUNT=0 git -C "$dir/repo.git" bundle create -q "$dir/pull.bundle" "$ref" 2>"$dir/error"
+            GIT_CONFIG_COUNT=0 git -C "$dir/repo.git" bundle create -q "$dir/pull.bundle" --branches --tags 2>"$dir/error"
             code=$?
         fi
         rm -rf "$dir/repo.git"
@@ -264,8 +269,9 @@ class GitRemote
     }
 
     /**
-     * Bring the remote's new commits on the current branch into the sandbox (fast-forward only). A project with no
-     * commits yet gets $branch (or its current one) from the remote: an import.
+     * Bring the remote's new commits on the current branch into the sandbox (fast-forward only), with every other
+     * branch and tag as it is on the remote (GIT-021). A project with no commits yet gets $branch (or its current one)
+     * from the remote: an import.
      *
      * @throws SandboxException|GitException
      */
@@ -278,8 +284,14 @@ class GitRemote
 
         try {
             $this->run($project, ['git', 'init', '--bare', '-q', 'repo.git'], $directory);
-            $this->run($project, ['git', '-C', 'repo.git', 'fetch', '-q', $project->git_remote_url, "+refs/heads/{$branch}:refs/heads/{$branch}"], $directory, remote: true, timeout: self::FETCH_TIMEOUT);
-            $this->run($project, ['git', '-C', 'repo.git', 'bundle', 'create', '-q', '../out/pull.bundle', "refs/heads/{$branch}"], $directory, timeout: self::FETCH_TIMEOUT);
+            // Every branch and tag, so the agent can check out any of them (GIT-021); the one asked for must be there.
+            $this->run($project, ['git', '-C', 'repo.git', 'fetch', '-q', $project->git_remote_url, '+refs/heads/*:refs/heads/*', '+refs/tags/*:refs/tags/*'], $directory, remote: true, timeout: self::FETCH_TIMEOUT);
+
+            if (Process::path($directory)->run(['git', '-C', 'repo.git', 'rev-parse', '--verify', '-q', "refs/heads/{$branch}"])->failed()) {
+                throw new GitException($this->explain("couldn't find remote ref refs/heads/{$branch}"));
+            }
+
+            $this->run($project, ['git', '-C', 'repo.git', 'bundle', 'create', '-q', '../out/pull.bundle', '--branches', '--tags'], $directory, timeout: self::FETCH_TIMEOUT);
 
             $this->provider->copyIn($sandbox->external_id, "{$directory}/out", self::PULL_DIRECTORY);
         } finally {

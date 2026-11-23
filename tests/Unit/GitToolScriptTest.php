@@ -21,11 +21,13 @@ beforeEach(function () {
             'APP_WORKSPACE' => $this->workspace,
             'APP_CHECKPOINT' => "{$sandbox}/checkpoint",
             'APP_GIT_REQUEST' => json_encode($request),
+            'APP_GIT_CREDENTIALS' => "{$this->workspace}-credentials",
         ])->run(['php', "{$sandbox}/git.php"]);
 
         return json_decode($result->output(), true);
     };
     $this->data = fn (array $request) => ($this->tool)($request)['data'];
+    $this->helpers = fn () => explode("\0", rtrim(Process::path($this->workspace)->run(['git', 'config', '-z', '--get-all', 'credential.https://github.com.helper'])->output(), "\0"));
     $this->git = fn (string ...$args) => trim(Process::path($this->workspace)->run(['git', ...$args])->output());
     $this->write = fn (string $path, string $content) => File::put("{$this->workspace}/{$path}", $content);
 });
@@ -307,6 +309,60 @@ test('pulling into a project with no repository yet brings the repository in on 
 
     File::deleteDirectory($remote);
 })->group('GIT-005');
+
+test('a pull brings in every branch and tag the platform fetched, keeping a tag the project already has', function () {
+    ($this->write)('a.txt', 'a');
+    ($this->data)(['op' => 'commit', 'message' => 'Start']);
+    ($this->git)('tag', 'v1');
+    $remote = sys_get_temp_dir().'/onedrop-git-remote-'.uniqid();
+    Process::run(['git', 'clone', '-q', $this->workspace, $remote])->throw();
+    Process::path($remote)->run('git tag -f v1 HEAD && git switch -q -c feature && echo f > f.txt && git add f.txt && git -c user.name=Me -c user.email=me@example.com commit -q -m Feature && git tag v2 && git bundle create -q /tmp/onedrop-test-pull.bundle --branches --tags')->throw();
+    Process::path($remote)->run('git commit -q --allow-empty -m x')->output();
+
+    ($this->data)(['op' => 'pulled', 'branch' => 'main', 'bundle' => '/tmp/onedrop-test-pull.bundle']);
+
+    expect(($this->git)('for-each-ref', '--format=%(refname)', 'refs/remotes/origin'))->toBe("refs/remotes/origin/feature\nrefs/remotes/origin/main")
+        ->and(($this->git)('rev-parse', 'v2'))->toBe(trim(Process::path($remote)->run(['git', 'rev-parse', 'v2'])->output()))
+        ->and(($this->git)('tag', '--list'))->toBe("v1\nv2");
+
+    File::deleteDirectory($remote);
+})->group('GIT-021');
+
+test('origin points at a GitHub App repository with the credential helper, and goes when the remote does', function () {
+    $credentials = "{$this->workspace}-credentials";
+    ($this->write)('a.txt', 'a');
+    ($this->data)(['op' => 'commit', 'message' => 'Start']);
+    ($this->git)('update-ref', 'refs/remotes/origin/main', 'HEAD');
+
+    ($this->data)(['op' => 'origin', 'url' => 'https://github.com/acme/app.git', 'repository' => 'acme/app', 'token_url' => 'https://onedrop.test/sandbox-git/1/token?signature=x']);
+
+    expect(($this->git)('config', 'remote.origin.url'))->toBe('https://github.com/acme/app.git')
+        ->and(($this->git)('config', 'remote.origin.fetch'))->toBe('+refs/heads/*:refs/remotes/origin/*')
+        ->and(($this->helpers)())->toBe(['', 'onedrop'])
+        ->and(($this->git)('config', 'credential.https://github.com.useHttpPath'))->toBe('true')
+        ->and(($this->git)('rev-parse', '--abbrev-ref', 'main@{upstream}'))->toBe('origin/main')
+        ->and(File::get($credentials))->toBe("repository=acme/app\nurl=https://onedrop.test/sandbox-git/1/token?signature=x\n")
+        ->and(decoct(fileperms($credentials) & 0777))->toBe('600')
+        // Nothing about the token goes into the project's files.
+        ->and(File::get("{$this->workspace}/.git/config"))->not->toContain('signature');
+
+    // Running it again changes nothing.
+    ($this->data)(['op' => 'origin', 'url' => 'https://github.com/acme/app.git', 'repository' => 'acme/app', 'token_url' => 'https://onedrop.test/sandbox-git/1/token?signature=x']);
+    expect(($this->helpers)())->toBe(['', 'onedrop']);
+
+    // A remote on another host: origin, without the helper.
+    ($this->data)(['op' => 'origin', 'url' => 'https://gitlab.com/acme/app.git', 'repository' => null, 'token_url' => null]);
+    expect(($this->git)('config', 'remote.origin.url'))->toBe('https://gitlab.com/acme/app.git')
+        ->and(($this->helpers)())->toBe([''])
+        ->and(File::exists($credentials))->toBeFalse();
+
+    // Disconnected: origin goes, what was fetched stays.
+    ($this->data)(['op' => 'origin', 'url' => null, 'repository' => null, 'token_url' => null]);
+    expect(($this->git)('remote'))->toBe('')
+        ->and(($this->git)('rev-parse', '--verify', '-q', 'refs/remotes/origin/main'))->not->toBe('');
+
+    expect(($this->tool)(['op' => 'origin', 'url' => 'https://me:secret@github.com/acme/app.git'])['error'])->toBe("That isn't a remote this project can use.");
+})->group('GIT-021');
 
 test('the history is searched by message, author or id across every commit, a page at a time', function () {
     foreach (['Build a timer' => 'OneDrop', 'Make the button blue' => 'Dev User', 'Add a reports page' => 'Sam', "Fix the header\n\nThe TIMER overlapped it." => 'Dev User'] as $message => $author) {

@@ -5,8 +5,10 @@
  * commit's files and diffs), staging files, hunks and lines, committing, discarding, switching branches, restoring an
  * earlier version (as a new commit), and the agent's private checkpoints (the Timeline) and restoring one.
  *
- * Remotes are handled by the platform, never here: pushes and pulls travel as git bundles, so the remote's
- * credentials stay out of the sandbox. This only records what the platform pushed or fetched.
+ * Pushes and Source Control's pulls are handled by the platform: they travel as git bundles, so the remote's own
+ * credentials stay out of the sandbox. This records what the platform pushed or fetched, and points `origin` at the
+ * remote so git itself can fetch from it (GIT-021): a GitHub App repository through git-credential-onedrop, which asks
+ * the platform for a token that can only read it.
  *
  * Reads one JSON request from $APP_GIT_REQUEST and prints one JSON response:
  * {"ok": true, "data": ...} or {"ok": false, "error": "..."}.
@@ -1240,9 +1242,16 @@ function pulled(array $request): array
     }
 
     try {
-        gitOrFail(['fetch', '-q', $bundle, "+refs/heads/{$branch}:refs/remotes/origin/{$branch}"]);
+        // Every branch the bundle has (all of the remote's, from a platform that fetches them all; GIT-021), and its tags,
+        // keeping a tag of the same name the project already has.
+        gitOrFail(['fetch', '-q', $bundle, '+refs/heads/*:refs/remotes/origin/*']);
+        git(['fetch', '-q', $bundle, 'refs/tags/*:refs/tags/*']);
     } finally {
         @unlink($bundle);
+    }
+
+    if (git(['rev-parse', '--verify', '-q', "refs/remotes/origin/{$branch}"])[0] !== 0) {
+        throw new ToolError('The remote doesn\'t have this branch yet. Push it first.');
     }
 
     // No commits yet: the remote's branch becomes the project's (an import).
@@ -1266,6 +1275,72 @@ function pulled(array $request): array
             str_contains($error, 'would be overwritten') => 'Your uncommitted changes to some of the same files would be overwritten. Commit or discard them, then pull again.',
             default => 'Could not bring in the remote\'s changes: '.trim(preg_replace('/^(fatal|error): /m', '', $error)),
         });
+    }
+
+    return status();
+}
+
+/**
+ * Point `origin` at the project's remote (GIT-021), or remove it when there's none, so git fetches every branch into
+ * refs/remotes/origin/* like a clone. A GitHub App repository ("repository": "owner/name") gets git-credential-onedrop
+ * for github.com, and the address it asks for a token ("token_url") goes in a file outside the project, so it never
+ * reaches a commit, a backup, a snapshot or a remix. Without a repository yet, nothing changes.
+ */
+function origin(array $request): array
+{
+    $url = $request['url'] ?? null;
+    $repository = $request['repository'] ?? null;
+    $tokenUrl = $request['token_url'] ?? null;
+    $credentials = getenv('APP_GIT_CREDENTIALS') ?: '/tmp/onedrop-git-credentials';
+
+    if ($url !== null && (! is_string($url) || ! preg_match('#^https://[^\s@/]+/\S+$#', $url))) {
+        throw new ToolError('That isn\'t a remote this project can use.');
+    }
+
+    if ($repository !== null && (! is_string($repository) || ! preg_match('#^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$#', $repository) || ! is_string($tokenUrl) || $tokenUrl === '')) {
+        throw new ToolError('That isn\'t a GitHub repository.');
+    }
+
+    if ($url === null || $repository === null) {
+        @unlink($credentials);
+    } else {
+        $old = umask(077);
+        file_put_contents("{$credentials}.new", "repository={$repository}\nurl={$tokenUrl}\n");
+        umask($old);
+        rename("{$credentials}.new", $credentials);
+    }
+
+    if (! isRepository()) {
+        return status();
+    }
+
+    // Only this file's settings: every helper set elsewhere for github.com is cleared first (an empty value), so the
+    // token is never offered to another helper to store.
+    git(['config', '--remove-section', 'credential.https://github.com']);
+
+    if ($url === null) {
+        git(['config', '--remove-section', 'remote.origin']);
+
+        return status();
+    }
+
+    gitOrFail(['config', 'remote.origin.url', $url]);
+    gitOrFail(['config', '--replace-all', 'remote.origin.fetch', '+refs/heads/*:refs/remotes/origin/*']);
+
+    if ($repository !== null) {
+        gitOrFail(['config', '--add', 'credential.https://github.com.helper', '']);
+        gitOrFail(['config', '--add', 'credential.https://github.com.helper', 'onedrop']);
+        gitOrFail(['config', 'credential.https://github.com.useHttpPath', 'true']);
+    }
+
+    // The branch the project is on follows its remote branch, so a plain `git pull` or `git status` knows where it is.
+    $branch = currentBranch();
+
+    if ($branch !== null
+        && git(['config', "branch.{$branch}.remote"])[0] !== 0
+        && git(['rev-parse', '--verify', '-q', "refs/remotes/origin/{$branch}"])[0] === 0) {
+        gitOrFail(['config', "branch.{$branch}.remote", 'origin']);
+        gitOrFail(['config', "branch.{$branch}.merge", "refs/heads/{$branch}"]);
     }
 
     return status();
@@ -1404,6 +1479,7 @@ try {
         'restore_checkpoint' => restoreCheckpoint($request),
         'pushed' => pushed($request),
         'pulled' => pulled($request),
+        'origin' => origin($request),
         default => throw new ToolError('Unknown operation.'),
     };
 

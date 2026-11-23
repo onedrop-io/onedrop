@@ -11,6 +11,7 @@ use App\Models\Message;
 use App\Models\Project;
 use App\Models\Sandbox;
 use App\Models\Task;
+use App\Sandbox\GitOrigin;
 use App\Sandbox\OrganizationSecrets;
 use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxProvider;
@@ -244,6 +245,9 @@ abstract class SandboxAgentRunner implements AgentRunner
         } catch (SandboxException $e) {
             report($e);
         }
+
+        // `origin`, so the agent can fetch and check out the remote's branches and pull requests (GIT-021).
+        app(GitOrigin::class)->syncQuietly($sandbox);
 
         app(SandboxSkills::class)->install($sandbox, $conversation->ownerProject(), $env['APP_AGENT'] ?? AgentHarness::OpenCode->value);
 

@@ -344,7 +344,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - When the GitHub App is set up but they haven't connected it, user should see "Connect GitHub" to import private repositories. It signs them in through the app first, so an organization a teammate already installed it on is picked up without the install page, and asks them to install it only when it's on none of their accounts; it comes back to the new-project page with the Repository field open.
 - Once connected, user should see "Add it on GitHub" to install the app on another account or give it more repositories, when the one they want isn't suggested.
 - The prompt should be optional with a repository; left blank, the agent is asked to get the imported app running in the preview.
-- The project should be named after the repository, connected to it as its remote (through the GitHub App when the user can reach it that way, no token kept; otherwise without a token), and the repository's branch (its default one unless the link names another) should be brought into the sandbox before the agent starts.
+- The project should be named after the repository, connected to it as its remote (through the GitHub App when the user can reach it that way, no token kept; otherwise without a token), and the repository's branch (its default one unless the link names another) should be brought into the sandbox before the agent starts, with every other branch and tag beside it (GIT-021).
 - A repository that can't be reached (private without GitHub connected, or missing), has no commits, or isn't HTTPS should be refused with the reason, and no project made.
 - If bringing it in fails after the project is made, user should see why in the chat, and the agent shouldn't start.
 
@@ -1404,6 +1404,15 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - An organization secret or a project secret named `GITHUB_TOKEN` should win over the owner's token.
 - User should see `GITHUB_TOKEN` in Tools → Secrets, marked as coming from the owner's GitHub.
 - When a private GitHub package won't download and there's no `GITHUB_TOKEN`, the agent should tell the user to connect GitHub in Settings → Security (or, if the package needs someone else's access, add a token as an organization secret), not ask for a personal access token in the chat.
+
+## GIT-021: The agent checks out branches and pull requests
+
+- A project with a remote should have it as `origin` in the sandbox's repository, with every branch and tag of the remote brought in on import and on each pull, so the agent and the Shell see them with `git branch -a`.
+- User should be able to ask the agent to check out, compare or look at a branch or a pull request by name or number; the agent does it with plain git (`git fetch`, `git switch`, `git fetch origin pull/<n>/head`) or `gh`, and asks before switching away from uncommitted changes.
+- For a GitHub App repository, git and `gh` in the sandbox should fetch and read pull requests with a token the platform hands out when git asks: it can only read that one repository (and its pull requests, when the app may), lasts an hour, and is never written to the project's files. It's offered only to that repository on github.com.
+- A remote connected with a token (GIT-004) should be `origin` too, but its token never enters the sandbox: a public repository fetches anonymously, and a private one is refused, and the agent asks the user to Pull from Source Control instead.
+- Pushing should stay with the platform (GIT-004, GIT-014): the agent's token can't push, and the agent is told so.
+- Connecting, changing or disconnecting the remote should update `origin` in the project's running sandboxes (task copies too) within moments; a sleeping one gets it when it wakes, and the agent's next run checks first. Disconnecting removes `origin` but keeps what was fetched.
 
 ## SCM-001: Source Control tab
 

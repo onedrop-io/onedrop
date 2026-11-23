@@ -15,6 +15,7 @@ use App\Enums\PublishTarget;
 use App\Enums\PublishVisibility;
 use App\Enums\TaskStage;
 use App\Enums\TurnOutcome;
+use App\Jobs\SyncGitOrigin;
 use App\Sandbox\Agents\Conversation;
 use Database\Factories\ProjectFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -118,6 +119,13 @@ class Project extends Model implements Conversation
         static::saving(function (Project $project) {
             if ($project->isDirty('git_remote_url') && $project->getOriginal('git_remote_url') === null && $project->git_remote_url !== null && ! $project->isDirty('commit_turns')) {
                 $project->commit_turns = false;
+            }
+        });
+
+        // A new or changed remote reaches the running sandboxes' `origin` (GIT-021).
+        static::updated(function (Project $project) {
+            if ($project->wasChanged(['git_remote_url', 'github_installation_id'])) {
+                SyncGitOrigin::dispatch($project);
             }
         });
     }

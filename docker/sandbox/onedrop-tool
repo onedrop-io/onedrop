@@ -301,6 +301,11 @@ run() {
     shift
     install "$tool"
     v=$(version_of "$tool")
+    # gh reads the project's GitHub App repository and its pull requests with the token git gets (GIT-021), unless
+    # someone signed gh in themselves or set GH_TOKEN; GITHUB_TOKEN (GIT-016) can only download packages.
+    if [ "$command" = gh ] && [ -z "${GH_TOKEN:-}" ] && [ ! -s "${XDG_CONFIG_HOME:-$HOME/.config}/gh/hosts.yml" ]; then
+        GH_TOKEN=$(git-credential-onedrop token 2>/dev/null) && export GH_TOKEN || unset GH_TOKEN
+    fi
     PATH="$ROOT/$tool-$v/bin:$PATH" exec "$ROOT/$tool-$v/bin/$command" "$@"
 }
 

@@ -331,7 +331,7 @@ test('pulling waits while the agent is working, and needs a remote', function ()
     $this->project->update(['git_remote_url' => 'https://git.example.com/dev/timer.git', 'status' => ProjectStatus::Working]);
 
     $this->postJson(route('projects.git.pull', $this->project))->assertStatus(409);
-    Queue::assertNothingPushed();
+    Queue::assertNotPushed(SyncGitRemote::class);
 })->group('GIT-004');
 
 test('a new GitHub repository is created with the user\'s token, connected and pushed to', function () {

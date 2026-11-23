@@ -5,7 +5,7 @@ description: "Follow a GitHub repository's pull requests, check one out as a tas
 
 When your project is connected to a GitHub repository (see [Source Control](/guides/source-control)), **Tools → Pull requests** shows the repository's pull requests. You can read one the way you would on GitHub, run it as a [task](/guides/tasks) with its own copy of the app, and have that task's agent fix its failing checks.
 
-OneDrop reads GitHub with the same connection it pushes with: the GitHub App, or the access token you connected with. Nothing about GitHub goes into the sandbox.
+OneDrop reads GitHub with the same connection it pushes with: the GitHub App, or the access token you connected with. Your access token never goes into the sandbox.
 
 ## Browse pull requests
 
@@ -29,6 +29,21 @@ Click a pull request to open its page. The address keeps it (`?tab=tools&tool=pu
 | **Checks**        | Each check and commit status on the newest commit, how long it took, and a link to its details. Click a failed check to see the end of its log. |
 
 While any check is still running, the page looks again every 15 seconds.
+
+## Ask the agent for a branch or pull request
+
+You can also name a branch or pull request in the chat, such as "check out the `billing-v2` branch" or "check out PR #42 and see why the login test fails". The sandbox's repository has your remote as `origin`, with every branch and tag already brought in, so the agent uses git the way it would in a clone: `git switch`, `git fetch origin pull/42/head`, or `gh pr checkout 42`. The preview switches with the branch. If you have uncommitted changes, the agent asks before switching.
+
+This works on Main or in any task. To run a pull request beside Main instead, check it out as a task (below).
+
+For a repository connected through the GitHub App, git asks OneDrop for a token whenever it needs one. The token can only read that one repository and its pull requests, and expires after an hour. It isn't saved in your project. The agent can't push with it; your work still reaches GitHub through **Push** in Source Control.
+
+<Note>
+  With a repository connected with an access token (GitLab, or **Other git
+  host**), your token stays out of the sandbox. Public repositories still fetch.
+  For a private one, the agent asks you to **Pull** in Source Control, which
+  brings in every branch.
+</Note>
 
 ## Check out a pull request as a task
 

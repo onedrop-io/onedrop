@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\GitSyncStatus;
+use App\Jobs\SyncGitOrigin;
 use App\Jobs\SyncGitRemote;
 use App\Models\AgentConnection;
 use App\Models\GitHubAuthorization;
@@ -291,7 +292,9 @@ test('connecting a repository keeps no token; an empty one is pushed to, a full 
         ->assertJsonPath('remote.sync_status', null);
 
     expect($this->project->fresh()->only(['github_installation_id', 'git_remote_token']))->toBe(['github_installation_id' => 777, 'git_remote_token' => null]);
-    Queue::assertNothingPushed();
+    // Nothing is pushed or pulled; the sandbox only gets the remote as `origin` (GIT-021).
+    Queue::assertNotPushed(SyncGitRemote::class);
+    Queue::assertPushed(SyncGitOrigin::class);
 
     $this->putJson(route('projects.git.github-app.connect', $this->project), ['installation_id' => 777, 'repository' => 'dev/empty'])
         ->assertJsonPath('remote.sync_status', 'pushing');

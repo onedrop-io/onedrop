@@ -7,6 +7,7 @@ use App\Models\Project;
 use App\Models\Sandbox;
 use App\Models\Task;
 use App\Sandbox\Drive\DriveSync;
+use App\Sandbox\GitOrigin;
 use App\Sandbox\OrganizationSecrets;
 use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxProvider;
@@ -50,6 +51,10 @@ class CreateSandbox implements ShouldQueue
                 // The agent's next run tries again.
                 report($e);
             }
+
+            // The project's remote as `origin` (GIT-021), for a sandbox that starts with its repository, or none for one
+            // whose files came from a project that had one.
+            app(GitOrigin::class)->syncQuietly($sandbox, evenWithoutRemote: true);
 
             $sandbox->update([
                 // The provider it was made on, even when this reuses a record from another one.

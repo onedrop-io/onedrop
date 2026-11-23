@@ -126,6 +126,15 @@ test('a GitHub App repository is fetched by the sandbox with a token that can on
         ->and(File::exists($this->fetchDirectory))->toBeFalse();
 })->group('GIT-004', 'PRJ-009');
 
+test('the sandbox\'s fetch brings every branch and tag of the remote', function () {
+    Process::path("{$this->root}/source")->run('git switch -q -c feature && git -c user.name=Me -c user.email=me@example.com commit -q --allow-empty -m Feature && git tag v1 && git push -q '.escapeshellarg($this->remote).' feature v1')->throw();
+
+    app(GitRemote::class)->pullStep($this->project, 'main');
+
+    expect(Process::run(['git', 'bundle', 'list-heads', "{$this->fetchDirectory}/pull.bundle"])->output())
+        ->toContain('refs/heads/main', 'refs/heads/feature', 'refs/tags/v1');
+})->group('GIT-021');
+
 test('a fetch the remote refuses says why, and the next pull starts afresh', function () {
     $remote = app(GitRemote::class);
 

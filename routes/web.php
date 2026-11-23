@@ -68,6 +68,7 @@ use App\Http\Controllers\SandboxActivityController;
 use App\Http\Controllers\SandboxAiController;
 use App\Http\Controllers\SandboxEventController;
 use App\Http\Controllers\SandboxGatewayController;
+use App\Http\Controllers\SandboxGitController;
 use App\Http\Controllers\SandboxWorkController;
 use App\Http\Controllers\ShareController;
 use App\Http\Controllers\SkillController;
@@ -179,6 +180,11 @@ Route::withoutMiddleware([StartSession::class, ShareErrorsFromSession::class, Pr
 Route::get('sandbox-ai/{sandbox}', [SandboxAiController::class, 'show'])
     ->middleware(['signed:relative', 'throttle:30,1'])
     ->name('sandbox-ai.show');
+
+// Called by git's credential helper in a sandbox (GIT-021); GitOrigin gives the sandbox this signed address.
+Route::get('sandbox-git/{sandbox}/token', [SandboxGitController::class, 'token'])
+    ->middleware(['signed:relative', 'throttle:60,1'])
+    ->name('sandbox-git.token');
 
 // Back to the admin's own account (USR-003). Only `auth`: the person being impersonated may not have verified their email.
 Route::delete('impersonation', [ImpersonationController::class, 'destroy'])->middleware('auth')->name('impersonation.destroy');

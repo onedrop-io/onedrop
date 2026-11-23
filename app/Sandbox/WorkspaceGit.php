@@ -321,6 +321,18 @@ class WorkspaceGit
     }
 
     /**
+     * Point the repository's `origin` at the project's remote, or remove it (GIT-021); see GitOrigin.
+     *
+     * @return array<string, mixed> the status
+     *
+     * @throws SandboxException|GitException
+     */
+    public function origin(Sandbox $sandbox, ?string $url, ?string $repository, ?string $tokenUrl): array
+    {
+        return $this->call($sandbox, ['op' => 'origin', 'url' => $url, 'repository' => $repository, 'token_url' => $tokenUrl]);
+    }
+
+    /**
      * @return array{name: string, email: string}
      */
     protected function author(User $user): array

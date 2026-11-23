@@ -122,6 +122,18 @@ test('pulling copies the remote\'s branch into the sandbox as a bundle to fast-f
         ->and($this->project->fresh()->git_synced_at)->not->toBeNull();
 })->group('GIT-004');
 
+test('a pull brings every branch and tag of the remote, so the agent can check any of them out', function () {
+    app(GitRemote::class)->push($this->project);
+    $other = "{$this->root}/other";
+    Process::run(['git', 'clone', '-q', $this->remote, $other])->throw();
+    ($this->sh)("git switch -q -c feature && echo f > f.txt && git add f.txt && git {$this->commit} -m Feature && git tag v1 && git push -q origin feature v1", $other);
+
+    app(GitRemote::class)->pull($this->project, 'main');
+
+    expect(($this->sh)('git bundle list-heads pull.bundle', $this->copiedIn))
+        ->toContain('refs/heads/main', 'refs/heads/feature', 'refs/tags/v1');
+})->group('GIT-021');
+
 test('pulling a branch the remote does not have yet says to push it', function () {
     expect(fn () => app(GitRemote::class)->pull($this->project))
         ->toThrow(GitException::class, "The remote doesn't have this branch yet. Push it first.");

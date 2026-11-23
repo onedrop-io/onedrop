@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Concerns\BroadcastsProjectChanges;
 use App\Enums\SandboxStatus;
 use App\Jobs\CreateSandbox;
+use App\Jobs\SyncGitOrigin;
 use App\Jobs\SyncOrganizationSecrets;
 use App\Jobs\UpdateSandbox;
 use App\Sandbox\SandboxException;
@@ -232,6 +233,8 @@ class Sandbox extends Model
         if ($wasAsleep) {
             // The organization's secrets may have changed while it slept (SECRET-003).
             SyncOrganizationSecrets::dispatch($this->project->organization, $this);
+            // And the project's remote (GIT-021).
+            SyncGitOrigin::dispatch($this);
         }
 
         return $wasAsleep;

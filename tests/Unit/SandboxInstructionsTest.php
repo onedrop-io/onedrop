@@ -67,3 +67,12 @@ test('the agent runs an imported project the way its developers do, and asks for
         ->toContain("stop and tell the user exactly what's missing")
         ->toContain("Don't switch to a different way of running it");
 })->group('SBX-008');
+
+test('the agent checks out the remote\'s branches and pull requests with plain git, and leaves pushing to the user', function () use ($sandbox) {
+    expect(file_get_contents("{$sandbox}/instructions.md"))
+        ->toContain("it's `origin`, with every branch and tag already fetched")
+        ->toContain('git fetch origin pull/<number>/head:pr-<number>')
+        ->toContain('gh pr checkout <number>')
+        ->toContain('ask the user before switching')
+        ->toContain("You can't push: the user pushes from Source Control.");
+})->group('GIT-021');

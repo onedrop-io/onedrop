@@ -35,8 +35,8 @@ afterEach(function () {
 test('every command has a stand-in on PATH that runs it through onedrop-tool, and every stand-in is a command', function () {
     $commands = collect(preg_split('/\R/', trim(($this->tool)('commands')->throw()->output())))
         ->map(fn (string $line) => explode(' ', $line)[1]);
-    // Docker's credential helper for ghcr.io (GIT-016) is on PATH the same way, but isn't a tool.
-    $standIns = collect(File::files($this->source.'/lazy'))->map->getFilename()->reject(fn (string $name) => in_array($name, ['onedrop-tool', 'docker-credential-onedrop'], true));
+    // Docker's credential helper for ghcr.io (GIT-016) and git's for GitHub (GIT-021) are on PATH the same way, but aren't tools.
+    $standIns = collect(File::files($this->source.'/lazy'))->map->getFilename()->reject(fn (string $name) => in_array($name, ['onedrop-tool', 'docker-credential-onedrop', 'git-credential-onedrop'], true));
 
     expect($commands)->toContain('aws', 'sam', 'gcloud', 'az', 'wrangler', 'supabase', 'gh', 'fly')
         ->and($standIns->sort()->values()->all())->toBe($commands->sort()->values()->all());
@@ -85,6 +85,37 @@ test('a stand-in runs the installed tool with its arguments, without installing 
         ->and($result->output())->toBe("gh pr list --state open\n")
         ->and($result->errorOutput())->not->toContain('Installing');
 })->group('SBX-011');
+
+test('gh reads the project\'s GitHub App repository with the token git gets, unless someone signed gh in or set GH_TOKEN', function () {
+    $dir = "{$this->root}/gh-".($this->version)('gh');
+    File::ensureDirectoryExists("{$dir}/bin");
+    File::put("{$dir}/.installed", '');
+    File::put("{$dir}/bin/gh", "#!/bin/sh\necho \"token=\${GH_TOKEN:-none}\"\n");
+    chmod("{$dir}/bin/gh", 0755);
+    $config = "{$this->root}-config";
+    File::ensureDirectoryExists("{$config}/gh");
+
+    $gh = fn (array $env = []) => trim(Process::env([
+        'ONEDROP_TOOLS_DIR' => $this->root,
+        'PATH' => $this->bin.':'.getenv('PATH'),
+        'XDG_CONFIG_HOME' => $config,
+        ...$env,
+    ])->run([$this->source.'/onedrop-tool', 'run', 'gh', 'pr', 'list'])->output());
+
+    // No GitHub App repository: no token.
+    expect($gh())->toBe('token=none');
+
+    File::put("{$this->bin}/git-credential-onedrop", "#!/bin/sh\n[ \"\$1\" = token ] && echo ghs_read\n");
+    chmod("{$this->bin}/git-credential-onedrop", 0755);
+
+    expect($gh())->toBe('token=ghs_read')
+        ->and($gh(['GH_TOKEN' => 'ghp_mine']))->toBe('token=ghp_mine');
+
+    File::put("{$config}/gh/hosts.yml", "github.com:\n    user: me\n");
+    expect($gh())->toBe('token=none');
+
+    File::deleteDirectory($config);
+})->group('GIT-021');
 
 test('a failed install says so and leaves nothing half-installed', function () {
     File::put("{$this->bin}/curl", "#!/bin/sh\necho 'curl: (6) Could not resolve host' >&2\nexit 6\n");

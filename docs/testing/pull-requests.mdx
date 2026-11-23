@@ -1,6 +1,6 @@
 ---
 title: 'Pull requests'
-description: 'Manual checks for pull requests in Tools, checking one out as a task, and fixing its checks.'
+description: 'Manual checks for pull requests in Tools, the agent checking out branches and pull requests, checking one out as a task, and fixing its checks.'
 noindex: true
 ---
 
@@ -15,6 +15,20 @@ Set up: a project connected to a GitHub repository you can push to (GitHub App o
 - [ ] **Checks** lists the workflow's jobs; clicking the failed one shows the end of its real log.
 - [ ] Reloading the page keeps the pull request open (`pr=` in the address).
 - [ ] With a GitHub App missing **Checks** or **Actions** read, an admin sees it named in Source Control, and the section says which permission GitHub wants.
+
+## The agent checks out branches and pull requests (GIT-021)
+
+Set up also: a second branch with a commit Main doesn't have, and a tag.
+
+- [ ] Import the repository as a new project: in the Shell, `git branch -a` lists every remote branch as `remotes/origin/…`, and `git tag` lists the tag.
+- [ ] `git remote -v` shows the repository's HTTPS address with no token in it; `cat .git/config` has no token or signed address.
+- [ ] Push a new branch from your computer, then in the Shell run `git fetch origin`: the branch arrives without a password prompt.
+- [ ] Ask the agent to "check out the `<branch>` branch": it switches, the preview restarts on that branch, and Source Control's branch menu shows it.
+- [ ] Ask the agent to "check out PR #N": it fetches `pull/N/head` (or uses `gh pr checkout`), and the preview runs the pull request's code. `gh pr list` in the Shell lists the open pull requests.
+- [ ] With uncommitted changes, ask it to switch branches: it asks first instead of stashing or discarding.
+- [ ] `git push origin HEAD` in the Shell fails (the token is read-only); the agent, asked to push, says to use Source Control.
+- [ ] Disconnect the remote in Source Control: `git remote` is empty within moments, and `remotes/origin/…` branches are still there. Reconnect: `origin` comes back.
+- [ ] A project connected to a private GitLab repository with a token: `origin` is there, `git fetch` is refused, and the agent asks you to Pull from Source Control; **Pull** brings in every branch.
 
 ## Check out as a task (GIT-014)
 

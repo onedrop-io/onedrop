@@ -364,15 +364,22 @@ class GitHubApp
 
     /**
      * A token that can only read one of an installation's repositories ("owner/name"), for an hour: what a sandbox
-     * gets to fetch it itself (GitRemote), since it holds that repository's code anyway.
+     * gets to fetch it itself (GitRemote), since it holds that repository's code anyway. With $pullRequests, it can
+     * read the repository's pull requests too, when the app may (git and gh in the sandbox, GIT-021).
      *
      * @throws GitException
      */
-    public function repositoryReadToken(int $installationId, string $repository): string
+    public function repositoryReadToken(int $installationId, string $repository, bool $pullRequests = false): string
     {
+        $permissions = ['contents' => 'read'];
+
+        if ($pullRequests && in_array($this->app()['permissions']['pull_requests'] ?? null, ['read', 'write'], true)) {
+            $permissions['pull_requests'] = 'read';
+        }
+
         $token = $this->check($this->api()->withToken($this->jwt())->post(self::API."/app/installations/{$installationId}/access_tokens", [
             'repositories' => [Str::after($repository, '/')],
-            'permissions' => ['contents' => 'read'],
+            'permissions' => $permissions,
         ]))->json('token');
 
         if (! is_string($token)) {
