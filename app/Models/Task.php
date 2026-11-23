@@ -53,11 +53,13 @@ use Illuminate\Support\Str;
  * @property int $pull_request_fix_attempts Fixes sent in a row without the checks passing.
  * @property string|null $pull_request_head_sha The newest commit pushed or checked out, whose checks are watched.
  * @property string|null $pull_request_checks Those checks as last seen: pending, success or failure.
+ * @property string|null $pull_request_state merged or closed once GitHub says so, after which it's moved to Done once (GIT-023).
+ * @property array{title: string, body: string, url: string}|null $pull_request_draft A pull request being opened from the task (GIT-024): its pushed branch's text and GitHub link.
  * @property string|null $last_reply_at From withLastReply().
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['title', 'description', 'stage', 'position', 'status', 'agent_session_id', 'sign_in_retry_message_id', 'events_token_hash', 'base_commit', 'sync_status', 'sync_error', 'applied_at', 'read_at', 'turn_outcome', 'pull_request_number', 'pull_request_branch', 'pull_request_base', 'pull_request_fork', 'pull_request_push', 'pull_request_autofix', 'pull_request_fix_attempts', 'pull_request_head_sha', 'pull_request_checks'])]
+#[Fillable(['title', 'description', 'stage', 'position', 'status', 'agent_session_id', 'sign_in_retry_message_id', 'events_token_hash', 'base_commit', 'sync_status', 'sync_error', 'applied_at', 'read_at', 'turn_outcome', 'pull_request_number', 'pull_request_branch', 'pull_request_base', 'pull_request_fork', 'pull_request_push', 'pull_request_autofix', 'pull_request_fix_attempts', 'pull_request_head_sha', 'pull_request_checks', 'pull_request_state', 'pull_request_draft'])]
 #[Hidden(['events_token_hash'])]
 class Task extends Model implements Conversation
 {
@@ -91,6 +93,7 @@ class Task extends Model implements Conversation
             'pull_request_push' => 'boolean',
             'pull_request_autofix' => 'boolean',
             'pull_request_fix_attempts' => 'integer',
+            'pull_request_draft' => 'array',
         ];
     }
 
@@ -155,6 +158,14 @@ class Task extends Model implements Conversation
     public function isPullRequest(): bool
     {
         return $this->pull_request_number !== null;
+    }
+
+    /**
+     * Whether its work was pushed to a branch for a pull request that GitHub doesn't have yet (GIT-024).
+     */
+    public function isOpeningPullRequest(): bool
+    {
+        return $this->pull_request_number === null && $this->pull_request_branch !== null;
     }
 
     /**

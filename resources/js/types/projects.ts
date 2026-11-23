@@ -52,6 +52,14 @@ export type TaskDetail = Task & {
     waiting_for_sign_in: boolean;
     /** Checked out from a GitHub pull request (GIT-014). */
     pull_request: TaskPullRequest | null;
+    /** The project has a GitHub repository, and the task isn't a pull request's: it can open one (GIT-024). */
+    can_open_pull_request: boolean;
+    /** Its work was pushed for a pull request GitHub doesn't have yet: GitHub's new pull request page, filled in. */
+    opening_pull_request: {
+        branch: string;
+        base: string | null;
+        url: string | null;
+    } | null;
 };
 
 /** A task's pull request (GIT-014, GIT-015). */
@@ -68,6 +76,8 @@ export type TaskPullRequest = {
     checks: 'success' | 'failure' | 'pending' | null;
     head_sha: string | null;
     url: string | null;
+    /** Merged or closed on GitHub (GIT-023). */
+    state: 'merged' | 'closed' | null;
 };
 
 /** Why an agent is waiting for the user after its turn, as Jev judged it (PRJ-011; App\Enums\TurnOutcome). */
@@ -91,8 +101,12 @@ export type BoardTask = Task & {
     /** Its last turn just ended and is still being checked for waiting_for. */
     checking: boolean;
     updated_at: string | null;
-    /** Checked out from a pull request: its number and its checks as last seen (GIT-014). */
-    pull_request: { number: number; checks: TaskPullRequest['checks'] } | null;
+    /** Checked out from a pull request: its number, its checks as last seen, and whether it was merged or closed (GIT-014, GIT-023). */
+    pull_request: {
+        number: number;
+        checks: TaskPullRequest['checks'];
+        state: TaskPullRequest['state'];
+    } | null;
 };
 
 /** The project the user opened: the sidebar shows just it, with all its tasks. */
@@ -102,6 +116,8 @@ export type OpenProject = ProjectSummary & {
     unread: boolean;
     /** The main chat's agent ended its last turn waiting for the user. */
     main_waiting_for: WaitingFor | null;
+    /** It has a GitHub repository, so its Pull requests page is listed (GIT-022). */
+    pull_requests: boolean;
     /** The main chat's or a task's agent is waiting for the user (the main chat's first). */
     waiting_for: WaitingFor | null;
     /** A turn that just ended is still being checked for waiting_for. */

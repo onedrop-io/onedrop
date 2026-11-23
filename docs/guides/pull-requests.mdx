@@ -1,9 +1,14 @@
 ---
 title: 'Pull requests'
-description: "Follow a GitHub repository's pull requests, check one out as a task, and have the agent fix its failing checks."
+description: "Follow a GitHub repository's pull requests, check one out as a task, open one from a task, and have the agent fix its failing checks."
 ---
 
-When your project is connected to a GitHub repository (see [Source Control](/guides/source-control)), **Tools → Pull requests** shows the repository's pull requests. You can read one the way you would on GitHub, run it as a [task](/guides/tasks) with its own copy of the app, and have that task's agent fix its failing checks.
+When your project is connected to a GitHub repository (see [Source Control](/guides/source-control)), you can follow the repository's pull requests in two places:
+
+- **Pull requests** in the sidebar, under **Board**, when you've opened the project: a page of its own.
+- **Tools → Pull requests**, beside the chat, so you can read a pull request next to its running app.
+
+Both show the same list and pages. You can read a pull request the way you would on GitHub, run it as a [task](/guides/tasks) with its own copy of the app, and have that task's agent fix its failing checks. It works the other way too: a task's work can become a new pull request.
 
 OneDrop reads GitHub with the same connection it pushes with: the GitHub App, or the access token you connected with. Your access token never goes into the sandbox.
 
@@ -19,13 +24,13 @@ The list shows the open pull requests, the most recently changed first. Switch t
 
 ## A pull request's page
 
-Click a pull request to open its page. The address keeps it (`?tab=tools&tool=pulls&pr=12`), so a reload or a shared link opens it again. At the top are its state, who opened it, its branches, its size, whether it has conflicts with the branch it goes into, and **Open on GitHub**. Below, four tabs:
+Click a pull request to open its page. The address keeps it and its tab (`?pr=12&pr_tab=files`), so a reload or a shared link opens it again. At the top are its state, who opened it, its branches, its size, whether it has conflicts with the branch it goes into, and **Open on GitHub**. Below, four tabs:
 
-| Tab               | What it shows                                                                                                                                        |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Conversation**  | The description, then comments, reviews and comments on lines, oldest first.                                                                         |
-| **Commits**       | Each commit's message, author and when, with a link to it on GitHub.                                                                                 |
-| **Files changed** | Each file with lines added and removed. Click one to see its diff. GitHub leaves out the diff of very large files; open those on GitHub.             |
+| Tab               | What it shows                                                                                                                                   |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Conversation**  | The description, then comments, reviews and comments on lines, oldest first.                                                                    |
+| **Commits**       | Each commit's message, author and when, with a link to it on GitHub.                                                                            |
+| **Files changed** | Each file with lines added and removed. Click one to see its diff. GitHub leaves out the diff of very large files; open those on GitHub.        |
 | **Checks**        | Each check and commit status on the newest commit, how long it took, and a link to its details. Click a failed check to see the end of its log. |
 
 While any check is still running, the page looks again every 15 seconds.
@@ -39,10 +44,10 @@ This works on Main or in any task. To run a pull request beside Main instead, ch
 For a repository connected through the GitHub App, git asks OneDrop for a token whenever it needs one. The token can only read that one repository and its pull requests, and expires after an hour. It isn't saved in your project. The agent can't push with it; your work still reaches GitHub through **Push** in Source Control.
 
 <Note>
-  With a repository connected with an access token (GitLab, or **Other git
-  host**), your token stays out of the sandbox. Public repositories still fetch.
-  For a private one, the agent asks you to **Pull** in Source Control, which
-  brings in every branch.
+    With a repository connected with an access token (GitLab, or **Other git
+    host**), your token stays out of the sandbox. Public repositories still
+    fetch. For a private one, the agent asks you to **Pull** in Source Control,
+    which brings in every branch.
 </Note>
 
 ## Check out a pull request as a task
@@ -53,24 +58,43 @@ A pull request is checked out once. After that, its button says **Open task**.
 
 The task's page shows the pull request where other tasks show **Apply to Main**:
 
-| Control                              | What it does                                                                                                                                         |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **#12**                              | Opens the pull request's page in Tools.                                                                                                              |
-| **Pull**                             | Brings in commits pushed to the pull request since. They're merged in, and the task's agent resolves conflicts and installs what changed.          |
-| **Push**                             | Commits what changed in the task's copy and pushes it to the pull request's branch.                                                                  |
-| **Push after each turn**             | On by default: when the agent finishes a turn, its work is pushed to the pull request.                                                               |
-| **Fix failing checks automatically** | Off by default. See below.                                                                                                                           |
+| Control                              | What it does                                                                                                                              |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| **#12**                              | Opens the pull request's page in Tools.                                                                                                   |
+| **Files changed**                    | Opens the pull request's diff in Tools, beside the chat, while the preview runs its code.                                                 |
+| **Pull**                             | Brings in commits pushed to the pull request since. They're merged in, and the task's agent resolves conflicts and installs what changed. |
+| **Push**                             | Commits what changed in the task's copy and pushes it to the pull request's branch.                                                       |
+| **Push after each turn**             | On by default: when the agent finishes a turn, its work is pushed to the pull request.                                                    |
+| **Fix failing checks automatically** | Off by default. See below.                                                                                                                |
 
 Ask the task's agent for changes the same way as in any chat. It works on the pull request's branch, and its work reaches GitHub through **Push**, since the agent can't push itself.
 
 OneDrop never force-pushes. If someone pushed to the pull request in the meantime, the push fails and the task says to pull first.
 
 <Note>
-  A pull request from a fork runs in its task, but can't be pushed to: OneDrop
-  can only write to your repository.
+    A pull request from a fork runs in its task, but can't be pushed to: OneDrop
+    can only write to your repository.
 </Note>
 
 Checking out needs tasks to get their own copy of the app. On an install where that's turned off, the button says why.
+
+## Open a pull request from a task
+
+Any task with its own copy of the app can become a pull request:
+
+1. On the task's bar, click **Open pull request**. OneDrop commits the task's work and pushes it to a new branch, such as `onedrop/task-14-add-dark-mode`. It never force-pushes. The bar says **Pushing to GitHub…**.
+2. When the push is done, click **Create on GitHub**. GitHub's new pull request page opens, from that branch into the repository's default branch, with a title and description your project's AI wrote from the changes. Change them, or the base branch, before you create it.
+3. Within a minute or two of creating it, the task becomes the pull request's task: its bar shows the pull request, with **Push**, **Pull**, its checks and **Push after each turn**, and the task moves to Review on the [board](/guides/tasks). Its chat says "Opened #14".
+
+To send newer work before you create the pull request, click **Push again**. It goes to the same branch.
+
+OneDrop opens GitHub's page rather than creating the pull request itself, so the GitHub App only needs read access to pull requests.
+
+## When a pull request is merged or closed
+
+When a pull request is merged or closed on GitHub, its task moves to **Done** and its chat says "#12 was merged on GitHub" (or closed). Its card on the board shows **Merged** or **Closed**, and **Push** and **Pull** are turned off. OneDrop notices when you open the Pull requests list, and a moment after you open the board or the task.
+
+The task is moved only once: if you drag it back out of Done, it stays where you put it.
 
 ## Fix failing checks
 

@@ -347,6 +347,7 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
         Route::post('projects/{project}/git/pull-request', [ProjectGitController::class, 'pullRequest'])->name('projects.git.pull-request');
         Route::post('projects/{project}/git/push', [ProjectGitController::class, 'push'])->name('projects.git.push');
         Route::post('projects/{project}/git/pull', [ProjectGitController::class, 'pull'])->name('projects.git.pull');
+        Route::get('projects/{project}/pull-requests', [ProjectPullRequestController::class, 'page'])->name('projects.pull-requests');
         Route::get('projects/{project}/pulls', [ProjectPullRequestController::class, 'index'])->name('projects.pulls.index');
         Route::get('projects/{project}/pulls/{number}', [ProjectPullRequestController::class, 'show'])->whereNumber('number')->name('projects.pulls.show');
         Route::get('projects/{project}/pulls/{number}/commits', [ProjectPullRequestController::class, 'commits'])->whereNumber('number')->name('projects.pulls.commits');
@@ -403,6 +404,7 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
         Route::post('projects/{project}/tasks/{task}/update-from-main', [TaskController::class, 'updateFromMain'])->scopeBindings()->name('projects.tasks.update-from-main');
         Route::post('projects/{project}/tasks/{task}/pull-request/push', [TaskController::class, 'pushPullRequest'])->scopeBindings()->name('projects.tasks.pull-request.push');
         Route::post('projects/{project}/tasks/{task}/pull-request/pull', [TaskController::class, 'pullPullRequest'])->scopeBindings()->name('projects.tasks.pull-request.pull');
+        Route::post('projects/{project}/tasks/{task}/pull-request', [TaskController::class, 'openPullRequest'])->scopeBindings()->name('projects.tasks.pull-request.open');
         Route::get('agent-models', [AgentModelController::class, 'index'])->name('agent-models.index');
         Route::put('agent-models/favorites', [AgentModelController::class, 'favorite'])->name('agent-models.favorite');
         Route::post('projects/{project}/publication', [ProjectPublicationController::class, 'store'])->name('projects.publication.store');

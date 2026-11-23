@@ -6,7 +6,13 @@ import {
     useForm,
     usePoll,
 } from '@inertiajs/react';
-import { EllipsisVertical, Play, Plus, Trash2 } from 'lucide-react';
+import {
+    EllipsisVertical,
+    GitPullRequest,
+    Play,
+    Plus,
+    Trash2,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { DragEvent } from 'react';
 import TaskController from '@/actions/App/Http/Controllers/TaskController';
@@ -270,16 +276,35 @@ function Card({
                         {task.activity ?? 'Working…'}
                     </p>
                 )}
-                {task.pull_request?.checks && (
+                {task.pull_request && (
                     <p
                         className="mt-1 flex items-center gap-1 pl-6 text-xs text-muted-foreground"
-                        data-test="board-card-checks"
+                        data-test="board-card-pull-request"
                     >
-                        <ChecksIcon
-                            state={task.pull_request.checks}
-                            className="size-3.5"
-                        />
-                        {CHECKS_LABELS[task.pull_request.checks]}
+                        <GitPullRequest className="size-3.5" />
+                        <span className="font-medium text-foreground">
+                            #{task.pull_request.number}
+                        </span>
+                        {task.pull_request.state ? (
+                            <span data-test="board-card-pull-request-state">
+                                {task.pull_request.state === 'merged'
+                                    ? 'Merged'
+                                    : 'Closed'}
+                            </span>
+                        ) : (
+                            task.pull_request.checks && (
+                                <span
+                                    className="flex items-center gap-1"
+                                    data-test="board-card-checks"
+                                >
+                                    <ChecksIcon
+                                        state={task.pull_request.checks}
+                                        className="size-3.5"
+                                    />
+                                    {CHECKS_LABELS[task.pull_request.checks]}
+                                </span>
+                            )
+                        )}
                     </p>
                 )}
                 {!working && task.waiting_for && (

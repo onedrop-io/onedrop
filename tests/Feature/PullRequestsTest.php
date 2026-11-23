@@ -6,6 +6,9 @@ use App\Enums\SandboxStatus;
 use App\Enums\TaskStage;
 use App\Enums\TaskSyncStatus;
 use App\Jobs\ForkTaskSandbox;
+use App\Jobs\LinkTaskPullRequest;
+use App\Jobs\OpenTaskPullRequest;
+use App\Jobs\RefreshPullRequestTasks;
 use App\Jobs\RunAgentTask;
 use App\Jobs\SyncPullRequestTask;
 use App\Jobs\WatchPullRequestChecks;
@@ -24,6 +27,8 @@ use App\Sandbox\GitHubPulls;
 use App\Sandbox\GitRemote;
 use App\Sandbox\Providers\FakeSandboxProvider;
 use App\Sandbox\PullRequestFixes;
+use App\Sandbox\PullRequestTasks;
+use App\Sandbox\PullRequestWriter;
 use App\Sandbox\SandboxProvider;
 use App\Sandbox\TaskCopies;
 use Illuminate\Http\Client\Request as HttpRequest;
@@ -543,6 +548,7 @@ test('turning automatic fixing on while the checks are failing starts fixing the
 })->group('GIT-015');
 
 test("the workspace and the board show a pull request's task with its checks", function () {
+    Queue::fake();
     $task = pullRequestTask($this->project, ['pull_request_checks' => 'failure', 'pull_request_autofix' => true]);
 
     config(['inertia.ssr.enabled' => false]);
@@ -556,7 +562,7 @@ test("the workspace and the board show a pull request's task with its checks", f
             ->where('task.pull_request.url', 'https://github.com/acme/app/pull/12'));
 
     $this->get(route('projects.board', $this->project))
-        ->assertInertia(fn ($page) => $page->where('tasks.0.pull_request', ['number' => 12, 'checks' => 'failure']));
+        ->assertInertia(fn ($page) => $page->where('tasks.0.pull_request', ['number' => 12, 'checks' => 'failure', 'state' => null]));
 })->group('GIT-014', 'GIT-015');
 
 test('a missing Pull requests permission is named when GitHub refuses the list', function () {
@@ -566,3 +572,246 @@ test('a missing Pull requests permission is named when GitHub refuses the list',
         ->assertStatus(422)
         ->assertJsonPath('message', 'GitHub refused to show this: the app or token needs the Pull requests: Read permission. (Resource not accessible by integration)');
 })->group('GIT-013');
+
+/**
+ * GitHub's pull request list for acme/app with $pulls (GraphQL nodes) as the open ones.
+ *
+ * @param  list<array<string, mixed>>  $pulls
+ */
+function openPullRequests(array $pulls): array
+{
+    return ['data' => ['repository' => ['pullRequests' => ['nodes' => array_map(fn (array $pull) => [
+        'title' => 'A pull request', 'state' => 'OPEN', 'isDraft' => false, 'url' => "https://github.com/acme/app/pull/{$pull['number']}",
+        'updatedAt' => '2026-11-23T10:00:00Z', 'baseRefName' => 'main', 'reviewDecision' => null, 'author' => null,
+        'headRepository' => ['nameWithOwner' => 'acme/app'], 'comments' => ['totalCount' => 0], 'commits' => ['nodes' => []],
+        ...$pull,
+    ], $pulls)]]]];
+}
+
+/**
+ * A task with its own running copy of the app, opening a pull request from it when $branch is given (GIT-024).
+ */
+function copiedTask(Project $project, ?string $branch = null, array $attributes = []): Task
+{
+    $task = Task::factory()->for($project)->create([
+        'title' => 'Add dark mode', 'description' => 'A toggle in the header.', 'stage' => TaskStage::InProgress,
+        'pull_request_branch' => $branch, 'pull_request_head_sha' => $branch ? str_repeat('c', 40) : null, ...$attributes,
+    ]);
+    $task->sandbox()->create(['project_id' => $project->id, 'provider' => 'fake', 'external_id' => 'copy-2', 'status' => SandboxStatus::Running]);
+
+    return $task;
+}
+
+test('the Pull requests page is for people who can see the project, and the sidebar lists it with a GitHub repository', function () {
+    config(['inertia.ssr.enabled' => false]);
+
+    $this->get(route('projects.pull-requests', $this->project))
+        ->assertInertia(fn ($page) => $page->component('projects/pull-requests')->where('project.id', $this->project->id)->where('project.name', $this->project->name));
+
+    $this->withUnencryptedCookie('open_project', (string) $this->project->id)
+        ->get(route('projects.pull-requests', $this->project))
+        ->assertInertia(fn ($page) => $page->where('openProject.pull_requests', true));
+
+    $this->project->update(['git_remote_url' => 'https://gitlab.com/acme/app.git']);
+    $this->withUnencryptedCookie('open_project', (string) $this->project->id)
+        ->get(route('projects.board', $this->project))
+        ->assertInertia(fn ($page) => $page->where('openProject.pull_requests', false));
+
+    $this->actingAs(User::factory()->has(AgentConnection::factory())->create())->get(route('projects.pull-requests', $this->project))->assertForbidden();
+})->group('GIT-022');
+
+test("listing the open pull requests moves a merged pull request's task to Done once, and leaves it where the user puts it", function () {
+    Queue::fake();
+    $this->pull = [...$this->pull, 'state' => 'closed', 'merged' => true];
+    ($this->github)(['api.github.com/graphql' => Http::response(openPullRequests([]))]);
+    $task = pullRequestTask($this->project, ['stage' => TaskStage::Review]);
+
+    $this->getJson(route('projects.pulls.index', $this->project))->assertOk();
+
+    expect($task->fresh()->only('stage', 'pull_request_state'))->toBe(['stage' => TaskStage::Done, 'pull_request_state' => 'merged'])
+        ->and($task->messages()->pluck('content')->last())->toBe('#12 was merged on GitHub');
+
+    // Moved back by the user: it isn't looked at, or moved, again.
+    $task->refresh()->update(['stage' => TaskStage::Review]);
+    $this->getJson(route('projects.pulls.index', $this->project))->assertOk();
+    expect($task->fresh()->stage)->toBe(TaskStage::Review)
+        ->and($task->messages()->count())->toBe(1);
+
+    $this->getJson(route('projects.pulls.index', [$this->project, 'closed' => 1]))->assertOk();
+})->group('GIT-023');
+
+test('a closed pull request moves its task to Done, and an open one missing from the newest 50 stays', function () {
+    Queue::fake();
+    ($this->github)([
+        'api.github.com/graphql' => Http::response(openPullRequests([])),
+        'api.github.com/repos/acme/app/pulls/12' => Http::response([...$this->pull, 'state' => 'closed']),
+        'api.github.com/repos/acme/app/pulls/14' => Http::response([...$this->pull, 'number' => 14]),
+    ]);
+    $closed = pullRequestTask($this->project);
+    $open = pullRequestTask($this->project, ['pull_request_number' => 14]);
+
+    app(PullRequestTasks::class)->refresh($this->project);
+
+    expect($closed->fresh()->only('stage', 'pull_request_state'))->toBe(['stage' => TaskStage::Done, 'pull_request_state' => 'closed'])
+        ->and($closed->messages()->pluck('content')->last())->toBe('#12 was closed on GitHub')
+        ->and($open->fresh()->only('stage', 'pull_request_state'))->toBe(['stage' => TaskStage::Review, 'pull_request_state' => null]);
+})->group('GIT-023');
+
+test("the board and a task's page look at GitHub soon after, at most once a minute, only when a task waits on it", function () {
+    Queue::fake();
+    config(['inertia.ssr.enabled' => false]);
+
+    $this->get(route('projects.board', $this->project))->assertOk();
+    Queue::assertNotPushed(RefreshPullRequestTasks::class);
+
+    $task = pullRequestTask($this->project);
+    $this->get(route('projects.board', $this->project))->assertOk();
+    $this->get(route('projects.tasks.show', [$this->project, $task]))->assertOk();
+    Queue::assertPushed(RefreshPullRequestTasks::class, 1);
+
+    $this->travel(61)->seconds();
+    $this->get(route('projects.tasks.show', [$this->project, $task]))->assertOk();
+    Queue::assertPushed(RefreshPullRequestTasks::class, 2);
+})->group('GIT-023');
+
+test("a merged pull request's task isn't pushed to, by hand or after a turn", function () {
+    Queue::fake();
+    $task = pullRequestTask($this->project, ['pull_request_state' => 'merged']);
+
+    $this->post(route('projects.tasks.pull-request.push', [$this->project, $task]))->assertRedirect();
+
+    expect($task->fresh()->sync_status)->toBeNull();
+    Queue::assertNotPushed(SyncPullRequestTask::class);
+})->group('GIT-023');
+
+test("opening a pull request pushes the task's work to a branch of its own and keeps GitHub's page, filled in", function () {
+    Queue::fake();
+    fakePullRequestRemote($this);
+    $this->pushedSha = str_repeat('d', 40);
+    ($this->github)(['api.github.com/repos/acme/app' => Http::response(['default_branch' => 'trunk'])]);
+    $writer = Mockery::mock(PullRequestWriter::class);
+    $writer->shouldReceive('write')->once()->withArgs(fn (Project $project, Sandbox $sandbox, string $branch, string $base) => $sandbox->external_id === 'copy-2' && $base === 'trunk')
+        ->andReturn(['title' => 'Add a dark mode toggle', 'body' => "Adds a toggle & remembers it.\n\n- header", 'commits' => 2]);
+    app()->instance(PullRequestWriter::class, $writer);
+    $task = copiedTask($this->project);
+
+    $this->post(route('projects.tasks.pull-request.open', [$this->project, $task]))->assertRedirect();
+    expect($task->fresh()->sync_status)->toBe(TaskSyncStatus::Pushing);
+    Queue::assertPushed(OpenTaskPullRequest::class);
+    app()->call([new OpenTaskPullRequest($task->fresh()), 'handle']);
+
+    $branch = "onedrop/task-{$task->id}-add-dark-mode";
+    $task->refresh();
+    expect($this->pushes)->toBe([$branch])
+        ->and($task->only('sync_status', 'pull_request_number', 'pull_request_branch', 'pull_request_base', 'pull_request_head_sha'))
+        ->toBe(['sync_status' => null, 'pull_request_number' => null, 'pull_request_branch' => $branch, 'pull_request_base' => 'trunk', 'pull_request_head_sha' => $this->pushedSha])
+        ->and($task->isOpeningPullRequest())->toBeTrue()
+        ->and($task->pull_request_draft['url'])->toBe("https://github.com/acme/app/compare/trunk...onedrop%2Ftask-{$task->id}-add-dark-mode?quick_pull=1&title=Add%20a%20dark%20mode%20toggle&body=Adds%20a%20toggle%20%26%20remembers%20it.%0A%0A-%20header")
+        ->and($task->messages()->pluck('content')->last())->toBe("Pushed {$branch} (ddddddd)");
+    Queue::assertPushed(LinkTaskPullRequest::class, fn ($job) => $job->branch === $branch);
+
+    // Again: newer work goes to the same branch.
+    $writer->shouldReceive('write')->andReturn(['title' => 'Add a dark mode toggle, remembered', 'body' => '', 'commits' => 3]);
+    app()->call([new OpenTaskPullRequest($task->fresh()), 'handle']);
+    expect($this->pushes)->toBe([$branch, $branch])
+        ->and($task->fresh()->pull_request_draft['title'])->toBe('Add a dark mode toggle, remembered');
+})->group('GIT-024');
+
+test("the task's own title and notes describe the pull request when the AI can't, and a refused push says why", function () {
+    Queue::fake();
+    fakePullRequestRemote($this);
+    ($this->github)(['api.github.com/repos/acme/app' => Http::response(['default_branch' => 'main'])]);
+    $writer = Mockery::mock(PullRequestWriter::class);
+    $writer->shouldReceive('write')->andThrow(new GitException('That base branch isn\'t in this project.'));
+    app()->instance(PullRequestWriter::class, $writer);
+    $task = copiedTask($this->project, attributes: ['sync_status' => TaskSyncStatus::Pushing]);
+
+    app()->call([new OpenTaskPullRequest($task), 'handle']);
+    expect($task->fresh()->pull_request_draft)->toMatchArray(['title' => 'Add dark mode', 'body' => 'A toggle in the header.']);
+
+    $remote = Mockery::mock(GitRemote::class);
+    $remote->shouldReceive('pushBundle')->andThrow(new GitException('The remote refused the push.'));
+    app()->instance(GitRemote::class, $remote);
+    $other = copiedTask($this->project, attributes: ['title' => 'Other', 'sync_status' => TaskSyncStatus::Pushing]);
+    app()->call([new OpenTaskPullRequest($other), 'handle']);
+
+    expect($other->fresh()->only('sync_status', 'sync_error', 'pull_request_branch'))->toBe(['sync_status' => null, 'sync_error' => 'The remote refused the push.', 'pull_request_branch' => null])
+        ->and($other->messages()->pluck('content')->last())->toBe("Couldn't push onedrop/task-{$other->id}-other: The remote refused the push.");
+})->group('GIT-024');
+
+test("a pull request can't be opened without a GitHub repository, a running copy, or while the agent works", function () {
+    Queue::fake();
+    $working = copiedTask($this->project, attributes: ['status' => ProjectStatus::Working]);
+    $pull = pullRequestTask($this->project);
+
+    $this->post(route('projects.tasks.pull-request.open', [$this->project, $working]))->assertSessionHas('inertia.flash_data.toast.message', "Wait for the task's agent to finish, or stop it.");
+    $this->post(route('projects.tasks.pull-request.open', [$this->project, $pull]))->assertRedirect();
+
+    $working->update(['status' => ProjectStatus::Idle]);
+    $working->sandbox()->update(['status' => SandboxStatus::Paused]);
+    $this->post(route('projects.tasks.pull-request.open', [$this->project, $working]))->assertRedirect();
+
+    $this->project->update(['git_remote_url' => 'https://gitlab.com/acme/app.git']);
+    $working->sandbox()->update(['status' => SandboxStatus::Running]);
+    $this->post(route('projects.tasks.pull-request.open', [$this->project, $working]))->assertRedirect();
+
+    Queue::assertNotPushed(OpenTaskPullRequest::class);
+    $this->actingAs(User::factory()->has(AgentConnection::factory())->create())->post(route('projects.tasks.pull-request.open', [$this->project, $working]))->assertForbidden();
+})->group('GIT-024');
+
+test('the task finds the pull request opened from its branch and becomes its task, or looks again a minute later', function () {
+    Queue::fake();
+    $task = copiedTask($this->project, 'onedrop/task-1-add-dark-mode');
+    $found = [];
+    ($this->github)(['api.github.com/repos/acme/app/pulls?*' => function (HttpRequest $request) use (&$found) {
+        expect($request->data())->toMatchArray(['head' => 'acme:onedrop/task-1-add-dark-mode', 'state' => 'all']);
+
+        return Http::response($found);
+    }]);
+
+    app()->call([new LinkTaskPullRequest($task, 'onedrop/task-1-add-dark-mode'), 'handle']);
+    expect($task->fresh()->isOpeningPullRequest())->toBeTrue();
+    Queue::assertPushed(LinkTaskPullRequest::class, fn ($job) => $job->polls === 1);
+
+    $found = [['number' => 31, 'state' => 'open', 'draft' => false, 'merged_at' => null, 'title' => 'Add dark mode', 'head' => ['sha' => str_repeat('c', 40)], 'base' => ['ref' => 'trunk']]];
+    app()->call([new LinkTaskPullRequest($task, 'onedrop/task-1-add-dark-mode', 1), 'handle']);
+
+    $task->refresh();
+    expect($task->only('pull_request_number', 'pull_request_base', 'pull_request_draft', 'pull_request_checks', 'stage', 'pull_request_state'))
+        ->toBe(['pull_request_number' => 31, 'pull_request_base' => 'trunk', 'pull_request_draft' => null, 'pull_request_checks' => 'pending', 'stage' => TaskStage::Review, 'pull_request_state' => null])
+        ->and($task->messages()->pluck('content')->last())->toBe('Opened #31');
+    Queue::assertPushed(WatchPullRequestChecks::class, fn ($job) => $job->sha === str_repeat('c', 40));
+    Queue::assertPushed(LinkTaskPullRequest::class, 1);
+})->group('GIT-024');
+
+test('looking for the pull request stops after half an hour, and listing the open ones links it too', function () {
+    Queue::fake();
+    $task = copiedTask($this->project, 'onedrop/task-1-add-dark-mode');
+    ($this->github)([
+        'api.github.com/repos/acme/app/pulls?*' => Http::response([]),
+        'api.github.com/graphql' => Http::response(openPullRequests([['number' => 32, 'headRefName' => 'onedrop/task-1-add-dark-mode']])),
+    ]);
+
+    app()->call([new LinkTaskPullRequest($task, 'onedrop/task-1-add-dark-mode', LinkTaskPullRequest::MAX_POLLS - 1), 'handle']);
+    Queue::assertNotPushed(LinkTaskPullRequest::class);
+
+    $this->getJson(route('projects.pulls.index', $this->project))->assertOk()->assertJsonPath('tasks.32', $task->id);
+    expect($task->fresh()->pull_request_number)->toBe(32);
+})->group('GIT-024');
+
+test("the task's page offers to open a pull request, then GitHub's page, then shows the pull request's state", function () {
+    Queue::fake();
+    config(['inertia.ssr.enabled' => false]);
+    $task = copiedTask($this->project);
+
+    $this->get(route('projects.tasks.show', [$this->project, $task]))
+        ->assertInertia(fn ($page) => $page->where('task.can_open_pull_request', true)->where('task.opening_pull_request', null));
+
+    $task->update(['pull_request_branch' => 'onedrop/task-1-x', 'pull_request_base' => 'main', 'pull_request_draft' => ['title' => 'X', 'body' => '', 'url' => 'https://github.com/acme/app/compare/main...x']]);
+    $this->get(route('projects.tasks.show', [$this->project, $task]))
+        ->assertInertia(fn ($page) => $page->where('task.opening_pull_request', ['branch' => 'onedrop/task-1-x', 'base' => 'main', 'url' => 'https://github.com/acme/app/compare/main...x']));
+
+    $task->update(['pull_request_number' => 33, 'pull_request_state' => 'merged']);
+    $this->get(route('projects.tasks.show', [$this->project, $task]))
+        ->assertInertia(fn ($page) => $page->where('task.can_open_pull_request', false)->where('task.opening_pull_request', null)->where('task.pull_request.state', 'merged'));
+})->group('GIT-023', 'GIT-024');

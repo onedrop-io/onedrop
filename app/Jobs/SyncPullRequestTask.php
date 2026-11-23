@@ -39,6 +39,10 @@ class SyncPullRequestTask implements ShouldQueue
             return __('This task isn\'t a pull request.');
         }
 
+        if ($task->pull_request_state !== null) {
+            return __('This pull request was :state on GitHub.', ['state' => $task->pull_request_state]);
+        }
+
         if ($task->sync_status !== null) {
             return __('Wait for the current push or pull to finish.');
         }

@@ -7,6 +7,8 @@ use App\Enums\ProjectStatus;
 use App\Enums\TaskStage;
 use App\Enums\TaskSyncStatus;
 use App\Jobs\CheckTurnOutcome;
+use App\Jobs\OpenTaskPullRequest;
+use App\Jobs\RefreshPullRequestTasks;
 use App\Jobs\SyncPullRequestTask;
 use App\Jobs\SyncTask;
 use App\Models\Attachment;
@@ -40,6 +42,8 @@ class TaskController extends Controller
         Gate::authorize('view', $project);
 
         $tasks = $project->tasks()->get();
+        // Pull requests merged or closed on GitHub move their tasks to Done (GIT-023), seen on the board's next poll or visit.
+        RefreshPullRequestTasks::soon($project);
 
         return Inertia::render('projects/board', [
             'project' => $project->only('id', 'name', 'status'),
@@ -51,8 +55,8 @@ class TaskController extends Controller
                 'waiting_for' => ! $task->isWorking() && $task->turn_outcome?->waiting() ? $task->turn_outcome->value : null,
                 'checking' => CheckTurnOutcome::checking($task),
                 'updated_at' => $task->updated_at?->toIso8601String(),
-                // Checked out from a pull request (GIT-014): its number and its checks as last seen (GIT-015).
-                'pull_request' => $task->isPullRequest() ? ['number' => $task->pull_request_number, 'checks' => $task->pull_request_checks] : null,
+                // Checked out from a pull request (GIT-014): its number, its checks as last seen (GIT-015), merged or closed (GIT-023).
+                'pull_request' => $task->isPullRequest() ? ['number' => $task->pull_request_number, 'checks' => $task->pull_request_checks, 'state' => $task->pull_request_state] : null,
             ]),
         ]);
     }
@@ -116,6 +120,9 @@ class TaskController extends Controller
     public function show(Request $request, Project $project, Task $task): Response
     {
         Gate::authorize('view', $project);
+
+        // A pull request merged, closed or just opened on GitHub shows on the task's next reload (GIT-023, GIT-024).
+        RefreshPullRequestTasks::soon($project);
 
         return $this->renderWorkspace($request, $project, $task);
     }
@@ -188,6 +195,21 @@ class TaskController extends Controller
         Gate::authorize('update', $project);
 
         return $this->syncPullRequest($task, TaskSyncStatus::Pulling);
+    }
+
+    /**
+     * Push the task's work to a branch of its own for a new pull request (GIT-024); the bar then links to GitHub's new
+     * pull request page, filled in.
+     */
+    public function openPullRequest(Project $project, Task $task): RedirectResponse
+    {
+        Gate::authorize('update', $project);
+
+        if (($problem = OpenTaskPullRequest::start($task)) !== null) {
+            Inertia::flash('toast', ['type' => 'error', 'message' => $problem]);
+        }
+
+        return back();
     }
 
     protected function syncPullRequest(Task $task, TaskSyncStatus $direction): RedirectResponse

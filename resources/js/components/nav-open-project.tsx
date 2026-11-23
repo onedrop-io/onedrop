@@ -1,5 +1,11 @@
 import { Link } from '@inertiajs/react';
-import { ArrowLeft, CircleDot, Kanban, Plus } from 'lucide-react';
+import {
+    ArrowLeft,
+    CircleDot,
+    GitPullRequest,
+    Kanban,
+    Plus,
+} from 'lucide-react';
 import { UnreadDot, WaitingLabel } from '@/components/nav-projects';
 import { TaskStatusIcon } from '@/components/task-status-icon';
 import {
@@ -12,7 +18,7 @@ import {
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import { closeProject } from '@/lib/open-project';
 import { useWorkspaceLinks } from '@/lib/workspace-view';
-import { board, show } from '@/routes/projects';
+import { board, pullRequests, show } from '@/routes/projects';
 import {
     create as createTask,
     show as showTask,
@@ -28,8 +34,8 @@ const GROUPS: { stage: TaskStage; label: string }[] = [
 ];
 
 /**
- * The sidebar for an opened project (TASK-001): back to everything, its main chat, its board,
- * a new task, and its tasks by column.
+ * The sidebar for an opened project (TASK-001): back to everything, its main chat, its board, its pull requests
+ * (GIT-022, with a GitHub repository), a new task, and its tasks by column.
  */
 export function NavOpenProject({ project }: { project: OpenProject }) {
     const { isCurrentUrl } = useCurrentUrl();
@@ -103,6 +109,25 @@ export function NavOpenProject({ project }: { project: OpenProject }) {
                             </Link>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
+                    {project.pull_requests && (
+                        <SidebarMenuItem>
+                            <SidebarMenuButton
+                                asChild
+                                isActive={isCurrentUrl(
+                                    pullRequests(project.id),
+                                )}
+                                tooltip={{ children: 'Pull requests' }}
+                            >
+                                <Link
+                                    href={pullRequests(project.id)}
+                                    data-test="open-project-pull-requests"
+                                >
+                                    <GitPullRequest />
+                                    <span>Pull requests</span>
+                                </Link>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+                    )}
                     <SidebarMenuItem>
                         <SidebarMenuButton
                             asChild

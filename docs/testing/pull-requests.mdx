@@ -1,6 +1,6 @@
 ---
 title: 'Pull requests'
-description: 'Manual checks for pull requests in Tools, the agent checking out branches and pull requests, checking one out as a task, and fixing its checks.'
+description: 'Manual checks for pull requests in Tools and on their own page, the agent checking out branches and pull requests, checking one out as a task, opening one from a task, and fixing its checks.'
 noindex: true
 ---
 
@@ -47,3 +47,25 @@ Set up also: a second branch with a commit Main doesn't have, and a tag.
 - [ ] **Fix failing checks** on the failing pull request sends the failed job's name and log to its task's agent; it fixes the code, the fix is pushed, and the chat says "Checks passed on …" once the workflow passes.
 - [ ] With **Fix failing checks automatically** on and a test that can't pass, the agent tries 3 times, then the chat says it stopped.
 - [ ] The board's card shows the checks' state.
+
+## The Pull requests page (GIT-022)
+
+- [ ] Open the project from its menu: **Pull requests** is under **Board** in the sidebar. A project without a GitHub repository doesn't list it.
+- [ ] The page lists the same pull requests as Tools; open one, switch to **Files changed**, and reload: the same pull request and tab come back.
+- [ ] **Check out as task** from the page goes to the new task, with the pull request beside its chat.
+
+## Pull request tasks follow GitHub (GIT-023)
+
+- [ ] Merge a checked-out pull request on GitHub, then open the board: within a minute (reload) its card is in **Done**, marked **Merged**, and its chat says "#N was merged on GitHub".
+- [ ] Close another without merging: its task moves to Done, marked **Closed**.
+- [ ] Drag the merged task back to Review and reload a few minutes later: it stays.
+- [ ] On the merged task's page, **Push** and **Pull** are off, and a turn of its agent isn't pushed.
+- [ ] A task's page shows **Files changed** on its pull request bar, which opens the diff in Tools beside the preview.
+
+## Open a pull request from a task (GIT-024)
+
+- [ ] Start a task, let the agent change something, then click **Open pull request**: the bar says **Pushing to GitHub…**, then shows **Create on GitHub**, and the branch `onedrop/task-<id>-…` is on GitHub.
+- [ ] **Create on GitHub** opens GitHub's compare page into the default branch (also when it isn't `main`), with a sensible AI-written title and description.
+- [ ] Create the pull request: within two minutes, without reloading by hand more than once, the task shows the pull request's bar, its chat says "Opened #N", and it's in Review on the board. Its checks start being watched.
+- [ ] Before creating it, ask the agent for another change and click **Push again**: the same branch gets the new commit.
+- [ ] A project connected to GitLab doesn't offer **Open pull request**.

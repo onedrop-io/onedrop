@@ -26,6 +26,8 @@ import {
     CloudUpload,
     GitMerge,
     GitPullRequest,
+    GitPullRequestArrow,
+    FileDiff,
     Kanban,
     LoaderCircle,
     SquareMousePointer,
@@ -3961,11 +3963,15 @@ function TaskCopyBar({
                     ? 'Applying to Main…'
                     : task.sync_status === 'updating'
                       ? 'Bringing in the latest from Main…'
-                      : task.has_copy
-                        ? 'Working in its own copy of the app'
-                        : task.applied_at
-                          ? 'Applied to Main'
-                          : 'Gets its own copy of the app when it starts'}
+                      : task.sync_status === 'pushing'
+                        ? 'Pushing to GitHub…'
+                        : task.opening_pull_request?.url
+                          ? `Pushed ${task.opening_pull_request.branch}: create its pull request on GitHub`
+                          : task.has_copy
+                            ? 'Working in its own copy of the app'
+                            : task.applied_at
+                              ? 'Applied to Main'
+                              : 'Gets its own copy of the app when it starts'}
             </span>
             {task.sync_error && (
                 <span
@@ -4000,12 +4006,61 @@ function TaskCopyBar({
                         />
                         Update from Main
                     </button>
+                    {task.can_open_pull_request && (
+                        <button
+                            type="button"
+                            onClick={() =>
+                                router.post(
+                                    TaskController.openPullRequest.url(ids),
+                                    {},
+                                    { preserveScroll: true },
+                                )
+                            }
+                            disabled={disabled}
+                            title={
+                                task.opening_pull_request
+                                    ? `Push this task's newer work to ${task.opening_pull_request.branch}`
+                                    : "Push this task's work to a new branch on GitHub and open a pull request from it"
+                            }
+                            className="flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-muted disabled:opacity-50"
+                            data-test="task-open-pull-request"
+                        >
+                            <GitPullRequestArrow
+                                className={cn(
+                                    'size-3.5',
+                                    task.sync_status === 'pushing' &&
+                                        'animate-pulse',
+                                )}
+                            />
+                            {task.opening_pull_request
+                                ? 'Push again'
+                                : 'Open pull request'}
+                        </button>
+                    )}
+                    {task.opening_pull_request?.url && (
+                        <a
+                            href={task.opening_pull_request.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            title="Open GitHub's new pull request page, filled in"
+                            className="flex items-center gap-1 rounded bg-primary px-2 py-0.5 font-medium text-primary-foreground hover:bg-primary/90"
+                            data-test="task-create-pull-request"
+                        >
+                            <ExternalLink className="size-3.5" />
+                            Create on GitHub
+                        </a>
+                    )}
                     <button
                         type="button"
                         onClick={apply}
                         disabled={disabled}
                         title="Merge this task's work into Main"
-                        className="flex items-center gap-1 rounded bg-primary px-2 py-0.5 font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                        className={cn(
+                            'flex items-center gap-1 rounded px-2 py-0.5 font-medium disabled:opacity-50',
+                            task.opening_pull_request?.url
+                                ? 'hover:bg-muted'
+                                : 'bg-primary text-primary-foreground hover:bg-primary/90',
+                        )}
                         data-test="task-apply"
                     >
                         <GitMerge className="size-3.5" />
@@ -4033,7 +4088,9 @@ function PullRequestBar({
     working: boolean;
 }) {
     const ids = { project: projectId, task: task.id };
-    const busy = task.sync_status !== null || !task.has_copy;
+    // Merged or closed on GitHub (GIT-023): nothing left to push to or pull from.
+    const finished = pullRequest.state !== null;
+    const busy = task.sync_status !== null || !task.has_copy || finished;
     const post = (url: string) =>
         router.post(url, {}, { preserveScroll: true });
     const set =
@@ -4070,20 +4127,34 @@ function PullRequestBar({
                     className="min-w-0 flex-1 truncate"
                     data-test="task-pull-request-status"
                 >
-                    {task.sync_status === 'forking'
-                        ? 'Checking out…'
-                        : task.sync_status === 'pushing'
-                          ? 'Pushing…'
-                          : task.sync_status === 'pulling'
-                            ? 'Pulling…'
-                            : pullRequest.checks === 'failure'
-                              ? 'Checks failed'
-                              : pullRequest.checks === 'pending'
-                                ? 'Checks running'
-                                : pullRequest.checks === 'success'
-                                  ? 'Checks passed'
-                                  : ''}
+                    {pullRequest.state === 'merged'
+                        ? 'Merged on GitHub'
+                        : pullRequest.state === 'closed'
+                          ? 'Closed on GitHub'
+                          : task.sync_status === 'forking'
+                            ? 'Checking out…'
+                            : task.sync_status === 'pushing'
+                              ? 'Pushing…'
+                              : task.sync_status === 'pulling'
+                                ? 'Pulling…'
+                                : pullRequest.checks === 'failure'
+                                  ? 'Checks failed'
+                                  : pullRequest.checks === 'pending'
+                                    ? 'Checks running'
+                                    : pullRequest.checks === 'success'
+                                      ? 'Checks passed'
+                                      : ''}
                 </span>
+                <button
+                    type="button"
+                    onClick={() => openPullRequest(pullRequest.number, 'files')}
+                    title="See the pull request's diff in Tools, beside the chat"
+                    className="flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-muted"
+                    data-test="task-pull-request-files"
+                >
+                    <FileDiff className="size-3.5" />
+                    Files changed
+                </button>
                 <button
                     type="button"
                     onClick={() =>

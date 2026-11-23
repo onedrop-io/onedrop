@@ -1418,6 +1418,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
     - **Push after each turn** (on by default): the agent's work is pushed to the pull request when each of its turns ends.
 - A pull request from a fork should check out and run, but can't be pushed to; the task says so.
 - Messages to the task's agent should work on the pull request's branch; the agent doesn't push itself.
+- User should be able to click "Files changed" on the task's pull request bar to see the pull request's diff, file by file, in Tools beside the chat, while the preview shows its code running (`?tab=tools&tool=pulls&pr=12&pr_tab=files`).
 - Deleting the task removes its copy; the pull request is untouched.
 
 ## GIT-015: Fix a pull request's failing checks
@@ -1446,6 +1447,26 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - A remote connected with a token (GIT-004) should be `origin` too, but its token never enters the sandbox: a public repository fetches anonymously, and a private one is refused, and the agent asks the user to Pull from Source Control instead.
 - Pushing should stay with the platform (GIT-004, GIT-014): the agent's token can't push, and the agent is told so.
 - Connecting, changing or disconnecting the remote should update `origin` in the project's running sandboxes (task copies too) within moments; a sleeping one gets it when it wakes, and the agent's next run checks first. Disconnecting removes `origin` but keeps what was fetched.
+
+## GIT-022: Pull requests page
+
+- User should see "Pull requests" under Board in an opened project's sidebar when the project is connected to a GitHub repository (GIT-013), and open a full page with the same list and pull request pages as Tools → Pull requests.
+- The page's URL should keep the open pull request and its tab (`/projects/<id>/pull-requests?pr=12&pr_tab=files`), so a reload or a link opens it again.
+- Checking a pull request out, opening its task or fixing its checks from the page should go to its task as from Tools (GIT-014, GIT-015).
+- Without a GitHub repository the page should say to connect one in Source Control, with a link to it.
+
+## GIT-023: Pull request tasks follow their pull request
+
+- A pull request's task (GIT-014) should move to Done when its pull request is merged or closed on GitHub, with "#12 was merged on GitHub" (or "closed") in its chat. It's noticed when the Pull requests list is opened, and moments after the board or the task's page is.
+- A pull request's card on the board should show its number beside its checks (GIT-015).
+- It should only be moved once: a task the user moves back out of Done stays where they put it.
+
+## GIT-024: Open a pull request from a task
+
+- User should be able to click "Open pull request" on a task that has its own copy of the app (TASK-003), in a project connected to a GitHub repository: the task's work is committed and pushed to a new branch on GitHub (`onedrop/task-<id>-<title>`), with no force-push, and the project's AI writes a title and description from it (GIT-007).
+- The bar should say Pushing… while it works, then offer "Create on GitHub", which opens GitHub's new pull request page from that branch into the repository's default branch, filled in with the title and description. Clicking "Open pull request" again pushes newer work to the same branch.
+- Once the pull request exists on GitHub, the task should become its task (GIT-014) within a minute or two, or as soon as the Pull requests list or the task's page is opened: its bar shows the pull request with Push, Pull, its checks and "Push after each turn", and it moves to Review. Its chat says "Opened #12".
+- A project without a GitHub repository, a task without its own copy, a task whose agent is working, and a pull request's own task should not offer it; GitHub's errors are shown on the bar.
 
 ## SCM-001: Source Control tab
 

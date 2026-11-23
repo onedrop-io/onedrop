@@ -144,17 +144,31 @@ const FAILED = [
 ];
 const RUNNING = ['queued', 'in_progress', 'pending', 'waiting', 'requested'];
 
-/** Show a pull request's page in Tools → Pull requests (e.g. from its task's bar). */
-export function openPullRequest(number: number): void {
-    setPullInUrl(number);
+export type PullTab = 'conversation' | 'commits' | 'files' | 'checks';
+
+const PULL_TABS: PullTab[] = ['conversation', 'commits', 'files', 'checks'];
+
+type OpenPull = { number: number; tab: PullTab };
+
+/** Show a pull request's page in Tools → Pull requests (e.g. from its task's bar), on one of its tabs. */
+export function openPullRequest(
+    number: number,
+    tab: PullTab = 'conversation',
+): void {
+    setPullInUrl(number, tab);
     openWorkspaceTool('pulls');
     window.dispatchEvent(
-        new CustomEvent<number>(OPEN_PULL_EVENT, { detail: number }),
+        new CustomEvent<OpenPull>(OPEN_PULL_EVENT, {
+            detail: { number, tab },
+        }),
     );
 }
 
-/** The open pull request lives in the URL beside the Tools section (`?tab=tools&tool=pulls&pr=12`, GIT-013). */
-function setPullInUrl(number: number | null): void {
+/**
+ * The open pull request and its tab live in the URL beside the Tools section (`?tab=tools&tool=pulls&pr=12`, GIT-013),
+ * or the Pull requests page's (`?pr=12&pr_tab=files`, GIT-022). The first tab is the default, so it adds nothing.
+ */
+function setPullInUrl(number: number | null, tab: PullTab | null = null): void {
     const url = new URL(window.location.href);
 
     if (number) {
@@ -163,9 +177,33 @@ function setPullInUrl(number: number | null): void {
         url.searchParams.delete('pr');
     }
 
+    if (number && tab && tab !== 'conversation') {
+        url.searchParams.set('pr_tab', tab);
+    } else {
+        url.searchParams.delete('pr_tab');
+    }
+
     if (url.href !== window.location.href) {
         window.history.replaceState(window.history.state, '', url.href);
     }
+}
+
+/** The pull request and tab a URL asks for. */
+function pullFromUrl(): OpenPull | null {
+    if (typeof window === 'undefined') {
+        return null;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const number = Number(params.get('pr'));
+    const tab = params.get('pr_tab') as PullTab | null;
+
+    return number > 0
+        ? {
+              number,
+              tab: tab && PULL_TABS.includes(tab) ? tab : 'conversation',
+          }
+        : null;
 }
 
 /**
@@ -174,52 +212,53 @@ function setPullInUrl(number: number | null): void {
  */
 export default function PullRequestsPanel({
     projectId,
+    onConnect = () => openWorkspaceTool('git'),
 }: {
     projectId: number;
+    /** Where "Open Source Control" goes: the workspace's, or the project's page from the Pull requests page (GIT-022). */
+    onConnect?: () => void;
 }) {
-    const [number, setNumber] = useState<number | null>(() => {
-        if (typeof window === 'undefined') {
-            return null;
-        }
-
-        const asked = Number(
-            new URLSearchParams(window.location.search).get('pr'),
-        );
-
-        return asked > 0 ? asked : null;
-    });
+    const [open, setOpen] = useState<OpenPull | null>(pullFromUrl);
 
     useEffect(() => {
         const listener = (event: Event) =>
-            setNumber((event as CustomEvent<number>).detail);
+            setOpen((event as CustomEvent<OpenPull>).detail);
 
         window.addEventListener(OPEN_PULL_EVENT, listener);
 
         return () => window.removeEventListener(OPEN_PULL_EVENT, listener);
     }, []);
 
-    // The URL follows the open pull request; leaving the section takes it out.
-    useEffect(() => setPullInUrl(number), [number]);
+    // The URL follows the open pull request and its tab; leaving the section takes them out.
+    useEffect(() => setPullInUrl(open?.number ?? null, open?.tab), [open]);
     useEffect(() => () => setPullInUrl(null), []);
 
-    return number ? (
+    return open ? (
         <PullRequestPage
-            key={number}
+            key={`${open.number}-${open.tab}`}
             projectId={projectId}
-            number={number}
-            onBack={() => setNumber(null)}
+            number={open.number}
+            initialTab={open.tab}
+            onTab={(tab) => setPullInUrl(open.number, tab)}
+            onBack={() => setOpen(null)}
         />
     ) : (
-        <PullRequestList projectId={projectId} onOpen={setNumber} />
+        <PullRequestList
+            projectId={projectId}
+            onOpen={(number) => setOpen({ number, tab: 'conversation' })}
+            onConnect={onConnect}
+        />
     );
 }
 
 function PullRequestList({
     projectId,
     onOpen,
+    onConnect,
 }: {
     projectId: number;
     onOpen: (number: number) => void;
+    onConnect: () => void;
 }) {
     const [closed, setClosed] = useState(false);
     const [data, setData] = useState<ListData | null>(null);
@@ -272,7 +311,7 @@ function PullRequestList({
                     variant="outline"
                     size="sm"
                     className="mt-3"
-                    onClick={() => openWorkspaceTool('git')}
+                    onClick={onConnect}
                 >
                     <GitBranch />
                     Open Git
@@ -402,21 +441,27 @@ function PullRequestList({
     );
 }
 
-type PageTab = 'conversation' | 'commits' | 'files' | 'checks';
-
 function PullRequestPage({
     projectId,
     number,
+    initialTab,
+    onTab,
     onBack,
 }: {
     projectId: number;
     number: number;
+    initialTab: PullTab;
+    onTab: (tab: PullTab) => void;
     onBack: () => void;
 }) {
     const ids = { project: projectId, number };
     const [data, setData] = useState<PullData | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const [tab, setTab] = useState<PageTab>('conversation');
+    const [tab, setTabState] = useState<PullTab>(initialTab);
+    const setTab = (next: PullTab) => {
+        setTabState(next);
+        onTab(next);
+    };
     const [busy, setBusy] = useState<'check-out' | 'fix' | null>(null);
 
     useEffect(() => {
@@ -607,7 +652,7 @@ function PullRequestPage({
                         ['commits', 'Commits', pull.commits],
                         ['files', 'Files changed', pull.changed_files],
                         ['checks', 'Checks', null],
-                    ] as [PageTab, string, number | null][]
+                    ] as [PullTab, string, number | null][]
                 ).map(([id, label, count]) => (
                     <button
                         key={id}

@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Sandbox\Agents\PlainActivity;
 use App\Sandbox\Agents\ProjectNamer;
 use App\Sandbox\Branding;
+use App\Sandbox\GitHubPulls;
 use App\Sandbox\ProjectIcons;
 use App\Sandbox\Templates\AppScreenshots;
 use App\Sandbox\Templates\TemplateCatalog;
@@ -206,7 +207,7 @@ class HandleInertiaRequests extends Middleware
     /**
      * The opened project with every task, for the sidebar's project view; null when none is open or it isn't the user's.
      *
-     * @return array{id: int, name: string, working: bool, unread: bool, main_waiting_for: string|null, waiting_for: string|null, checking: bool, tasks: list<array<string, mixed>>}|null
+     * @return array{id: int, name: string, working: bool, unread: bool, main_waiting_for: string|null, pull_requests: bool, waiting_for: string|null, checking: bool, tasks: list<array<string, mixed>>}|null
      */
     protected function openProject(User $user, int $projectId): ?array
     {
@@ -224,6 +225,8 @@ class HandleInertiaRequests extends Middleware
             'working' => $project->status === ProjectStatus::Working,
             'unread' => $this->mainChatUnread($project->loadMax(['messages as last_reply_at' => fn (Builder $query) => $query->where('role', MessageRole::Assistant)], 'created_at')),
             'main_waiting_for' => $this->waitingFor($project),
+            // The Pull requests page is listed for a project with a GitHub repository (GIT-022).
+            'pull_requests' => GitHubPulls::available($project),
             ...$this->waiting($project, $tasks),
             'tasks' => array_values($tasks->map($this->summarizeTask(...))->all()),
         ];

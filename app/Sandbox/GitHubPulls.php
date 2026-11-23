@@ -121,6 +121,55 @@ class GitHubPulls
     }
 
     /**
+     * The repository's default branch, which pull requests opened from a task go into (GIT-024).
+     *
+     * @throws GitException
+     */
+    public function defaultBranch(Project $project): string
+    {
+        $repository = $this->repositoryOf($project);
+
+        return Cache::remember($this->cacheKey($project, 'default-branch'), 3600, fn () => (string) $this->check(
+            $this->api($project)->get(self::API."/repos/{$repository}"),
+            'Metadata',
+        )->json('default_branch'));
+    }
+
+    /**
+     * The newest pull request opened from one of the repository's own branches, open or not (GIT-024), or null.
+     *
+     * @return array{number: int, state: string, head_sha: string, base: string, title: string}|null
+     *
+     * @throws GitException
+     */
+    public function fromBranch(Project $project, string $branch): ?array
+    {
+        $repository = $this->repositoryOf($project);
+        $owner = Str::before($repository, '/');
+        $pulls = $this->check(
+            $this->api($project)->get(self::API."/repos/{$repository}/pulls", ['head' => "{$owner}:{$branch}", 'state' => 'all', 'per_page' => 1]),
+            'Pull requests',
+        )->json();
+        $pull = is_array($pulls) ? ($pulls[0] ?? null) : null;
+
+        if (! is_array($pull)) {
+            return null;
+        }
+
+        return [
+            'number' => (int) $pull['number'],
+            'state' => match (true) {
+                ($pull['merged_at'] ?? null) !== null => 'merged',
+                $pull['state'] === 'open' && ($pull['draft'] ?? false) => 'draft',
+                default => (string) $pull['state'],
+            },
+            'head_sha' => (string) $pull['head']['sha'],
+            'base' => (string) $pull['base']['ref'],
+            'title' => (string) $pull['title'],
+        ];
+    }
+
+    /**
      * One pull request: its state, branches, author, description, whether it can be merged, and its size.
      *
      * @return array<string, mixed>

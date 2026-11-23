@@ -300,7 +300,7 @@ abstract class AgentEvents
         }
 
         // A pull request's task sends the agent's work to the pull request (GIT-014).
-        if ($code === 0 && $conversation instanceof Task && $conversation->isPullRequest() && $conversation->pull_request_push && ! $conversation->pull_request_fork) {
+        if ($code === 0 && $conversation instanceof Task && $conversation->isPullRequest() && $conversation->pull_request_push && ! $conversation->pull_request_fork && $conversation->pull_request_state === null) {
             SyncPullRequestTask::start($conversation, TaskSyncStatus::Pushing);
         }
 

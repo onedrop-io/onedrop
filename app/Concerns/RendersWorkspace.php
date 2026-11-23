@@ -112,7 +112,16 @@ trait RendersWorkspace
                     'autofix' => $task->pull_request_autofix,
                     'checks' => $task->pull_request_checks,
                     'head_sha' => $task->pull_request_head_sha,
+                    // merged or closed on GitHub (GIT-023).
+                    'state' => $task->pull_request_state,
                     'url' => ($repository = GitHubPulls::repository($project)) ? "https://github.com/{$repository}/pull/{$task->pull_request_number}" : null,
+                ] : null,
+                // Opening a pull request from the task (GIT-024): whether it can, and the branch pushed for it.
+                'can_open_pull_request' => ! $task->isPullRequest() && GitHubPulls::available($project),
+                'opening_pull_request' => $task->isOpeningPullRequest() ? [
+                    'branch' => $task->pull_request_branch,
+                    'base' => $task->pull_request_base,
+                    'url' => $task->pull_request_draft['url'] ?? null,
                 ] : null,
             ] : null,
             'newTask' => $newTask,

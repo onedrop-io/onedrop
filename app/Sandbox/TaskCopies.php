@@ -124,16 +124,27 @@ class TaskCopies
             throw new GitException(__('This pull request comes from a fork, so OneDrop can\'t push to it.'));
         }
 
+        return $this->pushBranch($task, (string) $task->pull_request_branch, 'Checkpoint');
+    }
+
+    /**
+     * Commit what's changed in the task's copy (as $message) and push its branch to $branch on the project's remote,
+     * never forcing. Returns the pushed commit. Opening a pull request from a task pushes this way too (GIT-024).
+     *
+     * @throws SandboxException|GitException
+     */
+    public function pushBranch(Task $task, string $branch, string $message): string
+    {
         $copy = $this->copySandbox($task);
         $dir = '/tmp/onedrop-bundle-'.Str::lower(Str::random(8));
         $local = storage_path('framework/task-bundle-'.uniqid());
 
         try {
-            $this->run($copy, ['bash', '-c', 'mkdir -p "$1" && /opt/onedrop/fork bundle "$1/branch.bundle" "$2"', 'bundle', $dir, 'Checkpoint']);
+            $this->run($copy, ['bash', '-c', 'mkdir -p "$1" && /opt/onedrop/fork bundle "$1/branch.bundle" "$2"', 'bundle', $dir, $message]);
             File::ensureDirectoryExists($local);
             $this->provider->copyOut($copy->external_id, $dir, $local);
 
-            return $this->remote->pushBundle($task->project, "{$local}/branch.bundle", (string) $task->pull_request_branch);
+            return $this->remote->pushBundle($task->project, "{$local}/branch.bundle", $branch);
         } finally {
             File::deleteDirectory($local);
             $this->clearUp($copy, $dir);

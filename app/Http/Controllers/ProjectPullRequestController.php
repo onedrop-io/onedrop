@@ -12,11 +12,14 @@ use App\Models\Task;
 use App\Sandbox\GitException;
 use App\Sandbox\GitHubPulls;
 use App\Sandbox\PullRequestFixes;
+use App\Sandbox\PullRequestTasks;
 use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
+use Inertia\Inertia;
+use Inertia\Response;
 
 /**
  * Tools → Pull requests (GIT-013): the project's GitHub pull requests, read on the platform; checking one out as a
@@ -25,9 +28,22 @@ use Illuminate\Support\Str;
 class ProjectPullRequestController extends Controller
 {
     /**
-     * Open (or closed) pull requests, and which are checked out as tasks.
+     * The Pull requests page (GIT-022): the same list and pull request pages as Tools → Pull requests, full width.
      */
-    public function index(Request $request, Project $project, GitHubPulls $pulls): JsonResponse
+    public function page(Project $project): Response
+    {
+        Gate::authorize('view', $project);
+
+        return Inertia::render('projects/pull-requests', [
+            'project' => $project->only('id', 'name'),
+        ]);
+    }
+
+    /**
+     * Open (or closed) pull requests, and which are checked out as tasks. Listing the open ones also brings the tasks
+     * up to date: opened pull requests are linked, merged or closed ones' tasks move to Done (GIT-023, GIT-024).
+     */
+    public function index(Request $request, Project $project, GitHubPulls $pulls, PullRequestTasks $tasks): JsonResponse
     {
         Gate::authorize('view', $project);
 
@@ -35,12 +51,20 @@ class ProjectPullRequestController extends Controller
             return response()->json(['available' => false, 'repository' => null, 'pulls' => [], 'tasks' => (object) []]);
         }
 
-        return $this->fromGitHub(fn () => response()->json([
-            'available' => true,
-            'repository' => GitHubPulls::repository($project),
-            'pulls' => $pulls->list($project, closed: $request->boolean('closed')),
-            'tasks' => (object) $project->tasks()->whereNotNull('pull_request_number')->pluck('id', 'pull_request_number')->all(),
-        ]));
+        return $this->fromGitHub(function () use ($request, $project, $pulls, $tasks) {
+            $list = $pulls->list($project, closed: $request->boolean('closed'));
+
+            if (! $request->boolean('closed')) {
+                $tasks->refresh($project, $list);
+            }
+
+            return response()->json([
+                'available' => true,
+                'repository' => GitHubPulls::repository($project),
+                'pulls' => $list,
+                'tasks' => (object) $project->tasks()->whereNotNull('pull_request_number')->pluck('id', 'pull_request_number')->all(),
+            ]);
+        });
     }
 
     /**
