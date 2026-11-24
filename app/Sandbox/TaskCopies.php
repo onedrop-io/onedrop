@@ -467,12 +467,15 @@ class TaskCopies
     }
 
     /**
-     * Main's sandbox, running and with the current tool files (so it has the fork tool).
+     * Main's sandbox, awake, running and with the current tool files (so it has the fork tool).
      *
      * @throws SandboxException
      */
     protected function mainSandbox(Project $project): Sandbox
     {
+        // Only the page showing a sandbox wakes it, and a task's page shows its copy: Main may be asleep (SBX-007).
+        $this->awake($project->sandbox()->first());
+
         if (! $project->mainSandboxBusy()) {
             $this->updater->updateIfOutdated($project, rebuild: false);
         }
@@ -497,7 +500,20 @@ class TaskCopies
             throw new SandboxException("The task's copy of the app isn't running.");
         }
 
+        $this->awake($copy);
+
         return $copy;
+    }
+
+    /**
+     * Wake a sandbox suspended or stopped for sitting idle (SBX-007) before running commands in it: Docker can't exec
+     * in a stopped container. Waking can't fail here; the command that follows says what's wrong.
+     */
+    protected function awake(?Sandbox $sandbox): void
+    {
+        if ($sandbox?->status === SandboxStatus::Running && $sandbox->external_id !== null) {
+            $sandbox->wake($this->provider);
+        }
     }
 
     /**

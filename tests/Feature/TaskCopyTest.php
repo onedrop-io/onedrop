@@ -99,6 +99,19 @@ test('the copy is Main\'s kept paths at one instant, on its own branch, with its
         ->and($this->project->fresh()->sandbox->is($this->main))->toBeTrue();
 })->group('TASK-003');
 
+test('a Main stopped for sitting idle is woken before its copy is made, before anything runs in it', function () {
+    $this->main->forceFill(['suspended_at' => now()->subMinutes(10), 'stopped_at' => now()->subMinutes(5)])->save();
+    $this->provider->wakes = true;
+    $task = Task::factory()->for($this->project)->create();
+    $task->sandbox()->create(['provider' => 'fake', 'status' => SandboxStatus::Creating]);
+
+    (new ForkTaskSandbox($task))->handle(app(TaskCopies::class), app(AgentQueue::class));
+
+    expect($this->provider->woken[0] ?? null)->toBe('main-1')
+        ->and($this->main->fresh()->only('suspended_at', 'stopped_at'))->toBe(['suspended_at' => null, 'stopped_at' => null])
+        ->and($task->sandbox()->first()->status)->toBe(SandboxStatus::Running);
+})->group('TASK-003', 'SBX-007');
+
 test('the chat warns about data services outside the sandbox, which the copy still shares', function () {
     $this->services = "db.example.com\ncache.internal\n";
     $task = Task::factory()->for($this->project)->create();
