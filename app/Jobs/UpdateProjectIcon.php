@@ -9,7 +9,9 @@ use App\Sandbox\SandboxException;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 
+#[DeleteWhenMissingModels]
 class UpdateProjectIcon implements ShouldBeUnique, ShouldQueue
 {
     use Queueable;

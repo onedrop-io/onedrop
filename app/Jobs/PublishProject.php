@@ -10,8 +10,10 @@ use App\Sandbox\Publishing\Publishers;
 use App\Sandbox\Publishing\PublishException;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 use Throwable;
 
+#[DeleteWhenMissingModels]
 class PublishProject implements ShouldQueue
 {
     use Queueable;

@@ -154,6 +154,44 @@ test('waking a stopped sandbox clears both marks', function () {
     expect($sandbox->suspended_at)->toBeNull()->and($sandbox->stopped_at)->toBeNull();
 })->group('SBX-007');
 
+test('a stopped sandbox is marked awake before it is woken, so a request cut off mid-wake does not leave it running unwatched', function () {
+    $this->sandbox->forceFill(['suspended_at' => now()->subHour(), 'stopped_at' => now()->subMinutes(30)])->save();
+    $this->provider = new class extends FakeSandboxProvider
+    {
+        public ?Sandbox $seen = null;
+
+        public function wake(string $id): bool
+        {
+            $this->seen = Sandbox::query()->where('external_id', $id)->first();
+
+            return true;
+        }
+    };
+    app()->instance(SandboxProvider::class, $this->provider);
+
+    $this->sandbox->fresh()->wake($this->provider);
+
+    expect($this->provider->seen->suspended_at)->toBeNull()
+        ->and($this->provider->seen->stopped_at)->toBeNull();
+})->group('SBX-007');
+
+test('a stopped sandbox that fails to wake stays marked stopped', function () {
+    $this->sandbox->forceFill(['suspended_at' => now()->subHour(), 'stopped_at' => now()->subMinutes(30)])->save();
+    $this->provider = new class extends FakeSandboxProvider
+    {
+        public function wake(string $id): bool
+        {
+            throw new SandboxException('Docker is not running.');
+        }
+    };
+    app()->instance(SandboxProvider::class, $this->provider);
+
+    expect($this->sandbox->fresh()->wake($this->provider))->toBeFalse();
+
+    $sandbox = $this->sandbox->fresh();
+    expect($sandbox->suspended_at)->not->toBeNull()->and($sandbox->stopped_at)->not->toBeNull();
+})->group('SBX-007');
+
 test('idle suspension can be turned off', function () {
     config(['sandbox.providers.docker.idle_seconds' => 0]);
 

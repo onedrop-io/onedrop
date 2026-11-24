@@ -10,6 +10,7 @@ use App\Models\Task;
 use App\Sandbox\Agents\Jev;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use Throwable;
@@ -20,6 +21,7 @@ use Throwable;
  * desktop notifications (PRJ-011). Without a key, or when Jev doesn't answer, nothing is kept and they show
  * the turn as done, as before.
  */
+#[DeleteWhenMissingModels]
 class CheckTurnOutcome implements ShouldQueue
 {
     use Queueable;
@@ -37,7 +39,11 @@ class CheckTurnOutcome implements ShouldQueue
     /**
      * @param  int  $turn  The user message the turn answered.
      */
-    public function __construct(public Project|Task $conversation, public int $turn) {}
+    public function __construct(public Project|Task $conversation, public int $turn)
+    {
+        // Its own workers, so a chat never waits behind a task's copy or other long jobs.
+        $this->onQueue(config('queue.agents'));
+    }
 
     /**
      * Forget the last turn's outcome and check the turn that just ended, when there's a key to ask Jev with.

@@ -10,11 +10,13 @@ use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxProvider;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 
 /**
  * Put an organization's running computers to sleep once its owners turned computers off (CMP-003). They're kept, so
  * turning computers on again gives everyone theirs back.
  */
+#[DeleteWhenMissingModels]
 class SuspendComputers implements ShouldQueue
 {
     use Queueable;

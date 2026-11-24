@@ -9,12 +9,14 @@ use App\Sandbox\OrganizationSecrets;
 use App\Sandbox\SandboxException;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 
 /**
  * Brings the organization's secrets (SECRET-003) up to date in its running sandboxes after they changed, in a
  * person's projects' running sandboxes after their GitHub connection changed (GIT-016), or in one sandbox that just
  * woke up.
  */
+#[DeleteWhenMissingModels]
 class SyncOrganizationSecrets implements ShouldQueue
 {
     use Queueable;

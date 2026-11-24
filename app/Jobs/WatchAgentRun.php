@@ -11,6 +11,7 @@ use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxProvider;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 
 /**
  * The safety check for an agent run whose end never arrives (AGT-001): the forwarder posts it when the agent exits,
@@ -18,6 +19,7 @@ use Illuminate\Foundation\Queue\Queueable;
  * "working" for good, its sidebar polling and its sandbox kept awake. Checked 15 minutes after the run starts, and
  * every 15 minutes while its forwarder is still running; a run whose forwarder is gone is ended.
  */
+#[DeleteWhenMissingModels]
 class WatchAgentRun implements ShouldQueue
 {
     use Queueable;
@@ -28,7 +30,11 @@ class WatchAgentRun implements ShouldQueue
     /** Checks in a row the sandbox may fail to answer before the run is given up on. */
     public const UNANSWERED = 4;
 
-    public function __construct(public Project $project, public Message $message, public int $unanswered = 0) {}
+    public function __construct(public Project $project, public Message $message, public int $unanswered = 0)
+    {
+        // Its own workers, so a chat never waits behind a task's copy or other long jobs.
+        $this->onQueue(config('queue.agents'));
+    }
 
     /**
      * Check on the run later. Not on a sync queue, which can't wait: checking straight away would end a run whose

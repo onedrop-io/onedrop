@@ -7,11 +7,13 @@ use App\Models\Sandbox;
 use App\Sandbox\GitOrigin;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 
 /**
  * Brings `origin` up to date (GIT-021) in a project's running sandboxes after its remote changed, or in one sandbox
  * that just woke up.
  */
+#[DeleteWhenMissingModels]
 class SyncGitOrigin implements ShouldQueue
 {
     use Queueable;

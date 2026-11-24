@@ -7,11 +7,13 @@ use App\Sandbox\GitException;
 use App\Sandbox\PullRequestTasks;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 
 /**
  * Look for the pull request opened from a task's pushed branch (GIT-024): once a minute for half an hour after the
  * push, as a delayed job like the checks' watch (GIT-015). Found, the task becomes the pull request's task.
  */
+#[DeleteWhenMissingModels]
 class LinkTaskPullRequest implements ShouldQueue
 {
     use Queueable;

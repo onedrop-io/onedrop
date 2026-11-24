@@ -13,9 +13,11 @@ use App\Sandbox\ProjectSnapshots;
 use App\Sandbox\SandboxException;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 use Illuminate\Support\Str;
 use Throwable;
 
+#[DeleteWhenMissingModels]
 class ImportRepository implements ShouldQueue
 {
     use Queueable;

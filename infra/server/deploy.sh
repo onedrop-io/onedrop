@@ -105,6 +105,8 @@ as_onedrop npm run build
 
 log "Migrating the database"
 as_onedrop php artisan migrate --force
+# Agent turns run on their own worker (onedrop-agents-queue), so a chat never waits behind a task's copy.
+grep -q '^AGENT_QUEUE=' /opt/onedrop/shared/.env || set_env AGENT_QUEUE agents
 as_onedrop php artisan config:cache
 as_onedrop php artisan view:cache
 
@@ -129,6 +131,12 @@ if [ -f "$RELEASE/infra/server/onedrop-reverb.service" ]; then
     systemctl daemon-reload
     systemctl enable onedrop-reverb
     systemctl restart onedrop-reverb
+fi
+if [ -f "$RELEASE/infra/server/onedrop-agents-queue.service" ]; then
+    install -m 644 "$RELEASE/infra/server/onedrop-agents-queue.service" /etc/systemd/system/onedrop-agents-queue.service
+    systemctl daemon-reload
+    systemctl enable onedrop-agents-queue
+    systemctl restart onedrop-agents-queue
 fi
 if [ -f "$RELEASE/infra/server/drop-scheduler.service" ]; then
     install -m 644 "$RELEASE/infra/server/drop-scheduler.service" /etc/systemd/system/drop-scheduler.service

@@ -36,11 +36,15 @@ elif ! docker image inspect "$SANDBOX_DOCKER_IMAGE" >/dev/null 2>&1; then
     (docker pull --quiet "$SANDBOX_DOCKER_IMAGE" >/dev/null && log "Sandbox image ready") &
 fi
 
+# Agent turns get a worker of their own, so a chat never waits behind a task's copy (AGT-001).
+export AGENT_QUEUE="${AGENT_QUEUE:-agents}"
+
 php artisan migrate --force --no-interaction
 php artisan optimize --no-interaction >/dev/null
 
 # The queue worker creates sandboxes and runs agents; restart it whenever it exits.
 (while true; do php artisan queue:work --tries=1 --timeout=0 --sleep=1 || true; sleep 1; done) &
+(while true; do php artisan queue:work --queue="$AGENT_QUEUE" --tries=1 --timeout=0 --sleep=1 || true; sleep 1; done) &
 
 # The scheduler: idle sandboxes (SBX-007), server monitoring samples (ADMIN-003) and database backups (ADMIN-005).
 (while true; do php artisan schedule:work || true; sleep 1; done) &

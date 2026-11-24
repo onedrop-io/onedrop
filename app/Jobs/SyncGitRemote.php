@@ -11,9 +11,11 @@ use App\Sandbox\SandboxException;
 use DateTimeInterface;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Throwable;
 
+#[DeleteWhenMissingModels]
 class SyncGitRemote implements ShouldQueue
 {
     use Queueable;

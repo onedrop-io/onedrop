@@ -145,6 +145,7 @@ Useful places on the server:
 | `/opt/onedrop/shared/.env`            | Configuration, kept across releases |
 | `/opt/onedrop/shared/database.sqlite` | The database                        |
 | `journalctl -u onedrop-queue`         | Queue worker logs                   |
+| `journalctl -u onedrop-agents-queue`  | Agent turns worker logs             |
 
 To join the server to your tailnet (for Tailscale publishing and private access), run `sudo tailscale up` in a session.
 

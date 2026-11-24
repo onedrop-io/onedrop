@@ -17,6 +17,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Agent Turns Queue
+    |--------------------------------------------------------------------------
+    |
+    | The queue an agent's turn starts and ends on (AGT-001), worked by its own
+    | workers so a chat message never waits behind long background jobs such as
+    | a task's copy. Unset, they share the default queue. On Laravel Cloud, the
+    | managed queue of this name must exist before this is set.
+    |
+    */
+
+    'agents' => env('AGENT_QUEUE'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Queue Connections
     |--------------------------------------------------------------------------
     |

@@ -11,11 +11,13 @@ use App\Sandbox\SandboxException;
 use App\Sandbox\TaskCopies;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 
 /**
  * Apply a task's work to Main, or bring Main's newer work into the task (TASK-003), as a git merge. What the
  * app then needs (dependencies, migrations, restarting) is handed to the receiving side's agent, which knows its stack.
  */
+#[DeleteWhenMissingModels]
 class SyncTask implements ShouldQueue
 {
     use Queueable;

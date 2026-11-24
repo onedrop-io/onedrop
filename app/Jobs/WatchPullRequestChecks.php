@@ -9,12 +9,14 @@ use App\Sandbox\GitHubPulls;
 use App\Sandbox\PullRequestFixes;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 
 /**
  * Follow the checks on a pull request's task's newest commit until they finish (GIT-015): once a minute for up to an
  * hour, as a delayed job rather than a webhook or a scheduled task. The chat says how they went, and with automatic
  * fixing on, failures go to the task's agent, up to PullRequestFixes::MAX_ATTEMPTS times in a row.
  */
+#[DeleteWhenMissingModels]
 class WatchPullRequestChecks implements ShouldQueue
 {
     use Queueable;

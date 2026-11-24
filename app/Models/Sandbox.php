@@ -212,18 +212,26 @@ class Sandbox extends Model
             return false;
         }
 
+        $asleep = ['suspended_at' => $this->suspended_at, 'stopped_at' => $this->stopped_at];
+
+        // Marked awake before it's woken: a request cut off while Docker starts it (PHP's time limit, on a busy host)
+        // would otherwise leave it running but marked stopped, where the idle check never looks again.
+        $this->forceFill(['suspended_at' => null, 'stopped_at' => null, 'last_active_at' => now()])->save();
+
         try {
             // A container that had to start again may be on other ports than the saved addresses.
             $started = $provider->wake($this->external_id);
             $addresses = $started ? CreateSandbox::addresses($provider, $this->external_id) : [];
         } catch (SandboxException) {
             // The workspace shows the sandbox as it is; the next visit tries again.
+            $this->forceFill($asleep)->save();
+
             return false;
         }
 
         // Something else (a command the platform ran in it) may have woken a suspended one first.
-        $wasAsleep = $started || $this->suspended_at !== null;
-        $this->forceFill([...$addresses, 'suspended_at' => null, 'stopped_at' => null, 'last_active_at' => now()])->save();
+        $wasAsleep = $started || $asleep['suspended_at'] !== null;
+        $this->forceFill($addresses)->save();
         $this->updateWhenIdle();
 
         if (! ($viaGateway && $this->wasLeft())) {

@@ -36,7 +36,8 @@ class UpdateSandboxes extends Command
 
             try {
                 // A sandbox stopped outside the app (Docker restarted) is still marked running: start it to read its tools.
-                $woke = $project->sandbox->external_id !== null && $provider->wake($project->sandbox->external_id);
+                $woken = $project->sandbox->external_id;
+                $woke = $woken !== null && $provider->wake($woken);
 
                 $changed = $updater->updateIfOutdated($project, wait: true, options: ['suspend' => true]);
 
@@ -48,7 +49,7 @@ class UpdateSandboxes extends Command
                 // Nobody is watching a batch update: let the sandbox stop using compute (memory kept, woken by the next
                 // visit), so a run of updates doesn't leave every sandbox it touched running at once.
                 if ($woke || $changed) {
-                    $this->suspend($provider, $project);
+                    $this->suspend($provider, $project, $woke ? $woken : null);
                 }
             } catch (SandboxException $e) {
                 $failed++;
@@ -61,16 +62,22 @@ class UpdateSandboxes extends Command
         return $failed === 0 ? self::SUCCESS : self::FAILURE;
     }
 
-    protected function suspend(SandboxProvider $provider, Project $project): void
+    /**
+     * Suspend the project's sandbox and say so, so the idle check stops it later (SBX-007). One this command started
+     * may still be marked suspended or stopped from before: left so, it would run with nothing ever stopping it.
+     */
+    protected function suspend(SandboxProvider $provider, Project $project, ?string $woken): void
     {
         $sandbox = $project->sandbox()->first();
+
         // A move to a new sandbox suspends it itself.
-        $id = $sandbox?->suspended_at === null ? $sandbox?->external_id : null;
+        if ($sandbox?->external_id === null || ($sandbox->suspended_at !== null && $sandbox->external_id !== $woken)) {
+            return;
+        }
 
         try {
-            if ($id) {
-                $provider->suspend($id);
-            }
+            $provider->suspend($sandbox->external_id);
+            $sandbox->forceFill(['suspended_at' => now(), 'stopped_at' => null])->saveQuietly();
         } catch (SandboxException $e) {
             // It pauses by itself once idle; this only makes it sooner.
             $this->components->warn("Project {$project->id}: couldn't suspend the new sandbox: {$e->getMessage()}");

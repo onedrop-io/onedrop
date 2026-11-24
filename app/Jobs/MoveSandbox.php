@@ -11,6 +11,7 @@ use App\Sandbox\SandboxWaitLimit;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 use Illuminate\Support\Facades\Cache;
 
 /**
@@ -18,6 +19,7 @@ use Illuminate\Support\Facades\Cache;
  * keeping its files: the move an outdated sandbox gets (SandboxMover), now rather than once it sits unused. If it
  * can't, the project stays where it was, and the "This computer" panel says why.
  */
+#[DeleteWhenMissingModels]
 class MoveSandbox implements ShouldBeUnique, ShouldQueue
 {
     use Queueable;

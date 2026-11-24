@@ -9,6 +9,7 @@ use App\Sandbox\SandboxWaitLimit;
 use DateTimeInterface;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 use Illuminate\Support\Facades\Cache;
 use RuntimeException;
 use Throwable;
@@ -19,6 +20,7 @@ use Throwable;
  * agent's turn ends), or after a refusal that clears by itself. A safety check after 15 and 30 minutes catches a call
  * that never arrives.
  */
+#[DeleteWhenMissingModels]
 class MoveProjectSandbox implements ShouldQueue
 {
     use Queueable;

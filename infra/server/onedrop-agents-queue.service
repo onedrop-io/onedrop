@@ -1,0 +1,14 @@
+[Unit]
+Description=OneDrop agent turns worker (AGENT_QUEUE), so a chat never waits behind long sandbox jobs
+After=network.target docker.service
+
+[Service]
+User=onedrop
+Group=onedrop
+WorkingDirectory=/opt/onedrop/current
+ExecStart=/usr/bin/php artisan queue:work --queue=agents --tries=1 --timeout=0 --sleep=1
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

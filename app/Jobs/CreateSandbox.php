@@ -16,8 +16,10 @@ use App\Sandbox\SandboxSpec;
 use App\Sandbox\WorkspaceSsh;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 use Illuminate\Support\Facades\URL;
 
+#[DeleteWhenMissingModels]
 class CreateSandbox implements ShouldQueue
 {
     use Queueable;

@@ -9,12 +9,14 @@ use App\Sandbox\PullRequestPreviews;
 use App\Sandbox\PullRequestTasks;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 use Illuminate\Support\Facades\Cache;
 
 /**
  * Bring a project's pull request tasks up to date with GitHub (GIT-023, GIT-024), a moment after its board or a task's
  * page opens, rather than with a GitHub call while the page renders.
  */
+#[DeleteWhenMissingModels]
 class RefreshPullRequestTasks implements ShouldQueue
 {
     use Queueable;

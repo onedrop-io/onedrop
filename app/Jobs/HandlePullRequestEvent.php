@@ -7,11 +7,13 @@ use App\Sandbox\GitException;
 use App\Sandbox\PullRequestPreviews;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 
 /**
  * A pull request webhook for one of the projects connected to its repository (GIT-026): check it out, bring in its
  * new commits, or settle its task once it's merged or closed. Queued, so GitHub gets its answer at once.
  */
+#[DeleteWhenMissingModels]
 class HandlePullRequestEvent implements ShouldQueue
 {
     use Queueable;

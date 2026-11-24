@@ -164,6 +164,11 @@ class AppServiceProvider extends ServiceProvider
         // `composer run dev` runs the scheduler too, so idle Docker sandboxes are suspended locally (SBX-007).
         DevCommands::artisan('schedule:work', 'scheduler');
 
+        // And a worker of its own for agent turns, so a message isn't stuck behind a task's copy (AGT-001).
+        if (is_string($queue = config('queue.agents')) && $queue !== '') {
+            DevCommands::artisan("queue:listen --queue={$queue} --tries=1 --timeout=0", 'agents');
+        }
+
         // And a public tunnel, so sandboxes in the cloud can report back to this machine (SBX-015).
         if (app()->runningInConsole() && ! app()->runningUnitTests() && ! SandboxCallback::isPublic((string) config('sandbox.callback_url')) && (new ExecutableFinder)->find('cloudflared')) {
             DevCommands::artisan('sandbox:tunnel', 'tunnel');

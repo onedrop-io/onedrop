@@ -12,9 +12,11 @@ use App\Sandbox\Templates\TemplateException;
 use App\Sandbox\WorkspaceFiles;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 use Illuminate\Support\Str;
 use Throwable;
 
+#[DeleteWhenMissingModels]
 class ApplyRegistryTemplate implements ShouldQueue
 {
     use Queueable;

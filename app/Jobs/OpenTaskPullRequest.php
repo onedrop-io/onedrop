@@ -13,6 +13,7 @@ use App\Sandbox\SandboxException;
 use App\Sandbox\TaskCopies;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -21,6 +22,7 @@ use Throwable;
  * AI write a title and description, and keep GitHub's new pull request page, filled in, for the task's bar. The task
  * then watches for the pull request (LinkTaskPullRequest).
  */
+#[DeleteWhenMissingModels]
 class OpenTaskPullRequest implements ShouldQueue
 {
     use Queueable;

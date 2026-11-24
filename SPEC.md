@@ -263,6 +263,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be able to copy the project's link (C).
 - User should be able to archive a project (A), which moves it to a collapsed "Archived" section, and unarchive it from there.
 - User should be able to delete a project (D) after confirming; this takes the app offline and removes its chat, attachments, and sandbox. Deleting the open project takes them to the new-project page. Any other tab still open on a deleted project moves to the new-project page too, never a "not found" page.
+- Background work still queued for a deleted project (or its tasks and sandboxes) should be dropped quietly, not run or recorded as failed jobs.
 - User should still land on the next page when its code can't be fetched (a new build was deployed, or the dev server restarted): the app loads that page in full instead of staying on the old one, so deleting the open project never leaves them on its "not found" address.
 - A deleted project's sandbox is removed from the provider it was created on, even if the configured provider has changed since.
 - Renaming, regenerating the title, pinning, marking, and archiving should not change a project's place in "Recent".
@@ -592,6 +593,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - The agent should remember the conversation across messages in the same project.
 - A run whose end never arrives (its sandbox restarted or was lost mid-turn) should end by itself within about 15 minutes of the agent being gone, with "The agent stopped without finishing its turn" in the chat, so the chat doesn't stay working for good.
 - Only one agent run should happen at a time per project; messages sent while it works are queued (see AGT-003).
+- The agent should start on a message within seconds even while long background work (copying a task's app, checking out pull requests) is queued: agent turns run on their own workers.
 - The preview should switch from the placeholder to the app's dev server once the agent sets one up, and restart when the agent asks.
 - User should see a clear message if the agent fails or their AI can't be used.
 - User should see a plain explanation with a link to add credits when their AI account's balance is too low.

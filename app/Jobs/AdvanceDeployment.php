@@ -6,12 +6,14 @@ use App\Models\Deployment;
 use App\Sandbox\Hosting\Deployer;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 use Throwable;
 
 /**
  * Runs a deployment's current step and queues the next (HOST-001). Waiting on a build or a machine is modeled as short
  * delayed checks, not a sleeping job.
  */
+#[DeleteWhenMissingModels]
 class AdvanceDeployment implements ShouldQueue
 {
     use Queueable;

@@ -15,6 +15,7 @@ use App\Sandbox\WorkspaceFiles;
 use App\Sandbox\WorkspaceTests;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use Throwable;
@@ -23,6 +24,7 @@ use Throwable;
  * After an agent turn, ask Jev whether the turn changed what the app does and, if so, whether the agent recorded
  * it in the requirements and wrote and ran tests for it; when it didn't, ask the agent to, once (TEST-007).
  */
+#[DeleteWhenMissingModels]
 class CheckRequirementsKept implements ShouldQueue
 {
     use Queueable;

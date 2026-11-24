@@ -12,12 +12,14 @@ use App\Sandbox\Publishing\PublishNeedsFeature;
 use App\Sandbox\Publishing\PublishNeedsLogin;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 use Throwable;
 
 /**
  * Polls the publisher until the endpoint is up (a node joining a tailnet takes a few seconds).
  * Waiting is modeled as short retries, not a sleeping job.
  */
+#[DeleteWhenMissingModels]
 class ConfirmPublication implements ShouldQueue
 {
     use Queueable;

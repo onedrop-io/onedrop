@@ -25,6 +25,6 @@ systemctl daemon-reload
 
 cd /opt/onedrop/current
 sudo -u onedrop -H php artisan config:cache
-systemctl restart php8.4-fpm onedrop-queue onedrop-reverb caddy
+systemctl restart php8.4-fpm onedrop-queue onedrop-agents-queue onedrop-reverb caddy
 
 echo "Now serving https://$DOMAIN (previews at preview-<id>.$DOMAIN). Everyone must log in again."

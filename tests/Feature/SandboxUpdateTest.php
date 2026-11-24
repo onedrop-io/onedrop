@@ -408,6 +408,18 @@ test('sandbox:update starts a sandbox that was stopped outside the app before re
         ->and($this->provider->suspended)->toBe(['old-ctr']);
 })->group('SBX-002');
 
+test('sandbox:update marks a sandbox it started from idle as suspended, so the idle check stops it again', function () {
+    $this->provider->wakes = true;
+    $this->sandbox->forceFill(['suspended_at' => now()->subHour(), 'stopped_at' => now()->subMinutes(55)])->save();
+
+    $this->artisan('sandbox:update')->assertSuccessful();
+
+    $sandbox = $this->sandbox->fresh();
+    expect($this->provider->suspended)->toBe(['old-ctr'])
+        ->and($sandbox->suspended_at->gt(now()->subMinute()))->toBeTrue()
+        ->and($sandbox->stopped_at)->toBeNull();
+})->group('SBX-002', 'SBX-007');
+
 test('sandbox:update leaves an up-to-date sandbox that was already running as it was', function () {
     $this->artisan('sandbox:update')->assertSuccessful();
 

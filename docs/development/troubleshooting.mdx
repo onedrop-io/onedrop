@@ -5,7 +5,7 @@ description: 'Common problems and how to fix them.'
 
 <AccordionGroup>
   <Accordion title="The chat shows nothing after I send a message">
-    The agent runs on the queue. Make sure `composer run dev` (or `php artisan queue:work`) is running. If a job crashes before starting, the chat says "The agent couldn't start".
+    The agent runs on the queue. Make sure `composer run dev` is running: it starts a worker for the `agents` queue (`AGENT_QUEUE`) beside the default one. Running workers by hand, start both: `php artisan queue:work` and `php artisan queue:work --queue=agents`. If a job crashes before starting, the chat says "The agent couldn't start".
   </Accordion>
   <Accordion title="&quot;Your AI provider says your balance is too low&quot;">
     Providers like OpenRouter reserve the maximum possible cost of a request before running it, across every app using your account. Add credits, wait for other requests to finish, or choose a cheaper model with `SANDBOX_MODEL_*`.

@@ -11,12 +11,14 @@ use App\Sandbox\Agents\AgentEvents;
 use App\Sandbox\Agents\Jev;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 use Throwable;
 
 /**
  * When a failed run's error matched none of the known causes and the chat got the generic "Something went wrong"
  * message, ask Jev which known cause it is, and when it's sure, replace that message with the cause's (AGT-010).
  */
+#[DeleteWhenMissingModels]
 class ExplainAgentFailure implements ShouldQueue
 {
     use Queueable;
@@ -33,7 +35,11 @@ class ExplainAgentFailure implements ShouldQueue
      * @param  string  $explanation  That explanation, replaced only while the message still says it.
      * @param  class-string<AgentEvents>  $events  The harness's events class, which words each cause.
      */
-    public function __construct(public Project|Task $conversation, public int $message, public string $explanation, public string $error, public string $events) {}
+    public function __construct(public Project|Task $conversation, public int $message, public string $explanation, public string $error, public string $events)
+    {
+        // Its own workers, so a chat never waits behind a task's copy or other long jobs.
+        $this->onQueue(config('queue.agents'));
+    }
 
     /**
      * Look again at the failure the generic $message explains, when there's a key to ask Jev with.

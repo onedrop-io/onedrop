@@ -11,12 +11,14 @@ use App\Sandbox\SandboxWaitLimit;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 
 /**
  * Brings a project's sandbox up to date once nobody has used it for a while (SBX-002), and snapshots what was done in
  * it (SBX-009). Queued, delayed, whenever the sandbox is used (Sandbox::markActive()), and put back while it's still in
  * use, so an update never runs on someone's time, and a sandbox nobody uses is never woken for one.
  */
+#[DeleteWhenMissingModels]
 class UpdateSandbox implements ShouldBeUnique, ShouldQueue
 {
     use Queueable;

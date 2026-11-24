@@ -12,12 +12,14 @@ use App\Sandbox\SandboxException;
 use App\Sandbox\TaskCopies;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 use Throwable;
 
 /**
  * Push a pull request's task to its branch on GitHub, or bring in commits pushed there since (GIT-014). After a
  * push that sent something new, the checks are watched (GIT-015).
  */
+#[DeleteWhenMissingModels]
 class SyncPullRequestTask implements ShouldQueue
 {
     use Queueable;

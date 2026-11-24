@@ -5,11 +5,13 @@ namespace App\Jobs;
 use App\Models\Task;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 
 /**
  * A day after its pull request was merged or closed, remove its task's copy of the app (GIT-026), unless the pull
  * request was reopened, or the agent is working in it.
  */
+#[DeleteWhenMissingModels]
 class RemovePullRequestCopy implements ShouldQueue
 {
     use Queueable;

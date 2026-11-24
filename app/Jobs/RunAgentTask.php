@@ -13,8 +13,10 @@ use App\Sandbox\SandboxMover;
 use App\Sandbox\SandboxUpdater;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 use Throwable;
 
+#[DeleteWhenMissingModels]
 class RunAgentTask implements ShouldQueue
 {
     use Queueable;
@@ -25,7 +27,11 @@ class RunAgentTask implements ShouldQueue
     /**
      * Create a new job instance.
      */
-    public function __construct(public Project $project, public Message $message) {}
+    public function __construct(public Project $project, public Message $message)
+    {
+        // Its own workers, so a chat never waits behind a task's copy or other long jobs.
+        $this->onQueue(config('queue.agents'));
+    }
 
     /**
      * Mark the message's conversation (the main chat or its task) busy, copy in the sandbox's changed tool files (so the

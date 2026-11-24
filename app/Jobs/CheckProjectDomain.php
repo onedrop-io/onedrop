@@ -6,12 +6,14 @@ use App\Models\ProjectDomain;
 use App\Sandbox\Domains\ProjectDomains;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 
 /**
  * Checks a waiting custom domain until it's active (DOM-001): every 30 seconds for the first 10 minutes, then every
  * 5 minutes for two days. A job that reschedules itself rather than a scheduled command, since Laravel Cloud wakes the
  * app for every scheduled run.
  */
+#[DeleteWhenMissingModels]
 class CheckProjectDomain implements ShouldQueue
 {
     use Queueable;

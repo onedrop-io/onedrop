@@ -55,7 +55,8 @@ description: 'Run the install script on any Ubuntu 24.04 server, on any provider
 | Packages                  | PHP 8.4 (FPM), Composer, Node.js 22, Docker, Caddy, Tailscale                |
 | `onedrop` user                | Owns the app and belongs to the `docker` group                               |
 | PHP-FPM pool              | Runs as `onedrop` so the app can manage sandboxes                                |
-| `onedrop-queue` service       | The queue worker that creates sandboxes and runs agents                      |
+| `onedrop-queue` service       | The queue worker that creates sandboxes and does background work             |
+| `onedrop-agents-queue` service | The queue worker that starts and ends agent turns (`AGENT_QUEUE`)           |
 | Caddy                     | HTTPS for the app and for `preview-<id>` / `shell-<id>` addresses            |
 | `/opt/onedrop/bin/deploy`     | Deploys a new release: `sudo /opt/onedrop/bin/deploy /path/to/onedrop.tar.gz`        |
 | `/opt/onedrop/bin/set-domain` | Moves the server to a new domain: `sudo /opt/onedrop/bin/set-domain example.com` |

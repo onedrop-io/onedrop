@@ -12,6 +12,7 @@ use App\Sandbox\PreviewErrors;
 use App\Sandbox\SandboxException;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use Throwable;
@@ -21,6 +22,7 @@ use Throwable;
  * a key to ask Jev with, only the errors it judges real problems in the app are sent, not noise (a hot-reload
  * hiccup, a browser extension, a missing favicon); without Jev, or when it fails, all of them are.
  */
+#[DeleteWhenMissingModels]
 class CheckPreviewErrors implements ShouldQueue
 {
     use Queueable;

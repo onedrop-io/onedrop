@@ -9,7 +9,9 @@ use App\Sandbox\SandboxException;
 use App\Sandbox\WorkspaceSsh;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 
+#[DeleteWhenMissingModels]
 class SyncSshKeys implements ShouldQueue
 {
     use Queueable;

@@ -11,6 +11,7 @@ use App\Sandbox\SandboxException;
 use App\Sandbox\WorkspaceFiles;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use Throwable;
@@ -20,6 +21,7 @@ use Throwable;
  * changed on purpose), or it's flaky. Each verdict is worked out once per result (a test's run), in the background,
  * and kept; the tests' status only reads the kept verdicts and starts this for the failures that have none yet.
  */
+#[DeleteWhenMissingModels]
 class TriageFailingTests implements ShouldQueue
 {
     use Queueable;

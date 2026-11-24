@@ -7,12 +7,14 @@ use App\Sandbox\SandboxMover;
 use App\Sandbox\SandboxWaitLimit;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 
 /**
  * Checks on a sandbox a project moved off while it didn't answer (SBX-013): when an admin opens Settings → Sandboxes,
  * and when the snapshot of its newer files is done (FinishSnapshot). When it answers, its newer files are saved as a
  * recovered snapshot, and it's deleted.
  */
+#[DeleteWhenMissingModels]
 class RecoverSandbox implements ShouldQueue
 {
     use Queueable;

@@ -15,12 +15,14 @@ use App\Sandbox\PreviewErrors;
 use App\Sandbox\SandboxException;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 
 /**
  * Updates a hosted app by itself after a turn that went well, when its project has auto-deploy on (HOST-006): the
  * agent finished (it isn't waiting on the user or working again), the preview showed no new errors, and the sandbox
  * has changes the hosted app doesn't. Otherwise it waits for the next turn.
  */
+#[DeleteWhenMissingModels]
 class AutoDeploy implements ShouldQueue
 {
     use Queueable;

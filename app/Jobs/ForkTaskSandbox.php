@@ -11,6 +11,7 @@ use App\Sandbox\SandboxException;
 use App\Sandbox\TaskCopies;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 use Illuminate\Queue\MaxAttemptsExceededException;
 use Illuminate\Support\Arr;
 
@@ -21,6 +22,7 @@ use Illuminate\Support\Arr;
  * (GIT-014) is switched to the pull request's branch; checked out without a message ($checkOutOnly), the task
  * shows as working while its copy is made, so messages sent meanwhile wait for it, then it goes idle.
  */
+#[DeleteWhenMissingModels]
 class ForkTaskSandbox implements ShouldQueue
 {
     use Queueable;
