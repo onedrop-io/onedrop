@@ -35,6 +35,7 @@ beforeEach(function () {
         'name' => 'Shop',
         'git_remote_url' => 'https://github.com/acme/app.git',
         'git_remote_token' => 'ghp_token',
+        'preview_pull_requests' => true,
     ]);
     Sandbox::factory()->for($this->project)->create(['external_id' => 'main-1', 'status' => SandboxStatus::Running]);
     $this->actingAs($this->user);
@@ -118,6 +119,17 @@ test('a webhook names a merged pull request, and one from a fork, as such', func
 
     Queue::assertPushed(HandlePullRequestEvent::class, fn ($job) => $job->pull['state'] === 'merged');
     Queue::assertPushed(HandlePullRequestEvent::class, fn ($job) => $job->pull['fork'] === true);
+})->group('GIT-026');
+
+test('previewing every pull request is off until it\'s turned on, so a new project checks nothing out by itself', function () {
+    $project = Project::factory()->for($this->user)->create(['git_remote_url' => 'https://github.com/acme/new.git', 'git_remote_token' => 'ghp_token']);
+
+    expect($project->fresh()->preview_pull_requests)->toBeFalse()
+        ->and(PullRequestPreviews::enabled($project))->toBeFalse();
+
+    app(PullRequestPreviews::class)->opened($project, $this->pull);
+    expect(Task::count())->toBe(0);
+    Queue::assertNotPushed(ForkTaskSandbox::class);
 })->group('GIT-026');
 
 test('an opened pull request is checked out as a task by itself, unless it comes from a fork, previews are off, or no copy is free', function () {
@@ -209,7 +221,7 @@ test('listing the pull requests catches up on ones no webhook told about, and tu
 })->group('GIT-026');
 
 test('the catch-up runs hourly for every previewing project, and every 5 minutes for those the webhook can\'t reach', function () {
-    $app = Project::factory()->for($this->user)->create(['git_remote_url' => 'https://github.com/acme/web.git', 'github_installation_id' => 77]);
+    $app = Project::factory()->for($this->user)->create(['git_remote_url' => 'https://github.com/acme/web.git', 'github_installation_id' => 77, 'preview_pull_requests' => true]);
     Project::factory()->for($this->user)->create(['git_remote_url' => 'https://github.com/acme/off.git', 'git_remote_token' => 't', 'preview_pull_requests' => false]);
 
     $this->artisan('pull-requests:catch-up --unhooked')->assertSuccessful();

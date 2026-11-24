@@ -660,8 +660,6 @@ test('a closed pull request moves its task to Done, and an open one missing from
 test("the board and a task's page look at GitHub soon after, at most once a minute, only when a task waits on it", function () {
     Queue::fake();
     config(['inertia.ssr.enabled' => false]);
-    // Not previewing every pull request (GIT-026), which would look too.
-    $this->project->update(['preview_pull_requests' => false]);
 
     $this->get(route('projects.board', $this->project))->assertOk();
     Queue::assertNotPushed(RefreshPullRequestTasks::class);

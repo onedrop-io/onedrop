@@ -111,7 +111,7 @@ class Project extends Model implements Conversation
      *
      * @var array<string, mixed>
      */
-    protected $attributes = ['kind' => 'app', 'autofix' => true, 'track_requirements' => true, 'auto_deploy' => false, 'commit_turns' => true, 'apps_listed' => true, 'preview_pull_requests' => true];
+    protected $attributes = ['kind' => 'app', 'autofix' => true, 'track_requirements' => true, 'auto_deploy' => false, 'commit_turns' => true, 'apps_listed' => true, 'preview_pull_requests' => false];
 
     /**
      * Connecting a repository (or importing one) stops the agent committing each turn (SCM-003): the user's

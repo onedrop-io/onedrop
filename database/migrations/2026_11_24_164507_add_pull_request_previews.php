@@ -13,7 +13,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('projects', function (Blueprint $table) {
-            $table->boolean('preview_pull_requests')->default(true);
+            // Off for every project, existing and new, until its owner turns it on.
+            $table->boolean('preview_pull_requests')->default(false);
         });
 
         Schema::table('tasks', function (Blueprint $table) {

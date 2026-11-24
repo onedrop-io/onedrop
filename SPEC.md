@@ -1488,7 +1488,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## GIT-026: Preview every pull request
 
-- A project connected to a GitHub repository should have "Preview every pull request" (on by default), on the Pull requests page and in Tools → Pull requests. With it on, each open pull request from the repository's own branches is checked out as a task (GIT-014) by itself, without anyone clicking, within moments of being opened or reopened.
+- A project connected to a GitHub repository should have "Preview every pull request", off until the user turns it on (for existing and new projects alike), on the Pull requests page and in Tools → Pull requests. Turning it on checks out the open pull requests at once. With it on, each open pull request from the repository's own branches is checked out as a task (GIT-014) by itself, without anyone clicking, within moments of being opened or reopened.
 - Pull requests from forks should never be checked out by themselves: their code would run beside the organization's secrets. They can still be checked out by hand.
 - When a pull request gets new commits on GitHub, its task's copy should bring them in by itself (Pull, GIT-014), unless its agent is working or the task is pushing or pulling; it's caught up once that ends.
 - OneDrop should hear about pull requests from the GitHub App's webhook (`pull_request` events, signed with `GITHUB_WEBHOOK_SECRET`; a webhook with a wrong or missing signature is refused). Anything a webhook missed should be caught up when the Pull requests list is opened and at least once an hour; repositories connected with a token, and installs without a webhook, are caught up every 5 minutes (hourly on Laravel Cloud).

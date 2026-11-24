@@ -2,6 +2,7 @@
 
 use App\Enums\SandboxStatus;
 use App\Enums\TaskStage;
+use App\Jobs\CatchUpPullRequests;
 use App\Jobs\UpdatePullRequestPreview;
 use App\Models\AgentConnection;
 use App\Models\Project;
@@ -16,7 +17,7 @@ use App\Sandbox\SandboxProvider;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 
-test('the dev user sees every pull request previewed, copies a preview link and makes a new one', function () {
+test('the dev user turns on previewing every pull request, copies a preview link and makes a new one', function () {
     Queue::fake();
     config(['sandbox.task_copies' => true, 'sandbox.gateway_domain' => 'onedrop.example.com']);
     app()->instance(SandboxProvider::class, new FakeSandboxProvider);
@@ -47,15 +48,17 @@ test('the dev user sees every pull request previewed, copies a preview link and 
     $page = visit("/projects/{$project->id}/pull-requests")
         ->resize(1500, 1000)
         ->assertSee('Fix login')
-        ->assertChecked('@pulls-preview-every')
-        ->assertSeeIn('@pulls-preview-note', 'Anyone with a preview link can open the app')
-        ->assertAttribute('@pull-row-preview', 'href', $link)
-        ->click('@pulls-preview-every')
+        // Off until turned on (GIT-026).
         ->assertNotChecked('@pulls-preview-every')
         ->assertDontSee('Anyone with a preview link can open the app')
+        ->assertAttribute('@pull-row-preview', 'href', $link)
+        ->click('@pulls-preview-every')
+        ->assertChecked('@pulls-preview-every')
+        ->assertSeeIn('@pulls-preview-note', 'Anyone with a preview link can open the app')
         ->assertNoJavaScriptErrors();
 
-    expect($project->fresh()->preview_pull_requests)->toBeFalse();
+    expect($project->fresh()->preview_pull_requests)->toBeTrue();
+    Queue::assertPushed(CatchUpPullRequests::class);
 
     // The task's bar: the link, copied, and a new one that stops the old.
     $page->navigate("/projects/{$project->id}/tasks/{$task->id}")
