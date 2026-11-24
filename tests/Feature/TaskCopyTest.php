@@ -197,6 +197,48 @@ test('with signed links, Main uploads its files to storage and the copy download
         ->and(Storage::disk('local')->allFiles("project-snapshots/{$this->project->id}/tasks/{$task->id}"))->toBeEmpty();
 })->group('TASK-003');
 
+test("Main on an older image gets the fork tool that knows put before uploading, so the upload can't vanish into a 15-minute wait", function () {
+    config(['filesystems.disks.local.driver' => 's3', 'sandbox.snapshot_disk' => 'local']);
+    Storage::fake('local', ['serve' => true]);
+    Storage::disk('local')->buildTemporaryUploadUrlsUsing(fn (string $path) => ['url' => "https://bucket.test/{$path}?upload", 'headers' => []]);
+    $task = Task::factory()->for($this->project)->create();
+    $task->sandbox()->create(['provider' => 'fake', 'status' => SandboxStatus::Creating]);
+
+    (new ForkTaskSandbox($task))->handle(app(TaskCopies::class), app(AgentQueue::class));
+
+    $executed = collect($this->provider->executed);
+    $put = $executed->search(fn (array $exec) => ($exec['command'][1] ?? null) === 'put');
+    $installed = collect($this->provider->installed)->where('id', 'main-1')->filter(fn (array $install) => in_array('fork', $install['files'], true));
+
+    expect($task->sandbox()->first()->status)->toBe(SandboxStatus::Running)
+        ->and($installed)->not->toBeEmpty()
+        ->and($executed[$put]['command'][0])->toBe('/opt/onedrop/fork');
+})->group('TASK-003');
+
+test("where the provider can't install tools, the sandboxes run the current fork tool from /tmp", function () {
+    config(['filesystems.disks.local.driver' => 's3', 'sandbox.snapshot_disk' => 'local']);
+    Storage::fake('local', ['serve' => true]);
+    Storage::disk('local')->buildTemporaryUploadUrlsUsing(fn (string $path) => ['url' => "https://bucket.test/{$path}?upload", 'headers' => []]);
+    $this->provider->installs = false;
+    $task = Task::factory()->for($this->project)->create();
+    $task->sandbox()->create(['provider' => 'fake', 'status' => SandboxStatus::Creating]);
+
+    (new ForkTaskSandbox($task))->handle(app(TaskCopies::class), app(AgentQueue::class));
+
+    $copy = $task->sandbox()->first();
+    $put = collect($this->provider->executed)->first(fn (array $exec) => ($exec['command'][2] ?? null) === 'put');
+    $get = collect($this->provider->executed)->first(fn (array $exec) => ($exec['command'][2] ?? null) === 'get');
+    $tools = collect($this->provider->copied)->filter(fn (array $copied) => str_starts_with($copied[2], '/tmp/onedrop-tools-'));
+
+    expect($copy->status)->toBe(SandboxStatus::Running)
+        ->and($put['id'])->toBe('main-1')
+        ->and($put['command'][0])->toBe('bash')
+        ->and($put['command'][1])->toStartWith('/tmp/onedrop-tools-')->toEndWith('/fork')
+        ->and($get['id'])->toBe($copy->external_id)
+        ->and($get['command'][1])->toStartWith('/tmp/onedrop-tools-')
+        ->and($tools->pluck(1)->all())->toBe(['main-1', $copy->external_id]);
+})->group('TASK-003');
+
 test('the copy gets the Docker images Main built itself, each stored once and loaded through signed links', function () {
     config(['filesystems.disks.local.driver' => 's3', 'sandbox.snapshot_disk' => 'local']);
     Storage::fake('local', ['serve' => true]);

@@ -29,6 +29,9 @@ class TaskCopies
     /** How long to wait for one Docker image to be saved or loaded, in seconds. */
     public const IMAGE_TIMEOUT = 600;
 
+    /** @var array<string, list<string>> the fork tool command to run in each sandbox, by its id */
+    protected array $forkTools = [];
+
     public function __construct(
         protected SandboxProvider $provider,
         protected SandboxUpdater $updater,
@@ -182,7 +185,7 @@ class TaskCopies
 
         try {
             $this->waitForSnapshot($main, $dir);
-            $this->provider->exec($main->external_id, ['/opt/onedrop/fork', 'put', $status, $dir], $env, detach: true, root: true);
+            $this->provider->exec($main->external_id, [...$this->forkTool($main), 'put', $status, $dir], $env, detach: true, root: true);
             $this->waitFor($main, $status, self::TRANSFER_TIMEOUT, "Couldn't store the copy of the app", 'Storing the copy of the app took too long.');
         } finally {
             $this->provider->exec($main->external_id, ['rm', '-rf', $dir, $status], root: true);
@@ -207,12 +210,7 @@ class TaskCopies
             $env["ONEDROP_FORK_URL_{$index}"] = $this->snapshots->disk()->temporaryUrl($path, now()->addSeconds(self::TRANSFER_TIMEOUT));
         }
 
-        // A copy made from an older image gets the fork tool that knows "get" first.
-        if ($this->tools->available() && ! $this->tools->ensure($this->provider, $copy->external_id, ['fork'])) {
-            throw new SandboxException("Couldn't give the task's copy its tools.");
-        }
-
-        $this->provider->exec($copy->external_id, ['/opt/onedrop/fork', 'get', $status, ...SandboxUpdater::KEPT_PATHS], $env, detach: true, root: true);
+        $this->provider->exec($copy->external_id, [...$this->forkTool($copy), 'get', $status, ...SandboxUpdater::KEPT_PATHS], $env, detach: true, root: true);
 
         try {
             $this->waitFor($copy, $status, self::TRANSFER_TIMEOUT, "Couldn't unpack the copy of the app", 'Unpacking the copy of the app took too long.');
@@ -360,6 +358,42 @@ class TaskCopies
     }
 
     /**
+     * The command for a fork tool that knows the current subcommands (put, get, save-image, load-image), which a sandbox
+     * made from an older image lacks: run there, an unknown one exits at once without marking its status, and the wait
+     * for it runs out ("Storing the copy of the app took too long"). The sandbox's own is brought up to date when the
+     * provider can write there; otherwise the current script goes to /tmp and runs from there.
+     *
+     * @return list<string>
+     *
+     * @throws SandboxException
+     */
+    protected function forkTool(Sandbox $sandbox): array
+    {
+        $id = (string) $sandbox->external_id;
+
+        if (isset($this->forkTools[$id])) {
+            return $this->forkTools[$id];
+        }
+
+        if (! $this->tools->available() || $this->tools->ensure($this->provider, $id, ['fork'])) {
+            return $this->forkTools[$id] = ['/opt/onedrop/fork'];
+        }
+
+        $local = storage_path('framework/fork-tool-'.uniqid());
+        $dir = '/tmp/onedrop-tools-'.Str::lower(Str::random(8));
+
+        try {
+            File::ensureDirectoryExists($local);
+            File::copy($this->tools->files()['fork'], "{$local}/fork");
+            $this->provider->copyIn($id, $local, $dir);
+        } finally {
+            File::deleteDirectory($local);
+        }
+
+        return $this->forkTools[$id] = ['bash', "{$dir}/fork"];
+    }
+
+    /**
      * @throws SandboxException
      */
     protected function waitForSnapshot(Sandbox $main, string $dir): void
@@ -411,7 +445,7 @@ class TaskCopies
         try {
             $images = $this->builtImages($main);
 
-            if ($images === [] || ($this->tools->available() && ! $this->tools->ensure($this->provider, $copy->external_id, ['fork']))) {
+            if ($images === []) {
                 return;
             }
 
@@ -477,7 +511,7 @@ class TaskCopies
         $local = storage_path('framework/task-image-'.uniqid());
 
         try {
-            $this->provider->exec($main->external_id, ['/opt/onedrop/fork', 'save-image', $dir, "{$dir}/image.tar.zst", ...$tags], $env, detach: true);
+            $this->provider->exec($main->external_id, [...$this->forkTool($main), 'save-image', $dir, "{$dir}/image.tar.zst", ...$tags], $env, detach: true);
             $this->waitFor($main, $dir, self::IMAGE_TIMEOUT, "Couldn't save the app's {$tags[0]} image", "Saving the app's {$tags[0]} image took too long.");
 
             if ($transport === 'copy') {
@@ -501,14 +535,14 @@ class TaskCopies
 
         try {
             if ($transport === 'links') {
-                $this->provider->exec($copy->external_id, ['/opt/onedrop/fork', 'load-image', $dir, 'url'], [
+                $this->provider->exec($copy->external_id, [...$this->forkTool($copy), 'load-image', $dir, 'url'], [
                     'ONEDROP_IMAGE_URL' => $this->snapshots->disk()->temporaryUrl($path, now()->addMinutes(30)),
                 ], detach: true);
             } else {
                 File::ensureDirectoryExists($local);
                 $this->download($path, "{$local}/image.tar.zst");
                 $this->provider->copyIn($copy->external_id, $local, $dir);
-                $this->provider->exec($copy->external_id, ['/opt/onedrop/fork', 'load-image', $dir, "{$dir}/image.tar.zst"], detach: true);
+                $this->provider->exec($copy->external_id, [...$this->forkTool($copy), 'load-image', $dir, "{$dir}/image.tar.zst"], detach: true);
             }
 
             $this->waitFor($copy, $dir, self::IMAGE_TIMEOUT, "Couldn't load the app's image", "Loading the app's image took too long.");
