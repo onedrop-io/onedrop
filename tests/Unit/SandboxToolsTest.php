@@ -36,6 +36,28 @@ test('the image keeps a copy of its base files where the platform reads them', f
     expect($dockerfile)->toContain('COPY '.implode(' ', SandboxTools::BASE_FILES).' '.SandboxTools::BASE_PATH.'/');
 })->group('SBX-002');
 
+test('adding a tool file to the image doesn\'t change its base, but changing what the image installs does', function () {
+    $dockerfile = file_get_contents(dirname(__DIR__, 2).'/docker/sandbox/Dockerfile');
+    $base = SandboxTools::dockerfileBaseHash($dockerfile);
+
+    // A new tool on the COPY line, a new COPY line into /opt/onedrop, a reworded comment: tool files bring those.
+    $toolsOnly = str_replace('COPY start.sh restart ', 'COPY start.sh restart new-tool ', $dockerfile)
+        ."\n# A note about new-tool.\nCOPY other-tool /opt/onedrop/other-tool\n\n";
+
+    expect($toolsOnly)->not->toBe($dockerfile)
+        ->and(SandboxTools::dockerfileBaseHash($toolsOnly))->toBe($base)
+        ->and(SandboxTools::dockerfileBaseHash($dockerfile."RUN apt-get install -y jq\n"))->not->toBe($base)
+        ->and(SandboxTools::dockerfileBaseHash($dockerfile."COPY bashrc /home/sandbox/.bashrc\n"))->not->toBe($base)
+        ->and(SandboxTools::dockerfileBaseHash($dockerfile."COPY Dockerfile /opt/onedrop-base/\n"))->not->toBe($base);
+
+    // The sandbox hashes its copy with grep, which must leave out the same lines.
+    $kept = Process::input($dockerfile)->run(['grep', '-vE', SandboxTools::DOCKERFILE_IGNORED_LINES])->output();
+
+    expect(hash('sha256', $kept))->toBe($base)
+        ->and($kept)->toContain('COPY Dockerfile start.sh dockerd shell-keys.js /opt/onedrop-base/')
+        ->not->toContain('host-proxy.mjs');
+})->group('SBX-002');
+
 test('the image retries stalled apt downloads, and every apt update in it gives up and tries again', function () {
     $dockerfile = file_get_contents(dirname(__DIR__, 2).'/docker/sandbox/Dockerfile');
 

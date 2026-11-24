@@ -27,6 +27,14 @@ class SandboxTools
     public const BASE_FILES = ['Dockerfile', 'start.sh', 'dockerd', 'shell-keys.js'];
 
     /**
+     * Dockerfile lines left out when comparing bases (POSIX ERE, for grep in the sandbox and PCRE here): blank lines,
+     * comments, and COPY lines into /opt/onedrop, which only list tool files, each compared by its own hash. Adding a
+     * tool file to the image then doesn't make every sandbox's base "older" and hold back all tool files until a new
+     * image is built.
+     */
+    public const DOCKERFILE_IGNORED_LINES = '^[[:space:]]*(#|$)|^COPY[[:space:]].*[[:space:]]/opt/onedrop/[^[:space:]]*[[:space:]]*$';
+
+    /**
      * Tool files that only need what every image has (bash, coreutils, tar, curl), so they go into sandboxes on an older
      * base too: snapshots and hosting then work for every sandbox, old ones included (SBX-009, HOST-001).
      */
@@ -122,10 +130,28 @@ class SandboxTools
         }
 
         foreach (self::BASE_FILES as $name) {
-            $hashes[self::BASE_PATH."/{$name}"] = $this->hash("{$this->source}/{$name}");
+            $hashes[self::BASE_PATH."/{$name}"] = $name === 'Dockerfile'
+                ? self::dockerfileBaseHash(File::get("{$this->source}/{$name}"))
+                : $this->hash("{$this->source}/{$name}");
         }
 
         return $hashes;
+    }
+
+    /**
+     * A Dockerfile's hash without its DOCKERFILE_IGNORED_LINES, as `grep -vE … | sha256sum` gives it in the sandbox.
+     */
+    public static function dockerfileBaseHash(string $dockerfile): string
+    {
+        $lines = explode("\n", $dockerfile);
+
+        if (end($lines) === '') {
+            array_pop($lines);
+        }
+
+        $kept = array_filter($lines, fn (string $line) => preg_match('~'.self::DOCKERFILE_IGNORED_LINES.'~', $line) !== 1);
+
+        return hash('sha256', implode('', array_map(fn (string $line) => "{$line}\n", $kept)));
     }
 
     /**
@@ -167,10 +193,14 @@ class SandboxTools
         }
 
         $expected = $this->expected();
-        // The paths go in the environment, one per line: as arguments they're more than Runtime's exec takes (128).
-        $result = $provider->exec($id, ['sh', '-c', 'printf "%s\n" "$ONEDROP_TOOL_PATHS" | tr "\n" "\000" | xargs -0 sha256sum -- 2>/dev/null; exit 0'], [
-            'ONEDROP_TOOL_PATHS' => implode("\n", array_keys($expected)),
-        ]);
+        // The paths go in the environment, one per line: as arguments they're more than Runtime's exec takes (128). The
+        // base Dockerfile is hashed without its DOCKERFILE_IGNORED_LINES (see dockerfileBaseHash()).
+        $dockerfile = self::BASE_PATH.'/Dockerfile';
+        $result = $provider->exec($id, ['sh', '-c', 'printf "%s\n" "$ONEDROP_TOOL_PATHS" | grep -vxF '.$dockerfile.' | tr "\n" "\000" | xargs -0 sha256sum -- 2>/dev/null; '
+            .'if [ -f '.$dockerfile.' ]; then printf "%s  %s\n" "$(grep -vE "$ONEDROP_DOCKERFILE_IGNORED" '.$dockerfile.' | sha256sum | cut -d" " -f1)" '.$dockerfile.'; fi; exit 0'], [
+                'ONEDROP_TOOL_PATHS' => implode("\n", array_keys($expected)),
+                'ONEDROP_DOCKERFILE_IGNORED' => self::DOCKERFILE_IGNORED_LINES,
+            ]);
 
         if (! $result->successful()) {
             throw new SandboxException("Couldn't read the sandbox's tools: ".(strtok(trim($result->errorOutput), "\n") ?: 'unknown error'));

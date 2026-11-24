@@ -49,6 +49,7 @@ Run these against the provider you changed. Locally that's Docker; for Runtime C
 
 - [ ] The changed file is in the sandbox's `/opt/onedrop`, and nothing else changed.
 - [ ] Sending a message copies it in first, so the agent has it for that turn.
+- [ ] Add a new file to `docker/sandbox` and to the Dockerfile's `COPY … /opt/onedrop/` line, again without rebuilding: the new file *and* any other changed tool file still go in (a COPY-only Dockerfile change isn't a base change). On production, `cloud tinker` → `app(App\Sandbox\SandboxTools::class)->compare(app(App\Sandbox\SandboxProvider::class), '<external id>')` shows `"base": true`.
 
 ### Base files
 

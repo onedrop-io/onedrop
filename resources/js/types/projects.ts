@@ -41,7 +41,12 @@ export type TaskDetail = Task & {
     copy_error: string | null;
     /** Making the copy, merging between the copy and Main, or pushing to or pulling from its pull request. */
     sync_status:
-        'forking' | 'applying' | 'updating' | 'pushing' | 'pulling' | null;
+        | 'forking'
+        | 'applying'
+        | 'updating'
+        | 'pushing'
+        | 'pulling'
+        | null;
     /** Why the last merge failed. */
     sync_error: string | null;
     applied_at: string | null;

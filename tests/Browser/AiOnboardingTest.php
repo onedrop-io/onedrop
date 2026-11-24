@@ -18,10 +18,10 @@ test('the dev user logs in, chooses their Claude subscription, and lands on the 
         ->assertSee('Which AI do you use?')
         ->assertSee('Claude Pro or Max plan')
         ->assertMissing('@onboarding-continue')
-        ->assertDontSee('OneDrop never sees your Claude login')
+        ->assertDontSee('OneDrop never keeps your Claude login')
         ->click('@choose-claude')
         ->assertSee('Connect Claude')
-        ->assertSee('OneDrop never sees your Claude login')
+        ->assertSee('OneDrop never keeps your Claude login')
         ->assertSee('Use an Anthropic API key instead');
 
     $page->press('@use-claude-subscription')
