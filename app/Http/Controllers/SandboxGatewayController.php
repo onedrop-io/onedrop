@@ -85,7 +85,13 @@ class SandboxGatewayController extends Controller
      */
     public function enter(Request $request, Gateway $gateway): Response|RedirectResponse
     {
-        $target = $gateway->parse((string) $gateway->requestedHost($request, $request->getHost()));
+        $host = (string) $gateway->requestedHost($request, $request->getHost());
+        $target = $gateway->parse($host);
+
+        // A pull request's preview without a copy of the app now: say why, rather than ask for a sign-in.
+        if (! $target && $gateway->isPullRequestHost($host)) {
+            return $this->previewUnavailable($gateway->pullRequestTask($host));
+        }
 
         // A pull request's preview link (GIT-027): its key, for anyone who has it.
         if ($target && $target['kind'] === Gateway::PULL_REQUEST) {
@@ -158,6 +164,12 @@ class SandboxGatewayController extends Controller
         $host = (string) $gateway->requestedHost($request, $request->header('X-Forwarded-Host'));
         $target = $gateway->parse($host);
         $sandbox = $target ? Sandbox::with('project')->find($target['sandbox_id']) : null;
+
+        // A pull request's preview that's being made, couldn't be made, or is gone says so itself. A 404 would send
+        // the Worker on to the domain's own origin, which shows Cloudflare's "connection timed out" (GIT-027).
+        if ($gateway->isPullRequestHost($host) && $sandbox?->status !== SandboxStatus::Running) {
+            return $this->previewUnavailable($gateway->pullRequestTask($host));
+        }
 
         if (! $sandbox || $sandbox->status !== SandboxStatus::Running) {
             return response('Not found', 404);
@@ -251,6 +263,8 @@ class SandboxGatewayController extends Controller
         $target = $gateway->parse($host);
 
         $known = ($target && Sandbox::whereKey($target['sandbox_id'])->exists())
+            // A pull request's preview, while its copy is being made too, so its page can say so (GIT-027).
+            || $gateway->pullRequestTask($host) !== null
             || ProjectDomain::where('hostname', $host)->where('via', 'caddy')->exists();
 
         return $known ? response('ok') : response('unknown', 404);
@@ -269,6 +283,29 @@ class SandboxGatewayController extends Controller
                 ? self::appUrl(route('projects.gateway.open', [$project, $target['kind']], false))
                 : self::appUrl(route('login', absolute: false)),
         ], 401)->header('X-OneDrop-Gateway', "login-required; reason={$reason}");
+    }
+
+    /**
+     * A pull request's preview address without a running copy of the app: being made (the page reloads itself until
+     * it's ready), couldn't be made, or there's none (GIT-027).
+     */
+    protected function previewUnavailable(?Task $task): Response
+    {
+        $copy = $task?->sandbox()->first();
+        $reason = match (true) {
+            $copy?->status === SandboxStatus::Creating => 'starting',
+            $copy?->status === SandboxStatus::Failed => 'failed',
+            $task !== null && $task->pull_request_state !== null => 'closed',
+            default => 'missing',
+        };
+
+        return response()->view('gateway.preview-unavailable', [
+            'reason' => $reason,
+            'pullRequest' => $task?->pull_request_number,
+            'state' => $task?->pull_request_state,
+        ], $reason === 'starting' ? 503 : 410)
+            ->header('X-OneDrop-Gateway', "preview-unavailable; reason={$reason}")
+            ->header('Cache-Control', 'no-store');
     }
 
     /**

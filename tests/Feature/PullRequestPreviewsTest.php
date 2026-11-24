@@ -274,11 +274,38 @@ test("a pull request's preview address opens for anyone with its link, until a n
     $this->get("https://{$host}/__onedrop/enter?key=key-one")->assertUnauthorized();
 })->group('GIT-027');
 
+test('a preview being made, one that failed, a removed one and an unknown one say so, never passing the visitor on', function () {
+    $task = previewTask($this->project);
+    $host = 'pr-12-shop-'.$this->project->id.'.onedrop.example.com';
+    $authorize = fn (string $for) => $this->withHeaders(['X-Forwarded-Host' => $for])->get(route('sandbox-gateway.authorize'));
+    auth()->logout();
+
+    // Being made: a page that reloads itself, not a 404 the Cloudflare Worker would hand to the domain's origin.
+    $task->sandbox()->update(['status' => SandboxStatus::Creating]);
+    $authorize($host)->assertStatus(503)->assertSee('The preview is starting')->assertSee('http-equiv="refresh"', false);
+    $this->get("https://{$host}/__onedrop/enter?key=key-one")->assertRedirect("https://{$host}/");
+
+    $task->sandbox()->update(['status' => SandboxStatus::Failed]);
+    $authorize($host)->assertStatus(410)->assertSee("The preview couldn't be made", false);
+
+    $task->update(['pull_request_state' => 'merged']);
+    $task->destroyCopy();
+    $authorize($host)->assertStatus(410)->assertSee('was merged');
+    $this->get("https://{$host}/__onedrop/enter?key=key-one")->assertStatus(410)->assertSee('This preview was removed');
+
+    $authorize('pr-99-shop-'.$this->project->id.'.onedrop.example.com')->assertStatus(410)->assertSee('No preview here');
+    // Other unknown names under the domain still pass on.
+    $authorize('preview-9999.onedrop.example.com')->assertNotFound();
+})->group('GIT-027');
+
 test('certificates are issued for preview addresses, and a published project named like one keeps clear of them', function () {
     $task = previewTask($this->project);
 
     $this->get(route('sandbox-gateway.certificate', ['domain' => 'pr-12-shop-'.$this->project->id.'.onedrop.example.com']))->assertOk();
     $this->get(route('sandbox-gateway.certificate', ['domain' => 'pr-99-shop-'.$this->project->id.'.onedrop.example.com']))->assertNotFound();
+    // While its copy is being made too, so its page can say so.
+    $task->sandbox()->delete();
+    $this->get(route('sandbox-gateway.certificate', ['domain' => 'pr-12-shop-'.$this->project->id.'.onedrop.example.com']))->assertOk();
 
     $named = Project::factory()->for($this->user)->create(['name' => 'PR 12 shop']);
     expect(app(Gateway::class)->publishedHost($named))->toBe("app-pr-12-shop-{$named->id}.onedrop.example.com")

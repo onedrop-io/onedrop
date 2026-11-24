@@ -1502,6 +1502,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see the preview link with a copy button on the pull request's task bar and its page in Tools, and be able to make a new link, which stops the old one working at once.
 - The preview runs on the task's copy of Main's data, not production's; its page in OneDrop says so, and that anyone with the link can open it.
 - A sleeping copy should wake when its link is opened (SBX-007).
+- While its copy is being made, the address should say the preview is starting and reload itself until it's ready; when the copy couldn't be made, the pull request was merged or closed, or there's no preview, it should say so, never an error from the hosting in front of it.
 
 ## GIT-028: The preview on GitHub
 

@@ -244,11 +244,10 @@ class Gateway
         }
 
         // A pull request's preview: its task's copy, whichever it is now (GIT-027).
-        if (preg_match('/^pr-(\d+)-[a-z0-9-]+-(\d+)\.'.$domain.'$/', $host, $matches)) {
-            $task = Task::query()->where('project_id', (int) $matches[2])->where('pull_request_number', (int) $matches[1])->with('project')->first();
+        if ($this->isPullRequestHost($host)) {
+            $task = $this->pullRequestTask($host);
             $copy = $task?->sandbox()->first();
 
-            // The name in it is only for reading: links keep working when the project is renamed.
             return $task && $copy
                 ? ['kind' => self::PULL_REQUEST, 'sandbox_id' => $copy->id, 'task_id' => $task->id]
                 : null;
@@ -257,6 +256,31 @@ class Gateway
         $project = $this->publishedProject($host);
 
         return $project ? ['kind' => self::APP, 'sandbox_id' => $project->sandbox->id] : null;
+    }
+
+    /**
+     * Whether a host is a pull request's preview address (GIT-027), whether or not it has a preview now.
+     */
+    public function isPullRequestHost(string $host): bool
+    {
+        $host = strtolower(explode(':', $host)[0]);
+
+        return $this->enabled() && (bool) preg_match('/^pr-\d+-[a-z0-9-]+-\d+\.'.preg_quote(strtolower((string) $this->domain), '/').'$/', $host);
+    }
+
+    /**
+     * The pull request's task a preview address is for, with or without a copy of the app. The name in the address is
+     * only for reading: links keep working when the project is renamed.
+     */
+    public function pullRequestTask(string $host): ?Task
+    {
+        $host = strtolower(explode(':', $host)[0]);
+
+        if (! $this->isPullRequestHost($host) || ! preg_match('/^pr-(\d+)-[a-z0-9-]+-(\d+)\./', $host, $matches)) {
+            return null;
+        }
+
+        return Task::query()->where('project_id', (int) $matches[2])->where('pull_request_number', (int) $matches[1])->with('project')->first();
     }
 
     /**
