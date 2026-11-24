@@ -18,6 +18,7 @@ import type { ReactNode } from 'react';
 import ProjectPullRequestController from '@/actions/App/Http/Controllers/ProjectPullRequestController';
 import Markdown from '@/components/markdown';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import PatchView from '@/components/workspace/patch-view';
 import { jsonRequest } from '@/lib/json-request';
@@ -49,6 +50,10 @@ type ListData = {
     pulls: PullSummary[];
     /** Task ids by pull request number, for those checked out as tasks. */
     tasks: Record<string, number>;
+    /** Preview links by pull request number, for anyone to open (GIT-027). */
+    previews: Record<string, string>;
+    /** Every pull request from the repository's own branches is checked out with a preview (GIT-026). */
+    preview_pull_requests: boolean;
 };
 
 type Pull = {
@@ -101,6 +106,10 @@ type PullTask = {
     url: string;
     status: string;
     checks: ChecksState;
+    /** Its preview link, for anyone (GIT-027). */
+    preview_url: string | null;
+    /** Why GitHub refused its Deployment or comment (GIT-028). */
+    preview_error: string | null;
 };
 
 type PullData = {
@@ -281,6 +290,18 @@ function PullRequestList({
 
     useEffect(load, [load]);
 
+    // Every pull request gets a preview, or only those checked out by hand (GIT-026); turning it on checks them out.
+    const setPreviewEvery = (value: boolean) => {
+        setData((current) =>
+            current ? { ...current, preview_pull_requests: value } : current,
+        );
+        jsonRequest(
+            ProjectPullRequestController.settings.url(projectId),
+            { preview_pull_requests: value },
+            'PATCH',
+        ).catch((e: Error) => setError(e.message));
+    };
+
     const shown = useMemo(() => {
         const words = query.trim().toLowerCase();
 
@@ -364,8 +385,31 @@ function PullRequestList({
             </div>
 
             {data?.repository && (
-                <p className="text-xs text-muted-foreground">
-                    {data.repository}
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                    <span>{data.repository}</span>
+                    <label
+                        className="flex items-center gap-1.5"
+                        title="Check out each pull request from the repository's own branches as a task, with a preview link for anyone, shown on the pull request"
+                    >
+                        <Checkbox
+                            checked={data.preview_pull_requests}
+                            onCheckedChange={(value) =>
+                                setPreviewEvery(value === true)
+                            }
+                            data-test="pulls-preview-every"
+                        />
+                        Preview every pull request
+                    </label>
+                </div>
+            )}
+            {data?.preview_pull_requests && (
+                <p
+                    className="text-xs text-muted-foreground"
+                    data-test="pulls-preview-note"
+                >
+                    Anyone with a preview link can open the app. Previews run on
+                    a copy of Main's data, not production. Pull requests from
+                    forks are only checked out by hand.
                 </p>
             )}
 
@@ -387,11 +431,11 @@ function PullRequestList({
             ) : (
                 <ul className="divide-y rounded-xl border border-sidebar-border/70 dark:border-sidebar-border">
                     {shown.map((pull) => (
-                        <li key={pull.number}>
+                        <li key={pull.number} className="flex items-start">
                             <button
                                 type="button"
                                 onClick={() => onOpen(pull.number)}
-                                className="flex w-full items-start gap-3 px-3 py-2.5 text-left hover:bg-muted/50"
+                                className="flex min-w-0 flex-1 items-start gap-3 px-3 py-2.5 text-left hover:bg-muted/50"
                                 data-test="pull-row"
                             >
                                 <PullStateIcon state={pull.state} />
@@ -433,6 +477,19 @@ function PullRequestList({
                                     <ChecksIcon state={pull.checks} />
                                 </span>
                             </button>
+                            {data?.previews[pull.number] && (
+                                <a
+                                    href={data.previews[pull.number]}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    title="Open its preview, as anyone with the link would"
+                                    className="m-2 flex shrink-0 items-center gap-1 rounded px-1.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+                                    data-test="pull-row-preview"
+                                >
+                                    <ExternalLink className="size-3.5" />
+                                    Preview
+                                </a>
+                            )}
                         </li>
                     ))}
                 </ul>
@@ -628,6 +685,20 @@ function PullRequestPage({
                         {busy === 'fix' ? 'Sending…' : 'Fix failing checks'}
                     </Button>
                 )}
+                {task?.preview_url && (
+                    <Button size="sm" variant="outline" asChild>
+                        <a
+                            href={task.preview_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            title="Its running preview, as anyone with the link opens it"
+                            data-test="pull-preview"
+                        >
+                            <ExternalLink />
+                            Open preview
+                        </a>
+                    </Button>
+                )}
                 <Button size="sm" variant="ghost" asChild>
                     <a href={pull.url} target="_blank" rel="noreferrer">
                         <ExternalLink />
@@ -635,6 +706,15 @@ function PullRequestPage({
                     </a>
                 </Button>
             </div>
+            {task?.preview_error && (
+                <p
+                    className="text-xs text-amber-600 dark:text-amber-400"
+                    data-test="pull-preview-error"
+                >
+                    The preview works, but GitHub didn't show it on the pull
+                    request: {task.preview_error}
+                </p>
+            )}
             {!task && data.check_out_problem && (
                 <p className="text-xs text-muted-foreground">
                     {data.check_out_problem}

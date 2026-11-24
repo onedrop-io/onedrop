@@ -74,6 +74,11 @@ class SyncPullRequestTask implements ShouldQueue
         $task->update(['sync_status' => $direction, 'sync_error' => null]);
         self::dispatch($task, $direction);
 
+        // Bringing in commits: its preview shows as updating (GIT-028).
+        if ($direction === TaskSyncStatus::Pulling) {
+            UpdatePullRequestPreview::for($task);
+        }
+
         return null;
     }
 
@@ -86,6 +91,8 @@ class SyncPullRequestTask implements ShouldQueue
             if ($this->direction === TaskSyncStatus::Pulling) {
                 ['sha' => $sha, 'merged' => $merged, 'conflicts' => $conflicts] = $copies->pullPullRequest($task);
                 $task->update(['sync_status' => null, 'sync_error' => null, 'pull_request_head_sha' => $sha]);
+
+                UpdatePullRequestPreview::for($task);
 
                 if (! $merged) {
                     $task->messages()->create(['role' => MessageRole::Activity, 'content' => "Already up to date with #{$number}"]);
@@ -103,6 +110,7 @@ class SyncPullRequestTask implements ShouldQueue
             $sha = $copies->pushPullRequest($task);
         } catch (GitException|SandboxException $e) {
             $task->update(['sync_status' => null, 'sync_error' => $e->getMessage()]);
+            UpdatePullRequestPreview::for($task);
             $task->messages()->create(['role' => MessageRole::Activity, 'content' => ($this->direction === TaskSyncStatus::Pulling ? "Couldn't pull #{$number}: " : "Couldn't push to #{$number}: ").$e->getMessage()]);
 
             return;
@@ -113,6 +121,8 @@ class SyncPullRequestTask implements ShouldQueue
 
         if ($pushed) {
             $task->messages()->create(['role' => MessageRole::Activity, 'content' => "Pushed to #{$number} (".substr($sha, 0, 7).')']);
+            // The preview already runs it: a Deployment of the new commit (GIT-028).
+            UpdatePullRequestPreview::for($task);
             WatchPullRequestChecks::dispatch($task, $sha)->delay(now()->addSeconds(WatchPullRequestChecks::INTERVAL));
         }
     }

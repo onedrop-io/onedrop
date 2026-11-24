@@ -78,6 +78,10 @@ export type TaskPullRequest = {
     url: string | null;
     /** Merged or closed on GitHub (GIT-023). */
     state: 'merged' | 'closed' | null;
+    /** Its preview link, for anyone (GIT-027). */
+    preview_url: string | null;
+    /** Why GitHub refused its Deployment or comment (GIT-028). */
+    preview_error: string | null;
 };
 
 /** Why an agent is waiting for the user after its turn, as Jev judged it (PRJ-011; App\Enums\TurnOutcome). */

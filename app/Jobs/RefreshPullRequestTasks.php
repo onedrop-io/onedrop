@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\Project;
 use App\Sandbox\GitException;
 use App\Sandbox\GitHubPulls;
+use App\Sandbox\PullRequestPreviews;
 use App\Sandbox\PullRequestTasks;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -30,7 +31,7 @@ class RefreshPullRequestTasks implements ShouldQueue
      */
     public static function soon(Project $project): void
     {
-        if (! GitHubPulls::available($project) || ! PullRequestTasks::watched($project)->exists()) {
+        if (! GitHubPulls::available($project) || (! PullRequestTasks::watched($project)->exists() && ! PullRequestPreviews::enabled($project))) {
             return;
         }
 
@@ -39,10 +40,11 @@ class RefreshPullRequestTasks implements ShouldQueue
         }
     }
 
-    public function handle(PullRequestTasks $tasks): void
+    public function handle(PullRequestPreviews $previews): void
     {
         try {
-            $tasks->refresh($this->project);
+            // Also checks out new pull requests and brings in commits (GIT-026).
+            $previews->catchUp($this->project);
         } catch (GitException) {
             // GitHub's errors are shown where pull requests are listed; the next look tries again.
         }

@@ -114,6 +114,9 @@ trait RendersWorkspace
                     'head_sha' => $task->pull_request_head_sha,
                     // merged or closed on GitHub (GIT-023).
                     'state' => $task->pull_request_state,
+                    // Its preview link for anyone (GIT-027), and why GitHub refused its Deployment or comment (GIT-028).
+                    'preview_url' => $gateway->pullRequestLink($task),
+                    'preview_error' => $task->preview_error,
                     'url' => ($repository = GitHubPulls::repository($project)) ? "https://github.com/{$repository}/pull/{$task->pull_request_number}" : null,
                 ] : null,
                 // Opening a pull request from the task (GIT-024): whether it can, and the branch pushed for it.

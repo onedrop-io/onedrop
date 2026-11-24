@@ -54,7 +54,8 @@ test('pull requests are listed, read, checked out as a task, and followed from i
     ]);
 
     $user = User::factory()->has(AgentConnection::factory())->create(['email' => 'dev@example.com']);
-    $project = Project::factory()->for($user)->create(['git_remote_url' => 'https://github.com/acme/app.git', 'git_remote_token' => 'ghp_token']);
+    // Checked out by hand: not every pull request by itself (GIT-026).
+    $project = Project::factory()->for($user)->create(['git_remote_url' => 'https://github.com/acme/app.git', 'git_remote_token' => 'ghp_token', 'preview_pull_requests' => false]);
     Sandbox::factory()->for($project)->create(['preview_url' => null, 'status' => SandboxStatus::Running]);
     $this->actingAs($user);
 

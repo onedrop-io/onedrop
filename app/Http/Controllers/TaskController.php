@@ -11,6 +11,7 @@ use App\Jobs\OpenTaskPullRequest;
 use App\Jobs\RefreshPullRequestTasks;
 use App\Jobs\SyncPullRequestTask;
 use App\Jobs\SyncTask;
+use App\Jobs\UpdatePullRequestPreview;
 use App\Models\Attachment;
 use App\Models\Project;
 use App\Models\Task;
@@ -207,6 +208,23 @@ class TaskController extends Controller
 
         if (($problem = OpenTaskPullRequest::start($task)) !== null) {
             Inertia::flash('toast', ['type' => 'error', 'message' => $problem]);
+        }
+
+        return back();
+    }
+
+    /**
+     * A new preview link for the pull request's task (GIT-027): the old one stops working at once, and the pull request's
+     * comment and Deployment get the new one (GIT-028).
+     */
+    public function newPreviewLink(Project $project, Task $task): RedirectResponse
+    {
+        Gate::authorize('update', $project);
+
+        if ($task->isPullRequest() && $task->pull_request_state === null) {
+            $task->update(['preview_key' => Str::random(40)]);
+            UpdatePullRequestPreview::for($task);
+            Inertia::flash('toast', ['type' => 'success', 'message' => __('Made a new preview link. The old one no longer works.')]);
         }
 
         return back();

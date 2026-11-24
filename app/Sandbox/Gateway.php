@@ -7,6 +7,7 @@ use App\Enums\PublishTarget;
 use App\Models\Project;
 use App\Models\ProjectDomain;
 use App\Models\Sandbox;
+use App\Models\Task;
 use App\Models\User;
 use App\Sandbox\Providers\DeviceSandboxProvider;
 use Illuminate\Contracts\Encryption\DecryptException;
@@ -16,7 +17,8 @@ use Illuminate\Support\Facades\Crypt;
 /**
  * Public addresses for sandbox previews and shells on a server:
  * preview-<sandbox id>.<gateway domain> and shell-<sandbox id>.<gateway domain>,
- * plus projects published to the domain (DomainPublisher): <name>-<project id>.<gateway domain>.
+ * plus projects published to the domain (DomainPublisher): <name>-<project id>.<gateway domain>, and each pull request's
+ * preview (GIT-027): pr-<number>-<name>-<project id>.<gateway domain>, its task's copy, for anyone with its link.
  * Caddy routes them to the sandbox after SandboxGatewayController authorizes the request.
  *
  * The app's login cookie never reaches these addresses: code in a sandbox could read it, and a
@@ -29,6 +31,9 @@ class Gateway
 
     /** The kind for a project published to the domain: its app, served like the preview. */
     public const APP = 'app';
+
+    /** The kind for a pull request's preview (GIT-027): its task's copy, for anyone with its link. */
+    public const PULL_REQUEST = 'pr';
 
     /** The per-address cookie. Caddy strips it before traffic reaches the sandbox. */
     public const COOKIE = 'onedrop_gateway';
@@ -145,9 +150,62 @@ class Gateway
             return null;
         }
 
-        return $kind === self::APP
-            ? $sandbox->project?->published_url
-            : "https://{$kind}-{$sandbox->id}.{$this->domain}";
+        return match ($kind) {
+            self::APP => $sandbox->project?->published_url,
+            self::PULL_REQUEST => $sandbox->task ? 'https://'.$this->pullRequestHost($sandbox->task) : null,
+            default => "https://{$kind}-{$sandbox->id}.{$this->domain}",
+        };
+    }
+
+    /**
+     * A pull request's preview address (GIT-027): the same while the pull request is open, whichever copy serves it.
+     */
+    public function pullRequestHost(Task $task): string
+    {
+        return "pr-{$task->pull_request_number}-{$task->project->publishHostname()}.".strtolower((string) $this->domain);
+    }
+
+    /**
+     * The link reviewers open a pull request's preview with (GIT-027), or null without a gateway or a key.
+     */
+    public function pullRequestLink(Task $task, string $path = '/'): ?string
+    {
+        if (! $this->enabled() || $task->preview_key === null || $task->pull_request_number === null) {
+            return null;
+        }
+
+        return 'https://'.$this->pullRequestHost($task).'/__onedrop/enter?'.http_build_query(['key' => $task->preview_key, 'path' => $path]);
+    }
+
+    /**
+     * The cookie value that lets anyone with the pull request's link through (GIT-027). It names the link's key, so a
+     * new link stops it at once.
+     */
+    public function pullRequestPass(Task $task): string
+    {
+        return json_encode([
+            'kind' => self::PULL_REQUEST,
+            'task' => $task->id,
+            'key' => hash('sha256', (string) $task->preview_key),
+            'expires' => now()->addMinutes(self::PASS_MINUTES)->getTimestamp(),
+        ], JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * Whether a (decrypted) pass cookie lets its browser into the task's pull request preview.
+     */
+    public function allowsPullRequest(?string $pass, Task $task): bool
+    {
+        $data = $pass ? json_decode($pass, true) : null;
+
+        return is_array($data)
+            && ($data['kind'] ?? null) === self::PULL_REQUEST
+            && ($data['task'] ?? null) === $task->id
+            && $task->preview_key !== null
+            && is_string($data['key'] ?? null)
+            && hash_equals(hash('sha256', $task->preview_key), $data['key'])
+            && is_int($data['expires'] ?? null)
+            && $data['expires'] >= now()->getTimestamp();
     }
 
     /**
@@ -158,7 +216,8 @@ class Gateway
     {
         $label = $project->publishHostname();
 
-        if (preg_match('/^('.implode('|', self::KINDS).')-\d+$/', $label)) {
+        // Nor as a pull request's preview (GIT-027).
+        if (preg_match('/^('.implode('|', self::KINDS).')-\d+$/', $label) || preg_match('/^pr-\d+-/', $label)) {
             $label = "app-{$label}";
         }
 
@@ -169,7 +228,7 @@ class Gateway
      * Parse a gateway hostname into its kind and sandbox id: a preview or shell, or a project published to the domain
      * (kind "app", its main sandbox) while it's live there, at its own address or a custom domain (DOM-001).
      *
-     * @return array{kind: string, sandbox_id: int}|null
+     * @return array{kind: string, sandbox_id: int, task_id?: int}|null
      */
     public function parse(string $host): ?array
     {
@@ -182,6 +241,17 @@ class Gateway
 
         if (preg_match('/^('.implode('|', self::KINDS).')-(\d+)\.'.$domain.'$/', $host, $matches)) {
             return ['kind' => $matches[1], 'sandbox_id' => (int) $matches[2]];
+        }
+
+        // A pull request's preview: its task's copy, whichever it is now (GIT-027).
+        if (preg_match('/^pr-(\d+)-[a-z0-9-]+-(\d+)\.'.$domain.'$/', $host, $matches)) {
+            $task = Task::query()->where('project_id', (int) $matches[2])->where('pull_request_number', (int) $matches[1])->with('project')->first();
+            $copy = $task?->sandbox()->first();
+
+            // The name in it is only for reading: links keep working when the project is renamed.
+            return $task && $copy
+                ? ['kind' => self::PULL_REQUEST, 'sandbox_id' => $copy->id, 'task_id' => $task->id]
+                : null;
         }
 
         $project = $this->publishedProject($host);

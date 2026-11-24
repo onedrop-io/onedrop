@@ -8,6 +8,7 @@ use App\Http\Middleware\UseDesktopToken;
 use App\Models\Project;
 use App\Models\ProjectDomain;
 use App\Models\Sandbox;
+use App\Models\Task;
 use App\Models\User;
 use App\Sandbox\DesktopTunnel;
 use App\Sandbox\Gateway;
@@ -63,7 +64,7 @@ class SandboxGatewayController extends Controller
 
         $link = (string) $request->query('url');
         $target = $gateway->parse((string) parse_url($link, PHP_URL_HOST));
-        $sandbox = $target && $target['kind'] !== Gateway::APP ? Sandbox::with('project')->find($target['sandbox_id']) : null;
+        $sandbox = $target && ! in_array($target['kind'], [Gateway::APP, Gateway::PULL_REQUEST], true) ? Sandbox::with('project')->find($target['sandbox_id']) : null;
 
         abort_unless($sandbox !== null, 404);
         Gate::authorize('view', $sandbox->project);
@@ -85,6 +86,12 @@ class SandboxGatewayController extends Controller
     public function enter(Request $request, Gateway $gateway): Response|RedirectResponse
     {
         $target = $gateway->parse((string) $gateway->requestedHost($request, $request->getHost()));
+
+        // A pull request's preview link (GIT-027): its key, for anyone who has it.
+        if ($target && $target['kind'] === Gateway::PULL_REQUEST) {
+            return $this->enterPullRequest($request, $gateway, $target);
+        }
+
         $token = (string) $request->query('token');
         $userId = $target ? $gateway->userFromToken($token, $target) : null;
 
@@ -117,6 +124,33 @@ class SandboxGatewayController extends Controller
     }
 
     /**
+     * Trade a pull request preview link's key for this address's cookie (GIT-027), then land on the page asked for.
+     *
+     * @param  array{kind: string, sandbox_id: int, task_id?: int}  $target
+     */
+    protected function enterPullRequest(Request $request, Gateway $gateway, array $target): Response|RedirectResponse
+    {
+        $task = Task::with('project')->find($target['task_id'] ?? 0);
+        $key = (string) $request->query('key');
+
+        if (! $task || $task->preview_key === null || ! hash_equals($task->preview_key, $key)) {
+            return $this->previewLinkRequired($task);
+        }
+
+        return redirect()->away('https://'.$gateway->pullRequestHost($task).self::safePath((string) $request->query('path', '/')))->withCookie(new Cookie(
+            Gateway::COOKIE,
+            $gateway->pullRequestPass($task),
+            now()->addMinutes(Gateway::PASS_MINUTES),
+            '/',
+            null, // This address only.
+            true,
+            true,
+            false,
+            Cookie::SAMESITE_LAX,
+        ));
+    }
+
+    /**
      * Called by Caddy (forward_auth) or the Cloudflare Worker: may this browser open the preview or shell? If so, where does it live?
      */
     public function authorize(Request $request, Gateway $gateway, SandboxProvider $provider, DesktopTunnel $tunnel): Response|RedirectResponse
@@ -142,6 +176,18 @@ class SandboxGatewayController extends Controller
         // carries a ticket only the app signs, for people who may change the project, instead of a cookie.
         $public = ($target['kind'] === Gateway::APP && $sandbox->project->publish_visibility === PublishVisibility::Public)
             || ($target['kind'] === 'preview' && $tunnel->allows($sandbox, (string) $request->header('X-Forwarded-Uri', '/')));
+
+        // A pull request's preview: anyone with its link, whose cookie names its current key (GIT-027).
+        if ($target['kind'] === Gateway::PULL_REQUEST) {
+            $pass = $request->cookie(Gateway::COOKIE);
+            $task = $sandbox->task;
+
+            if (! $task || ! $gateway->allowsPullRequest(is_string($pass) ? $pass : null, $task)) {
+                return $this->previewLinkRequired($task);
+            }
+
+            $public = true;
+        }
 
         if (! $public) {
             $pass = $request->cookie(Gateway::COOKIE);
@@ -223,6 +269,16 @@ class SandboxGatewayController extends Controller
                 ? self::appUrl(route('projects.gateway.open', [$project, $target['kind']], false))
                 : self::appUrl(route('login', absolute: false)),
         ], 401)->header('X-OneDrop-Gateway', "login-required; reason={$reason}");
+    }
+
+    /**
+     * A pull request's preview without its link's key, or with an old one: open the link from the pull request again.
+     */
+    protected function previewLinkRequired(?Task $task): Response
+    {
+        return response()->view('gateway.preview-link-required', [
+            'pullRequest' => $task?->pull_request_number,
+        ], 401)->header('X-OneDrop-Gateway', 'preview-link-required');
     }
 
     /**

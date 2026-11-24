@@ -1,6 +1,6 @@
 ---
 title: 'Pull requests'
-description: 'Manual checks for pull requests in Tools and on their own page, the agent checking out branches and pull requests, checking one out as a task, opening one from a task, and fixing its checks.'
+description: 'Manual checks for pull requests in Tools and on their own page, their previews, the agent checking out branches and pull requests, checking one out as a task, opening one from a task, and fixing its checks.'
 noindex: true
 ---
 
@@ -69,3 +69,21 @@ Set up also: a second branch with a commit Main doesn't have, and a tag.
 - [ ] Create the pull request: within two minutes, without reloading by hand more than once, the task shows the pull request's bar, its chat says "Opened #N", and it's in Review on the board. Its checks start being watched.
 - [ ] Before creating it, ask the agent for another change and click **Push again**: the same branch gets the new commit.
 - [ ] A project connected to GitLab doesn't offer **Open pull request**.
+
+## Previews for every pull request (GIT-026, GIT-027, GIT-028)
+
+Set up also: the GitHub App with its webhook on (`https://<install>/github/webhook`, Pull request events), `GITHUB_WEBHOOK_SECRET` set, and Deployments and Pull requests write permissions accepted on the installation. In the app's **Advanced → Recent deliveries**, deliveries should show `202`.
+
+- [ ] Open a pull request from a branch: within a minute a task "#N …" appears on the board without anyone clicking, and its copy is made.
+- [ ] On GitHub, the pull request shows **View deployment** (in progress, then active) and one OneDrop comment with **Open the preview**.
+- [ ] Open the link in a private window, signed out of OneDrop: the app opens at `pr-<n>-<project>-<id>.<domain>`, and its pages, assets and API calls work. Opening the address without the key shows "Open this preview from its pull request".
+- [ ] Push a commit to the branch from your computer: within a minute the comment says it's updating, the copy brings in the commit, a new deployment for that commit goes active, and the preview shows the change.
+- [ ] Push while the task's agent is working: nothing is pulled until the agent finishes, then the next catch-up (open the Pull requests list) brings it in.
+- [ ] **New link** on the task's bar: the old link's tab gets "Open this preview from its pull request" on its next request (within a minute on Cloudflare), and the comment and deployment have the new link.
+- [ ] Merge the pull request: the deployment goes inactive, the comment says it was removed, and the task is in Done. A day later its copy is gone (or set `RemovePullRequestCopy::AFTER_HOURS` lower on a test install).
+- [ ] Reopen a closed pull request within a day: the task leaves Done's "merged" state and the preview works again; after its copy was removed, a new copy is made.
+- [ ] A pull request from a fork gets no task, deployment or comment until checked out by hand.
+- [ ] Turn **Preview every pull request** off: new pull requests aren't checked out. Turn it on: open ones are checked out within moments.
+- [ ] With the webhook turned off on GitHub, a new pull request is still checked out within 5 minutes on a server (hourly on Laravel Cloud), or right away when the Pull requests list is opened.
+- [ ] Remove the Deployments permission from the installation: the task's bar says GitHub refused, and the preview link still works.
+- [ ] Sleeping copy: leave a preview unused for 20 minutes, then open its link: it wakes and loads.

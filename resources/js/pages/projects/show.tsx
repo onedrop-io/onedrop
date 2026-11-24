@@ -4220,6 +4220,17 @@ function PullRequestBar({
                     </a>
                 )}
             </div>
+            {pullRequest.preview_url && (
+                <PreviewLink
+                    url={pullRequest.preview_url}
+                    error={pullRequest.preview_error}
+                    onNewLink={() =>
+                        window.confirm(
+                            'Make a new preview link? The old one stops working, for everyone who has it.',
+                        ) && post(TaskController.newPreviewLink.url(ids))
+                    }
+                />
+            )}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                 {pullRequest.fork ? (
                     <span>
@@ -4254,6 +4265,69 @@ function PullRequestBar({
                     data-test="task-copy-error"
                 >
                     {task.sync_error}
+                </span>
+            )}
+        </div>
+    );
+}
+
+/**
+ * A pull request's preview link for anyone (GIT-027): open it, copy it, or make a new one. And why GitHub didn't
+ * show it on the pull request, when it refused (GIT-028).
+ */
+function PreviewLink({
+    url,
+    error,
+    onNewLink,
+}: {
+    url: string;
+    error: string | null;
+    onNewLink: () => void;
+}) {
+    const [copied, copy] = useClipboard();
+
+    return (
+        <div
+            className="flex flex-wrap items-center gap-2"
+            data-test="task-preview"
+        >
+            <Globe className="size-3.5 shrink-0" />
+            <a
+                href={url}
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium text-foreground hover:underline"
+                title="Open the preview, as anyone with the link would"
+                data-test="task-preview-open"
+            >
+                Preview
+            </a>
+            <span className="min-w-0 flex-1 truncate">
+                Anyone with the link can open it, on a copy of Main's data
+            </span>
+            <button
+                type="button"
+                onClick={() => copy(url)}
+                className="rounded px-1.5 py-0.5 hover:bg-muted"
+                data-test="task-preview-copy"
+            >
+                {copied ? 'Copied' : 'Copy link'}
+            </button>
+            <button
+                type="button"
+                onClick={onNewLink}
+                title="Make a new link; the old one stops working"
+                className="rounded px-1.5 py-0.5 hover:bg-muted"
+                data-test="task-preview-new-link"
+            >
+                New link
+            </button>
+            {error && (
+                <span
+                    className="basis-full text-amber-600 dark:text-amber-400"
+                    data-test="task-preview-error"
+                >
+                    GitHub didn't show it on the pull request: {error}
                 </span>
             )}
         </div>

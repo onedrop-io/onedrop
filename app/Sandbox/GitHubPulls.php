@@ -100,6 +100,8 @@ class GitHubPulls
                 'url' => (string) $pull['url'],
                 'updated_at' => $pull['updatedAt'],
                 'head' => (string) $pull['headRefName'],
+                // Its newest commit, which its preview should run (GIT-026).
+                'head_sha' => $pull['commits']['nodes'][0]['commit']['oid'] ?? null,
                 'base' => (string) $pull['baseRefName'],
                 'author' => $this->person($pull['author'] ?? null, 'avatarUrl'),
                 'fork' => ($pull['headRepository']['nameWithOwner'] ?? null) !== "{$owner}/{$name}",
@@ -118,6 +120,30 @@ class GitHubPulls
                 },
             ], $response->json('data.repository.pullRequests.nodes') ?? []));
         });
+    }
+
+    /**
+     * A pull request as a webhook names it (GIT-026), in the shape list() gives.
+     *
+     * @param  array<string, mixed>  $pull  the payload's pull_request
+     * @return array{number: int, title: string, state: string, head: string, head_sha: string, base: string, fork: bool}
+     */
+    public static function fromWebhook(array $pull, string $repository): array
+    {
+        return [
+            'number' => (int) $pull['number'],
+            'title' => (string) $pull['title'],
+            'state' => match (true) {
+                (bool) ($pull['merged'] ?? false) => 'merged',
+                $pull['state'] === 'open' && ($pull['draft'] ?? false) => 'draft',
+                default => (string) $pull['state'],
+            },
+            'head' => (string) $pull['head']['ref'],
+            'head_sha' => (string) $pull['head']['sha'],
+            'base' => (string) $pull['base']['ref'],
+            // A deleted fork has no repository: it's still not ours.
+            'fork' => strcasecmp((string) ($pull['head']['repo']['full_name'] ?? ''), $repository) !== 0,
+        ];
     }
 
     /**
@@ -499,7 +525,7 @@ class GitHubPulls
      *
      * @throws GitException
      */
-    protected function api(Project $project): PendingRequest
+    public function api(Project $project): PendingRequest
     {
         $token = $project->github_installation_id !== null
             ? $this->github->installationToken($project->github_installation_id)
@@ -515,7 +541,7 @@ class GitHubPulls
     /**
      * @throws GitException
      */
-    protected function check(Response $response, string $permission): Response
+    public function check(Response $response, string $permission, string $access = 'Read'): Response
     {
         $message = (string) ($response->json('message') ?? $response->status());
 
@@ -523,6 +549,7 @@ class GitHubPulls
             $response->successful() => $response,
             $response->status() === 401 => throw new GitException(__('GitHub didn\'t accept the repository\'s token. Connect it again in Source Control.')),
             in_array($response->status(), [403, 429], true) && Str::contains(Str::lower($message), 'rate limit') => throw new GitException(__('GitHub\'s rate limit was reached. Try again in a few minutes.')),
+            $response->status() === 403 && $access !== 'Read' => throw new GitException(__('GitHub refused: the app or token needs the :permission: :access permission. (:message)', ['permission' => $permission, 'access' => $access, 'message' => $message])),
             $response->status() === 403 => throw new GitException(__('GitHub refused to show this: the app or token needs the :permission: Read permission. (:message)', ['permission' => $permission, 'message' => $message])),
             $response->status() === 404 => throw new GitException(__('GitHub couldn\'t find that pull request, or the app or token can\'t see it.')),
             default => throw new GitException(__('GitHub didn\'t answer: :message', ['message' => $message])),

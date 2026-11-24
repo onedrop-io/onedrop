@@ -96,6 +96,41 @@ When a pull request is merged or closed on GitHub, its task moves to **Done** an
 
 The task is moved only once: if you drag it back out of Done, it stays where you put it.
 
+## Previews for every pull request
+
+Every pull request gets a running copy of the app with its changes, and a link anyone can click to try it. Reviewers don't need a OneDrop account: the link is on the pull request itself.
+
+**Preview every pull request** is on by default. Find it above the list on the Pull requests page or in **Tools → Pull requests**. While it's on:
+
+- Each pull request from your repository's own branches is checked out as a task within moments of being opened, as if you'd clicked **Check out as task**.
+- When someone pushes to the pull request, the preview brings in the new commits. It waits while the task's agent is working.
+- When the pull request is merged or closed, the preview stops, and its copy of the app is removed a day later unless the pull request is reopened.
+
+Pull requests from forks aren't checked out on their own, because a preview runs its code next to your organization's secrets. Check them out by hand once you've read them.
+
+If the project already runs as many task copies as it's allowed, new pull requests wait for a free copy, and their page says so.
+
+### The preview link
+
+Each preview has its own address that doesn't change while the pull request is open, such as `pr-12-shop-48.onedrop.dev`. The link to open it includes a key: anyone who has the link can open the app, without signing in, for 12 hours per visit.
+
+<Warning>
+    The link is posted on the pull request. On a public repository, that means
+    anyone can open the preview. Previews run on a copy of the project's Main
+    data, not production's, so think about what Main's database holds.
+</Warning>
+
+On the task's bar, **Preview** opens it, **Copy link** copies it, and **New link** makes a new one. The old link stops working at once, for everyone, and the pull request gets the new one.
+
+### On GitHub
+
+OneDrop shows each preview on its pull request in two places:
+
+- **View deployment**, from a GitHub Deployment named "OneDrop preview #12". Its status shows when the preview is being updated, ready, or failed, and it's marked inactive once the pull request is closed.
+- **One comment**, which OneDrop edits rather than posting again: the link, the commit it runs, and its state.
+
+This needs the GitHub App's **Deployments** and **Pull requests** write permissions (see [GitHub App](/self-hosting/github-app)). If GitHub refuses, the preview still works, and the task's bar says why GitHub didn't show it.
+
 ## Fix failing checks
 
 When a check fails, click **Fix failing checks** on the pull request's page. The names of the failed checks and the end of their logs go to the pull request's task (it's checked out first if it has none), asking its agent to find and fix the cause. When its turn ends, the fix is pushed and the checks run again.

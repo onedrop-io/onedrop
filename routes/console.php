@@ -18,7 +18,13 @@ if (! config('app.laravel_cloud')) {
 
     // Server monitoring (ADMIN-003): a sample of the server's resources every minute.
     Schedule::command('server:sample')->everyMinute()->withoutOverlapping();
+
+    // Pull request previews for projects the GitHub App's webhook can't reach (GIT-026); hourly below on Cloud.
+    Schedule::command('pull-requests:catch-up --unhooked')->everyFiveMinutes()->withoutOverlapping();
 }
+
+// Pull requests a webhook missed: GitHub doesn't send a failed one again (GIT-026).
+Schedule::command('pull-requests:catch-up')->hourly()->withoutOverlapping();
 
 // Runtime charges for stored images and caps how many an account has; every sandbox image build leaves the
 // previous version behind (SBX-003).

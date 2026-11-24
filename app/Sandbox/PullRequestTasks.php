@@ -4,6 +4,8 @@ namespace App\Sandbox;
 
 use App\Enums\MessageRole;
 use App\Enums\TaskStage;
+use App\Jobs\RemovePullRequestCopy;
+use App\Jobs\UpdatePullRequestPreview;
 use App\Jobs\WatchPullRequestChecks;
 use App\Models\Project;
 use App\Models\Task;
@@ -110,6 +112,9 @@ class PullRequestTasks
         if ($task->pull_request_head_sha !== null) {
             WatchPullRequestChecks::dispatch($task, $task->pull_request_head_sha);
         }
+
+        // Its copy is running already: its preview goes on the pull request (GIT-028).
+        UpdatePullRequestPreview::for($task);
     }
 
     /**
@@ -126,5 +131,9 @@ class PullRequestTasks
             ...($task->stage !== TaskStage::Done ? ['stage' => TaskStage::Done, 'position' => $task->project->nextTaskPosition(TaskStage::Done)] : []),
         ]);
         $task->messages()->create(['role' => MessageRole::Activity, 'content' => "#{$task->pull_request_number} was {$state} on GitHub"]);
+
+        // Its preview goes inactive on GitHub, and its copy a day later unless it's reopened (GIT-026, GIT-028).
+        UpdatePullRequestPreview::for($task);
+        RemovePullRequestCopy::dispatch($task)->delay(now()->addHours(RemovePullRequestCopy::AFTER_HOURS));
     }
 }

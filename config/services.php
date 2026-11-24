@@ -137,6 +137,8 @@ return [
         'client_id' => env('GITHUB_APP_CLIENT_ID'),
         'client_secret' => env('GITHUB_APP_CLIENT_SECRET'),
         'private_key' => env('GITHUB_APP_PRIVATE_KEY'),
+        // Signs the app's webhook, which tells OneDrop about pull requests for their previews (GIT-026).
+        'webhook_secret' => env('GITHUB_WEBHOOK_SECRET'),
     ],
 
 ];

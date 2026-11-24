@@ -37,6 +37,7 @@ class ForkTaskSandbox implements ShouldQueue
         $task->messages()->create(['role' => MessageRole::Activity, 'content' => $task->isPullRequest()
             ? "Checking out #{$task->pull_request_number} ({$task->pull_request_branch}) in a copy of the app for this task"
             : 'Making a copy of the app for this task']);
+        UpdatePullRequestPreview::for($task);
 
         try {
             $shared = $copies->fork($task);
@@ -49,6 +50,7 @@ class ForkTaskSandbox implements ShouldQueue
                 'content' => "I couldn't make this task's copy of the app: {$e->getMessage()}",
             ]);
             $queue->finished($task->fresh());
+            UpdatePullRequestPreview::for($task);
             $this->fail($e);
 
             return;
@@ -59,6 +61,8 @@ class ForkTaskSandbox implements ShouldQueue
         if ($task->isPullRequest()) {
             $task->messages()->create(['role' => MessageRole::Activity, 'content' => "Checked out #{$task->pull_request_number} at ".substr((string) $task->pull_request_head_sha, 0, 7)]);
             WatchPullRequestChecks::dispatch($task, (string) $task->pull_request_head_sha);
+            // Its preview is running (GIT-028).
+            UpdatePullRequestPreview::for($task);
         }
 
         if ($shared !== []) {

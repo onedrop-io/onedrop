@@ -1477,7 +1477,6 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Once the pull request exists on GitHub, the task should become its task (GIT-014) within a minute or two, or as soon as the Pull requests list or the task's page is opened: its bar shows the pull request with Push, Pull, its checks and "Push after each turn", and it moves to Review. Its chat says "Opened #12".
 - A project without a GitHub repository, a task without its own copy, a task whose agent is working, and a pull request's own task should not offer it; GitHub's errors are shown on the bar.
 
-
 ## GIT-025: Switch branches from the header
 
 - User should see the current branch in the project's header, next to Commit & push, once the project has its first commit.
@@ -1486,6 +1485,30 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be able to type to narrow the list, and press Enter to switch to the only match, or to create a branch with the typed name from the current commit ("Create branch “name”"). Names git wouldn't accept, or that are taken, aren't offered.
 - Uncommitted changes should come along to the new branch; when the other branch changed the same files, switching should be refused with "Commit or discard them first", and nothing is lost.
 - Switching should wait while the agent is working, a push or pull is running, or the sandbox isn't running; the button says why. Source Control's branch menu should work the same way (GIT-002).
+
+## GIT-026: Preview every pull request
+
+- A project connected to a GitHub repository should have "Preview every pull request" (on by default), on the Pull requests page and in Tools → Pull requests. With it on, each open pull request from the repository's own branches is checked out as a task (GIT-014) by itself, without anyone clicking, within moments of being opened or reopened.
+- Pull requests from forks should never be checked out by themselves: their code would run beside the organization's secrets. They can still be checked out by hand.
+- When a pull request gets new commits on GitHub, its task's copy should bring them in by itself (Pull, GIT-014), unless its agent is working or the task is pushing or pulling; it's caught up once that ends.
+- OneDrop should hear about pull requests from the GitHub App's webhook (`pull_request` events, signed with `GITHUB_WEBHOOK_SECRET`; a webhook with a wrong or missing signature is refused). Anything a webhook missed should be caught up when the Pull requests list is opened and at least once an hour; repositories connected with a token, and installs without a webhook, are caught up every 5 minutes (hourly on Laravel Cloud).
+- A pull request that can't get its own copy because the project runs as many as it may (TASK-003) should be skipped, and its page says why; it's checked out once a copy is free.
+- When a pull request is merged or closed, its task moves to Done (GIT-023) and its copy is removed a day later, unless it's reopened by then.
+
+## GIT-027: A preview link for each pull request
+
+- Each pull request with a task should have its own address that stays the same while the pull request is open, even when its copy is made again: `https://pr-<number>-<project>-<project id>.<gateway domain>`.
+- Anyone with the pull request's preview link (the address with its key, `/__onedrop/enter?key=…`) should be able to open the app, without signing in to OneDrop, for 12 hours per visit; without the key, or with an old one, the address says to open the link from the pull request again.
+- User should see the preview link with a copy button on the pull request's task bar and its page in Tools, and be able to make a new link, which stops the old one working at once.
+- The preview runs on the task's copy of Main's data, not production's; its page in OneDrop says so, and that anyone with the link can open it.
+- A sleeping copy should wake when its link is opened (SBX-007).
+
+## GIT-028: The preview on GitHub
+
+- For each pull request with a preview, OneDrop should create a GitHub Deployment of its newest commit ("OneDrop preview #12"), so the pull request shows "View deployment" with the preview link: in progress while the copy is made or brings in commits, active once it's running, failed (with a link to the task) when it couldn't be made, and inactive once the pull request is merged or closed.
+- OneDrop should keep one comment on the pull request up to date (edited, not posted again): the preview link, the commit it runs, its state, and that anyone with the link can open it and it runs on a copy of Main's data.
+- These need the GitHub App's Deployments and Pull requests write permissions; admins should be told in Source Control when they're missing, and the pull request's task says when GitHub refused, while the preview itself still works.
+
 ## SCM-001: Source Control tab
 
 - User should be able to open a Source Control tab (from "+", the header's Commit button, or Tools → Source Control) that can fill the workspace or sit beside other tabs, like VS Code's; old `?tool=git` links open it.

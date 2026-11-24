@@ -20,6 +20,7 @@ use App\Http\Controllers\DesktopSignInController;
 use App\Http\Controllers\DriveController;
 use App\Http\Controllers\DriveSyncController;
 use App\Http\Controllers\GitHubAppController;
+use App\Http\Controllers\GitHubWebhookController;
 use App\Http\Controllers\GroupController;
 use App\Http\Controllers\GroupMemberController;
 use App\Http\Controllers\HomeController;
@@ -134,6 +135,12 @@ Route::withoutMiddleware([StartSession::class, ShareErrorsFromSession::class, Pr
         Route::post('oauth/token', [OneDropOAuthController::class, 'token'])->name('onedrop.token');
         Route::get('oauth/userinfo', [OneDropOAuthController::class, 'userinfo'])->name('onedrop.userinfo');
     });
+
+// The GitHub App's webhook: pull requests for their previews (GIT-026), signed with GITHUB_WEBHOOK_SECRET.
+Route::withoutMiddleware([StartSession::class, ShareErrorsFromSession::class, PreventRequestForgery::class, HandleInertiaRequests::class])
+    ->middleware('throttle:600,1')
+    ->post('github/webhook', [GitHubWebhookController::class, 'store'])
+    ->name('github.webhook');
 
 // Called by the agent forwarder inside a sandbox; authenticated by a per-run bearer token. Tasks' runs
 // report to their own address (TASK-001), and a sandbox may run several at once.
@@ -349,6 +356,7 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
         Route::post('projects/{project}/git/pull', [ProjectGitController::class, 'pull'])->name('projects.git.pull');
         Route::get('projects/{project}/pull-requests', [ProjectPullRequestController::class, 'page'])->name('projects.pull-requests');
         Route::get('projects/{project}/pulls', [ProjectPullRequestController::class, 'index'])->name('projects.pulls.index');
+        Route::patch('projects/{project}/pulls/settings', [ProjectPullRequestController::class, 'settings'])->name('projects.pulls.settings');
         Route::get('projects/{project}/pulls/{number}', [ProjectPullRequestController::class, 'show'])->whereNumber('number')->name('projects.pulls.show');
         Route::get('projects/{project}/pulls/{number}/commits', [ProjectPullRequestController::class, 'commits'])->whereNumber('number')->name('projects.pulls.commits');
         Route::get('projects/{project}/pulls/{number}/files', [ProjectPullRequestController::class, 'files'])->whereNumber('number')->name('projects.pulls.files');
@@ -405,6 +413,7 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
         Route::post('projects/{project}/tasks/{task}/pull-request/push', [TaskController::class, 'pushPullRequest'])->scopeBindings()->name('projects.tasks.pull-request.push');
         Route::post('projects/{project}/tasks/{task}/pull-request/pull', [TaskController::class, 'pullPullRequest'])->scopeBindings()->name('projects.tasks.pull-request.pull');
         Route::post('projects/{project}/tasks/{task}/pull-request', [TaskController::class, 'openPullRequest'])->scopeBindings()->name('projects.tasks.pull-request.open');
+        Route::post('projects/{project}/tasks/{task}/preview-link', [TaskController::class, 'newPreviewLink'])->scopeBindings()->name('projects.tasks.preview-link');
         Route::get('agent-models', [AgentModelController::class, 'index'])->name('agent-models.index');
         Route::put('agent-models/favorites', [AgentModelController::class, 'favorite'])->name('agent-models.favorite');
         Route::post('projects/{project}/publication', [ProjectPublicationController::class, 'store'])->name('projects.publication.store');

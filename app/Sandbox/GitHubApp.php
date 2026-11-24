@@ -107,6 +107,20 @@ class GitHubApp
             $problems[] = __('Give the GitHub App the :permissions: Read-only repository permissions, so pull requests and their checks show in Tools.', ['permissions' => implode(', ', $reading)]);
         }
 
+        // Pull request previews on GitHub (GIT-028): a Deployment and a comment on each.
+        $writing = array_filter([
+            'deployments' => 'Deployments',
+            'pull_requests' => 'Pull requests',
+        ], fn (string $label, string $permission) => ($permissions[$permission] ?? null) !== 'write', ARRAY_FILTER_USE_BOTH);
+
+        if ($writing !== []) {
+            $problems[] = __('Give the GitHub App the :permissions: Read and write repository permissions, so pull requests show their previews.', ['permissions' => implode(', ', $writing)]);
+        }
+
+        if (blank(config('services.github_app.webhook_secret'))) {
+            $problems[] = __('Turn on the GitHub App\'s webhook (:url, with the Pull request event) and set GITHUB_WEBHOOK_SECRET to its secret, so pull requests get their previews within moments.', ['url' => route('github.webhook')]);
+        }
+
         // Installed on GitHub, yet nobody ever came back: GitHub isn't sending people to OneDrop after installing.
         if (($app['installations_count'] ?? 0) > 0 && ! GitHubInstallation::query()->exists()) {
             $problems[] = __('The app is installed on GitHub, but nobody has come back to OneDrop from installing it. Set its Callback URL and Setup URL to :url, turn on "Redirect on update" and "Request user authorization (OAuth) during installation".', ['url' => $this->callbackUrl()]);
