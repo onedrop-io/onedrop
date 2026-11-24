@@ -397,6 +397,24 @@ test('sandbox:update updates outdated sandboxes and skips ones the agent is work
         ->assertSuccessful();
 })->group('SBX-002');
 
+test('sandbox:update starts a sandbox that was stopped outside the app before reading its tools, and suspends it after', function () {
+    $this->provider->wakes = true;
+
+    $this->artisan('sandbox:update')
+        ->expectsOutputToContain('Every sandbox is up to date.')
+        ->assertSuccessful();
+
+    expect($this->provider->woken)->toBe(['old-ctr'])
+        ->and($this->provider->suspended)->toBe(['old-ctr']);
+})->group('SBX-002');
+
+test('sandbox:update leaves an up-to-date sandbox that was already running as it was', function () {
+    $this->artisan('sandbox:update')->assertSuccessful();
+
+    expect($this->provider->woken)->toBe(['old-ctr'])
+        ->and($this->provider->suspended)->toBe([]);
+})->group('SBX-002');
+
 test('sandbox:recreate --keep-files carries the files over', function () {
     $this->artisan('sandbox:recreate', ['project' => $this->project->id, '--keep-files' => true])
         ->expectsOutputToContain('Copied files into the new sandbox.')

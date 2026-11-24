@@ -326,6 +326,8 @@ One sandbox per project, on Docker locally and Runtime Cloud in production (E2B,
 
 ### Decisions
 
+- **2026-11-24: `sandbox:update` wakes each sandbox before reading its tools, and suspends it again afterwards.** Local Docker containers stopped by a Docker restart stay marked running, and the command failed on every one with "container … is not running". Skipping them was ruled out: the command means "now", and `wake()` already starts a stopped container on every provider.
+
 - **2026-11-23: The host proxy points links to a routed server's localhost address (routes.json) at the visitor's address, as it already did for the app's (RT-001).** A Pixwel API answered with file URLs at `http://127.0.0.1:8080/api/Files/...`: in the workspace's frame Chrome refuses a public page's requests to the visitor's own computer (shown as a CORS error), and in a tab they only seemed to work because they reached a server on the user's own machine. Only ports routes.json routes to are rewritten, since only those are reachable at the visitor's address; a link to any other local port is left alone. The API should still build its URLs from the request (`X-Forwarded-Host`/`-Proto`) or keep them relative; this covers the ones it doesn't.
 - **2026-10-11: A failed move is hidden once its project no longer runs on the provider it was going to.** Turning E2B off locally moved everything to Docker fine, but two-day-old Docker → E2B failures still filled Settings → Sandboxes as if the new moves had failed; Try again on them would only head back to the turned-off provider.
 

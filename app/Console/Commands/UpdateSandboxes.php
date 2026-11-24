@@ -35,12 +35,19 @@ class UpdateSandboxes extends Command
             }
 
             try {
-                if ($updater->updateIfOutdated($project, wait: true, options: ['suspend' => true])) {
+                // A sandbox stopped outside the app (Docker restarted) is still marked running: start it to read its tools.
+                $woke = $project->sandbox->external_id !== null && $provider->wake($project->sandbox->external_id);
+
+                $changed = $updater->updateIfOutdated($project, wait: true, options: ['suspend' => true]);
+
+                if ($changed) {
                     $updated++;
                     $this->components->info("Updated project {$project->id}.");
+                }
 
-                    // Nobody is watching a batch update: let the new sandbox stop using compute (memory kept, woken by
-                    // the next visit), so a run of updates doesn't keep every new sandbox running at once.
+                // Nobody is watching a batch update: let the sandbox stop using compute (memory kept, woken by the next
+                // visit), so a run of updates doesn't leave every sandbox it touched running at once.
+                if ($woke || $changed) {
                     $this->suspend($provider, $project);
                 }
             } catch (SandboxException $e) {
