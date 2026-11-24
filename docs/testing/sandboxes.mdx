@@ -102,6 +102,8 @@ With **Docker inside sandboxes** on, in a project whose compose stack has a data
 - [ ] Main's containers are running again afterwards (`docker ps` in Main's Shell shows none **Paused**).
 - [ ] With a service Main built itself (a `build:` section), the copy's preview comes up without building it again: `docker images` in the copy's Shell lists it, and its Console shows no build steps for it.
 - [ ] A second task loads the same image without Main saving it again (no new file under the project's `images` folder on the snapshot disk).
+- [ ] On a cloud provider with an S3 snapshot disk (Laravel Cloud), a task copy of a large app (a few GB in `/workspace`, e.g. Pixwel/platform) is made without the queue worker crashing: the files go through the bucket (a `tasks/<id>/copy-…` folder appears under the project's snapshot folder while it's made, and is gone after), and the copy's database files keep their container user's owner (`ls -ln tmp/mongo` matches Main).
+- [ ] A copy that fails (stop Main mid-copy) says why on the task's bar and in its chat; **Try again** makes it again without running the agent.
 
 ## E2B (SBX-014)
 

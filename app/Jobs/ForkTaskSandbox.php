@@ -24,8 +24,11 @@ class ForkTaskSandbox implements ShouldQueue
 {
     use Queueable;
 
-    /** Copying a large workspace out and back in, and the app's Docker images, takes a while. */
-    public int $timeout = 1800;
+    /**
+     * Copying a large workspace out and back in, and the app's Docker images, takes a while. Under the queue's 3700
+     * seconds before it hands a job to another worker (retry_after, or Laravel Cloud's visibility timeout).
+     */
+    public int $timeout = 3300;
 
     public int $tries = 1;
 

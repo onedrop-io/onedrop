@@ -23,6 +23,9 @@ class TaskCopies
     /** How long to wait for Main's sandbox to finish copying itself, in seconds. */
     public const SNAPSHOT_TIMEOUT = 600;
 
+    /** How long Main may take to upload its files to storage, or the copy to download and unpack them, in seconds. */
+    public const TRANSFER_TIMEOUT = 900;
+
     /** How long to wait for one Docker image to be saved or loaded, in seconds. */
     public const IMAGE_TIMEOUT = 600;
 
@@ -48,9 +51,17 @@ class TaskCopies
         $main = $this->mainSandbox($project);
         $local = storage_path('framework/task-copy-'.uniqid());
         $copy = null;
+        // With signed links, the files go from Main to storage to the copy, never through the platform: a large app
+        // (gigabytes) crashed Laravel Cloud's queue worker on its way through.
+        $links = $this->snapshots->transport($main->provider) === 'links' && $this->snapshots->transport($project->sandboxProvider()) === 'links';
+        $stored = [];
 
         try {
-            $this->snapshot($main, $local);
+            if ($links) {
+                $stored = $this->uploadSnapshot($task, $main);
+            } else {
+                $this->snapshot($main, $local);
+            }
 
             CreateSandbox::dispatchSync($project, $task);
             $copy = $task->sandbox()->firstOrFail();
@@ -59,8 +70,12 @@ class TaskCopies
                 throw new SandboxException($copy->error ?: "The task's copy didn't start.");
             }
 
-            foreach (SandboxUpdater::KEPT_PATHS as $index => $path) {
-                $this->provider->copyIn($copy->external_id, "{$local}/{$index}", $path);
+            if ($links) {
+                $this->downloadSnapshot($copy, $stored);
+            } else {
+                foreach (SandboxUpdater::KEPT_PATHS as $index => $path) {
+                    $this->provider->copyIn($copy->external_id, "{$local}/{$index}", $path);
+                }
             }
 
             $this->provider->exec($copy->external_id, ['bash', '-c', SandboxUpdater::USE_IMAGE_SHELL_SETUP]);
@@ -85,6 +100,76 @@ class TaskCopies
             throw $e instanceof SandboxException ? $e : new SandboxException($e->getMessage(), previous: $e);
         } finally {
             File::deleteDirectory($local);
+
+            if ($stored !== []) {
+                $this->snapshots->disk()->delete(array_values($stored));
+            }
+        }
+    }
+
+    /**
+     * Main's kept paths at one instant (fork snapshot, as root), uploaded by Main itself to the snapshot disk through
+     * signed links. Returns where each path's archive is, by index.
+     *
+     * @return array<int, string>
+     *
+     * @throws SandboxException
+     */
+    protected function uploadSnapshot(Task $task, Sandbox $main): array
+    {
+        $dir = '/tmp/onedrop-fork-'.Str::lower(Str::random(8));
+        $status = "{$dir}-put";
+        $folder = $this->snapshots->path($task->project_id).'/tasks/'.$task->id.'/copy-'.Str::lower(Str::random(8));
+        $stored = [];
+        $env = [];
+
+        foreach (array_keys(SandboxUpdater::KEPT_PATHS) as $index) {
+            $stored[$index] = "{$folder}/{$index}.tar.zst";
+            ['url' => $url, 'headers' => $headers] = $this->snapshots->disk()->temporaryUploadUrl($stored[$index], now()->addSeconds(self::SNAPSHOT_TIMEOUT + self::TRANSFER_TIMEOUT));
+            $env["ONEDROP_FORK_URL_{$index}"] = $url;
+            $env["ONEDROP_FORK_HEADERS_{$index}"] = $this->snapshots->headerLines($headers);
+        }
+
+        $this->provider->exec($main->external_id, ['/opt/onedrop/fork', 'snapshot', $dir, ...SandboxUpdater::KEPT_PATHS], detach: true, root: true);
+
+        try {
+            $this->waitForSnapshot($main, $dir);
+            $this->provider->exec($main->external_id, ['/opt/onedrop/fork', 'put', $status, $dir], $env, detach: true, root: true);
+            $this->waitFor($main, $status, self::TRANSFER_TIMEOUT, "Couldn't store the copy of the app", 'Storing the copy of the app took too long.');
+        } finally {
+            $this->provider->exec($main->external_id, ['rm', '-rf', $dir, $status], root: true);
+        }
+
+        return $stored;
+    }
+
+    /**
+     * The copy downloads and unpacks Main's paths from the snapshot disk itself, as root, keeping their owners.
+     *
+     * @param  array<int, string>  $stored
+     *
+     * @throws SandboxException
+     */
+    protected function downloadSnapshot(Sandbox $copy, array $stored): void
+    {
+        $status = '/tmp/onedrop-fork-get-'.Str::lower(Str::random(8));
+        $env = [];
+
+        foreach ($stored as $index => $path) {
+            $env["ONEDROP_FORK_URL_{$index}"] = $this->snapshots->disk()->temporaryUrl($path, now()->addSeconds(self::TRANSFER_TIMEOUT));
+        }
+
+        // A copy made from an older image gets the fork tool that knows "get" first.
+        if ($this->tools->available() && ! $this->tools->ensure($this->provider, $copy->external_id, ['fork'])) {
+            throw new SandboxException("Couldn't give the task's copy its tools.");
+        }
+
+        $this->provider->exec($copy->external_id, ['/opt/onedrop/fork', 'get', $status, ...SandboxUpdater::KEPT_PATHS], $env, detach: true, root: true);
+
+        try {
+            $this->waitFor($copy, $status, self::TRANSFER_TIMEOUT, "Couldn't unpack the copy of the app", 'Unpacking the copy of the app took too long.');
+        } finally {
+            $this->provider->exec($copy->external_id, ['rm', '-rf', $status], root: true);
         }
     }
 

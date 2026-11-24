@@ -123,7 +123,7 @@ test('a copy the queue gave up on says why in the chat and on the bar, and Try a
     (new ForkTaskSandbox($task, checkOutOnly: true))->failed(new MaxAttemptsExceededException('App\\Jobs\\ForkTaskSandbox has been attempted too many times.'));
 
     $error = $task->sandbox()->first()->error;
-    expect($error)->toContain('took longer than the job queue waits')->toContain('30 minutes')
+    expect($error)->toContain('took longer than the job queue waits')->toContain('55 minutes')
         ->and($task->fresh()->only('status', 'sync_status'))->toBe(['status' => ProjectStatus::Idle, 'sync_status' => null])
         ->and($task->messages()->where('role', MessageRole::Assistant)->value('content'))->toBe("I couldn't make this task's copy of the app: {$error}");
 
@@ -149,6 +149,52 @@ test('the chat warns about data services outside the sandbox, which the copy sti
     (new ForkTaskSandbox($task))->handle(app(TaskCopies::class), app(AgentQueue::class));
 
     expect($task->messages()->pluck('content')->last())->toBe("This copy still uses db.example.com and cache.internal from the app's settings, shared with Main");
+})->group('TASK-003');
+
+test('with signed links, Main uploads its files to storage and the copy downloads them itself, never through the platform', function () {
+    config(['filesystems.disks.local.driver' => 's3', 'sandbox.snapshot_disk' => 'local']);
+    Storage::fake('local', ['serve' => true]);
+    Storage::disk('local')->buildTemporaryUploadUrlsUsing(fn (string $path) => ['url' => "https://bucket.test/{$path}?upload", 'headers' => ['Content-Type' => 'application/zstd']]);
+    $task = Task::factory()->for($this->project)->create();
+    $task->sandbox()->create(['provider' => 'fake', 'status' => SandboxStatus::Creating]);
+    $this->provider->execUsing = function (array $command) {
+        // Main's upload lands in storage, as a real one would.
+        if ($command[0] === '/opt/onedrop/fork' && $command[1] === 'put') {
+            foreach ([0, 1, 2] as $index) {
+                Storage::disk('local')->put("project-snapshots/{$this->project->id}/tasks/stored-{$index}", 'files');
+            }
+        }
+
+        return match (true) {
+            $command[0] === 'bash' && ($command[3] ?? null) === 'check' => new ExecResult(0, "done\n"),
+            $command[0] === '/opt/onedrop/fork' && $command[1] === 'branch' => new ExecResult(0, "abc123\n"),
+            default => new ExecResult(0, ''),
+        };
+    };
+
+    (new ForkTaskSandbox($task))->handle(app(TaskCopies::class), app(AgentQueue::class));
+
+    $copy = $task->sandbox()->first();
+    $put = collect($this->provider->executed)->first(fn (array $exec) => ($exec['command'][1] ?? null) === 'put');
+    $get = collect($this->provider->executed)->first(fn (array $exec) => ($exec['command'][1] ?? null) === 'get');
+    $folder = "project-snapshots/{$this->project->id}/tasks/{$task->id}/copy-";
+
+    expect($copy->status)->toBe(SandboxStatus::Running)
+        // Nothing of the app's files passes through the platform.
+        ->and(collect($this->provider->copied)->filter(fn (array $copied) => in_array($copied[2] ?? null, ['/workspace', '/data/storage', '/home/sandbox'], true)))->toBeEmpty()
+        ->and($put['id'])->toBe('main-1')
+        ->and($put['root'])->toBeTrue()
+        ->and($put['detach'])->toBeTrue()
+        ->and($put['env']['ONEDROP_FORK_URL_0'])->toStartWith("https://bucket.test/{$folder}")->toEndWith('/0.tar.zst?upload')
+        ->and($put['env']['ONEDROP_FORK_HEADERS_2'])->toBe('Content-Type: application/zstd')
+        ->and($get['id'])->toBe($copy->external_id)
+        ->and($get['root'])->toBeTrue()
+        ->and(array_slice($get['command'], 3))->toBe(['/workspace', '/data/storage', '/home/sandbox'])
+        ->and($get['env'])->toHaveKeys(['ONEDROP_FORK_URL_0', 'ONEDROP_FORK_URL_1', 'ONEDROP_FORK_URL_2'])
+        // Unpacked before the copy goes to its branch and its app starts.
+        ->and(commandsIn($this->provider, $copy->external_id))->toContain(['/opt/onedrop/fork', 'branch', "task-{$task->id}"], ['/opt/onedrop/restart'])
+        // The stored files only carried the copy.
+        ->and(Storage::disk('local')->allFiles("project-snapshots/{$this->project->id}/tasks/{$task->id}"))->toBeEmpty();
 })->group('TASK-003');
 
 test('the copy gets the Docker images Main built itself, each stored once and loaded through signed links', function () {
