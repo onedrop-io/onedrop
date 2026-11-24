@@ -398,6 +398,14 @@ test('the sandbox fetches the pull request with a token only in its environment,
 
     $state = 'failed';
     expect(fn () => app(GitRemote::class)->checkOutPullRequestInSandbox($this->project, $sandbox, 12, 'fix-login', 'main'))->toThrow(GitException::class);
+
+    // A sandbox that stops answering (its task deleted, say) ends the wait at once, rather than holding the queue's worker.
+    $this->provider->execUsing = fn (array $command) => ($command[4] ?? null) === '/tmp/onedrop-checkout' && str_contains($command[2] ?? '', 'state=$(cat')
+        ? new ExecResult(1, '', 'Error response from daemon: No such container')
+        : new ExecResult(0, '');
+    expect(fn () => app(GitRemote::class)->checkOutPullRequestInSandbox($this->project, $sandbox, 12, 'fix-login', 'main'))
+        ->toThrow(GitException::class, 'The sandbox stopped answering during the download. Try again.');
+    Sleep::assertSleptTimes(0);
 })->group('GIT-014');
 
 test('pushing commits the copy and pushes its branch to the pull request, then watches the checks', function () {

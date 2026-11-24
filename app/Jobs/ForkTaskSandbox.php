@@ -33,6 +33,9 @@ class ForkTaskSandbox implements ShouldQueue
 
     public int $tries = 1;
 
+    /** A task deleted before its copy was made needs none. */
+    public bool $deleteWhenMissingModels = true;
+
     public function __construct(public Task $task, public bool $checkOutOnly = false) {}
 
     public function handle(TaskCopies $copies, AgentQueue $queue): void

@@ -388,18 +388,22 @@ class GitRemote
             do {
                 $result = $this->provider->exec($sandbox->external_id, ['bash', '-c', self::FETCH_STATUS, 'checkout', $dir]);
                 $lines = explode("\n", $result->output, 4);
-                $state = trim($lines[0]);
+                $state = $result->successful() ? trim($lines[0]) : 'gone';
 
                 if ($state === 'done') {
                     return trim($this->provider->exec($sandbox->external_id, ['cat', "{$dir}/sha"])->output);
                 }
 
-                if ($state === 'failed' || $state === 'lost') {
-                    throw new GitException($state === 'lost'
-                        ? __('The download stopped before it finished. Try again.')
-                        : (trim($lines[2] ?? '') === '124'
+                // Anything but running ends the wait: a sandbox that no longer answers (its task was deleted, say) would
+                // otherwise hold the queue's worker for the whole timeout.
+                if ($state !== 'running') {
+                    throw new GitException(match ($state) {
+                        'failed' => trim($lines[2] ?? '') === '124'
                             ? __('The remote took too long to answer (over :minutes minutes). Try again.', ['minutes' => intdiv(self::FETCH_TIMEOUT, 60)])
-                            : $this->explain($lines[3] ?? '')));
+                            : $this->explain($lines[3] ?? ''),
+                        'gone' => __('The sandbox stopped answering during the download. Try again.'),
+                        default => __('The download stopped before it finished. Try again.'),
+                    });
                 }
 
                 Sleep::for(2)->seconds();
