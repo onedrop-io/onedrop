@@ -610,12 +610,12 @@ test('the Pull requests page is for people who can see the project, and the side
 
     $this->withUnencryptedCookie('open_project', (string) $this->project->id)
         ->get(route('projects.pull-requests', $this->project))
-        ->assertInertia(fn ($page) => $page->where('openProject.pull_requests', true));
+        ->assertInertia(fn ($page) => $page->where('openProject.pull_requests', true)->where('sidebarProjects.recent.0.pull_requests', true));
 
     $this->project->update(['git_remote_url' => 'https://gitlab.com/acme/app.git']);
     $this->withUnencryptedCookie('open_project', (string) $this->project->id)
         ->get(route('projects.board', $this->project))
-        ->assertInertia(fn ($page) => $page->where('openProject.pull_requests', false));
+        ->assertInertia(fn ($page) => $page->where('openProject.pull_requests', false)->where('sidebarProjects.recent.0.pull_requests', false));
 
     $this->actingAs(User::factory()->has(AgentConnection::factory())->create())->get(route('projects.pull-requests', $this->project))->assertForbidden();
 })->group('GIT-022');

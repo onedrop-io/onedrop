@@ -187,6 +187,8 @@ export type SidebarProject = ProjectSummary & {
     published_url: string | null;
     /** Its tasks that aren't done yet. */
     tasks: SidebarTask[];
+    /** It has a GitHub repository, so its menu offers its Pull requests page (GIT-022). */
+    pull_requests: boolean;
 };
 
 /** How the sidebar orders pinned and recent projects (PRJ-010). */

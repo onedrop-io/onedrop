@@ -160,7 +160,9 @@ class HandleInertiaRequests extends Middleware
     {
         $query = fn () => $user->projects()
             ->inOrganization($organization)
-            ->select(['id', 'name', 'status', 'pinned_at', 'read_at', 'archived_at', 'publish_status', 'published_url', 'icon_path', 'icon_hash', 'turn_outcome'])
+            ->select(['id', 'name', 'status', 'pinned_at', 'read_at', 'archived_at', 'publish_status', 'published_url', 'icon_path', 'icon_hash', 'turn_outcome', 'git_remote_url', 'github_installation_id'])
+            // Whether it has a token, without decrypting it for every project in the sidebar (GIT-022).
+            ->selectRaw('git_remote_token is not null as has_git_remote_token')
             ->with([
                 'sandbox:id,project_id,status',
                 'tasks' => fn ($query) => $query->where('stage', '!=', TaskStage::Done)->select(['id', 'project_id', 'title', 'stage', 'status', 'position', 'read_at', 'turn_outcome'])->withLastReply(),
@@ -196,6 +198,8 @@ class HandleInertiaRequests extends Middleware
             'failed' => $project->sandbox?->status === SandboxStatus::Failed,
             'icon_url' => ProjectIcons::url($project),
             'drawing_icon' => in_array($project->id, $drawing, true),
+            // Its menu offers its Pull requests page when it has a GitHub repository (GIT-022).
+            'pull_requests' => GitHubPulls::repository($project) !== null && ($project->github_installation_id !== null || (bool) $project->getAttribute('has_git_remote_token')),
         ];
 
         return [

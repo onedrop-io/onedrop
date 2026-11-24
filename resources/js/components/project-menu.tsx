@@ -7,6 +7,7 @@ import {
     EllipsisVertical,
     FolderOpen,
     Monitor,
+    GitPullRequest,
     Kanban,
     Link2,
     Pencil,
@@ -42,7 +43,7 @@ import { SidebarMenuAction } from '@/components/ui/sidebar';
 import { useClipboard } from '@/hooks/use-clipboard';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { openProject } from '@/lib/open-project';
-import { board, destroy, show, update } from '@/routes/projects';
+import { board, destroy, pullRequests, show, update } from '@/routes/projects';
 import { create as createTask } from '@/routes/projects/tasks';
 import { regenerate } from '@/routes/projects/name';
 import type { SidebarProject } from '@/types';
@@ -50,6 +51,7 @@ import type { SidebarProject } from '@/types';
 type Action =
     | 'open'
     | 'board'
+    | 'pulls'
     | 'task'
     | 'pin'
     | 'unread'
@@ -66,6 +68,7 @@ type DialogAction = Extract<Action, 'rename' | 'share' | 'delete'>;
 const SHORTCUTS: Record<string, Action> = {
     o: 'open',
     b: 'board',
+    g: 'pulls',
     n: 'task',
     p: 'pin',
     u: 'unread',
@@ -76,7 +79,7 @@ const SHORTCUTS: Record<string, Action> = {
 };
 
 /**
- * The "⋮" menu on a project in the sidebar: open it (TASK-001), its board, a new task, pin, mark unread, rename, regenerate the title, share, copy link, open in the desktop app, archive, delete.
+ * The "⋮" menu on a project in the sidebar: open it (TASK-001), its board, its pull requests (GIT-022), a new task, pin, mark unread, rename, regenerate the title, share, copy link, open in the desktop app, archive, delete.
  */
 export function ProjectMenu({ project }: { project: SidebarProject }) {
     const { desktopAppSignedIn } = usePage().props;
@@ -101,6 +104,12 @@ export function ProjectMenu({ project }: { project: SidebarProject }) {
                 break;
             case 'board':
                 router.visit(board(project.id));
+                break;
+            case 'pulls':
+                if (project.pull_requests) {
+                    router.visit(pullRequests(project.id));
+                }
+
                 break;
             case 'task':
                 router.visit(createTask(project.id));
@@ -204,6 +213,16 @@ export function ProjectMenu({ project }: { project: SidebarProject }) {
                         Board
                         <DropdownMenuShortcut>B</DropdownMenuShortcut>
                     </DropdownMenuItem>
+                    {project.pull_requests && (
+                        <DropdownMenuItem
+                            onSelect={() => run('pulls')}
+                            data-test="project-menu-pull-requests"
+                        >
+                            <GitPullRequest />
+                            Pull requests
+                            <DropdownMenuShortcut>G</DropdownMenuShortcut>
+                        </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem
                         onSelect={() => run('task')}
                         data-test="project-menu-new-task"

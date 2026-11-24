@@ -1450,7 +1450,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## GIT-022: Pull requests page
 
-- User should see "Pull requests" under Board in an opened project's sidebar when the project is connected to a GitHub repository (GIT-013), and open a full page with the same list and pull request pages as Tools → Pull requests.
+- User should see "Pull requests" under Board in a project's "⋮" menu (shortcut G) and in an opened project's sidebar when the project is connected to a GitHub repository (GIT-013), and open a full page with the same list and pull request pages as Tools → Pull requests.
 - The page's URL should keep the open pull request and its tab (`/projects/<id>/pull-requests?pr=12&pr_tab=files`), so a reload or a link opens it again.
 - Checking a pull request out, opening its task or fixing its checks from the page should go to its task as from Tools (GIT-014, GIT-015).
 - Without a GitHub repository the page should say to connect one in Source Control, with a link to it.

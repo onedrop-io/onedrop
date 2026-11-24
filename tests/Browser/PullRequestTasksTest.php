@@ -58,9 +58,12 @@ test('the dev user opens the Pull requests page, reads a diff, opens a pull requ
     ]);
     $this->actingAs($user);
 
-    // The Pull requests page, beside Board in the opened project's sidebar (GIT-022).
+    // The Pull requests page, from the project's menu and beside Board in the opened project's sidebar (GIT-022).
     $page = visit("/projects/{$project->id}")
         ->resize(1500, 1000)
+        ->click('@project-menu')
+        ->click('@project-menu-pull-requests')
+        ->assertPathIs("/projects/{$project->id}/pull-requests")
         ->click('@project-menu')
         ->click('@project-menu-open')
         ->click('@open-project-pull-requests')
