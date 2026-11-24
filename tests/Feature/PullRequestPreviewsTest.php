@@ -132,6 +132,15 @@ test('previewing every pull request is off until it\'s turned on, so a new proje
     Queue::assertNotPushed(ForkTaskSandbox::class);
 })->group('GIT-026');
 
+test('projects the first release turned on are turned off again', function () {
+    $other = Project::factory()->for($this->user)->create(['preview_pull_requests' => true]);
+
+    (require database_path('migrations/2026_11_24_174104_turn_off_preview_pull_requests_by_default.php'))->up();
+
+    expect($this->project->fresh()->preview_pull_requests)->toBeFalse()
+        ->and($other->fresh()->preview_pull_requests)->toBeFalse();
+})->group('GIT-026');
+
 test('an opened pull request is checked out as a task by itself, unless it comes from a fork, previews are off, or no copy is free', function () {
     app(PullRequestPreviews::class)->opened($this->project, $this->pull);
 
