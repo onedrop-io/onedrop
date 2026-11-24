@@ -37,14 +37,11 @@ export type TaskDetail = Task & {
     own_copy: boolean;
     /** It has that copy now (it's made with the first message, and removed once applied). */
     has_copy: boolean;
+    /** Why its copy couldn't be made, when it couldn't: the bar offers Try again. */
+    copy_error: string | null;
     /** Making the copy, merging between the copy and Main, or pushing to or pulling from its pull request. */
     sync_status:
-        | 'forking'
-        | 'applying'
-        | 'updating'
-        | 'pushing'
-        | 'pulling'
-        | null;
+        'forking' | 'applying' | 'updating' | 'pushing' | 'pulling' | null;
     /** Why the last merge failed. */
     sync_error: string | null;
     applied_at: string | null;

@@ -3985,11 +3985,13 @@ function TaskCopyBar({
                         ? 'Pushing to GitHub…'
                         : task.opening_pull_request?.url
                           ? `Pushed ${task.opening_pull_request.branch}: create its pull request on GitHub`
-                          : task.has_copy
-                            ? 'Working in its own copy of the app'
-                            : task.applied_at
-                              ? 'Applied to Main'
-                              : 'Gets its own copy of the app when it starts'}
+                          : task.copy_error
+                            ? "Couldn't make its copy of the app"
+                            : task.has_copy
+                              ? 'Working in its own copy of the app'
+                              : task.applied_at
+                                ? 'Applied to Main'
+                                : 'Gets its own copy of the app when it starts'}
             </span>
             {task.sync_error && (
                 <span
@@ -3998,6 +4000,13 @@ function TaskCopyBar({
                 >
                     {task.sync_error}
                 </span>
+            )}
+            {task.copy_error && (
+                <CopyFailed
+                    projectId={projectId}
+                    task={task}
+                    working={working}
+                />
             )}
             {task.has_copy && (
                 <>
@@ -4220,7 +4229,14 @@ function PullRequestBar({
                     </a>
                 )}
             </div>
-            {pullRequest.preview_url && (
+            {task.copy_error && (
+                <CopyFailed
+                    projectId={projectId}
+                    task={task}
+                    working={working}
+                />
+            )}
+            {pullRequest.preview_url && !task.copy_error && (
                 <PreviewLink
                     url={pullRequest.preview_url}
                     error={pullRequest.preview_error}
@@ -4268,6 +4284,50 @@ function PullRequestBar({
                 </span>
             )}
         </div>
+    );
+}
+
+/**
+ * A task's copy of the app that couldn't be made (TASK-003): why, and Try again, which makes it again without running
+ * the agent (on its pull request's branch, for a pull request's task).
+ */
+function CopyFailed({
+    projectId,
+    task,
+    working,
+}: {
+    projectId: number;
+    task: TaskDetail;
+    working: boolean;
+}) {
+    return (
+        <span
+            className="flex basis-full flex-wrap items-center gap-2 text-red-600 dark:text-red-400"
+            data-test="task-copy-failed"
+        >
+            <span className="min-w-0 flex-1">
+                Couldn't make this task's copy of the app: {task.copy_error}
+            </span>
+            <button
+                type="button"
+                onClick={() =>
+                    router.post(
+                        TaskController.retryCopy.url({
+                            project: projectId,
+                            task: task.id,
+                        }),
+                        {},
+                        { preserveScroll: true },
+                    )
+                }
+                disabled={working || task.sync_status !== null}
+                className="flex items-center gap-1 rounded px-1.5 py-0.5 text-foreground hover:bg-muted disabled:opacity-50"
+                data-test="task-copy-retry"
+            >
+                <RotateCw className="size-3.5" />
+                Try again
+            </button>
+        </span>
     );
 }
 

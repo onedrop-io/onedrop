@@ -414,6 +414,7 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
         Route::post('projects/{project}/tasks/{task}/pull-request/pull', [TaskController::class, 'pullPullRequest'])->scopeBindings()->name('projects.tasks.pull-request.pull');
         Route::post('projects/{project}/tasks/{task}/pull-request', [TaskController::class, 'openPullRequest'])->scopeBindings()->name('projects.tasks.pull-request.open');
         Route::post('projects/{project}/tasks/{task}/preview-link', [TaskController::class, 'newPreviewLink'])->scopeBindings()->name('projects.tasks.preview-link');
+        Route::post('projects/{project}/tasks/{task}/copy/retry', [TaskController::class, 'retryCopy'])->scopeBindings()->name('projects.tasks.copy.retry');
         Route::get('agent-models', [AgentModelController::class, 'index'])->name('agent-models.index');
         Route::put('agent-models/favorites', [AgentModelController::class, 'favorite'])->name('agent-models.favorite');
         Route::post('projects/{project}/publication', [ProjectPublicationController::class, 'store'])->name('projects.publication.store');

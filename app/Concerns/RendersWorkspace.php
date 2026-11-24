@@ -100,7 +100,9 @@ trait RendersWorkspace
                 ...$task->only('id', 'title', 'description', 'stage', 'status', 'sync_status', 'sync_error'),
                 'waiting_for_sign_in' => $task->sign_in_retry_message_id !== null,
                 'own_copy' => Task::getsCopies(),
-                'has_copy' => $sandbox !== null,
+                // A copy that couldn't be made isn't one: the bar says why, with Try again.
+                'has_copy' => $sandbox !== null && $sandbox->status !== SandboxStatus::Failed,
+                'copy_error' => $sandbox?->status === SandboxStatus::Failed ? ($sandbox->error ?? __('Something went wrong.')) : null,
                 'applied_at' => $task->applied_at?->toIso8601String(),
                 // Checked out from a GitHub pull request (GIT-014, GIT-015).
                 'pull_request' => $task->isPullRequest() ? [

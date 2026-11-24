@@ -3,7 +3,7 @@ title: 'Configuration'
 description: 'Environment variables that control sandboxes, the agent, and publishing.'
 ---
 
-OneDrop is a Laravel application, so the usual Laravel settings (`APP_URL`, `DB_*`, `QUEUE_CONNECTION`, and so on) apply. This page covers the settings specific to OneDrop. They live in `config/sandbox.php` and are set in `.env`.
+OneDrop is a Laravel application, so the usual Laravel settings (`APP_URL`, `DB_*`, `QUEUE_CONNECTION`, and so on) apply. Keep the queue's `retry_after` (`DB_QUEUE_RETRY_AFTER`, `REDIS_QUEUE_RETRY_AFTER`; 3700 seconds by default) longer than OneDrop's longest job, an hour, or long jobs such as task copies fail when a second worker takes them over. This page covers the settings specific to OneDrop. They live in `config/sandbox.php` and are set in `.env`.
 
 ## Sandboxes
 

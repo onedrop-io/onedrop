@@ -11,6 +11,7 @@ use App\Sandbox\SandboxException;
 use App\Sandbox\TaskCopies;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\MaxAttemptsExceededException;
 use Illuminate\Support\Arr;
 
 /**
@@ -83,8 +84,20 @@ class ForkTaskSandbox implements ShouldQueue
      */
     public function failed(?\Throwable $exception): void
     {
+        // Ran out of time (TimeoutExceededException is one too): the job's own timeout, or the queue handing it to another worker because it outlasted the
+        // queue's visibility timeout (SQS on Laravel Cloud).
+        $message = $exception instanceof MaxAttemptsExceededException
+            ? __('Making the copy took longer than the job queue waits for a job. Try again; if it keeps happening, the queue\'s visibility timeout (or retry_after) needs to be longer than :minutes minutes.', ['minutes' => intdiv($this->timeout, 60)])
+            : ($exception?->getMessage() ?: __('Something went wrong.'));
+
         $this->task->update(['sync_status' => null]);
-        $this->task->sandbox()->where('status', SandboxStatus::Creating)->update(['status' => SandboxStatus::Failed, 'error' => $exception?->getMessage()]);
+        $failed = $this->task->sandbox()->where('status', SandboxStatus::Creating)->update(['status' => SandboxStatus::Failed, 'error' => $message]);
+
+        // handle() says so itself when the copy fails inside it; here the job never got to.
+        if ($failed > 0) {
+            $this->task->messages()->create(['role' => MessageRole::Assistant, 'content' => "I couldn't make this task's copy of the app: {$message}"]);
+            UpdatePullRequestPreview::for($this->task->fresh());
+        }
 
         if ($this->task->fresh()?->isWorking()) {
             app(AgentQueue::class)->finished($this->task->fresh());

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Concerns\RendersWorkspace;
 use App\Enums\ProjectStatus;
+use App\Enums\SandboxStatus;
 use App\Enums\TaskStage;
 use App\Enums\TaskSyncStatus;
 use App\Jobs\CheckTurnOutcome;
@@ -17,6 +18,7 @@ use App\Models\Project;
 use App\Models\Task;
 use App\Sandbox\Agents\AgentQueue;
 use App\Sandbox\GitException;
+use App\Sandbox\PullRequestCheckouts;
 use App\Sandbox\PullRequestFixes;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -226,6 +228,34 @@ class TaskController extends Controller
             UpdatePullRequestPreview::for($task);
             Inertia::flash('toast', ['type' => 'success', 'message' => __('Made a new preview link. The old one no longer works.')]);
         }
+
+        return back();
+    }
+
+    /**
+     * Make the task's copy of the app again after it couldn't be made (TASK-003): on its pull request's branch for a
+     * pull request's task (GIT-014), without running the agent.
+     */
+    public function retryCopy(Project $project, Task $task, PullRequestCheckouts $checkouts): RedirectResponse
+    {
+        Gate::authorize('update', $project);
+
+        $problem = match (true) {
+            $task->sandbox()->where('status', SandboxStatus::Failed)->doesntExist() => __('This task\'s copy of the app isn\'t one that failed.'),
+            $task->isWorking() || $task->sync_status !== null => __("Wait for the task's agent to finish, or stop it."),
+            // Its failed copy is replaced, so only the other tasks' copies count.
+            ($limit = $project->taskCopyLimit()) !== null && $project->sandboxes()->whereNotNull('task_id')->where('task_id', '!=', $task->id)->count() >= $limit => self::copyLimitError($project)->getMessage(),
+            default => null,
+        };
+
+        if ($problem !== null) {
+            Inertia::flash('toast', ['type' => 'error', 'message' => $problem]);
+
+            return back();
+        }
+
+        $checkouts->makeCopy($task);
+        UpdatePullRequestPreview::for($task);
 
         return back();
     }

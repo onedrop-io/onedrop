@@ -69,6 +69,10 @@ You need your domain's DNS on Cloudflare, with a proxied wildcard record (`*.<do
     Laravel Cloud runs web requests and queue jobs on separate instances, each with its own local disk. Attach an object storage bucket to the environment as its **default disk**, so share cards, project icons, chat attachments and code backups are saved where every instance can read them.
 </Note>
 
+<Warning>
+    Set the managed queue's **visibility timeout** to at least **3700 seconds**. Making a task's copy of the app, importing a repository, deploying or backing up the database can each take many minutes; with Cloud's default of 180 seconds, the queue hands the job to a second worker partway through and it fails as "attempted too many times".
+</Warning>
+
 <Note>
     Turn on the **Scheduler** for the environment's App cluster, so database backups and old sandbox image clean-up run. On Laravel Cloud, OneDrop leaves out the scheduled tasks that only matter on a server of your own (the Docker idle check and server monitoring), so the app can still sleep when nobody's using it.
 </Note>

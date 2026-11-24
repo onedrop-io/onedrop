@@ -22,6 +22,7 @@ use App\Sandbox\Providers\FakeSandboxProvider;
 use App\Sandbox\SandboxProvider;
 use App\Sandbox\TaskCopies;
 use Illuminate\Contracts\Process\ProcessResult;
+use Illuminate\Queue\MaxAttemptsExceededException;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
@@ -111,6 +112,34 @@ test('a Main stopped for sitting idle is woken before its copy is made, before a
         ->and($this->main->fresh()->only('suspended_at', 'stopped_at'))->toBe(['suspended_at' => null, 'stopped_at' => null])
         ->and($task->sandbox()->first()->status)->toBe(SandboxStatus::Running);
 })->group('TASK-003', 'SBX-007');
+
+test('a copy the queue gave up on says why in the chat and on the bar, and Try again makes it again without the agent', function () {
+    Queue::fake();
+    config(['inertia.ssr.enabled' => false]);
+    $task = Task::factory()->for($this->project)->create(['status' => ProjectStatus::Working, 'sync_status' => TaskSyncStatus::Forking]);
+    $task->sandbox()->create(['provider' => 'fake', 'status' => SandboxStatus::Creating]);
+
+    // SQS handed it to a second worker after its visibility timeout (Laravel Cloud's managed queue).
+    (new ForkTaskSandbox($task, checkOutOnly: true))->failed(new MaxAttemptsExceededException('App\\Jobs\\ForkTaskSandbox has been attempted too many times.'));
+
+    $error = $task->sandbox()->first()->error;
+    expect($error)->toContain('took longer than the job queue waits')->toContain('30 minutes')
+        ->and($task->fresh()->only('status', 'sync_status'))->toBe(['status' => ProjectStatus::Idle, 'sync_status' => null])
+        ->and($task->messages()->where('role', MessageRole::Assistant)->value('content'))->toBe("I couldn't make this task's copy of the app: {$error}");
+
+    $this->get(route('projects.tasks.show', [$this->project, $task]))
+        ->assertInertia(fn ($page) => $page->where('task.has_copy', false)->where('task.copy_error', $error));
+
+    $this->post(route('projects.tasks.copy.retry', [$this->project, $task]))->assertRedirect();
+
+    expect($task->fresh()->only('status', 'sync_status'))->toBe(['status' => ProjectStatus::Working, 'sync_status' => TaskSyncStatus::Forking])
+        ->and($task->sandbox()->first()->status)->toBe(SandboxStatus::Creating);
+    Queue::assertPushed(ForkTaskSandbox::class, fn ($job) => $job->checkOutOnly);
+
+    // Only a copy that failed is made again.
+    $this->post(route('projects.tasks.copy.retry', [$this->project, $task]))->assertSessionHas('inertia.flash_data.toast.type', 'error');
+    Queue::assertPushed(ForkTaskSandbox::class, 1);
+})->group('TASK-003');
 
 test('the chat warns about data services outside the sandbox, which the copy still shares', function () {
     $this->services = "db.example.com\ncache.internal\n";

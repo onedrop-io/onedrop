@@ -1629,6 +1629,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be able to apply a task's work to Main: it's merged with git, Main's agent is asked to do what the app needs (install dependencies, run migrations, restart) and to resolve any conflicts, the task moves to Done, and its copy is removed. A later message to the task makes a fresh copy from Main.
 - User should be able to update a task from Main: Main's newer work is merged into the task's copy and the task's agent brings it up to date.
 - User shouldn't be able to apply while the task's or Main's agent is working, or run more task copies at once than the project allows. There's no limit unless one is set: an admin can set one for every project in Settings → Sandboxes (it wins over `SANDBOX_MAX_TASK_COPIES`), and an organization's owners and admins can set one for its projects in its settings; the lower one applies. Leaving either empty clears it.
+- User should see on the task's bar when its copy couldn't be made, and why (also in its chat, including when the job queue gave up on it), and be able to click Try again to make it again without running the agent.
 - Deleting a task, or its project, removes its copy.
 
 ## TASK-004: Switching tasks keeps the workspace view
