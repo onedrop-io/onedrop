@@ -74,6 +74,26 @@ Needs a GitHub repository connected to the project.
 
 - [ ] The file on Main has conflict markers, and Main's agent resolves them.
 
+## Switch branches from the header (GIT-025)
+
+1. Open a running project connected to a GitHub repository that has a branch the project hasn't checked out yet (create one on GitHub, then **Pull** in Source Control).
+2. Click the branch name in the header, next to **Commit & push**.
+
+- [ ] The search box has the cursor; the GitHub branch is under **On the remote**.
+- [ ] Type part of its name and press **Enter**: the header shows it, the toast says **On** and the branch name, the preview restarts with that branch's code, and `git branch` in the Shell lists it.
+3. Edit a file the other branch doesn't touch, then switch back to `main`.
+
+- [ ] The edit is still there, uncommitted.
+4. Edit a file that differs between the two branches, then switch.
+
+- [ ] It's refused with **Commit or discard them first**, and the edit is still there.
+5. Type a new name such as `try-dark-mode` and press **Enter**.
+
+- [ ] The header shows `try-dark-mode`, and Source Control's branch menu shows it too.
+6. Send the agent a message, and open the branch menu while it works.
+
+- [ ] The branch button is disabled, and its tooltip says to wait for the agent.
+
 ## Old sandboxes get the new tools (SCM-001, SCM-002)
 
 1. Open a project whose sandbox was made before this change, and leave it unused for 10 minutes (or run `php artisan sandbox:update`).

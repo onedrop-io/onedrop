@@ -12,7 +12,7 @@ Open it from the **+** button in the tab bar, or **Tools → Source Control**. I
 
 From the top:
 
-- **Branch menu.** Shows the current branch. Pick another to switch to it, or choose **New branch…** (see [Branches](#branches)).
+- **Branch menu.** Shows the current branch. Pick another to switch to it, or type a name to create one (see [Branches](#branches)).
 - **Pull** and **Push**, each with how many commits there are to bring in or send. They appear once a remote repository is connected (see [Push to GitHub or another git host](#push-to-github-or-another-git-host)).
 - **Refresh** reloads the changes.
 - **…** holds **Stage all changes**, **Unstage all changes**, **Discard all changes**, **Undo last commit**, **Combine N commits** and **Create PR**.
@@ -125,7 +125,13 @@ OneDrop backs up the project's history and Timeline outside its sandbox. If the 
 
 ## Branches
 
-The branch menu at the top of the left column shows the current branch. Pick another to switch to it, or choose **New branch…** to start one from the current commit. The app restarts on the new branch.
+The project's header shows the current branch next to **Commit & push**, and so does the top of Source Control's left column. Click it to see every branch, with the cursor in a search box:
+
+- **Switch:** click a branch, or type part of its name and press **Enter** when it's the only match. The app restarts on it.
+- **Branches on your repository:** branches on the connected remote that the project doesn't have yet are listed under **On the remote**. Picking one starts it from the remote's copy. **Pull** brings in branches added since.
+- **Create:** type a new name and press **Enter** (or click **Create branch “name”**). It starts from the current commit.
+
+Uncommitted changes come with you to the other branch. If that branch changed the same files, switching is refused so nothing is lost: commit or discard your changes first. Switching waits while the agent is working or a push or pull is running.
 
 With a remote connected, every branch on it is brought in too, and you can ask the agent to switch to one or to a pull request by name or number (see [Pull requests](/guides/pull-requests#ask-the-agent-for-a-branch-or-pull-request)).
 

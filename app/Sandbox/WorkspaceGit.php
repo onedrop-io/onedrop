@@ -16,7 +16,7 @@ class WorkspaceGit
     public function __construct(protected SandboxProvider $provider) {}
 
     /**
-     * @return array{initialized: bool, branch: ?string, branches: list<string>, head: ?string, staged: list<array{path: string, status: string, additions?: ?int, deletions?: ?int, binary?: bool, from?: string}>, changes: list<array{path: string, status: string, additions?: ?int, deletions?: ?int, binary?: bool, from?: string}>, more_changes: bool, tracking: array{ahead: int, behind: int}|null, unpushed?: ?int, state: ?string}
+     * @return array{initialized: bool, branch: ?string, branches: list<string>, remote_branches?: list<string>, head: ?string, staged: list<array{path: string, status: string, additions?: ?int, deletions?: ?int, binary?: bool, from?: string}>, changes: list<array{path: string, status: string, additions?: ?int, deletions?: ?int, binary?: bool, from?: string}>, more_changes: bool, tracking: array{ahead: int, behind: int}|null, unpushed?: ?int, state: ?string}
      *
      * @throws SandboxException|GitException
      */
@@ -31,7 +31,7 @@ class WorkspaceGit
     /**
      * The status as the sandbox's Git tool reports it; one older than staging (SCM-001) leaves out what's staged.
      *
-     * @return array{initialized: bool, branch: ?string, branches: list<string>, head: ?string, staged?: list<array{path: string, status: string, additions?: ?int, deletions?: ?int, binary?: bool, from?: string}>, changes: list<array{path: string, status: string, additions?: ?int, deletions?: ?int, binary?: bool, from?: string}>, more_changes: bool, tracking: array{ahead: int, behind: int}|null, unpushed?: ?int, state: ?string}
+     * @return array{initialized: bool, branch: ?string, branches: list<string>, remote_branches?: list<string>, head: ?string, staged?: list<array{path: string, status: string, additions?: ?int, deletions?: ?int, binary?: bool, from?: string}>, changes: list<array{path: string, status: string, additions?: ?int, deletions?: ?int, binary?: bool, from?: string}>, more_changes: bool, tracking: array{ahead: int, behind: int}|null, unpushed?: ?int, state: ?string}
      *
      * @throws SandboxException|GitException
      */

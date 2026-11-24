@@ -20,6 +20,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
+import BranchPicker from '@/components/workspace/branch-picker';
 import CombineCommitsDialog from '@/components/workspace/combine-commits-dialog';
 import {
     allChanges,
@@ -175,6 +176,29 @@ export default function GitActionsMenu({
         (git?.commits.length ?? 0) > 1 &&
         (status?.unpushed == null || status.unpushed > 0);
 
+    /** Switch branches from the header (GIT-025); the app restarts on the branch. */
+    const switchBranch = (name: string, create: boolean) => {
+        const id = toast.loading(
+            create ? `Creating ${name}…` : `Switching to ${name}…`,
+        );
+
+        return jsonRequest<Partial<GitState>>(
+            ProjectGitController.switch.url(projectId),
+            { branch: name, create },
+        )
+            .then((changed) => {
+                apply(changed);
+                toast.success(`On ${name}`, { id });
+
+                return true;
+            })
+            .catch((e: Error) => {
+                toast.error(e.message, { id });
+
+                return false;
+            });
+    };
+
     const openDialog = (next: OpenDialog) => {
         pendingDialog.current = next;
     };
@@ -197,6 +221,20 @@ export default function GitActionsMenu({
 
     return (
         <>
+            {status?.head && (
+                <BranchPicker
+                    status={status}
+                    disabled={busy}
+                    disabledReason={
+                        working
+                            ? 'Wait for the agent to finish first'
+                            : 'Wait for the push or pull to finish'
+                    }
+                    onSwitch={switchBranch}
+                    className="h-8 max-w-40 max-sm:max-w-28"
+                    testId="header-branch"
+                />
+            )}
             <div className="flex" data-test="git-actions">
                 <Button
                     size="sm"

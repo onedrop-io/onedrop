@@ -21,6 +21,8 @@ export type GitStatus = {
     changes: Change[];
     more_changes: boolean;
     branches: string[];
+    /** The remote's branches with no local branch yet (GIT-025); missing in sandboxes that don't list them yet. */
+    remote_branches?: string[];
     tracking: { ahead: number; behind: number } | null;
     /** Commits no remote branch has yet; null without a remote (and in sandboxes that don't count them yet). */
     unpushed?: number | null;

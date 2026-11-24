@@ -354,7 +354,7 @@ function tracking(?string $branch): ?array
 function status(): array
 {
     if (! isRepository()) {
-        return ['initialized' => false, 'branch' => null, 'branches' => [], 'head' => null, 'staged' => [], 'changes' => [], 'more_changes' => false, 'tracking' => null, 'state' => null];
+        return ['initialized' => false, 'branch' => null, 'branches' => [], 'remote_branches' => [], 'head' => null, 'staged' => [], 'changes' => [], 'more_changes' => false, 'tracking' => null, 'state' => null];
     }
 
     $branch = currentBranch();
@@ -372,6 +372,8 @@ function status(): array
         // A repository before its first commit is still on its branch.
         'branch' => $branch,
         'branches' => $branches,
+        // The remote's branches with no local branch yet (GIT-025): switching to one starts it from the remote's.
+        'remote_branches' => array_values(array_diff(remoteBranches(), $branches)),
         'head' => head(),
         'staged' => $staged,
         'changes' => $changes,
@@ -1177,9 +1179,44 @@ function switchBranch(array $request): array
         throw new ToolError('Branches work once the project has its first commit.');
     }
 
-    gitOrFail(($request['create'] ?? false) === true ? ['switch', '-q', '-c', $branch] : ['switch', '-q', $branch]);
+    $create = ($request['create'] ?? false) === true;
+
+    if ($create && git(['rev-parse', '--verify', '-q', "refs/heads/{$branch}"])[0] === 0) {
+        throw new ToolError("There's already a branch called \"{$branch}\".");
+    }
+
+    // A branch only on the remote (GIT-025) starts from the remote's copy.
+    $args = match (true) {
+        $create => ['switch', '-q', '-c', $branch],
+        git(['rev-parse', '--verify', '-q', "refs/heads/{$branch}"])[0] !== 0 && in_array($branch, remoteBranches(), true) => ['switch', '-q', '--no-track', '-c', $branch, "refs/remotes/origin/{$branch}"],
+        default => ['switch', '-q', $branch],
+    };
+
+    // Uncommitted changes come along; git refuses only when the other branch changed the same files.
+    [$code, , $error] = git($args);
+
+    if ($code !== 0) {
+        throw new ToolError(str_contains($error, 'would be overwritten')
+            ? "Your uncommitted changes would be lost switching to \"{$branch}\", which changed the same files. Commit or discard them first."
+            : (trim($error) !== '' ? trim(preg_replace('/^(fatal|error): /m', '', $error)) : 'Git failed.'));
+    }
 
     return status();
+}
+
+/**
+ * The branches the platform last pushed or fetched from the remote (refs/remotes/origin), by name.
+ *
+ * @return list<string>
+ */
+function remoteBranches(): array
+{
+    $refs = explode("\n", trim(git(['for-each-ref', '--format=%(refname)', 'refs/remotes/origin'])[1]));
+
+    return array_values(array_filter(array_map(
+        fn (string $ref) => substr($ref, strlen('refs/remotes/origin/')),
+        $refs,
+    ), fn (string $name) => $name !== '' && $name !== 'HEAD'));
 }
 
 /**

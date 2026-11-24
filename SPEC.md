@@ -1477,6 +1477,15 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Once the pull request exists on GitHub, the task should become its task (GIT-014) within a minute or two, or as soon as the Pull requests list or the task's page is opened: its bar shows the pull request with Push, Pull, its checks and "Push after each turn", and it moves to Review. Its chat says "Opened #12".
 - A project without a GitHub repository, a task without its own copy, a task whose agent is working, and a pull request's own task should not offer it; GitHub's errors are shown on the bar.
 
+
+## GIT-025: Switch branches from the header
+
+- User should see the current branch in the project's header, next to Commit & push, once the project has its first commit.
+- User should be able to click it to open a list of the project's branches with the cursor in a search box, then pick one to switch to it; the app restarts on it, and a toast says "On <branch>".
+- The list should include the remote's branches that aren't in the project yet, under "On the remote"; picking one starts it from the remote's copy.
+- User should be able to type to narrow the list, and press Enter to switch to the only match, or to create a branch with the typed name from the current commit ("Create branch “name”"). Names git wouldn't accept, or that are taken, aren't offered.
+- Uncommitted changes should come along to the new branch; when the other branch changed the same files, switching should be refused with "Commit or discard them first", and nothing is lost.
+- Switching should wait while the agent is working, a push or pull is running, or the sandbox isn't running; the button says why. Source Control's branch menu should work the same way (GIT-002).
 ## SCM-001: Source Control tab
 
 - User should be able to open a Source Control tab (from "+", the header's Commit button, or Tools → Source Control) that can fill the workspace or sit beside other tabs, like VS Code's; old `?tool=git` links open it.

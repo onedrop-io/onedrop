@@ -203,8 +203,47 @@ test('branches can be created and switched, and bad names are refused', function
 
     expect(($this->data)(['op' => 'switch', 'branch' => 'feature/pricing', 'create' => true])['branch'])->toBe('feature/pricing')
         ->and(($this->data)(['op' => 'switch', 'branch' => 'main'])['branches'])->toBe(['feature/pricing', 'main'])
-        ->and(($this->tool)(['op' => 'switch', 'branch' => '--force'])['error'])->toBe("That isn't a valid branch name.");
-})->group('GIT-002');
+        ->and(($this->tool)(['op' => 'switch', 'branch' => '--force'])['error'])->toBe("That isn't a valid branch name.")
+        ->and(($this->tool)(['op' => 'switch', 'branch' => 'main', 'create' => true])['error'])->toBe('There\'s already a branch called "main".');
+})->group('GIT-002', 'GIT-025');
+
+test('the remote\'s branches are listed and can be switched to, starting from the remote\'s copy', function () {
+    ($this->write)('a.txt', 'a');
+    ($this->data)(['op' => 'commit', 'message' => 'Start']);
+    ($this->git)('update-ref', 'refs/remotes/origin/main', 'HEAD');
+    ($this->git)('switch', '-q', '-c', 'feature/login');
+    ($this->write)('login.txt', 'login');
+    ($this->data)(['op' => 'commit', 'message' => 'Login']);
+    ($this->git)('update-ref', 'refs/remotes/origin/feature/login', 'HEAD');
+    ($this->git)('switch', '-q', 'main');
+    ($this->git)('branch', '-q', '-D', 'feature/login');
+
+    expect(($this->data)(['op' => 'status'])['remote_branches'])->toBe(['feature/login']);
+
+    $status = ($this->data)(['op' => 'switch', 'branch' => 'feature/login']);
+
+    expect($status)->toMatchArray(['branch' => 'feature/login', 'branches' => ['feature/login', 'main'], 'remote_branches' => [], 'tracking' => ['ahead' => 0, 'behind' => 0]])
+        ->and(File::get("{$this->workspace}/login.txt"))->toBe('login');
+})->group('GIT-025');
+
+test('uncommitted changes come along when switching, unless the other branch changed the same files', function () {
+    ($this->write)('a.txt', 'a');
+    ($this->write)('b.txt', 'b');
+    ($this->data)(['op' => 'commit', 'message' => 'Start']);
+    ($this->data)(['op' => 'switch', 'branch' => 'other', 'create' => true]);
+    ($this->write)('a.txt', 'changed on other');
+    ($this->data)(['op' => 'commit', 'message' => 'Other']);
+    ($this->data)(['op' => 'switch', 'branch' => 'main']);
+
+    ($this->write)('b.txt', 'mine');
+    expect(($this->data)(['op' => 'switch', 'branch' => 'other'])['changes'])->toBe([['path' => 'b.txt', 'status' => 'M', 'additions' => 1, 'deletions' => 1, 'binary' => false]]);
+
+    ($this->data)(['op' => 'switch', 'branch' => 'main']);
+    ($this->write)('a.txt', 'mine');
+    expect(($this->tool)(['op' => 'switch', 'branch' => 'other'])['error'])
+        ->toBe('Your uncommitted changes would be lost switching to "other", which changed the same files. Commit or discard them first.')
+        ->and(File::get("{$this->workspace}/a.txt"))->toBe('mine');
+})->group('GIT-025');
 
 test('restoring an earlier version is a new commit, with what was uncommitted kept in a checkpoint', function () {
     ($this->write)('a.txt', 'first');

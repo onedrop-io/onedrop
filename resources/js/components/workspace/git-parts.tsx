@@ -1,13 +1,10 @@
 import {
     Bot,
     Check,
-    ChevronDown,
     CloudUpload,
     Copy,
     Download,
     EllipsisVertical,
-    GitBranch,
-    Plus,
     Search,
     Undo2,
     User,
@@ -16,6 +13,7 @@ import { useEffect, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import ProjectGitController from '@/actions/App/Http/Controllers/ProjectGitController';
 import SocialProviderIcon from '@/components/social-provider-icon';
+import BranchPicker from '@/components/workspace/branch-picker';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -29,7 +27,6 @@ import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
-    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
@@ -66,7 +63,7 @@ export type Send = (
     method?: 'POST' | 'PUT' | 'DELETE' | 'PATCH',
 ) => Promise<boolean>;
 
-/** The current branch, with a menu to switch to another or create one from the current commit. */
+/** The current branch, with a menu to switch to another or create one from the current commit (GIT-002, GIT-025). */
 export function BranchBar({
     projectId,
     status,
@@ -78,102 +75,19 @@ export function BranchBar({
     disabled: boolean;
     send: Send;
 }) {
-    const [creating, setCreating] = useState(false);
-    const [name, setName] = useState('');
-
-    const create = (event: FormEvent) => {
-        event.preventDefault();
-        void send(ProjectGitController.switch.url(projectId), {
-            branch: name.trim(),
-            create: true,
-        }).then((ok) => {
-            if (ok) {
-                setCreating(false);
-                setName('');
-            }
-        });
-    };
-
-    if (creating) {
-        return (
-            <form onSubmit={create} className="flex min-w-0 flex-1 gap-1">
-                <Input
-                    autoFocus
-                    value={name}
-                    onChange={(event) => setName(event.target.value)}
-                    onKeyDown={(event) =>
-                        event.key === 'Escape' && setCreating(false)
-                    }
-                    placeholder="New branch name"
-                    className="h-7 min-w-0 flex-1 text-sm"
-                    data-test="git-branch-name"
-                />
-                <Button
-                    type="submit"
-                    size="sm"
-                    className="h-7"
-                    disabled={name.trim() === ''}
-                    data-test="git-branch-create"
-                >
-                    Create
-                </Button>
-            </form>
-        );
-    }
-
     return (
-        <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 min-w-0 gap-1 px-2 font-medium"
-                    disabled={disabled || !status.head}
-                    title={
-                        status.head
-                            ? 'Switch branch'
-                            : 'Branches work once the project has its first commit'
-                    }
-                    data-test="git-branch"
-                >
-                    <GitBranch className="size-4 shrink-0 text-muted-foreground" />
-                    <span className="truncate">
-                        {status.branch ?? (status.head ? 'Detached' : 'main')}
-                    </span>
-                    <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
-                </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-                {status.branches.map((branch) => (
-                    <DropdownMenuItem
-                        key={branch}
-                        onSelect={() =>
-                            branch !== status.branch &&
-                            send(ProjectGitController.switch.url(projectId), {
-                                branch,
-                            })
-                        }
-                        data-test={`git-branch-${branch}`}
-                    >
-                        <Check
-                            className={cn(
-                                'size-4',
-                                branch !== status.branch && 'invisible',
-                            )}
-                        />
-                        {branch}
-                    </DropdownMenuItem>
-                ))}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                    onSelect={() => setCreating(true)}
-                    data-test="git-branch-new"
-                >
-                    <Plus className="size-4" />
-                    New branch…
-                </DropdownMenuItem>
-            </DropdownMenuContent>
-        </DropdownMenu>
+        <BranchPicker
+            status={status}
+            disabled={disabled}
+            disabledReason="Wait for the agent to finish first"
+            onSwitch={(branch, create) =>
+                send(ProjectGitController.switch.url(projectId), {
+                    branch,
+                    create,
+                })
+            }
+            testId="git-branch"
+        />
     );
 }
 

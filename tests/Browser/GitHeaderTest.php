@@ -75,7 +75,7 @@ function gitHeaderProject(array $changes, ?array $tracking, array &$requests, ?s
                 default => ['patch' => "diff --git a/x b/x\n@@ -1,2 +1,2 @@\n const start = 0;\n-color: black;\n+color: blue;\n", 'binary' => false],
             }],
             default => [
-                'initialized' => true, 'branch' => $branch, 'branches' => array_values(array_unique(['main', $branch])), 'head' => str_repeat('a', 40),
+                'initialized' => true, 'branch' => $branch, 'branches' => array_values(array_unique(['main', $branch])), 'remote_branches' => array_values(array_diff(['feature/login'], [$branch])), 'head' => str_repeat('a', 40),
                 'staged' => [], 'changes' => $changes, 'more_changes' => false, 'tracking' => $tracking, 'unpushed' => $unpushed, 'state' => null,
             ],
         };
@@ -149,6 +149,40 @@ test('the changes are committed on a new branch with a message the AI writes', f
         ->and(collect($requests)->firstWhere('op', 'commit'))->toMatchArray(['message' => 'Make the start button blue']);
     Queue::assertNotPushed(SyncGitRemote::class);
 })->group('GIT-006');
+
+test('the header switches to the remote\'s branch by search, and creates a branch by typing its name', function () {
+    $requests = [];
+    $project = gitHeaderProject([], ['ahead' => 0, 'behind' => 0], $requests, 'https://github.com/dev/timer.git');
+
+    visit("/projects/{$project->id}")
+        ->resize(1500, 1000)
+        ->assertSeeIn('@header-branch', 'main')
+        ->click('@header-branch')
+        ->assertScript('document.activeElement?.dataset.test', 'header-branch-search')
+        ->assertSeeIn('@header-branch-menu', 'On the remote')
+        ->type('@header-branch-search', 'login')
+        ->assertDontSeeIn('@header-branch-menu', 'main')
+        ->keys('@header-branch-search', 'Enter')
+        ->assertSee('On feature/login')
+        ->assertSeeIn('@header-branch', 'feature/login')
+        ->assertNoJavaScriptErrors();
+
+    visit("/projects/{$project->id}")
+        ->resize(1500, 1000)
+        ->assertSeeIn('@header-branch', 'feature/login')
+        ->click('@header-branch')
+        ->assertDontSeeIn('@header-branch-menu', 'On the remote')
+        ->type('@header-branch-search', 'pricing-page')
+        ->assertSeeIn('@header-branch-create', 'Create branch “pricing-page”')
+        ->keys('@header-branch-search', 'Enter')
+        ->assertSeeIn('@header-branch', 'pricing-page')
+        ->assertNoJavaScriptErrors();
+
+    expect(collect($requests)->where('op', 'switch')->values()->all())->toBe([
+        ['op' => 'switch', 'branch' => 'feature/login', 'create' => false],
+        ['op' => 'switch', 'branch' => 'pricing-page', 'create' => true],
+    ]);
+})->group('GIT-025');
 
 test('on the default branch, Create PR asks for a new branch, and without a remote the menu opens Source Control', function () {
     $requests = [];
