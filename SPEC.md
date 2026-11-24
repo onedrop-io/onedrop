@@ -1419,7 +1419,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## GIT-014: Check out a pull request as a task
 
-- User should be able to click "Check out as task" on a pull request: it starts a task named after it ("#12 Fix login"), makes the task's own copy of the app (TASK-003) and switches the copy to the pull request's branch, with its newest commits, without starting the agent. The preview, files, shell and tools on the task's page then show the pull request's code.
+- User should be able to click "Check out as task" on a pull request: it starts a task named after it ("#12 Fix login") with a fresh sandbox of its own holding the pull request's branch at its newest commit (nothing from Main), and starts the app, which sets itself up as after an import (`.onedrop/dev`), without starting the agent. The preview, files, shell and tools on the task's page then show the pull request's code.
 - A pull request should only be checked out once; while its task is open, the button says "Open task" and goes to it.
 - The task's page should show the pull request (number, branch into base, its checks, a link to its page in Tools and on GitHub) instead of Apply to Main and Update from Main, with:
     - **Push:** commit what's changed and push the task's branch to the pull request (never force-pushing); it says Pushing…, then how it went.

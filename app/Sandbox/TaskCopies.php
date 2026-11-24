@@ -108,6 +108,54 @@ class TaskCopies
     }
 
     /**
+     * A pull request's task's own sandbox, fresh: the pull request's branch checked out into a new, empty sandbox, then
+     * its app started (.onedrop/dev sets it up, as after an import). Nothing comes from Main, so it's quick whatever
+     * Main holds, and its databases start as the app makes them (GIT-014). Returns the data services the app's settings
+     * point at outside the sandbox.
+     *
+     * @return list<string>
+     *
+     * @throws SandboxException
+     */
+    public function checkOutFresh(Task $task): array
+    {
+        $project = $task->project;
+        $copy = null;
+
+        try {
+            CreateSandbox::dispatchSync($project, $task);
+            $copy = $task->sandbox()->firstOrFail();
+
+            if ($copy->status !== SandboxStatus::Running) {
+                throw new SandboxException($copy->error ?: "The task's copy didn't start.");
+            }
+
+            // The sandbox fetches it itself from a GitHub App repository; otherwise the platform fetches just the pull
+            // request's commits and hands them over.
+            $sha = $this->remote->fetchesInSandbox($project)
+                ? $this->remote->checkOutPullRequestInSandbox($project, $copy, (int) $task->pull_request_number, (string) $task->pull_request_branch, (string) $task->pull_request_base)
+                : trim($this->checkOut($task, $copy));
+
+            // The remote as `origin`, now that there's a repository (GIT-021).
+            app(GitOrigin::class)->syncQuietly($copy);
+            // The app's dev server (.onedrop/dev) sets it up and starts it, in the background.
+            $this->provider->exec($copy->external_id, ['/opt/onedrop/restart']);
+
+            $task->update(['base_commit' => $sha ?: null, 'applied_at' => null, 'pull_request_head_sha' => $sha ?: null]);
+
+            return $this->externalServices($copy);
+        } catch (Throwable $e) {
+            if ($copy?->external_id) {
+                $this->destroy($copy->external_id);
+            }
+
+            $copy?->update(['status' => SandboxStatus::Failed, 'error' => $e->getMessage(), 'external_id' => null]);
+
+            throw $e instanceof SandboxException ? $e : new SandboxException($e->getMessage(), previous: $e);
+        }
+    }
+
+    /**
      * Main's kept paths at one instant (fork snapshot, as root), uploaded by Main itself to the snapshot disk through
      * signed links. Returns where each path's archive is, by index.
      *

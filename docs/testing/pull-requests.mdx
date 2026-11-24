@@ -32,7 +32,8 @@ Set up also: a second branch with a commit Main doesn't have, and a tag.
 
 ## Check out as a task (GIT-014)
 
-- [ ] **Check out as task** opens the task, which says "Checking out…", then "Checked out #N at …"; the agent doesn't start.
+- [ ] **Check out as task** opens the task, which says "Checking out…", then "Checked out #N at …" within a minute or two even for a large app (Pixwel/platform); the agent doesn't start.
+- [ ] The task's sandbox has only the pull request's code: no `node_modules` or database files from Main until `.onedrop/dev` makes them, and its preview comes up once the app has set itself up.
 - [ ] The task's preview runs the pull request's code; the Shell shows `git branch --show-current` as the pull request's branch.
 - [ ] A message sent while it's checking out waits and runs after.
 - [ ] Ask the agent for a small change: when its turn ends, "Pushed to #N" appears and the commit is on GitHub.

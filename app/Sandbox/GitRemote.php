@@ -9,6 +9,7 @@ use Illuminate\Process\Exceptions\ProcessTimedOutException;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Sleep;
 use Illuminate\Support\Str;
 
 /**
@@ -69,6 +70,33 @@ class GitRemote
         echo "$state" >"$dir/state.new" && mv -f "$dir/state.new" "$dir/state"
         # Tell the app it's over, so it carries on now instead of checking back.
         [ -z "${ONEDROP_FETCH_DONE_URL:-}" ] || curl -fsS -m 30 --retry 5 --retry-all-errors -X POST "$ONEDROP_FETCH_DONE_URL" >/dev/null 2>&1 || true
+        SH;
+
+    /** Where a pull request task's own sandbox checks the pull request out (GIT-014). */
+    protected const CHECKOUT_DIRECTORY = '/tmp/onedrop-checkout';
+
+    /**
+     * A pull request's task's new sandbox fetches the pull request itself and checks its branch out into /workspace,
+     * in the background, as the sandbox user: no files from Main, and nothing through the platform. The token reaches
+     * git only as a header in its environment. Then the base branch too, so the agent can compare against it.
+     */
+    protected const CHECKOUT = <<<'SH'
+        dir=$1
+        echo $$ >"$dir/pid"
+        export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_COUNT=3 \
+            GIT_CONFIG_KEY_0=http.followRedirects GIT_CONFIG_VALUE_0=false \
+            GIT_CONFIG_KEY_1=credential.helper GIT_CONFIG_VALUE_1= \
+            GIT_CONFIG_KEY_2=http.extraHeader GIT_CONFIG_VALUE_2="$ONEDROP_FETCH_AUTH"
+        unset ONEDROP_FETCH_AUTH
+        cd /workspace \
+            && { [ -d .git ] || git init -q; } \
+            && timeout "$2" git fetch -q "$ONEDROP_FETCH_URL" "+refs/pull/$ONEDROP_PULL_NUMBER/head:refs/onedrop/pull" "+refs/heads/$ONEDROP_PULL_BASE:refs/remotes/origin/$ONEDROP_PULL_BASE" 2>"$dir/error" \
+            && git checkout -q -f -B "$ONEDROP_PULL_BRANCH" refs/onedrop/pull 2>"$dir/error" \
+            && git rev-parse HEAD >"$dir/sha"
+        code=$?
+        echo "$code" >"$dir/exit"
+        [ "$code" = 0 ] && state=done || state=failed
+        echo "$state" >"$dir/state.new" && mv -f "$dir/state.new" "$dir/state"
         SH;
 
     /**
@@ -324,6 +352,63 @@ class GitRemote
         } finally {
             File::deleteDirectory($work);
         }
+    }
+
+    /**
+     * Check a pull request out in its task's new, empty sandbox, fetched by the sandbox itself (GIT-014): its branch at
+     * the pull request's newest commit. Only for GitHub App repositories (fetchesInSandbox()). Waits for the fetch, which
+     * is the code alone, and returns that commit.
+     *
+     * @throws SandboxException|GitException
+     */
+    public function checkOutPullRequestInSandbox(Project $project, Sandbox $sandbox, int $number, string $branch, string $base): string
+    {
+        $this->checkRemote($project);
+        $repository = (string) self::gitHubRepository((string) $project->git_remote_url);
+        $token = $this->github->repositoryReadToken((int) $project->github_installation_id, $repository, pullRequests: true);
+        $dir = self::CHECKOUT_DIRECTORY;
+
+        $started = $this->provider->exec($sandbox->external_id, ['bash', '-c', self::FETCH_START, 'checkout', $dir, $branch]);
+
+        if (! $started->successful()) {
+            throw new SandboxException(__('Couldn\'t start the download in the sandbox: :error', ['error' => Str::limit(trim($started->errorOutput), 200)]));
+        }
+
+        $this->provider->exec($sandbox->external_id, ['bash', '-c', self::CHECKOUT, 'checkout', $dir, (string) self::FETCH_TIMEOUT], [
+            'ONEDROP_FETCH_URL' => (string) $project->git_remote_url,
+            'ONEDROP_FETCH_AUTH' => 'Authorization: Basic '.base64_encode("x-access-token:{$token}"),
+            'ONEDROP_PULL_NUMBER' => (string) $number,
+            'ONEDROP_PULL_BRANCH' => $branch,
+            'ONEDROP_PULL_BASE' => $base,
+        ], detach: true);
+
+        $deadline = now()->addSeconds(self::FETCH_TIMEOUT + 30);
+
+        try {
+            do {
+                $result = $this->provider->exec($sandbox->external_id, ['bash', '-c', self::FETCH_STATUS, 'checkout', $dir]);
+                $lines = explode("\n", $result->output, 4);
+                $state = trim($lines[0]);
+
+                if ($state === 'done') {
+                    return trim($this->provider->exec($sandbox->external_id, ['cat', "{$dir}/sha"])->output);
+                }
+
+                if ($state === 'failed' || $state === 'lost') {
+                    throw new GitException($state === 'lost'
+                        ? __('The download stopped before it finished. Try again.')
+                        : (trim($lines[2] ?? '') === '124'
+                            ? __('The remote took too long to answer (over :minutes minutes). Try again.', ['minutes' => intdiv(self::FETCH_TIMEOUT, 60)])
+                            : $this->explain($lines[3] ?? '')));
+                }
+
+                Sleep::for(2)->seconds();
+            } while (now()->lessThan($deadline));
+        } finally {
+            $this->provider->exec($sandbox->external_id, ['rm', '-rf', $dir]);
+        }
+
+        throw new GitException(__('The download didn\'t finish in time. Try again.'));
     }
 
     /**

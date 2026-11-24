@@ -36,6 +36,7 @@ use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Sleep;
 
 beforeEach(function () {
     config(['sandbox.task_copies' => true]);
@@ -126,6 +127,8 @@ function fakePullRequestRemote(object $test): void
     $test->remoteSha ??= $test->sha;
     $test->pushes = [];
     $remote = Mockery::mock(GitRemote::class);
+    // A token remote: the platform fetches the pull request's commits and hands them over.
+    $remote->shouldReceive('fetchesInSandbox')->andReturn(false);
     $remote->shouldReceive('fetchPullRequest')->andReturnUsing(function (Project $project, int $number, string $directory) use ($test) {
         File::ensureDirectoryExists($directory);
         File::put("{$directory}/pull.bundle", 'bundle');
@@ -344,6 +347,57 @@ test("the task's copy is switched to the pull request's branch at its newest com
         ->and($task->messages()->where('role', MessageRole::User)->pluck('content')->all())->toBe(['Explain this change']);
     Queue::assertPushed(WatchPullRequestChecks::class, fn (WatchPullRequestChecks $job) => $job->sha === $this->sha);
     Queue::assertPushed(RunAgentTask::class);
+})->group('GIT-014');
+
+test("a GitHub App repository's pull request is checked out fresh: the new sandbox fetches it itself, nothing comes from Main", function () {
+    Queue::fake([WatchPullRequestChecks::class, RunAgentTask::class]);
+    $this->project->update(['github_installation_id' => 77, 'git_remote_token' => null]);
+    $remote = Mockery::mock(GitRemote::class);
+    $remote->shouldReceive('fetchesInSandbox')->andReturn(true);
+    $remote->shouldReceive('checkOutPullRequestInSandbox')->once()
+        ->withArgs(fn (Project $project, Sandbox $sandbox, int $number, string $branch, string $base) => $sandbox->task_id !== null && [$number, $branch, $base] === [12, 'fix-login', 'main'])
+        ->andReturn($this->sha);
+    app()->instance(GitRemote::class, $remote);
+    $task = Task::factory()->for($this->project)->create(['status' => ProjectStatus::Working, 'sync_status' => TaskSyncStatus::Forking, 'pull_request_number' => 12, 'pull_request_branch' => 'fix-login', 'pull_request_base' => 'main']);
+    $task->sandbox()->create(['provider' => 'fake', 'status' => SandboxStatus::Creating]);
+
+    (new ForkTaskSandbox($task, checkOutOnly: true))->handle(app(TaskCopies::class), app(AgentQueue::class));
+
+    $copy = $task->sandbox()->first();
+    expect($copy->status)->toBe(SandboxStatus::Running)
+        // Main isn't snapshotted or copied.
+        ->and(collect($this->provider->executed)->where('id', 'main-1')->pluck('command')->contains(fn (array $command) => in_array($command[1] ?? null, ['snapshot', 'put'], true)))->toBeFalse()
+        ->and($this->provider->copied)->toBeEmpty()
+        // Its app starts, and sets itself up.
+        ->and(collect($this->provider->executed)->where('id', $copy->external_id)->pluck('command')->all())->toContain(['/opt/onedrop/restart'])
+        ->and($task->fresh()->only('pull_request_head_sha', 'sync_status', 'status'))->toBe(['pull_request_head_sha' => $this->sha, 'sync_status' => null, 'status' => ProjectStatus::Idle])
+        ->and($task->messages()->pluck('content')->all())->toContain('Checking out #12 (fix-login) in a fresh sandbox for this task', 'Checked out #12 at aaaaaaa');
+})->group('GIT-014');
+
+test('the sandbox fetches the pull request with a token only in its environment, and says why when it fails', function () {
+    Sleep::fake();
+    $this->project->update(['github_installation_id' => 77, 'git_remote_token' => null]);
+    $github = Mockery::mock(GitHubApp::class);
+    $github->shouldReceive('repositoryReadToken')->with(77, 'acme/app', true)->andReturn('ghs_read');
+    app()->instance(GitHubApp::class, $github);
+    $sandbox = Sandbox::factory()->for($this->project)->create(['external_id' => 'copy-9', 'status' => SandboxStatus::Running]);
+    $state = 'done';
+    $this->provider->execUsing = function (array $command) use (&$state) {
+        return match (true) {
+            ($command[4] ?? null) === '/tmp/onedrop-checkout' && str_contains($command[2] ?? '', 'state=$(cat') => new ExecResult(0, $state === 'done' ? "done\nfix-login\n0\n" : "failed\nfix-login\n128\nfatal: couldn't find remote ref refs/pull/12/head"),
+            $command === ['cat', '/tmp/onedrop-checkout/sha'] => new ExecResult(0, str_repeat('a', 40)."\n"),
+            default => new ExecResult(0, ''),
+        };
+    };
+
+    expect(app(GitRemote::class)->checkOutPullRequestInSandbox($this->project, $sandbox, 12, 'fix-login', 'main'))->toBe(str_repeat('a', 40));
+
+    $run = collect($this->provider->executed)->first(fn (array $exec) => $exec['detach'] ?? false);
+    expect($run['env'])->toMatchArray(['ONEDROP_PULL_NUMBER' => '12', 'ONEDROP_PULL_BRANCH' => 'fix-login', 'ONEDROP_PULL_BASE' => 'main', 'ONEDROP_FETCH_AUTH' => 'Authorization: Basic '.base64_encode('x-access-token:ghs_read')])
+        ->and(implode(' ', $run['command']))->not->toContain('ghs_read');
+
+    $state = 'failed';
+    expect(fn () => app(GitRemote::class)->checkOutPullRequestInSandbox($this->project, $sandbox, 12, 'fix-login', 'main'))->toThrow(GitException::class);
 })->group('GIT-014');
 
 test('pushing commits the copy and pushes its branch to the pull request, then watches the checks', function () {

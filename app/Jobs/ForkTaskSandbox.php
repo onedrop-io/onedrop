@@ -15,7 +15,8 @@ use Illuminate\Queue\MaxAttemptsExceededException;
 use Illuminate\Support\Arr;
 
 /**
- * Make a task's own copy of the app from Main's sandbox before its first run (TASK-003). Chained before
+ * Make a task's own copy of the app from Main's sandbox before its first run (TASK-003), or for a pull request's task a
+ * fresh sandbox with the pull request's branch (GIT-014). Chained before
  * RunAgentTask; if the copy can't be made, the chain stops and the task's chat says why. A pull request's task
  * (GIT-014) is switched to the pull request's branch; checked out without a message ($checkOutOnly), the task
  * shows as working while its copy is made, so messages sent meanwhile wait for it, then it goes idle.
@@ -39,12 +40,13 @@ class ForkTaskSandbox implements ShouldQueue
         $task = $this->task;
         $task->update(['sync_status' => TaskSyncStatus::Forking, 'sync_error' => null]);
         $task->messages()->create(['role' => MessageRole::Activity, 'content' => $task->isPullRequest()
-            ? "Checking out #{$task->pull_request_number} ({$task->pull_request_branch}) in a copy of the app for this task"
+            ? "Checking out #{$task->pull_request_number} ({$task->pull_request_branch}) in a fresh sandbox for this task"
             : 'Making a copy of the app for this task']);
         UpdatePullRequestPreview::for($task);
 
         try {
-            $shared = $copies->fork($task);
+            // A pull request's task starts fresh from the pull request's branch; any other task gets Main's copy.
+            $shared = $task->isPullRequest() ? $copies->checkOutFresh($task) : $copies->fork($task);
         } catch (SandboxException $e) {
             report($e);
             $task->sandbox()->update(['status' => SandboxStatus::Failed, 'error' => $e->getMessage()]);

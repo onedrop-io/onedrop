@@ -52,7 +52,7 @@ For a repository connected through the GitHub App, git asks OneDrop for a token 
 
 ## Check out a pull request as a task
 
-Click **Check out as task**. OneDrop starts a task named after the pull request, such as "#12 Fix login", makes its own copy of the app from Main, and switches the copy to the pull request's branch with its newest commits. The agent doesn't start. The task's preview, files, shell and tools now show the pull request's code, so you can try it before you review it. Main isn't touched.
+Click **Check out as task**. OneDrop starts a task named after the pull request, such as "#12 Fix login", and gives it a fresh sandbox with the pull request's branch at its newest commit. Nothing comes from Main: the app sets itself up as it does after an import (its `.onedrop/dev` installs dependencies and starts its services), so its databases start as the app makes them, not with Main's data. The agent doesn't start. The task's preview, files, shell and tools now show the pull request's code, so you can try it before you review it. Main isn't touched.
 
 A pull request is checked out once. After that, its button says **Open task**.
 
