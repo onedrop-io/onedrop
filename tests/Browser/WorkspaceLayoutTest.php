@@ -464,8 +464,9 @@ test('on a tablet, a tab moves to another pane from the split menu, and a tab op
     $this->actingAs($user);
 
     $tabsIn = fn (int $pane) => "Array.from(document.querySelectorAll('[data-test=\"pane-{$pane}\"] button[data-test^=tab-]')).map((tab) => tab.dataset.test).join(',')";
-    // Whether a tab's button lies inside its scrolling tab bar's visible part.
-    $inView = fn (string $tab) => "(() => { const tab = document.querySelector('[data-test=\"{$tab}\"]'); const bar = tab.closest('[data-tabs]').getBoundingClientRect(); const rect = tab.getBoundingClientRect(); return rect.left >= bar.left - 1 && rect.right <= bar.right + 1; })()";
+    // Whether a tab's button lies inside its scrolling tab bar's visible part; a tab too wide to fit clear of the bar's
+    // 24px fades shows its start (CI's fonts are wider than a Mac's, so Source Control doesn't fit there).
+    $inView = fn (string $tab) => "(() => { const tab = document.querySelector('[data-test=\"{$tab}\"]'); const bar = tab.closest('[data-tabs]').getBoundingClientRect(); const rect = tab.getBoundingClientRect(); return rect.left >= bar.left - 1 && (rect.right <= bar.right + 1 || (rect.width > bar.width - 48 && rect.left <= bar.left + 25)); })()";
 
     $page = visit("/projects/{$project->id}")->on()->iPadPro()
         ->click('@split-menu')
