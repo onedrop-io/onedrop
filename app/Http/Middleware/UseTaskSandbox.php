@@ -19,9 +19,17 @@ class UseTaskSandbox
     public const ROUTES = [
         'projects.files.*', 'projects.logs.*', 'projects.monitoring.*', 'projects.database.*', 'projects.auth.*',
         'projects.flags.*', 'projects.secrets.*', 'projects.storage.*', 'projects.developer.*', 'projects.gateway.open',
-        'projects.git.index', 'projects.git.show', 'projects.git.diff', 'projects.git.commit', 'projects.git.discard',
-        'projects.git.switch', 'projects.git.restore',
+        // All of Source Control, so what it lists is what it acts on. Push and Pull go through the task's pull request.
+        'projects.git.index', 'projects.git.show', 'projects.git.diff', 'projects.git.log', 'projects.git.change-diff',
+        'projects.git.checkpoints', 'projects.git.restore-checkpoint', 'projects.git.commit', 'projects.git.draft-message',
+        'projects.git.stage', 'projects.git.unstage', 'projects.git.stage-lines', 'projects.git.discard',
+        'projects.git.discard-hunk', 'projects.git.switch', 'projects.git.restore', 'projects.git.undo-commit',
+        'projects.git.combine', 'projects.git.combine-draft', 'projects.git.pull-request', 'projects.git.push',
+        'projects.git.pull',
     ];
+
+    /** The request attribute holding the task whose copy the page shows. */
+    public const TASK = 'task_copy';
 
     public function handle(Request $request, Closure $next): Response
     {
@@ -32,6 +40,7 @@ class UseTaskSandbox
 
             if ($copy) {
                 $project->setRelation('sandbox', $copy);
+                $request->attributes->set(self::TASK, $project->tasks()->find($taskId));
             }
         }
 

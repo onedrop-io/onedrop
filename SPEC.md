@@ -1642,6 +1642,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 - The page's URL should say what the workspace shows: its tab, the Tools section, and the open file (e.g. `?tab=tools&tool=database`), so a reload or a shared link opens the same view.
 - User should be able to switch between Main and a project's tasks (from the sidebar or the board) and see the same tab and tool on each, e.g. the Database tool, on that chat's own copy of the app.
+- On a task's page, everything in Source Control (staging, committing, discarding, undo, combining, checkpoints, diffs) should act on the task's copy, never Main's. Its Push and Pull should be the task's pull request's (GIT-014) and show the task's push or pull state; a task without a pull request is told to open one first.
 
 ## INSTALL-001: One-line install on your own computer
 

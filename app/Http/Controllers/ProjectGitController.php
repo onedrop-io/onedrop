@@ -4,11 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Enums\GitSyncStatus;
 use App\Enums\SandboxStatus;
+use App\Enums\TaskSyncStatus;
+use App\Http\Middleware\UseTaskSandbox;
 use App\Jobs\BackupProject;
 use App\Jobs\SyncGitRemote;
+use App\Jobs\SyncPullRequestTask;
 use App\Models\GitHubInstallation;
 use App\Models\Project;
 use App\Models\Sandbox;
+use App\Models\Task;
 use App\Sandbox\CommitMessageWriter;
 use App\Sandbox\GitException;
 use App\Sandbox\GitHubApp;
@@ -37,7 +41,7 @@ class ProjectGitController extends Controller
             ...$git->history($sandbox),
             'checkpoints' => $git->checkpoints($sandbox),
             'commit_turns' => $project->commit_turns,
-            ...self::remote($project),
+            ...self::remote($project, self::taskCopy($request)),
             'github' => $this->githubApp($project, $github, $request),
         ]);
     }
@@ -132,7 +136,7 @@ class ProjectGitController extends Controller
 
         $sha = $request->validate(['sha' => ['required', 'string', 'regex:/^[0-9a-f]{7,40}$/']])['sha'];
 
-        if (in_array($project->git_sync_status, [GitSyncStatus::Pushing, GitSyncStatus::Pulling], true)) {
+        if (self::syncing($project, self::taskCopy($request))) {
             return response()->json(['message' => __('Wait for the push or pull to finish first.')], 409);
         }
 
@@ -167,7 +171,7 @@ class ProjectGitController extends Controller
 
         $message = $request->validate(['message' => ['required', 'string', 'max:5000']])['message'];
 
-        if (in_array($project->git_sync_status, [GitSyncStatus::Pushing, GitSyncStatus::Pulling], true)) {
+        if (self::syncing($project, self::taskCopy($request))) {
             return response()->json(['message' => __('Wait for the push or pull to finish first.')], 409);
         }
 
@@ -467,14 +471,54 @@ class ProjectGitController extends Controller
         return response()->json(self::remote($project));
     }
 
-    public function push(Project $project): JsonResponse
+    public function push(Request $request, Project $project): JsonResponse
     {
-        return $this->sync($project, GitSyncStatus::Pushing);
+        return ($task = self::taskCopy($request))
+            ? $this->syncTask($project, $task, TaskSyncStatus::Pushing)
+            : $this->sync($project, GitSyncStatus::Pushing);
     }
 
-    public function pull(Project $project): JsonResponse
+    public function pull(Request $request, Project $project): JsonResponse
     {
-        return $this->sync($project, GitSyncStatus::Pulling);
+        return ($task = self::taskCopy($request))
+            ? $this->syncTask($project, $task, TaskSyncStatus::Pulling)
+            : $this->sync($project, GitSyncStatus::Pulling);
+    }
+
+    /**
+     * On a task's page, Push and Pull are the task's: through its pull request (GIT-014), never Main's branch.
+     */
+    protected function syncTask(Project $project, Task $task, TaskSyncStatus $direction): JsonResponse
+    {
+        Gate::authorize('update', $project);
+
+        if (! $task->isPullRequest()) {
+            return response()->json(['message' => __('A task pushes and pulls through its pull request. Open one from the task\'s bar first.')], 422);
+        }
+
+        if (($problem = SyncPullRequestTask::start($task, $direction)) !== null) {
+            return response()->json(['message' => $problem], 409);
+        }
+
+        return response()->json(self::remote($project, $task->fresh()));
+    }
+
+    /**
+     * The task whose copy the page shows (UseTaskSandbox), or null on Main.
+     */
+    protected static function taskCopy(Request $request): ?Task
+    {
+        return $request->attributes->get(UseTaskSandbox::TASK);
+    }
+
+    /**
+     * Whether a push or pull is running for what the page shows: the task's copy, or Main.
+     */
+    protected static function syncing(Project $project, ?Task $task): bool
+    {
+        return $task
+            ? in_array($task->sync_status, [TaskSyncStatus::Pushing, TaskSyncStatus::Pulling], true)
+            : in_array($project->git_sync_status, [GitSyncStatus::Pushing, GitSyncStatus::Pulling], true);
     }
 
     protected function sync(Project $project, GitSyncStatus $direction): JsonResponse
@@ -500,21 +544,32 @@ class ProjectGitController extends Controller
     }
 
     /**
-     * The remote (never its token) and the last backup, as the Git panel shows them.
+     * The remote (never its token) and the last backup, as the Git panel shows them. On a task's page, the push or
+     * pull state is the task's (through its pull request), not Main's.
      *
      * @return array{remote: array{url: string, host: ?string, username: ?string, github_app: bool, sync_status: ?string, sync_error: ?string, synced_at: ?string}|null, backed_up_at: ?string}
      */
-    public static function remote(Project $project): array
+    public static function remote(Project $project, ?Task $task = null): array
     {
+        $sync = $task === null
+            ? ['sync_status' => $project->git_sync_status?->value, 'sync_error' => $project->git_sync_error, 'synced_at' => $project->git_synced_at?->toIso8601String()]
+            : [
+                'sync_status' => match (true) {
+                    in_array($task->sync_status, [TaskSyncStatus::Pushing, TaskSyncStatus::Pulling], true) => $task->sync_status->value,
+                    $task->sync_error !== null => GitSyncStatus::Failed->value,
+                    default => null,
+                },
+                'sync_error' => $task->sync_error,
+                'synced_at' => null,
+            ];
+
         return [
             'remote' => $project->git_remote_url === null ? null : [
                 'url' => $project->git_remote_url,
                 'host' => parse_url($project->git_remote_url, PHP_URL_HOST) ?: null,
                 'username' => $project->git_remote_username,
                 'github_app' => $project->github_installation_id !== null,
-                'sync_status' => $project->git_sync_status?->value,
-                'sync_error' => $project->git_sync_error,
-                'synced_at' => $project->git_synced_at?->toIso8601String(),
+                ...$sync,
             ],
             'backed_up_at' => $project->backed_up_at?->toIso8601String(),
         ];
@@ -585,9 +640,11 @@ class ProjectGitController extends Controller
         $response = $this->fromSandbox($project, $call);
 
         // A failed push or pull was about the files and branch as they were; once they change, its message is stale.
-        if ($response->isSuccessful() && $project->git_sync_status === GitSyncStatus::Failed) {
-            $project->update(['git_sync_status' => null, 'git_sync_error' => null]);
-            $response->setData([...$response->getData(true), 'remote' => self::remote($project)['remote']]);
+        $task = self::taskCopy(request());
+
+        if ($response->isSuccessful() && ($task ? $task->sync_status === null && $task->sync_error !== null : $project->git_sync_status === GitSyncStatus::Failed)) {
+            $task ? $task->update(['sync_error' => null]) : $project->update(['git_sync_status' => null, 'git_sync_error' => null]);
+            $response->setData([...$response->getData(true), 'remote' => self::remote($project, $task)['remote']]);
         }
 
         return $response;

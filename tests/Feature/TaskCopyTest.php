@@ -8,6 +8,8 @@ use App\Enums\TaskSyncStatus;
 use App\Jobs\DestroySandbox;
 use App\Jobs\ForkTaskSandbox;
 use App\Jobs\RunAgentTask;
+use App\Jobs\SyncGitRemote;
+use App\Jobs\SyncPullRequestTask;
 use App\Jobs\SyncTask;
 use App\Models\AgentConnection;
 use App\Models\Project;
@@ -329,6 +331,42 @@ test("the task's page shows its own copy, and its tools work on it", function ()
 
     expect(collect($this->provider->executed)->pluck('id')->unique()->values()->all())->toBe(['copy-1', 'main-1']);
 })->group('TASK-003');
+
+test("on a task's page, Source Control acts on the task's copy, and Push and Pull go through its pull request", function () {
+    Queue::fake();
+    $this->project->update(['git_remote_url' => 'https://github.com/dev/timer.git', 'git_sync_status' => 'failed', 'git_sync_error' => "Main's old error"]);
+    $task = Task::factory()->for($this->project)->create(['pull_request_number' => 12, 'pull_request_branch' => 'fix', 'sync_error' => 'The push was rejected.']);
+    $task->sandbox()->create(['provider' => 'fake', 'external_id' => 'copy-1', 'status' => SandboxStatus::Running]);
+    $this->provider->execUsing = fn (array $command, array $env) => new ExecResult(0, isset($env['APP_GIT_REQUEST'])
+        ? json_encode(['ok' => true, 'data' => ['initialized' => true, 'branch' => 'fix', 'branches' => ['fix'], 'head' => str_repeat('a', 40), 'staged' => [], 'changes' => [], 'more_changes' => false, 'tracking' => null, 'state' => null]])
+        : '');
+    $page = ['referer' => route('projects.tasks.show', [$this->project, $task])];
+
+    $this->postJson(route('projects.git.stage', $this->project), ['paths' => ['a.txt']], $page)->assertOk();
+    $this->postJson(route('projects.git.discard', $this->project), [], $page)
+        ->assertOk()
+        ->assertJsonPath('remote.sync_error', null);
+
+    expect(collect($this->provider->executed)->pluck('id')->unique()->values()->all())->toBe(['copy-1'])
+        ->and($task->fresh()->sync_error)->toBeNull()
+        ->and($this->project->fresh()->git_sync_error)->toBe("Main's old error");
+
+    $this->postJson(route('projects.git.push', $this->project), [], $page)
+        ->assertOk()
+        ->assertJsonPath('remote.sync_status', 'pushing');
+
+    expect($task->fresh()->sync_status)->toBe(TaskSyncStatus::Pushing);
+    Queue::assertPushed(SyncPullRequestTask::class, fn (SyncPullRequestTask $job) => $job->task->is($task) && $job->direction === TaskSyncStatus::Pushing);
+    Queue::assertNotPushed(SyncGitRemote::class);
+
+    // A task without a pull request has nothing of its own to push to.
+    $other = Task::factory()->for($this->project)->create();
+    $other->sandbox()->create(['provider' => 'fake', 'external_id' => 'copy-2', 'status' => SandboxStatus::Running]);
+
+    $this->postJson(route('projects.git.pull', $this->project), [], ['referer' => route('projects.tasks.show', [$this->project, $other])])
+        ->assertUnprocessable();
+    Queue::assertNotPushed(SyncGitRemote::class);
+})->group('TASK-003', 'GIT-004', 'GIT-014');
 
 test("applying merges the task into Main, hands the rest to Main's agent, and removes the copy", function () {
     Queue::fake();
