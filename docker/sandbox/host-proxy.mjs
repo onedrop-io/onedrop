@@ -1015,7 +1015,7 @@ const PREVIEW_ANNOTATOR = `(() => {
     let library;
     const load = () => library || (library = new Promise((resolve, reject) => {
         const tag = document.createElement('script');
-        tag.src = '${CAPTURE_SCRIPT_PATH}';
+        tag.src = '${CAPTURE_SCRIPT_PATH}?v=${PREVIEW_VERSION}';
         tag.onload = () => { tag.remove(); resolve(window.modernScreenshot); };
         tag.onerror = () => { tag.remove(); library = undefined; reject(new Error("Couldn't load the capture script")); };
         (document.head || document.documentElement).appendChild(tag);
@@ -1067,7 +1067,7 @@ const PREVIEW_ANNOTATOR = `(() => {
     let inspectorLoad;
     const loadInspector = () => inspectorLoad || (inspectorLoad = new Promise((resolve, reject) => {
         const tag = document.createElement('script');
-        tag.src = '${INSPECTOR_SCRIPT_PATH}';
+        tag.src = '${INSPECTOR_SCRIPT_PATH}?v=${PREVIEW_VERSION}';
         tag.onload = () => { tag.remove(); resolve(window.__onedropInspector); };
         tag.onerror = () => { tag.remove(); inspectorLoad = undefined; reject(new Error("Couldn't load the inspector")); };
         (document.head || document.documentElement).appendChild(tag);
@@ -1178,9 +1178,13 @@ function serveInspector(res) {
     res.end(inspectorScript);
 }
 
-/** Add the error reporter to a preview page, first thing in its head (or body), so it sees the app's first errors. */
+/**
+ * Add the error reporter to a preview page, first thing in its head (or body), so it sees the app's first errors. Its
+ * address names this proxy's version: Cloudflare sends the proxy's own scripts on with `max-age=14400` whatever
+ * they're sent with, so a browser kept running an old copy (without the cookie fix) for four hours after an update.
+ */
 function withErrorReporter(html, status) {
-    const tag = `<script src="${ERROR_SCRIPT_PATH}"${status >= 500 ? ` data-status="${status}"` : ''}></script>`;
+    const tag = `<script src="${ERROR_SCRIPT_PATH}?v=${PREVIEW_VERSION}"${status >= 500 ? ` data-status="${status}"` : ''}></script>`;
     const opening = /<head\b[^>]*>/i.exec(html) ?? /<body\b[^>]*>/i.exec(html);
 
     if (!opening) {

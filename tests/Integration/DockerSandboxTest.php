@@ -542,12 +542,12 @@ test('the host proxy records server errors, preview browser errors and the app b
         ), 250);
 
         // Preview pages get the error reporter first thing in their head; published pages don't.
-        expect($curl('http://127.0.0.1:8081/'))->toContain('<head><script src="/__onedrop/errors.js"></script><title>App</title>')
+        expect($curl('http://127.0.0.1:8081/'))->toMatch('#<head><script src="/__onedrop/errors\.js\?v=[0-9a-f]{12}"></script><title>App</title>#')
             ->and($curl('-H', 'Host: my-app.tail1.ts.net', 'http://127.0.0.1:8081/'))->not->toContain('/__onedrop/errors.js')
             ->and($curl('http://127.0.0.1:8081/__onedrop/errors.js'))->toContain("navigator.sendBeacon('/__onedrop/error'");
 
         // A 5xx is logged with the page's text and the end of the server's output, and its page says so to the app builder.
-        expect($curl('http://127.0.0.1:8081/boom?id=1'))->toContain('<script src="/__onedrop/errors.js" data-status="500"></script>');
+        expect($curl('http://127.0.0.1:8081/boom?id=1'))->toMatch('#<script src="/__onedrop/errors\.js\?v=[0-9a-f]{12}" data-status="500"></script>#');
         $server = retry(20, function () use ($errors) {
             $found = collect($errors())->firstWhere('k', 'server');
             throw_unless($found, new RuntimeException('not logged yet'));

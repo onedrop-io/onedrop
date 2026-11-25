@@ -69,7 +69,7 @@ describe('through the proxy', function () {
         $this->port = cookiesFreePort();
         $this->server = Process::start(['node', '-e', "require('http').createServer((req, res) => {"
             ."res.setHeader('Set-Cookie', ['__session=abc; Path=/; SameSite=Lax', 'theme=dark']);"
-            ."res.end('ok'); }).listen({$this->appPort}, '127.0.0.1');"]);
+            ."res.setHeader('Content-Type', 'text/html'); res.end('<html><head><title>App</title></head><body>ok</body></html>'); }).listen({$this->appPort}, '127.0.0.1');"]);
         $this->proxy = Process::env([
             'PORT' => $this->appPort,
             'PROXY_PORT' => $this->port,
@@ -110,6 +110,19 @@ describe('through the proxy', function () {
             'theme=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Secure; SameSite=None; Partitioned',
             'theme=dark; Secure; SameSite=None',
         ]);
+    })->group('GW-002');
+
+    test("the preview's script address names the proxy's version, so a browser never keeps running an old copy", function () {
+        $page = Http::withHeaders(['Host' => 'preview-65.onedrop.dev'])->get("http://127.0.0.1:{$this->port}/")->body();
+
+        expect($page)->toMatch('#<head><script src="/__onedrop/errors\.js\?v=[0-9a-f]{12}"></script><title>#');
+
+        preg_match('#errors\.js\?v=([0-9a-f]{12})#', $page, $match);
+        $script = Http::withHeaders(['Host' => 'preview-65.onedrop.dev'])->get("http://127.0.0.1:{$this->port}/__onedrop/errors.js?v={$match[1]}")->body();
+
+        expect($script)->toStartWith('(() => {')
+            ->toContain("/__onedrop/inspector.js?v={$match[1]}")
+            ->toContain("/__onedrop/capture.js?v={$match[1]}");
     })->group('GW-002');
 
     test("the preview's first script makes cookies the app sets from its scripts cross-site too", function () {
