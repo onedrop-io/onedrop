@@ -855,8 +855,8 @@ const lastErrors = new Map();
 const PREVIEW_COOKIES = `(() => {
     if (window.__onedropCookies || location.protocol !== 'https:') return;
     window.__onedropCookies = true;
-    const crossSiteCookie = ${crossSiteCookie};
-    const expiredPartitionedCookie = ${expiredPartitionedCookie};
+    const crossSiteCookie = ${crossSiteCookie.toString()};
+    const expiredPartitionedCookie = ${expiredPartitionedCookie.toString()};
     const mark = '${UNPARTITIONED_MARK}';
     const cookie = Object.getOwnPropertyDescriptor(Document.prototype, 'cookie');
     if (cookie && cookie.get && cookie.set) {
