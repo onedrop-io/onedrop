@@ -233,9 +233,8 @@ function codexAuthValues() {
     }
 }
 
-// The organization's secrets (SECRET-003), as /opt/onedrop/org-secrets gives them to the Shell: settings already in the
-// environment win over them. Names the project's .env sets don't, since the agent's environment doesn't read .env;
-// only the app's does.
+// The organization's secrets (SECRET-003), as /opt/onedrop/org-secrets gives them to the Shell and the app's start
+// script: settings already in the environment win over them; names the project's .env sets don't.
 function organizationSecrets() {
     let lines;
 

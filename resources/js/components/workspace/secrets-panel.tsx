@@ -254,22 +254,19 @@ export default function SecretsPanel({
                     <p className="font-medium">From your organization</p>
                     <p className="text-muted-foreground">
                         Your organization’s admins share these in Settings →
-                        Organization. Your app, the Shell and the agent get them
-                        as environment variables; a secret above with the same
-                        name wins.
+                        Organization. Your app’s start script, the Shell and the
+                        agent get them as environment variables. A secret above
+                        with the same name wins in the app once its start script
+                        loads .env, as the agent sets it up to.
                     </p>
                     <ul className="flex flex-wrap gap-1.5">
                         {organization.map((name) => (
                             <li key={name}>
                                 <code
-                                    className={cn(
-                                        'rounded bg-muted px-1.5 py-0.5 text-xs',
-                                        names.includes(name) &&
-                                            'text-muted-foreground line-through',
-                                    )}
+                                    className="rounded bg-muted px-1.5 py-0.5 text-xs"
                                     title={
                                         names.includes(name)
-                                            ? 'Replaced by this project’s own secret'
+                                            ? 'This project sets it too'
                                             : undefined
                                     }
                                     data-test="secrets-organization-name"

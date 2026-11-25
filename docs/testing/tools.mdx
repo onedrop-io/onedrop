@@ -65,7 +65,8 @@ The image needs rebuilding first (`start.sh` changed): `php artisan sandbox:buil
 - [ ] In Settings → Organization → Secrets, add `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_REGION` for all projects. In a project's new Shell tab, `aws sts get-caller-identity` answers with the organization's account.
 - [ ] The running app sees them (e.g. `getenv('AWS_REGION')` in a route) after the automatic restart, without a new sandbox.
 - [ ] Ask the agent "which AWS account am I using?": it runs `aws sts get-caller-identity` and doesn't print the keys. Ask it to create a bucket: it asks before doing it.
-- [ ] Add `AWS_REGION=local` in the project's Tools → Secrets: the app sees `local`, while a new Shell and the agent still see the organization's value, and Tools → Secrets shows `AWS_REGION` crossed out under **From your organization**.
+- [ ] Add `AWS_REGION=local` in the project's Tools → Secrets and ask the agent to restart the app: a start script that loads `.env` before the server gives the app `local`, while the start script's earlier lines, a new Shell and the agent still see the organization's value; Tools → Secrets lists `AWS_REGION` under **From your organization** as usual.
+- [ ] Have a `.onedrop/dev` copy a `.env` that sets `AWS_ACCESS_KEY_ID` into place, then run `aws sts get-caller-identity`: restart the app twice, and the Console shows the organization's account both times.
 - [ ] Ask the agent to write a `.env` that sets `AWS_ACCESS_KEY_ID`, then, in its next turn, run `aws sts get-caller-identity`: it still answers with the organization's account.
 - [ ] Change a secret to **Selected projects** without this project: a new Shell no longer has it, and the app restarted without it.
 - [ ] Let a sandbox sleep, change a secret, open the project: a new Shell has the new value.

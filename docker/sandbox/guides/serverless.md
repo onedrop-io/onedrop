@@ -9,8 +9,9 @@ on 0.0.0.0:$PORT like any other dev server. Everything runs inside the sandbox:
 
 - Never sign in to the user's cloud account (`wrangler login`, `vercel login`, `aws configure`, `sst dev`),
   and keep the app's local run on the stand-ins below even when the organization shares real cloud keys
-  (organization secrets): the stand-ins' settings in `.env` win over them in the running app, but your own commands
-  still have the real keys, so unset them for local runs (`env -u AWS_ACCESS_KEY_ID ...`). Only use a token the user added in
+  (organization secrets): `.onedrop/dev` and your own commands have the real keys, so `.onedrop/dev` sets the
+  stand-ins itself before starting the app (export them, as below, or `set -a; . ./.env; set +a`), and your own local
+  runs unset them (`env -u AWS_ACCESS_KEY_ID ...`). Only use a token the user added in
   Tools → Secrets for the one tool below that needs it.
 - Don't deploy (`wrangler deploy`, `sam deploy`, `vercel deploy`, `serverless deploy`). OneDrop's Publish
   button publishes what the preview runs. If the user asks to deploy to their own account, say it isn't
