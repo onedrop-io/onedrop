@@ -1346,6 +1346,8 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - A GitHub App repository's pulls (and imports, PRJ-009) should be downloaded by the sandbox itself, in the background, with a token GitHub limits to reading that one repository for an hour, so a large repository (hundreds of MB of history) comes in without timing out, for up to 20 minutes. Pushes, and remotes connected with a token, stay on the platform.
 - User should be able to push the current branch and pull its new commits from the remote, in the background; the section shows Pushing…/Pulling…, then how many commits there are to push or pull, or why it failed (the remote has newer commits, a rejected token, a missing repository or branch).
 - Pulls should only fast-forward; when both sides have new commits, user should be told to ask the agent to merge them. Pulling waits while the agent is working.
+- A pull that would overwrite uncommitted changes (or new files the remote also adds) should be refused, naming the files (up to three; beyond that the first two "and N more files").
+- A failed push or pull's message should go once the user commits, discards, switches branch, restores or undoes in Source Control, so it never describes files as they no longer are.
 - User should be able to disconnect the remote (the repository itself is untouched).
 
 ## GIT-005: Connect GitHub with the GitHub App

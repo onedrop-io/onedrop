@@ -272,6 +272,32 @@ test('restoring an earlier version is a new commit, with what was uncommitted ke
         ->and(($this->tool)(['op' => 'restore', 'sha' => str_repeat('a', 40)])['error'])->toBe("That version isn't in this project's history.");
 })->group('GIT-003');
 
+test('a pull refused for uncommitted changes names the files in the way', function () {
+    ($this->write)('a.txt', 'a');
+    ($this->write)('b.txt', 'b');
+    ($this->data)(['op' => 'commit', 'message' => 'First']);
+
+    $remote = sys_get_temp_dir().'/onedrop-git-remote-'.uniqid();
+    Process::run(['git', 'clone', '-q', $this->workspace, $remote])->throw();
+    Process::path($remote)->run('echo A > a.txt && echo B > b.txt && echo N > new.txt && git add -A && git -c user.name=Me -c user.email=me@example.com commit -q -m "From the remote" && git bundle create -q /tmp/onedrop-test-pull.bundle main')->throw();
+
+    ($this->write)('a.txt', 'mine');
+    ($this->write)('b.txt', 'mine too');
+
+    expect(($this->tool)(['op' => 'pulled', 'branch' => 'main', 'bundle' => '/tmp/onedrop-test-pull.bundle'])['error'])
+        ->toBe('Your uncommitted changes to a.txt and b.txt would be overwritten. Commit or discard them, then pull again.');
+
+    // A new file of the same name, not yet committed, is in the way too.
+    ($this->data)(['op' => 'discard']);
+    ($this->write)('new.txt', 'mine');
+    Process::path($remote)->run('git bundle create -q /tmp/onedrop-test-pull.bundle main')->throw();
+
+    expect(($this->tool)(['op' => 'pulled', 'branch' => 'main', 'bundle' => '/tmp/onedrop-test-pull.bundle'])['error'])
+        ->toBe('Your uncommitted changes to new.txt would be overwritten. Commit or discard them, then pull again.');
+
+    File::deleteDirectory($remote);
+})->group('GIT-004');
+
 test('what the platform pushed and pulled is tracked, and pulls only fast-forward', function () {
     ($this->write)('a.txt', 'a');
     ($this->data)(['op' => 'commit', 'message' => 'Start']);

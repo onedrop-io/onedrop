@@ -582,7 +582,15 @@ class ProjectGitController extends Controller
             return response()->json(['message' => __('Wait for the agent to finish first.')], 409);
         }
 
-        return $this->fromSandbox($project, $call);
+        $response = $this->fromSandbox($project, $call);
+
+        // A failed push or pull was about the files and branch as they were; once they change, its message is stale.
+        if ($response->isSuccessful() && $project->git_sync_status === GitSyncStatus::Failed) {
+            $project->update(['git_sync_status' => null, 'git_sync_error' => null]);
+            $response->setData([...$response->getData(true), 'remote' => self::remote($project)['remote']]);
+        }
+
+        return $response;
     }
 
     /**

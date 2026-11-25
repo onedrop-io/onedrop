@@ -325,6 +325,24 @@ test('pushing and pulling run in the background, one at a time', function () {
     Queue::assertPushed(SyncGitRemote::class, fn (SyncGitRemote $job) => $job->direction === GitSyncStatus::Pushing);
 })->group('GIT-004');
 
+test('a failed pull\'s message goes once Source Control changes the files, not before', function () {
+    $this->project->update([
+        'git_remote_url' => 'https://git.example.com/dev/timer.git',
+        'git_sync_status' => GitSyncStatus::Failed,
+        'git_sync_error' => 'Your uncommitted changes to index.html would be overwritten. Commit or discard them, then pull again.',
+    ]);
+
+    $this->postJson(route('projects.git.stage', $this->project), ['paths' => ['index.html']])->assertOk();
+    expect($this->project->fresh()->git_sync_error)->not->toBeNull();
+
+    $this->postJson(route('projects.git.commit', $this->project), ['message' => 'Make the button blue'])
+        ->assertOk()
+        ->assertJsonPath('remote.sync_status', null)
+        ->assertJsonPath('remote.sync_error', null);
+
+    expect($this->project->fresh()->only(['git_sync_status', 'git_sync_error']))->toBe(['git_sync_status' => null, 'git_sync_error' => null]);
+})->group('GIT-004');
+
 test('pulling waits while the agent is working, and needs a remote', function () {
     $this->postJson(route('projects.git.pull', $this->project))->assertUnprocessable();
 

@@ -1309,12 +1309,30 @@ function pulled(array $request): array
     if ($code !== 0) {
         throw new ToolError(match (true) {
             str_contains($error, 'Not possible to fast-forward') || str_contains($error, 'diverging') => 'This branch and the remote both have new commits. Ask the agent to merge them.',
-            str_contains($error, 'would be overwritten') => 'Your uncommitted changes to some of the same files would be overwritten. Commit or discard them, then pull again.',
+            str_contains($error, 'would be overwritten') => 'Your uncommitted changes to '.overwrittenFiles($error).' would be overwritten. Commit or discard them, then pull again.',
             default => 'Could not bring in the remote\'s changes: '.trim(preg_replace('/^(fatal|error): /m', '', $error)),
         });
     }
 
     return status();
+}
+
+/**
+ * The files git says a pull would overwrite (it lists each on its own tab-indented line), named so the user can find
+ * them: "a.php", "a.php and b.php", "a.php, b.php and 3 more files", or "some of the same files" when none are listed.
+ */
+function overwrittenFiles(string $error): string
+{
+    preg_match_all('/^\t(.+)$/m', $error, $matches);
+    $files = array_values(array_unique(array_map('trim', $matches[1])));
+
+    return match (true) {
+        $files === [] => 'some of the same files',
+        count($files) === 1 => $files[0],
+        count($files) === 2 => "{$files[0]} and {$files[1]}",
+        count($files) === 3 => "{$files[0]}, {$files[1]} and {$files[2]}",
+        default => "{$files[0]}, {$files[1]} and ".(count($files) - 2).' more files',
+    };
 }
 
 /**

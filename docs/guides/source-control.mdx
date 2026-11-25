@@ -191,6 +191,7 @@ Without the GitHub App, or for another git host (**Other git host**), connect wi
 
 - A push the remote refuses because it has newer commits says **Pull first**.
 - A pull only fast-forwards. If the project and the remote both have new commits, ask the agent to merge them.
+- A pull that would overwrite uncommitted changes, including new files the remote also adds, is refused and names those files. Commit or discard them, then pull again. The message goes away once you commit, discard or switch branches.
 - **Disconnect** in the **⋮** menu forgets the remote and its token. The repository itself is untouched.
 
 <Note>
