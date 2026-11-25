@@ -26,7 +26,12 @@ import {
 import http from 'node:http';
 import net from 'node:net';
 import { createInterface } from 'node:readline';
-import { crossSiteCookie, withoutFrameChecks } from './preview-frame.mjs';
+import {
+    UNPARTITIONED_MARK,
+    crossSiteCookie,
+    expiredPartitionedCookie,
+    withoutFrameChecks,
+} from './preview-frame.mjs';
 
 const appPort = Number(process.env.PORT || 8000);
 const listenPort = Number(process.env.PROXY_PORT || 8081);
@@ -332,9 +337,18 @@ function relay(req, res, response) {
         // Cookies the app sets must survive in the workspace's cross-site frame (see preview-frame.mjs). Not on a
         // local http address, where a Secure cookie isn't kept.
         if (headers['set-cookie'] && !isLocalHost(host)) {
+            const partitioned = !keepsUnpartitioned(req);
+
             headers['set-cookie'] = [headers['set-cookie']]
                 .flat()
-                .map(crossSiteCookie);
+                .flatMap((cookie) =>
+                    partitioned
+                        ? [crossSiteCookie(cookie)]
+                        : [
+                              expiredPartitionedCookie(cookie),
+                              crossSiteCookie(cookie, false),
+                          ],
+                );
         }
 
         if (
@@ -427,6 +441,13 @@ function record(file, entry) {
 /** Dev-server plumbing (Vite modules, HMR) isn't traffic worth counting. */
 function isInternal(url) {
     return /^\/(@|node_modules\/|__vite|src\/)/.test(url ?? '');
+}
+
+/** Whether the browser keeps unpartitioned cookies where this request comes from (see preview-frame.mjs). */
+function keepsUnpartitioned(req) {
+    return String(req.headers.cookie ?? '')
+        .split(';')
+        .some((cookie) => cookie.trim() === `${UNPARTITIONED_MARK}=1`);
 }
 
 /** A local Docker sandbox's address, reached over plain http. */
@@ -827,28 +848,45 @@ const lastErrors = new Map();
 
 // Added to preview pages. Reports to the proxy (for errors.log) and to the app builder around the preview.
 // Server errors (the page itself, or fetch/XHR answers) are already logged by the proxy, so they're only shown.
-// The app's own cookies, set from its scripts, made cross-site and partitioned like the ones from its server (see
-// preview-frame.mjs), so a sign-in library's session cookie survives in the workspace's frame. Runs before the
-// app's scripts: it's the first script on the page. Only over https, where a Secure cookie is kept.
+// The app's own cookies, set from its scripts, made cross-site like the ones from its server, and partitioned only
+// when the browser keeps nothing else in the frame (see preview-frame.mjs), so a sign-in library's session cookie
+// survives in the workspace's frame. Runs before the app's scripts: it's the first script on the page. Only over
+// https, where a Secure cookie is kept.
 const PREVIEW_COOKIES = `(() => {
     if (window.__onedropCookies || location.protocol !== 'https:') return;
     window.__onedropCookies = true;
     const crossSiteCookie = ${crossSiteCookie};
+    const expiredPartitionedCookie = ${expiredPartitionedCookie};
+    const mark = '${UNPARTITIONED_MARK}';
     const cookie = Object.getOwnPropertyDescriptor(Document.prototype, 'cookie');
     if (cookie && cookie.get && cookie.set) {
+        cookie.set.call(document, mark + '=1; Path=/; Max-Age=31536000; Secure; SameSite=None');
+        const partitioned = !cookie.get.call(document).split('; ').includes(mark + '=1');
         Object.defineProperty(document, 'cookie', {
             configurable: true,
             get() { return cookie.get.call(this); },
-            set(value) { cookie.set.call(this, crossSiteCookie(value)); },
+            set(value) {
+                if (!partitioned) cookie.set.call(this, expiredPartitionedCookie(value));
+                cookie.set.call(this, crossSiteCookie(value, partitioned));
+            },
         });
-    }
-    const store = window.cookieStore;
-    if (store && store.set && store.delete) {
-        const options = (name, value) => ({ ...(name && typeof name === 'object' ? name : { name, value }), sameSite: 'none', partitioned: true });
-        const set = store.set.bind(store);
-        const remove = store.delete.bind(store);
-        store.set = (name, value) => set(options(name, value));
-        store.delete = (name) => remove({ ...(name && typeof name === 'object' ? name : { name }), partitioned: true });
+        const store = window.cookieStore;
+        if (store && store.set && store.delete) {
+            const named = (name, value) => (name && typeof name === 'object' ? { ...name } : value === undefined ? { name } : { name, value });
+            const scope = (options) => Object.fromEntries(Object.entries(options).filter(([key, value]) => ['name', 'path', 'domain'].includes(key) && value !== undefined));
+            const set = store.set.bind(store);
+            const remove = store.delete.bind(store);
+            store.set = async (name, value) => {
+                const options = named(name, value);
+                if (!partitioned) await remove({ ...scope(options), partitioned: true }).catch(() => {});
+                return set({ ...options, sameSite: 'none', partitioned });
+            };
+            store.delete = async (name) => {
+                const options = scope(named(name));
+                await remove({ ...options, partitioned: true }).catch(() => {});
+                return remove({ ...options, partitioned: false });
+            };
+        }
     }
 })();
 `;

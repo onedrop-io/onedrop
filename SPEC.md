@@ -879,6 +879,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - On the hosted install, previews, shells and apps published to the domain should be served from onedrop.dev, not the app's onedrop.io, so sandboxed code is never on the app's site.
 - User should see the preview and shell inside the workspace even though they're on another site than the app, in browsers that block third-party cookies.
 - User should be able to sign in to their own app inside the preview (Clerk, Auth.js, a session cookie) and stay signed in, as in a tab of its own: the app's cookies, from its server and its scripts, should be kept in the workspace's cross-site frame.
+- User should stay signed in to their app in the preview however many other previews they have open, and a preview opened in a tab of its own should share the frame's sign-in, in browsers that allow third-party cookies.
 - Visitor should be able to follow an old onedrop.io preview, shell or published-app link and land at the same name and page on onedrop.dev.
 - Only a logged-in user allowed to see the project should get through, checked on every request (GW-001's hand-off and cookie); a copied link without that user's cookie should be refused.
 - The provider's preview token should never reach the browser: the Worker adds it to each request it forwards.

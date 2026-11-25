@@ -25,7 +25,8 @@ Run these against the provider you changed. Locally that's Docker; for Runtime C
 2. Sign in to each inside the preview, then reload the preview.
 
 - [ ] Both stay signed in after the reload, with no "no-token" or sign-in loop. Try Chrome with third-party cookies blocked, and Safari.
-- [ ] In the preview's DevTools (Application → Cookies), the app's cookies show `SameSite=None`, `Secure` and `Partitioned`.
+- [ ] In the preview's DevTools (Application → Cookies), the app's cookies show `SameSite=None` and `Secure`, not `Partitioned`, and there's an `__onedrop_unpartitioned` cookie. With third-party cookies blocked (Chrome settings), they show `Partitioned` too and there's no `__onedrop_unpartitioned`.
+- [ ] Open several other previews in the workspace first (each app's cookies count against Chrome's shared partitioned budget), then sign in to the Clerk app: it stays signed in after a reload, and opening the preview in a tab of its own shows it signed in too.
 - [ ] Signing out inside the preview signs out.
 - [ ] At the published URL, `curl -I` shows the app's `Set-Cookie` unchanged.
 

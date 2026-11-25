@@ -35,12 +35,23 @@ export function withoutFrameChecks(text) {
 
 // That rewrite also hides the frame from sign-in libraries that check it to pick their cookies' SameSite (Clerk's
 // `self !== top`), and the workspace is on another site than the preview (GW-002) anyway: there a Lax cookie is
-// dropped, and browsers that block third-party cookies keep only partitioned ones. So the app's own cookies, from
-// its server and from its scripts, are made cross-site and partitioned; the app signs in inside the frame as it
-// does in a tab. This function is also put into the preview's script as it is, so it uses nothing from outside.
+// dropped. So the app's own cookies, from its server and from its scripts, are made cross-site (SameSite=None;
+// Secure); the app signs in inside the frame as it does in a tab.
+//
+// Partitioned only when the browser keeps nothing else in the frame (third-party cookies blocked). Chrome gives
+// partitioned cookies about 10 KB per embedded site under each top-level site, and until onedrop.dev is on the
+// Public Suffix List every preview and shell is one site: a few previews of an app with analytics cookies fill it,
+// and Chrome then evicts the oldest, so a sign-in token set a moment ago is gone ("no-token"). Unpartitioned
+// cookies have no such shared budget, and a preview opened in a tab of its own shares them. The preview's first
+// script tries an unpartitioned cookie (UNPARTITIONED_MARK) and keeps it when it sticks; the proxy reads it from
+// later requests. When the app's cookies are unpartitioned, a partitioned copy left from before is deleted too.
+// These functions are also put into the preview's script as they are, so they use nothing from outside.
 
-/** A Set-Cookie value (or a `document.cookie` assignment) as a cross-site, partitioned cookie. */
-export function crossSiteCookie(cookie) {
+/** A cookie the preview keeps when the browser stores unpartitioned cookies in the workspace's frame. */
+export const UNPARTITIONED_MARK = '__onedrop_unpartitioned';
+
+/** A Set-Cookie value (or a `document.cookie` assignment) as a cross-site cookie, partitioned or not. */
+export function crossSiteCookie(cookie, partitioned = true) {
     const [pair, ...attributes] = String(cookie).split(';');
     const kept = attributes
         .map((attribute) => attribute.trim())
@@ -53,6 +64,23 @@ export function crossSiteCookie(cookie) {
     return [
         pair.trim(),
         ...kept,
+        'Secure',
+        'SameSite=None',
+        ...(partitioned ? ['Partitioned'] : []),
+    ].join('; ');
+}
+
+/** A Set-Cookie value (or a `document.cookie` assignment) deleting the cookie's partitioned copy. */
+export function expiredPartitionedCookie(cookie) {
+    const [pair, ...attributes] = String(cookie).split(';');
+    const scope = attributes
+        .map((attribute) => attribute.trim())
+        .filter((attribute) => /^(path|domain)\s*=/i.test(attribute));
+
+    return [
+        `${pair.split('=')[0].trim()}=`,
+        ...scope,
+        'Expires=Thu, 01 Jan 1970 00:00:00 GMT',
         'Secure',
         'SameSite=None',
         'Partitioned',
