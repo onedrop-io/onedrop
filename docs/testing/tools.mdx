@@ -129,6 +129,7 @@ On production (Flex queue), with GitHub connected through the GitHub App:
 - [ ] A repository connected with a token (e.g. GitLab) still pushes and pulls.
 - [ ] Edit a file the remote has also changed, then **Pull**: it's refused and names that file. Commit it: the red message goes at once.
 - [ ] On a pull request's task page, Source Control lists the task's copy; **Push** sends its commits to the pull request (the task bar says Pushing…), and Main's branch is untouched.
+- [ ] On a task without a pull request, commit in Source Control and **Push**: GitHub gets `onedrop/task-<id>-<title>`, the copy's branch takes that name and shows Up to date, and the chat says Pushed. Push a commit to that branch on GitHub, then **Pull**: the copy has it. Switch the copy to the default branch and Push: refused.
 
 ## Agent Skills
 

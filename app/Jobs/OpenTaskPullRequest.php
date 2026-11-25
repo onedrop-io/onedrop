@@ -92,11 +92,13 @@ class OpenTaskPullRequest implements ShouldQueue
     {
         $task = $this->task;
         $project = $task->project;
-        // Pushed before: newer work goes to the same branch.
-        $branch = $task->pull_request_branch ?? self::branch($task);
+        $branch = self::branch($task);
 
         try {
             $base = $pulls->defaultBranch($project);
+            // Pushed before (or on a branch the user picked): newer work goes to the same branch, never the base.
+            $pushed = $task->pull_request_branch ?? rescue(fn () => $copies->remoteBranch($task), $branch, report: false);
+            $branch = in_array($pushed, [$base, 'main', 'master'], true) ? $branch : $pushed;
             $sha = $copies->pushBranch($task, $branch, $task->title);
         } catch (GitException|SandboxException $e) {
             $task->update(['sync_status' => null, 'sync_error' => $e->getMessage()]);

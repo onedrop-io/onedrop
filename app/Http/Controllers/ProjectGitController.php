@@ -486,15 +486,12 @@ class ProjectGitController extends Controller
     }
 
     /**
-     * On a task's page, Push and Pull are the task's: through its pull request (GIT-014), never Main's branch.
+     * On a task's page, Push and Pull are the task's, never Main's branch: through its pull request (GIT-014), or
+     * without one its copy's own branch (TASK-003).
      */
     protected function syncTask(Project $project, Task $task, TaskSyncStatus $direction): JsonResponse
     {
         Gate::authorize('update', $project);
-
-        if (! $task->isPullRequest()) {
-            return response()->json(['message' => __('A task pushes and pulls through its pull request. Open one from the task\'s bar first.')], 422);
-        }
 
         if (($problem = SyncPullRequestTask::start($task, $direction)) !== null) {
             return response()->json(['message' => $problem], 409);

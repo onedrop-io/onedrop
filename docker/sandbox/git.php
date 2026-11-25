@@ -1205,6 +1205,24 @@ function switchBranch(array $request): array
 }
 
 /**
+ * Rename the current branch (a task's copy takes its readable name on GitHub before its first push).
+ */
+function renameBranch(array $request): array
+{
+    $branch = validBranch($request['branch'] ?? null);
+
+    if (currentBranch() !== $branch) {
+        [$code, , $error] = git(['branch', '-m', $branch]);
+
+        if ($code !== 0) {
+            throw new ToolError(trim(preg_replace('/^(fatal|error): /m', '', $error)) ?: 'Git failed.');
+        }
+    }
+
+    return status();
+}
+
+/**
  * The branches the platform last pushed or fetched from the remote (refs/remotes/origin), by name.
  *
  * @return list<string>
@@ -1529,6 +1547,7 @@ try {
         'undo_commit' => undoCommit($request),
         'discard' => discard($request),
         'switch' => switchBranch($request),
+        'rename_branch' => renameBranch($request),
         'restore' => restore($request),
         'checkpoints' => checkpoints($request),
         'restore_checkpoint' => restoreCheckpoint($request),

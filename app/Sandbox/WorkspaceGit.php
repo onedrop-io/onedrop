@@ -240,6 +240,18 @@ class WorkspaceGit
     }
 
     /**
+     * Rename the current branch; returns the status.
+     *
+     * @return array<string, mixed>
+     *
+     * @throws SandboxException|GitException
+     */
+    public function renameBranch(Sandbox $sandbox, string $branch): array
+    {
+        return $this->call($sandbox, ['op' => 'rename_branch', 'branch' => $branch]);
+    }
+
+    /**
      * @return array<string, mixed>
      *
      * @throws SandboxException|GitException

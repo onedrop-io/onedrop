@@ -20,6 +20,8 @@ use App\Sandbox\Agents\AgentQueue;
 use App\Sandbox\Agents\AgentRunner;
 use App\Sandbox\Agents\FakeAgentRunner;
 use App\Sandbox\ExecResult;
+use App\Sandbox\GitException;
+use App\Sandbox\GitRemote;
 use App\Sandbox\Providers\FakeSandboxProvider;
 use App\Sandbox\SandboxProvider;
 use App\Sandbox\TaskCopies;
@@ -359,14 +361,58 @@ test("on a task's page, Source Control acts on the task's copy, and Push and Pul
     Queue::assertPushed(SyncPullRequestTask::class, fn (SyncPullRequestTask $job) => $job->task->is($task) && $job->direction === TaskSyncStatus::Pushing);
     Queue::assertNotPushed(SyncGitRemote::class);
 
-    // A task without a pull request has nothing of its own to push to.
+    // A task without a pull request pulls its copy's own branch, still never Main's.
     $other = Task::factory()->for($this->project)->create();
     $other->sandbox()->create(['provider' => 'fake', 'external_id' => 'copy-2', 'status' => SandboxStatus::Running]);
 
     $this->postJson(route('projects.git.pull', $this->project), [], ['referer' => route('projects.tasks.show', [$this->project, $other])])
-        ->assertUnprocessable();
+        ->assertOk()
+        ->assertJsonPath('remote.sync_status', 'pulling');
+    Queue::assertPushed(SyncPullRequestTask::class, fn (SyncPullRequestTask $job) => $job->task->is($other) && $job->direction === TaskSyncStatus::Pulling);
     Queue::assertNotPushed(SyncGitRemote::class);
 })->group('TASK-003', 'GIT-004', 'GIT-014');
+
+test("a task without a pull request pushes its copy's branch under a readable name, and never to the default branch", function () {
+    $this->project->update(['git_remote_url' => 'https://github.com/dev/timer.git']);
+    $task = Task::factory()->for($this->project)->create(['title' => 'Dark mode']);
+    $copy = $task->sandbox()->create(['provider' => 'fake', 'external_id' => 'copy-1', 'status' => SandboxStatus::Running]);
+    $this->branch = "task-{$task->id}";
+    $this->gitOps = [];
+    $this->provider->execUsing = function (array $command, array $env) {
+        if (! isset($env['APP_GIT_REQUEST'])) {
+            return new ExecResult(0, '');
+        }
+
+        $request = json_decode($env['APP_GIT_REQUEST'], true);
+        $this->gitOps[] = $request;
+
+        return new ExecResult(0, json_encode(['ok' => true, 'data' => ['initialized' => true, 'branch' => $this->branch, 'branches' => [$this->branch], 'head' => str_repeat('a', 40), 'staged' => [], 'changes' => [], 'more_changes' => false, 'tracking' => null, 'state' => null]]));
+    };
+    $readable = "onedrop/task-{$task->id}-dark-mode";
+
+    $remote = Mockery::mock(GitRemote::class);
+    $remote->shouldReceive('remoteDefaultBranch')->andReturn('2.x');
+    $remote->shouldReceive('pushBundle')->once()->with(Mockery::type(Project::class), Mockery::type('string'), $readable)->andReturn(str_repeat('b', 40));
+    $remote->shouldReceive('pull')->once()->with(Mockery::type(Project::class), 'feature', Mockery::on(fn ($sandbox) => $sandbox->is($copy)));
+    app()->instance(GitRemote::class, $remote);
+    $copies = app(TaskCopies::class);
+
+    expect($copies->pushTaskBranch($task))->toBe(['branch' => $readable, 'sha' => str_repeat('b', 40)])
+        ->and(collect($this->gitOps)->whereIn('op', ['rename_branch', 'pushed'])->values()->all())->toBe([
+            ['op' => 'rename_branch', 'branch' => $readable],
+            ['op' => 'pushed', 'branch' => $readable, 'sha' => str_repeat('b', 40)],
+        ]);
+
+    // A branch the user picked keeps its name, both ways.
+    $this->branch = 'feature';
+    expect($copies->pullTaskBranch($task))->toBe('feature');
+
+    // The repository's default branch is never pushed to from a task.
+    foreach (['2.x', 'main'] as $default) {
+        $this->branch = $default;
+        expect(fn () => $copies->pushTaskBranch($task))->toThrow(GitException::class, "A task doesn't push to {$default}, the repository's default branch.");
+    }
+})->group('TASK-003');
 
 test("applying merges the task into Main, hands the rest to Main's agent, and removes the copy", function () {
     Queue::fake();

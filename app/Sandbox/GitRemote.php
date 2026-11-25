@@ -299,13 +299,18 @@ class GitRemote
     /**
      * Bring the remote's new commits on the current branch into the sandbox (fast-forward only), with every other
      * branch and tag as it is on the remote (GIT-021). A project with no commits yet gets $branch (or its current one)
-     * from the remote: an import.
+     * from the remote: an import. With $into (a task's copy, TASK-003), $branch is brought into that sandbox instead.
      *
      * @throws SandboxException|GitException
      */
-    public function pull(Project $project, ?string $branch = null): void
+    public function pull(Project $project, ?string $branch = null, ?Sandbox $into = null): void
     {
-        [$sandbox, $branch] = $this->prepare($project, importing: true, importBranch: $branch);
+        if ($into !== null && $branch !== null) {
+            $this->checkRemote($project);
+            $sandbox = $into;
+        } else {
+            [$sandbox, $branch] = $this->prepare($project, importing: true, importBranch: $branch);
+        }
 
         $directory = storage_path('framework/git-pull-'.uniqid());
         File::ensureDirectoryExists("{$directory}/out");
@@ -436,6 +441,21 @@ class GitRemote
         } finally {
             File::deleteDirectory($work);
         }
+    }
+
+    /**
+     * The default branch of the project's remote, asked with its token; null when it can't be told.
+     */
+    public function remoteDefaultBranch(Project $project): ?string
+    {
+        try {
+            $this->checkRemote($project);
+            $output = $this->run($project, ['git', 'ls-remote', '--symref', (string) $project->git_remote_url, 'HEAD'], sys_get_temp_dir(), remote: true);
+        } catch (GitException) {
+            return null;
+        }
+
+        return preg_match('#^ref: refs/heads/(\S+)\s+HEAD#m', $output, $match) ? $match[1] : null;
     }
 
     /**

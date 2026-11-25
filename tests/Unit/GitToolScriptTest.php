@@ -272,6 +272,19 @@ test('restoring an earlier version is a new commit, with what was uncommitted ke
         ->and(($this->tool)(['op' => 'restore', 'sha' => str_repeat('a', 40)])['error'])->toBe("That version isn't in this project's history.");
 })->group('GIT-003');
 
+test('the current branch can be renamed, keeping its commits', function () {
+    ($this->write)('a.txt', 'a');
+    ($this->data)(['op' => 'commit', 'message' => 'First']);
+    ($this->data)(['op' => 'switch', 'branch' => 'task-7', 'create' => true]);
+
+    $status = ($this->data)(['op' => 'rename_branch', 'branch' => 'onedrop/task-7-dark-mode']);
+
+    expect($status['branch'])->toBe('onedrop/task-7-dark-mode')
+        ->and($status['branches'])->not->toContain('task-7')
+        ->and(($this->git)('log', '--format=%s'))->toBe('First')
+        ->and(($this->tool)(['op' => 'rename_branch', 'branch' => 'bad name'])['error'])->not->toBeNull();
+})->group('TASK-003');
+
 test('a pull refused for uncommitted changes names the files in the way', function () {
     ($this->write)('a.txt', 'a');
     ($this->write)('b.txt', 'b');

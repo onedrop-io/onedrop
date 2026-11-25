@@ -41,7 +41,11 @@ The task is named after your first message. Rename it from the **⌄** menu next
 
 Switching between Main and tasks keeps the workspace where it was: if you had the **Database** tool open, the next task opens on its Database tool too, showing that task's own copy. The page's address includes the tab and tool (for example `?tab=tools&tool=database`), so reloading or sharing the link opens the same view.
 
-On a task's page, **Source Control** shows and changes the task's own copy. Its **Push** and **Pull** go through the task's [pull request](/guides/pull-requests), like the buttons on the task's bar; a task without one has nothing to push to until you **Open pull request**.
+On a task's page, **Source Control** shows and changes the task's own copy. Its **Push** and **Pull** are the task's too:
+
+- A task with a [pull request](/guides/pull-requests) pushes to and pulls from it, like the buttons on the task's bar.
+- Any other task pushes its committed work to a branch of its own on your repository and pulls from it. A copy still on the branch it started on gets a readable name on its first push, such as `onedrop/task-12-dark-mode`; if you switched the copy to another branch, that branch is used. **Open pull request** later reuses the same branch.
+- A task never pushes to your repository's default branch. Its work gets there through a pull request or **Apply**.
 
 While a task's agent works, you can keep messaging it (messages wait in that task's queue), switch to another task, or go back to the main chat. **Stop** in a task's chat stops only that task's agent.
 

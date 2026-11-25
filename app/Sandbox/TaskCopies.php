@@ -4,6 +4,7 @@ namespace App\Sandbox;
 
 use App\Enums\SandboxStatus;
 use App\Jobs\CreateSandbox;
+use App\Jobs\OpenTaskPullRequest;
 use App\Models\Project;
 use App\Models\Sandbox;
 use App\Models\Task;
@@ -38,6 +39,7 @@ class TaskCopies
         protected ProjectSnapshots $snapshots,
         protected SandboxTools $tools,
         protected GitRemote $remote,
+        protected WorkspaceGit $git,
     ) {}
 
     /**
@@ -280,6 +282,87 @@ class TaskCopies
             File::deleteDirectory($local);
             $this->clearUp($copy, $dir);
         }
+    }
+
+    /**
+     * The branch on the remote a task's copy pushes to and pulls from without a pull request (TASK-003): its pull
+     * request's branch once it has one, the copy's own branch when the user picked one, or, for the branch every copy
+     * starts on (`task-<id>`), the readable name Open pull request uses (GIT-024).
+     *
+     * @throws SandboxException|GitException
+     */
+    public function remoteBranch(Task $task): string
+    {
+        if ($task->pull_request_branch !== null) {
+            return $task->pull_request_branch;
+        }
+
+        $current = $this->git->status($this->copySandbox($task))['branch'];
+
+        return match ($current) {
+            null => throw new GitException(__('Switch the task\'s copy to a branch first.')),
+            self::branch($task) => OpenTaskPullRequest::branch($task),
+            default => $current,
+        };
+    }
+
+    /**
+     * Push the commits on a task's copy's branch to its branch on the remote (remoteBranch), never forcing and never to
+     * the repository's default branch. Uncommitted changes stay behind, as with Main's Push. The copy's own `task-<id>`
+     * branch takes the remote branch's name first, so the copy tracks it. Returns the branch and the pushed commit.
+     *
+     * @return array{branch: string, sha: string}
+     *
+     * @throws SandboxException|GitException
+     */
+    public function pushTaskBranch(Task $task): array
+    {
+        $copy = $this->copySandbox($task);
+        $status = $this->git->status($copy);
+
+        if ($status['head'] === null) {
+            throw new GitException(__('Commit something first.'));
+        }
+
+        $branch = $this->remoteBranch($task);
+
+        if (in_array($branch, ['main', 'master'], true) || $branch === $this->remote->remoteDefaultBranch($task->project)) {
+            throw new GitException(__('A task doesn\'t push to :branch, the repository\'s default branch. Switch its copy to another branch, or open a pull request.', ['branch' => $branch]));
+        }
+
+        if ($status['branch'] !== $branch) {
+            $this->git->renameBranch($copy, $branch);
+        }
+
+        $dir = '/tmp/onedrop-bundle-'.Str::lower(Str::random(8));
+        $local = storage_path('framework/task-bundle-'.uniqid());
+
+        try {
+            $this->run($copy, ['bash', '-c', 'mkdir -p "$1" && cd "${ONEDROP_WORKSPACE:-/workspace}" && git -c safe.directory="*" bundle create -q "$1/branch.bundle" HEAD', 'bundle', $dir]);
+            File::ensureDirectoryExists($local);
+            $this->provider->copyOut($copy->external_id, $dir, $local);
+            $sha = $this->remote->pushBundle($task->project, "{$local}/branch.bundle", $branch);
+        } finally {
+            File::deleteDirectory($local);
+            $this->clearUp($copy, $dir);
+        }
+
+        $this->git->pushed($copy, $branch, $sha);
+
+        return ['branch' => $branch, 'sha' => $sha];
+    }
+
+    /**
+     * Fast-forward a task's copy to its branch on the remote (remoteBranch), like Main's Pull. Returns the branch.
+     *
+     * @throws SandboxException|GitException
+     */
+    public function pullTaskBranch(Task $task): string
+    {
+        $branch = $this->remoteBranch($task);
+        $this->remote->pull($task->project, $branch, $this->copySandbox($task));
+
+        return $branch;
     }
 
     /**

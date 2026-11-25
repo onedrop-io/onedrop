@@ -17,7 +17,8 @@ use Throwable;
 
 /**
  * Push a pull request's task to its branch on GitHub, or bring in commits pushed there since (GIT-014). After a
- * push that sent something new, the checks are watched (GIT-015).
+ * push that sent something new, the checks are watched (GIT-015). A task without a pull request pushes its copy's
+ * branch and fast-forwards from it instead, like Main's Push and Pull (TASK-003).
  */
 #[DeleteWhenMissingModels]
 class SyncPullRequestTask implements ShouldQueue
@@ -37,8 +38,8 @@ class SyncPullRequestTask implements ShouldQueue
     {
         $copy = $task->sandbox()->first();
 
-        if (! $task->isPullRequest()) {
-            return __('This task isn\'t a pull request.');
+        if ($task->project->git_remote_url === null) {
+            return __('Connect a remote repository first.');
         }
 
         if ($task->pull_request_state !== null) {
@@ -89,6 +90,12 @@ class SyncPullRequestTask implements ShouldQueue
         $task = $this->task;
         $number = $task->pull_request_number;
 
+        if (! $task->isPullRequest()) {
+            $this->syncBranch($task, $copies);
+
+            return;
+        }
+
         try {
             if ($this->direction === TaskSyncStatus::Pulling) {
                 ['sha' => $sha, 'merged' => $merged, 'conflicts' => $conflicts] = $copies->pullPullRequest($task);
@@ -127,6 +134,32 @@ class SyncPullRequestTask implements ShouldQueue
             UpdatePullRequestPreview::for($task);
             WatchPullRequestChecks::dispatch($task, $sha)->delay(now()->addSeconds(WatchPullRequestChecks::INTERVAL));
         }
+    }
+
+    /**
+     * Push the copy's branch, or fast-forward it from the remote, saying how it went in the task's chat.
+     */
+    protected function syncBranch(Task $task, TaskCopies $copies): void
+    {
+        try {
+            if ($this->direction === TaskSyncStatus::Pulling) {
+                $branch = $copies->pullTaskBranch($task);
+                $task->update(['sync_status' => null, 'sync_error' => null]);
+                $task->messages()->create(['role' => MessageRole::Activity, 'content' => "Pulled {$branch}"]);
+
+                return;
+            }
+
+            ['branch' => $branch, 'sha' => $sha] = $copies->pushTaskBranch($task);
+        } catch (GitException|SandboxException $e) {
+            $task->update(['sync_status' => null, 'sync_error' => $e->getMessage()]);
+            $task->messages()->create(['role' => MessageRole::Activity, 'content' => ($this->direction === TaskSyncStatus::Pulling ? "Couldn't pull: " : "Couldn't push: ").$e->getMessage()]);
+
+            return;
+        }
+
+        $task->update(['sync_status' => null, 'sync_error' => null]);
+        $task->messages()->create(['role' => MessageRole::Activity, 'content' => "Pushed {$branch} (".substr($sha, 0, 7).')']);
     }
 
     /**
