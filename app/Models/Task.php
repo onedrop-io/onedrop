@@ -7,6 +7,7 @@ use App\Enums\MessageRole;
 use App\Enums\ProjectStatus;
 use App\Enums\SandboxStatus;
 use App\Enums\TaskStage;
+use App\Enums\TaskStart;
 use App\Enums\TaskSyncStatus;
 use App\Enums\TurnOutcome;
 use App\Jobs\DestroySandbox;
@@ -60,11 +61,15 @@ use Illuminate\Support\Str;
  * @property int|null $preview_comment_id The pull request comment kept up to date with the preview (GIT-028).
  * @property string|null $preview_error Why GitHub last refused the Deployment or comment.
  * @property array{title: string, body: string, url: string}|null $pull_request_draft A pull request being opened from the task (GIT-024): its pushed branch's text and GitHub link.
+ * @property TaskStart|null $start_from Where its copy of the app starts (TASK-005); null, from before, is Main.
+ * @property string|null $start_branch The remote branch a fresh clone starts from; null is the remote's default branch.
+ * @property int|null $start_task_id The task whose copy it copies.
+ * @property string|null $branch The branch its copy works on, once it has one.
  * @property string|null $last_reply_at From withLastReply().
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['title', 'description', 'stage', 'position', 'status', 'agent_session_id', 'sign_in_retry_message_id', 'events_token_hash', 'base_commit', 'sync_status', 'sync_error', 'applied_at', 'read_at', 'turn_outcome', 'pull_request_number', 'pull_request_branch', 'pull_request_base', 'pull_request_fork', 'pull_request_push', 'pull_request_autofix', 'pull_request_fix_attempts', 'pull_request_head_sha', 'pull_request_checks', 'pull_request_state', 'pull_request_draft', 'preview_key', 'preview_deployment_id', 'preview_deployment_sha', 'preview_comment_id', 'preview_error'])]
+#[Fillable(['title', 'description', 'stage', 'position', 'status', 'agent_session_id', 'sign_in_retry_message_id', 'events_token_hash', 'base_commit', 'sync_status', 'sync_error', 'applied_at', 'read_at', 'turn_outcome', 'pull_request_number', 'pull_request_branch', 'pull_request_base', 'pull_request_fork', 'pull_request_push', 'pull_request_autofix', 'pull_request_fix_attempts', 'pull_request_head_sha', 'pull_request_checks', 'pull_request_state', 'pull_request_draft', 'preview_key', 'preview_deployment_id', 'preview_deployment_sha', 'preview_comment_id', 'preview_error', 'start_from', 'start_branch', 'start_task_id', 'branch'])]
 #[Hidden(['events_token_hash', 'preview_key'])]
 class Task extends Model implements Conversation
 {
@@ -101,6 +106,8 @@ class Task extends Model implements Conversation
             'pull_request_draft' => 'array',
             'preview_deployment_id' => 'integer',
             'preview_comment_id' => 'integer',
+            'start_from' => TaskStart::class,
+            'start_task_id' => 'integer',
         ];
     }
 
@@ -149,6 +156,39 @@ class Task extends Model implements Conversation
     public function sandbox(): HasOne
     {
         return $this->hasOne(Sandbox::class);
+    }
+
+    /**
+     * The task whose copy this one's starts from (TASK-005).
+     *
+     * @return BelongsTo<Task, $this>
+     */
+    public function startTask(): BelongsTo
+    {
+        return $this->belongsTo(Task::class, 'start_task_id');
+    }
+
+    /**
+     * Where its next copy of the app comes from. After its work was applied, Main has it, so Main again (TASK-003). A
+     * pull request's task is checked out from its pull request instead (GIT-014).
+     */
+    public function startsFrom(): TaskStart
+    {
+        return $this->applied_at === null && $this->start_from !== null ? $this->start_from : TaskStart::Main;
+    }
+
+    /**
+     * Another open task of the project working on $branch (its copy's, or its pull request's), so a new task gets a
+     * branch of its own off it rather than two copies pushing to one branch (TASK-005).
+     */
+    public static function usingBranch(Project $project, string $branch, ?int $except = null): ?self
+    {
+        return $project->tasks()
+            ->where('stage', '!=', TaskStage::Done)
+            ->whereNull('pull_request_state')
+            ->when($except, fn (Builder $query) => $query->whereKeyNot($except))
+            ->where(fn (Builder $query) => $query->where('branch', $branch)->orWhere('pull_request_branch', $branch))
+            ->first();
     }
 
     /**

@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Enums\MessageRole;
 use App\Enums\SandboxStatus;
+use App\Enums\TaskStart;
 use App\Enums\TaskSyncStatus;
 use App\Models\Task;
 use App\Sandbox\Agents\AgentQueue;
@@ -16,8 +17,9 @@ use Illuminate\Queue\MaxAttemptsExceededException;
 use Illuminate\Support\Arr;
 
 /**
- * Make a task's own copy of the app from Main's sandbox before its first run (TASK-003), or for a pull request's task a
- * fresh sandbox with the pull request's branch (GIT-014). Chained before
+ * Make a task's own copy of the app before its first run (TASK-003): a fresh sandbox with a branch of the remote, or a
+ * copy of Main's or another task's (TASK-005); for a pull request's task, a fresh sandbox with the pull request's branch
+ * (GIT-014). Chained before
  * RunAgentTask; if the copy can't be made, the chain stops and the task's chat says why. A pull request's task
  * (GIT-014) is switched to the pull request's branch; checked out without a message ($checkOutOnly), the task
  * shows as working while its copy is made, so messages sent meanwhile wait for it, then it goes idle.
@@ -44,14 +46,25 @@ class ForkTaskSandbox implements ShouldQueue
     {
         $task = $this->task;
         $task->update(['sync_status' => TaskSyncStatus::Forking, 'sync_error' => null]);
-        $task->messages()->create(['role' => MessageRole::Activity, 'content' => $task->isPullRequest()
-            ? "Checking out #{$task->pull_request_number} ({$task->pull_request_branch}) in a fresh sandbox for this task"
-            : 'Making a copy of the app for this task']);
+        $start = $task->isPullRequest() ? null : $task->startsFrom();
+        $task->messages()->create(['role' => MessageRole::Activity, 'content' => match ($start) {
+            null => "Checking out #{$task->pull_request_number} ({$task->pull_request_branch}) in a fresh sandbox for this task",
+            TaskStart::Branch => 'Checking out '.($task->start_branch ?? "the repository's default branch").' in a fresh sandbox for this task',
+            TaskStart::Task => 'Making a copy of "'.($task->startTask?->title ?? 'another task').'" for this task',
+            TaskStart::Main => 'Making a copy of the app for this task',
+        }]);
         UpdatePullRequestPreview::for($task);
 
         try {
-            // A pull request's task starts fresh from the pull request's branch; any other task gets Main's copy.
-            $shared = $task->isPullRequest() ? $copies->checkOutFresh($task) : $copies->fork($task);
+            // A pull request's task starts fresh from the pull request's branch; any other task where it was told to.
+            $shared = match ($start) {
+                null => $copies->checkOutFresh($task),
+                TaskStart::Branch => $copies->checkOutBranch($task),
+                TaskStart::Task => $task->startTask
+                    ? $copies->fork($task, $task->startTask)
+                    : throw new SandboxException(__('The task this one starts from was deleted.')),
+                TaskStart::Main => $copies->fork($task),
+            };
         } catch (SandboxException $e) {
             report($e);
             $task->sandbox()->update(['status' => SandboxStatus::Failed, 'error' => $e->getMessage()]);
@@ -74,6 +87,13 @@ class ForkTaskSandbox implements ShouldQueue
             WatchPullRequestChecks::dispatch($task, (string) $task->pull_request_head_sha);
             // Its preview is running (GIT-028).
             UpdatePullRequestPreview::for($task);
+        }
+
+        if ($start === TaskStart::Branch) {
+            $task->refresh();
+            $task->messages()->create(['role' => MessageRole::Activity, 'content' => $task->branch === $task->start_branch
+                ? "Working on {$task->branch}"
+                : "Working on {$task->branch}, a new branch off {$task->start_branch}"]);
         }
 
         if ($shared !== []) {

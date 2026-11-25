@@ -5,9 +5,19 @@ description: 'Run several agents on one project at once, each on its own task, a
 
 A project's main chat runs one agent at a time. When you want several things done at once, such as a dark mode, a CSV export and a new settings page, start each one as a **task**. Every task gets a fresh agent with its own chat and its own copy of the app, and all of them work at the same time.
 
+## Where a new task starts
+
+Under **Start from** in a new task's chat, pick where its copy of the app comes from:
+
+- **A branch of your repository** (the default when the project is connected to one). The task gets a fresh clone: the branch's latest code in a new sandbox, with nothing from Main, and your app sets itself up the way it does after an import. Its databases start empty. The repository's default branch is picked unless you choose another.
+- **Main.** A copy of Main's sandbox as it is now, including changes you haven't committed and its data.
+- **Another task.** A copy of that task's sandbox the same way.
+
+A task started from a branch works on that branch, so its **Push** continues it. It gets a new branch of its own off it instead, named like `onedrop/task-12-dark-mode`, when you picked the repository's default branch or another open task already works on that branch; the picker says so before you start, and the task's chat says which branch it works on.
+
 ## Each task's own copy of the app
 
-When a task starts, OneDrop copies Main's sandbox for it: the code, installed packages, and any databases, caches or uploaded files kept in the sandbox. It works for any stack, since everything is copied as it was at one instant, the way a database expects after a power cut. Main keeps running while it's copied; its processes, and any Docker containers it runs, pause for about a second. If your app runs on Docker Compose, the images Main built for it come along too, so the task's copy doesn't build them again. Images from a registry, like `postgres` or `redis`, are downloaded again in the copy.
+When a task starts from Main (or another task), OneDrop copies that sandbox for it: the code, installed packages, and any databases, caches or uploaded files kept in the sandbox. It works for any stack, since everything is copied as it was at one instant, the way a database expects after a power cut. Main keeps running while it's copied; its processes, and any Docker containers it runs, pause for about a second. If your app runs on Docker Compose, the images Main built for it come along too, so the task's copy doesn't build them again. Images from a registry, like `postgres` or `redis`, are downloaded again in the copy.
 
 The task's page shows its copy: its own preview, files, console, shell and tools. Nothing you or its agent change there touches Main until you apply it.
 

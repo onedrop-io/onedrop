@@ -401,6 +401,7 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
         Route::delete('projects/{project}/messages/{message}', [ProjectMessageController::class, 'destroy'])->name('projects.messages.destroy');
         Route::get('projects/{project}/board', [TaskController::class, 'index'])->name('projects.board');
         Route::get('projects/{project}/tasks/new', [TaskController::class, 'create'])->name('projects.tasks.create');
+        Route::get('projects/{project}/tasks/start-points', [TaskController::class, 'startPoints'])->name('projects.tasks.start-points');
         Route::post('projects/{project}/tasks', [TaskController::class, 'store'])->name('projects.tasks.store');
         Route::get('projects/{project}/tasks/{task}', [TaskController::class, 'show'])->scopeBindings()->name('projects.tasks.show');
         Route::patch('projects/{project}/tasks/{task}', [TaskController::class, 'update'])->scopeBindings()->name('projects.tasks.update');

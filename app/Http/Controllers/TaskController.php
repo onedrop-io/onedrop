@@ -6,6 +6,7 @@ use App\Concerns\RendersWorkspace;
 use App\Enums\ProjectStatus;
 use App\Enums\SandboxStatus;
 use App\Enums\TaskStage;
+use App\Enums\TaskStart;
 use App\Enums\TaskSyncStatus;
 use App\Jobs\CheckTurnOutcome;
 use App\Jobs\OpenTaskPullRequest;
@@ -18,8 +19,10 @@ use App\Models\Project;
 use App\Models\Task;
 use App\Sandbox\Agents\AgentQueue;
 use App\Sandbox\GitException;
+use App\Sandbox\GitRemote;
 use App\Sandbox\PullRequestCheckouts;
 use App\Sandbox\PullRequestFixes;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -36,6 +39,9 @@ use Inertia\Response;
 class TaskController extends Controller
 {
     use RendersWorkspace;
+
+    /** The branch names the sandbox's git tool accepts (BRANCH_PATTERN in docker/sandbox/git.php). */
+    public const BRANCH_PATTERN = '/^(?!-)(?!.*\.\.)(?!.*\/\/)(?!.*@\{)[A-Za-z0-9._\/-]{1,100}(?<!\.lock)(?<![\/.])$/';
 
     /**
      * The project's board: every task, by column.
@@ -88,9 +94,20 @@ class TaskController extends Controller
             'content' => ['nullable', 'string', 'max:5000'],
             'attachments' => ['nullable', 'array', 'max:'.Attachment::MAX_FILES],
             'attachments.*' => ['file', 'max:'.Attachment::MAX_KILOBYTES],
+            // Where its copy of the app starts (TASK-005); without one, a fresh clone of the remote's default branch.
+            'start_from' => ['nullable', Rule::enum(TaskStart::class)],
+            'start_branch' => ['nullable', 'string', 'max:100', 'regex:'.self::BRANCH_PATTERN],
+            'start_task_id' => ['nullable', 'required_if:start_from,task', Rule::exists('tasks', 'id')->where('project_id', $project->id)],
         ], [
             'title.required_without_all' => __('Give the task a title.'),
+            'start_task_id.required_if' => __('Pick the task to copy.'),
         ]);
+
+        $start = TaskStart::tryFrom($validated['start_from'] ?? '') ?? ($project->git_remote_url !== null ? TaskStart::Branch : TaskStart::Main);
+
+        if ($start === TaskStart::Branch && $project->git_remote_url === null) {
+            throw ValidationException::withMessages(['start_from' => __('Connect a remote repository to start a task from one of its branches.')]);
+        }
 
         $content = trim($validated['content'] ?? '');
         $attachments = array_values(Arr::wrap($request->file('attachments')));
@@ -106,6 +123,9 @@ class TaskController extends Controller
             'description' => $validated['description'] ?? null,
             'stage' => TaskStage::Todo,
             'position' => $project->nextTaskPosition(TaskStage::Todo),
+            'start_from' => $start,
+            'start_branch' => $start === TaskStart::Branch ? ($validated['start_branch'] ?? null) : null,
+            'start_task_id' => $start === TaskStart::Task ? $validated['start_task_id'] : null,
         ]);
 
         if (! $starting) {
@@ -115,6 +135,50 @@ class TaskController extends Controller
         $queue->send($task, $content, attachments: $attachments);
 
         return to_route('projects.tasks.show', [$project, $task]);
+    }
+
+    /**
+     * What a new task can start from (TASK-005): the remote's branches (its default first, each with the open task
+     * already working on it, if any), and the tasks with a running copy to copy.
+     */
+    public function startPoints(Project $project, GitRemote $remote): JsonResponse
+    {
+        Gate::authorize('update', $project);
+
+        $branches = [];
+        $default = null;
+        $error = null;
+
+        if ($project->git_remote_url !== null) {
+            try {
+                ['default' => $default, 'branches' => $names] = $remote->heads($project);
+                usort($names, fn (string $a, string $b) => [$a !== $default, $a] <=> [$b !== $default, $b]);
+                $users = $project->tasks()->where('stage', '!=', TaskStage::Done)->whereNull('pull_request_state')
+                    ->where(fn ($query) => $query->whereIn('branch', $names)->orWhereIn('pull_request_branch', $names))
+                    ->get(['id', 'title', 'branch', 'pull_request_branch']);
+
+                $branches = array_map(function (string $name) use ($users) {
+                    $user = $users->first(fn (Task $task) => $task->branch === $name || $task->pull_request_branch === $name);
+
+                    return ['name' => $name, 'task' => $user?->only('id', 'title')];
+                }, $names);
+            } catch (GitException $e) {
+                $error = $e->getMessage();
+            }
+        }
+
+        return response()->json([
+            'copies' => Task::getsCopies(),
+            'remote' => $project->git_remote_url !== null,
+            'default_branch' => $default,
+            'branches' => $branches,
+            'error' => $error,
+            'tasks' => $project->tasks()
+                ->whereHas('sandbox', fn ($query) => $query->where('status', SandboxStatus::Running))
+                ->latest('updated_at')
+                ->get(['id', 'title'])
+                ->map(fn (Task $task) => $task->only('id', 'title')),
+        ]);
     }
 
     /**

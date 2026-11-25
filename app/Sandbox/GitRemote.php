@@ -6,6 +6,7 @@ use App\Enums\SandboxStatus;
 use App\Models\Project;
 use App\Models\Sandbox;
 use Illuminate\Process\Exceptions\ProcessTimedOutException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
@@ -72,13 +73,14 @@ class GitRemote
         [ -z "${ONEDROP_FETCH_DONE_URL:-}" ] || curl -fsS -m 30 --retry 5 --retry-all-errors -X POST "$ONEDROP_FETCH_DONE_URL" >/dev/null 2>&1 || true
         SH;
 
-    /** Where a pull request task's own sandbox checks the pull request out (GIT-014). */
+    /** Where a task's own fresh sandbox checks its code out (GIT-014, TASK-005). */
     protected const CHECKOUT_DIRECTORY = '/tmp/onedrop-checkout';
 
     /**
-     * A pull request's task's new sandbox fetches the pull request itself and checks its branch out into /workspace,
-     * in the background, as the sandbox user: no files from Main, and nothing through the platform. The token reaches
-     * git only as a header in its environment. Then the base branch too, so the agent can compare against it.
+     * A task's new sandbox fetches its code itself and checks a branch out into /workspace, in the background, as the
+     * sandbox user: no files from Main, and nothing through the platform. The token reaches git only as a header in
+     * its environment. ONEDROP_FETCH_REFS are the refspecs (a pull request's head and its base branch, or one branch),
+     * and ONEDROP_CHECKOUT_REF becomes the branch ONEDROP_CHECKOUT_BRANCH.
      */
     protected const CHECKOUT = <<<'SH'
         dir=$1
@@ -90,8 +92,8 @@ class GitRemote
         unset ONEDROP_FETCH_AUTH
         cd /workspace \
             && { [ -d .git ] || git init -q; } \
-            && timeout "$2" git fetch -q "$ONEDROP_FETCH_URL" "+refs/pull/$ONEDROP_PULL_NUMBER/head:refs/onedrop/pull" "+refs/heads/$ONEDROP_PULL_BASE:refs/remotes/origin/$ONEDROP_PULL_BASE" 2>"$dir/error" \
-            && git checkout -q -f -B "$ONEDROP_PULL_BRANCH" refs/onedrop/pull 2>"$dir/error" \
+            && timeout "$2" git fetch -q "$ONEDROP_FETCH_URL" $ONEDROP_FETCH_REFS 2>"$dir/error" \
+            && git checkout -q -f -B "$ONEDROP_CHECKOUT_BRANCH" "$ONEDROP_CHECKOUT_REF" 2>"$dir/error" \
             && git rev-parse HEAD >"$dir/sha"
         code=$?
         echo "$code" >"$dir/exit"
@@ -368,9 +370,31 @@ class GitRemote
      */
     public function checkOutPullRequestInSandbox(Project $project, Sandbox $sandbox, int $number, string $branch, string $base): string
     {
+        return $this->checkOutInSandbox($project, $sandbox, "+refs/pull/{$number}/head:refs/onedrop/pull +refs/heads/{$base}:refs/remotes/origin/{$base}", 'refs/onedrop/pull', $branch, pullRequests: true);
+    }
+
+    /**
+     * Check a branch of the remote out in a task's new, empty sandbox, fetched by the sandbox itself (TASK-005): $from at
+     * its newest commit, as the branch $branch (the same name, or the task's own branch off it). Only for GitHub App
+     * repositories (fetchesInSandbox()). Waits for the fetch and returns that commit.
+     *
+     * @throws SandboxException|GitException
+     */
+    public function checkOutBranchInSandbox(Project $project, Sandbox $sandbox, string $from, string $branch): string
+    {
+        return $this->checkOutInSandbox($project, $sandbox, "+refs/heads/{$from}:refs/remotes/origin/{$from}", "refs/remotes/origin/{$from}", $branch);
+    }
+
+    /**
+     * Fetch $refs in the sandbox and check $ref out as $branch; returns the checked-out commit.
+     *
+     * @throws SandboxException|GitException
+     */
+    protected function checkOutInSandbox(Project $project, Sandbox $sandbox, string $refs, string $ref, string $branch, bool $pullRequests = false): string
+    {
         $this->checkRemote($project);
         $repository = (string) self::gitHubRepository((string) $project->git_remote_url);
-        $token = $this->github->repositoryReadToken((int) $project->github_installation_id, $repository, pullRequests: true);
+        $token = $this->github->repositoryReadToken((int) $project->github_installation_id, $repository, pullRequests: $pullRequests);
         $dir = self::CHECKOUT_DIRECTORY;
 
         $started = $this->provider->exec($sandbox->external_id, ['bash', '-c', self::FETCH_START, 'checkout', $dir, $branch]);
@@ -382,9 +406,9 @@ class GitRemote
         $this->provider->exec($sandbox->external_id, ['bash', '-c', self::CHECKOUT, 'checkout', $dir, (string) self::FETCH_TIMEOUT], [
             'ONEDROP_FETCH_URL' => (string) $project->git_remote_url,
             'ONEDROP_FETCH_AUTH' => 'Authorization: Basic '.base64_encode("x-access-token:{$token}"),
-            'ONEDROP_PULL_NUMBER' => (string) $number,
-            'ONEDROP_PULL_BRANCH' => $branch,
-            'ONEDROP_PULL_BASE' => $base,
+            'ONEDROP_FETCH_REFS' => $refs,
+            'ONEDROP_CHECKOUT_REF' => $ref,
+            'ONEDROP_CHECKOUT_BRANCH' => $branch,
         ], detach: true);
 
         $deadline = now()->addSeconds(self::FETCH_TIMEOUT + 30);
@@ -449,13 +473,32 @@ class GitRemote
     public function remoteDefaultBranch(Project $project): ?string
     {
         try {
-            $this->checkRemote($project);
-            $output = $this->run($project, ['git', 'ls-remote', '--symref', (string) $project->git_remote_url, 'HEAD'], sys_get_temp_dir(), remote: true);
+            return $this->heads($project)['default'];
         } catch (GitException) {
             return null;
         }
+    }
 
-        return preg_match('#^ref: refs/heads/(\S+)\s+HEAD#m', $output, $match) ? $match[1] : null;
+    /**
+     * The remote's branches and its default branch, asked with its token (TASK-005), for half a minute at a time.
+     *
+     * @return array{default: ?string, branches: list<string>}
+     *
+     * @throws GitException
+     */
+    public function heads(Project $project): array
+    {
+        $this->checkRemote($project);
+
+        return Cache::remember("git-heads:{$project->id}:".md5((string) $project->git_remote_url), 30, function () use ($project) {
+            $output = $this->run($project, ['git', 'ls-remote', '--symref', (string) $project->git_remote_url, 'HEAD', 'refs/heads/*'], sys_get_temp_dir(), remote: true);
+            preg_match_all('#^[0-9a-f]{40}\s+refs/heads/(\S+)$#m', $output, $matches);
+
+            return [
+                'default' => preg_match('#^ref: refs/heads/(\S+)\s+HEAD#m', $output, $match) ? $match[1] : null,
+                'branches' => array_values(array_unique($matches[1])),
+            ];
+        });
     }
 
     /**

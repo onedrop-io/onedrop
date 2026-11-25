@@ -393,7 +393,7 @@ test('the sandbox fetches the pull request with a token only in its environment,
     expect(app(GitRemote::class)->checkOutPullRequestInSandbox($this->project, $sandbox, 12, 'fix-login', 'main'))->toBe(str_repeat('a', 40));
 
     $run = collect($this->provider->executed)->first(fn (array $exec) => $exec['detach'] ?? false);
-    expect($run['env'])->toMatchArray(['ONEDROP_PULL_NUMBER' => '12', 'ONEDROP_PULL_BRANCH' => 'fix-login', 'ONEDROP_PULL_BASE' => 'main', 'ONEDROP_FETCH_AUTH' => 'Authorization: Basic '.base64_encode('x-access-token:ghs_read')])
+    expect($run['env'])->toMatchArray(['ONEDROP_FETCH_REFS' => '+refs/pull/12/head:refs/onedrop/pull +refs/heads/main:refs/remotes/origin/main', 'ONEDROP_CHECKOUT_REF' => 'refs/onedrop/pull', 'ONEDROP_CHECKOUT_BRANCH' => 'fix-login', 'ONEDROP_FETCH_AUTH' => 'Authorization: Basic '.base64_encode('x-access-token:ghs_read')])
         ->and(implode(' ', $run['command']))->not->toContain('ghs_read');
 
     $state = 'failed';

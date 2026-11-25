@@ -148,6 +148,10 @@ import {
 } from '@/components/workspace/content-search';
 import type { ContentQuery } from '@/components/workspace/content-search';
 import ResizeHandle from '@/components/workspace/resize-handle';
+import TaskStartPicker, {
+    taskStartData,
+} from '@/components/workspace/task-start-picker';
+import type { TaskStart } from '@/components/workspace/task-start-picker';
 import { isLocalHostname, useIsRemote } from '@/hooks/use-is-remote';
 import {
     CHAT_OPEN_KEY,
@@ -613,6 +617,8 @@ function ChatPanel({
     const bottom = useRef<HTMLDivElement>(null);
     const scroller = useRef<HTMLDivElement>(null);
     const [draft, setDraft] = useState<string | undefined>(undefined);
+    // Where a new task's copy of the app starts (TASK-005); null is the default.
+    const [taskStart, setTaskStart] = useState<TaskStart | null>(null);
     const chat = task ? `task-${task.id}` : newTask ? 'new' : 'main';
     // A reload brings back the half-typed message and, if it was scrolled up, where the chat was (LAYOUT-005).
     const keptScroll = useRef(false);
@@ -772,6 +778,15 @@ function ChatPanel({
                 {(newTask || task) && messages.length === 0 && !working && (
                     <TaskEmptyState
                         task={task}
+                        start={
+                            newTask && (
+                                <TaskStartPicker
+                                    projectId={project.id}
+                                    value={taskStart}
+                                    onChange={setTaskStart}
+                                />
+                            )
+                        }
                         onStart={(content) =>
                             router.post(
                                 routes.send.url,
@@ -882,7 +897,9 @@ function ChatPanel({
                     value={draft}
                     onValueChange={(next) => setDraft(next)}
                     // Jev's checks as it's sent: a secret, an earlier decision, queue or send now (SECRET-002, REQ-003, AGT-012).
-                    extraData={newTask ? undefined : { checks: '1' }}
+                    extraData={
+                        newTask ? taskStartData(taskStart) : { checks: '1' }
+                    }
                     renderHeld={(held, actions) => (
                         <HeldMessagePrompt held={held} actions={actions} />
                     )}
@@ -4397,9 +4414,12 @@ function PreviewLink({
 /** A task with nothing in its chat yet: what to do for a new one, or a board card's notes and Start. */
 function TaskEmptyState({
     task,
+    start,
     onStart,
 }: {
     task: TaskDetail | null;
+    /** Where a new task's copy of the app starts (TASK-005). */
+    start?: React.ReactNode;
     onStart: (content: string) => void;
 }) {
     if (!task) {
@@ -4412,9 +4432,10 @@ function TaskEmptyState({
                 <p className="text-lg font-medium">Plan a new task</p>
                 <p className="text-sm text-muted-foreground">
                     Describe what you want done. A fresh agent works on it
-                    alongside your other tasks, in the same app, so you can get
-                    more done at once.
+                    alongside your other tasks, in its own copy of the app, so
+                    you can get more done at once.
                 </p>
+                {start}
             </div>
         );
     }

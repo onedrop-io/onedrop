@@ -107,6 +107,17 @@ With **Docker inside sandboxes** on, in a project whose compose stack has a data
 - [ ] On a cloud provider with an S3 snapshot disk (Laravel Cloud), a task copy of a large app (a few GB in `/workspace`, e.g. Pixwel/platform) is made without the queue worker crashing: the files go through the bucket (a `tasks/<id>/copy-…` folder appears under the project's snapshot folder while it's made, and is gone after), and the copy's database files keep their container user's owner (`ls -ln tmp/mongo` matches Main).
 - [ ] A copy that fails (stop Main mid-copy) says why on the task's bar and in its chat; **Try again** makes it again without running the agent.
 
+## Where a task starts (TASK-005)
+
+In a project connected to a GitHub repository (with the GitHub App), with Main a few commits behind and some uncommitted changes:
+
+- [ ] A new task shows **Start from** with the repository's default branch; starting it, the chat says "Checking out the repository's default branch in a fresh sandbox", then "Working on onedrop/task-…, a new branch off …". Its Source Control shows the branch's latest commit and none of Main's uncommitted changes, and the app comes up on its own.
+- [ ] Pick a branch no task uses (e.g. a feature branch): the task works on it directly ("Working on …"), and **Push** sends to that branch.
+- [ ] Pick that same branch for a second task: the picker says the first task works on it; the second task works on its own branch off it.
+- [ ] Pick **Main**: the task's copy has Main's uncommitted changes and data, as before.
+- [ ] Pick another task: the copy has that task's files and changes.
+- [ ] With a repository connected by token (e.g. GitLab), a branch start still checks out the branch (fetched on the platform).
+
 ## E2B (SBX-014)
 
 With `E2B_API_KEY` set and the template built (`SANDBOX_PROVIDER=e2b php artisan sandbox:build-image`), put E2B first in **Settings → Sandboxes**.

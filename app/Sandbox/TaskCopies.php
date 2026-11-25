@@ -43,17 +43,18 @@ class TaskCopies
     ) {}
 
     /**
-     * Make the task's copy of the app from Main's sandbox, on branch task-<id>. Returns the data services
-     * the app's settings point at outside the sandbox, which the copy still shares with Main.
+     * Make the task's copy of the app from Main's sandbox, or from $from's copy (TASK-005), on branch task-<id>. Returns
+     * the data services the app's settings point at outside the sandbox, which the copy still shares with Main.
      *
      * @return list<string>
      *
      * @throws SandboxException
      */
-    public function fork(Task $task): array
+    public function fork(Task $task, ?Task $from = null): array
     {
         $project = $task->project;
-        $main = $this->mainSandbox($project);
+        // Copied from the other task's copy, its files, uncommitted changes and data as they are now.
+        $main = $from !== null ? $this->sourceCopy($from) : $this->mainSandbox($project);
         $local = storage_path('framework/task-copy-'.uniqid());
         $copy = null;
         // With signed links, the files go from Main to storage to the copy, never through the platform: a large app
@@ -92,7 +93,12 @@ class TaskCopies
             // The app's dev server (.onedrop/dev) and its services came with the files; start them.
             $this->provider->exec($copy->external_id, ['/opt/onedrop/restart']);
 
-            $task->update(['base_commit' => trim($branch) ?: null, 'applied_at' => null, ...($task->isPullRequest() ? ['pull_request_head_sha' => trim($branch) ?: null] : [])]);
+            $task->update([
+                'base_commit' => trim($branch) ?: null,
+                'applied_at' => null,
+                'branch' => $task->isPullRequest() ? $task->pull_request_branch : self::branch($task),
+                ...($task->isPullRequest() ? ['pull_request_head_sha' => trim($branch) ?: null] : []),
+            ]);
 
             return $this->externalServices($copy);
         } catch (Throwable $e) {
@@ -158,6 +164,96 @@ class TaskCopies
 
             throw $e instanceof SandboxException ? $e : new SandboxException($e->getMessage(), previous: $e);
         }
+    }
+
+    /**
+     * A task's own sandbox, fresh from a branch of the project's remote (TASK-005): the task's chosen branch (or the
+     * remote's default one) checked out into a new, empty sandbox, then its app started (.onedrop/dev sets it up, as
+     * after an import). Nothing comes from Main. The copy works on that branch, or on a branch of its own off it
+     * (workBranch). Returns the data services the app's settings point at outside the sandbox.
+     *
+     * @return list<string>
+     *
+     * @throws SandboxException
+     */
+    public function checkOutBranch(Task $task): array
+    {
+        $project = $task->project;
+        $copy = null;
+
+        try {
+            $heads = $this->remote->heads($project);
+            $from = $task->start_branch ?? $heads['default'] ?? throw new GitException(__('The repository has no branches yet. Start the task from Main instead.'));
+
+            if (! in_array($from, $heads['branches'], true)) {
+                throw new GitException(__('The repository has no branch called :branch any more.', ['branch' => $from]));
+            }
+
+            $branch = self::workBranch($task, $from, $heads['default']);
+
+            CreateSandbox::dispatchSync($project, $task);
+            $copy = $task->sandbox()->firstOrFail();
+
+            if ($copy->status !== SandboxStatus::Running) {
+                throw new SandboxException($copy->error ?: "The task's copy didn't start.");
+            }
+
+            // The sandbox fetches it itself from a GitHub App repository; otherwise the platform fetches it and hands it
+            // over, as an import (the branch under its own name), then the copy's branch takes the task's name.
+            if ($this->remote->fetchesInSandbox($project)) {
+                $sha = $this->remote->checkOutBranchInSandbox($project, $copy, $from, $branch);
+            } else {
+                $this->remote->pull($project, $from, $copy);
+                $sha = ($branch === $from ? $this->git->status($copy) : $this->git->renameBranch($copy, $branch))['head'];
+            }
+
+            // The remote as `origin`, now that there's a repository (GIT-021).
+            app(GitOrigin::class)->syncQuietly($copy);
+            // The app's dev server (.onedrop/dev) sets it up and starts it, in the background.
+            $this->provider->exec($copy->external_id, ['/opt/onedrop/restart']);
+
+            $task->update(['base_commit' => $sha ?: null, 'applied_at' => null, 'start_branch' => $from, 'branch' => $branch]);
+
+            return $this->externalServices($copy);
+        } catch (Throwable $e) {
+            if ($copy?->external_id) {
+                $this->destroy($copy->external_id);
+            }
+
+            $copy?->update(['status' => SandboxStatus::Failed, 'error' => $e->getMessage(), 'external_id' => null]);
+
+            throw $e instanceof SandboxException ? $e : new SandboxException($e->getMessage(), previous: $e);
+        }
+    }
+
+    /**
+     * The branch a task started from $from works on: $from itself, unless it's the repository's default branch (a
+     * task never pushes there) or another open task already works on it (two copies pushing to one branch race), in
+     * which case a branch of its own off it, named as Open pull request names it (GIT-024).
+     */
+    public static function workBranch(Task $task, string $from, ?string $default): string
+    {
+        $ownBranch = in_array($from, ['main', 'master'], true) || $from === $default || Task::usingBranch($task->project, $from, $task->id) !== null;
+
+        return $ownBranch ? OpenTaskPullRequest::branch($task) : $from;
+    }
+
+    /**
+     * The running copy of the task another task starts from (TASK-005).
+     *
+     * @throws SandboxException
+     */
+    protected function sourceCopy(Task $from): Sandbox
+    {
+        $copy = $from->sandbox()->first();
+
+        if ($copy?->status !== SandboxStatus::Running || $copy->external_id === null) {
+            throw new SandboxException(__('":title" doesn\'t have a running copy of the app to start from.', ['title' => $from->title]));
+        }
+
+        $this->awake($copy);
+
+        return $copy;
     }
 
     /**
@@ -332,6 +428,7 @@ class TaskCopies
 
         if ($status['branch'] !== $branch) {
             $this->git->renameBranch($copy, $branch);
+            $task->update(['branch' => $branch]);
         }
 
         $dir = '/tmp/onedrop-bundle-'.Str::lower(Str::random(8));

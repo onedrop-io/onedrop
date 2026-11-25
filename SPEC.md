@@ -1629,7 +1629,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 ## TASK-003: Each task gets its own copy of the app
 
-- A task's first message should make it its own copy of the app from Main's sandbox, whatever the app is built with: its files, dependencies and any databases kept in the sandbox, copied as they were at one instant so databases stay consistent, including databases run by the app's own Docker containers whose files belong to the container's user. Main keeps running while it's copied (its processes and containers pause for about a second). Docker images Main built itself come along too, so the copy's stack starts without building them again; images from a registry are downloaded there again.
+- A task's first message should make it its own copy of the app, by default a fresh clone of a branch when the project has a remote (TASK-005). A copy of Main's sandbox (or another task's) works whatever the app is built with: its files, dependencies and any databases kept in the sandbox, copied as they were at one instant so databases stay consistent, including databases run by the app's own Docker containers whose files belong to the container's user. Main keeps running while it's copied (its processes and containers pause for about a second). Docker images Main built itself come along too, so the copy's stack starts without building them again; images from a registry are downloaded there again.
 - User should see the task's own preview, files, shell and tools on the task's page; changes there don't touch Main until they're applied.
 - User should be warned in the task's chat when the app's settings point at a database or other data service outside the sandbox, which the copy still shares with Main.
 - User should be able to apply a task's work to Main: it's merged with git, Main's agent is asked to do what the app needs (install dependencies, run migrations, restart) and to resolve any conflicts, the task moves to Done, and its copy is removed. A later message to the task makes a fresh copy from Main.
@@ -1637,6 +1637,16 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User shouldn't be able to apply while the task's or Main's agent is working, or run more task copies at once than the project allows. There's no limit unless one is set: an admin can set one for every project in Settings → Sandboxes (it wins over `SANDBOX_MAX_TASK_COPIES`), and an organization's owners and admins can set one for its projects in its settings; the lower one applies. Leaving either empty clears it.
 - User should see on the task's bar when its copy couldn't be made, and why (also in its chat, including when the job queue gave up on it), and be able to click Try again to make it again without running the agent.
 - Deleting a task, or its project, removes its copy.
+
+## TASK-005: Start a task from a branch, Main or another task
+
+- User should be able to pick where a new task's copy of the app starts, under "Start from" in the new task's chat: a branch of the project's remote, Main, or another task with a running copy.
+- With a remote connected, a new task should start from the remote's default branch unless the user picks otherwise; without one, from Main. Board cards added without a message start the same way when they're started.
+- A task started from a branch should be a fresh clone: a new sandbox with that branch's latest code and nothing from Main (no files, uncommitted changes, dependencies or data); the app sets itself up (`.onedrop/dev`). A GitHub App repository's sandbox fetches the branch itself; a token remote's is fetched on the platform.
+- The task should work on the branch it picked, unless that's the repository's default branch (or `main`/`master`), or another open task already works on it: then it works on a new branch off it, `onedrop/task-<id>-<title>`. The picker marks a branch another open task works on and says the task will get its own branch; the task's chat says which branch it works on.
+- A task started from Main or another task should copy that sandbox as TASK-003 describes, including its uncommitted changes and data.
+- A task whose work was applied to Main makes its next copy from Main, which has the work.
+- A branch gone from the remote, or a task to copy without a running copy, should fail the copy with the reason in the task's chat and bar.
 
 ## TASK-004: Switching tasks keeps the workspace view
 
