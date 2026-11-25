@@ -467,7 +467,7 @@ test('on a tablet, a tab moves to another pane from the split menu, and a tab op
     // Whether a tab's button lies inside its scrolling tab bar's visible part.
     $inView = fn (string $tab) => "(() => { const tab = document.querySelector('[data-test=\"{$tab}\"]'); const bar = tab.closest('[data-tabs]').getBoundingClientRect(); const rect = tab.getBoundingClientRect(); return rect.left >= bar.left - 1 && rect.right <= bar.right + 1; })()";
 
-    visit("/projects/{$project->id}")->on()->iPadPro()
+    $page = visit("/projects/{$project->id}")->on()->iPadPro()
         ->click('@split-menu')
         ->click('@split-right')
         ->assertScript($tabsIn(2), 'tab-shell-2')
@@ -480,8 +480,14 @@ test('on a tablet, a tab moves to another pane from the split menu, and a tab op
         ->click('[data-test="pane-2"] [data-test="close-pane"]')
         ->click('@tab-tools')
         ->click('@tool-git')
-        ->assertPresent('@tab-source-control')
-        ->assertScript($inView('tab-source-control'), true)
+        ->assertPresent('@tab-source-control');
+
+    // The strip scrolls to the new tab smoothly; a slow machine is still mid-scroll right after the click.
+    for ($i = 0; $i < 30 && $page->script($inView('tab-source-control')) !== true; $i++) {
+        $page->wait(0.1);
+    }
+
+    $page->assertScript($inView('tab-source-control'), true)
         ->assertNoJavaScriptErrors();
 })->group('TOUCH-001', 'LAYOUT-002');
 

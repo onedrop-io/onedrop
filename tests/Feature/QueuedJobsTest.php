@@ -68,7 +68,9 @@ test('jobs still queued for a deleted project are dropped quietly', function () 
     RunAgentTask::dispatch($project, $message);
     $project->delete();
 
-    $this->artisan('queue:work', ['--stop-when-empty' => true]);
+    // A worker stops after any job once its process is past --memory (128 MB by default), and a whole suite run in
+    // one process (CI) is well past it: the second job would be left queued.
+    $this->artisan('queue:work', ['--stop-when-empty' => true, '--memory' => 4096]);
 
     expect(DB::table('jobs')->count())->toBe(0)
         ->and(DB::table('failed_jobs')->count())->toBe(0);

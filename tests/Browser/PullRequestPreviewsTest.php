@@ -57,6 +57,12 @@ test('the dev user turns on previewing every pull request, copies a preview link
         ->assertSeeIn('@pulls-preview-note', 'Anyone with a preview link can open the app')
         ->assertNoJavaScriptErrors();
 
+    // The checkbox shows the change at once and saves it in the background; wait for the save (the page's wait
+    // keeps the test's server answering, where a sleep wouldn't).
+    for ($i = 0; $i < 50 && ! $project->fresh()->preview_pull_requests; $i++) {
+        $page->wait(0.1);
+    }
+
     expect($project->fresh()->preview_pull_requests)->toBeTrue();
     Queue::assertPushed(CatchUpPullRequests::class);
 
