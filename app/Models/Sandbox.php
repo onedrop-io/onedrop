@@ -9,6 +9,8 @@ use App\Jobs\SyncGitOrigin;
 use App\Jobs\SyncOrganizationSecrets;
 use App\Jobs\UpdateSandbox;
 use App\Sandbox\SandboxException;
+use App\Sandbox\SandboxGone;
+use App\Sandbox\SandboxMover;
 use App\Sandbox\SandboxProvider;
 use Database\Factories\SandboxFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -222,6 +224,11 @@ class Sandbox extends Model
             // A container that had to start again may be on other ports than the saved addresses.
             $started = $provider->wake($this->external_id);
             $addresses = $started ? CreateSandbox::addresses($provider, $this->external_id) : [];
+        } catch (SandboxGone) {
+            // Removed outside the app: it can never wake, so it's replaced (SBX-016).
+            app(SandboxMover::class)->replaceLost($this);
+
+            return false;
         } catch (SandboxException) {
             // The workspace shows the sandbox as it is; the next visit tries again.
             $this->forceFill($asleep)->save();

@@ -454,6 +454,14 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - An admin should see recovered files in Settings → Sandboxes and be able to restore them into the project with one click (after a warning that changes made since the move would be replaced).
 - A move that fails should leave the project on its old sandbox with every file, and the new sandbox should be deleted; the admin should see why and be able to try again. A failed move should drop off the list once the sandbox moves again, or once its project no longer runs on the provider it was going to.
 
+## SBX-016: A sandbox deleted outside the app is replaced
+
+- When user opens a project whose Docker sandbox was deleted outside the app (for example by `docker system prune`, which removes every stopped container), the project should move to a new sandbox with its latest snapshot (SBX-009), or, without one, its code backup (SBX-006), instead of showing a broken workspace.
+- User should see in the project's chat, as soon as the rebuild starts, that its sandbox was deleted outside onedrop and is being rebuilt; and once it's done, what it came back with (the snapshot and its time, or the code backup), and that anything changed after that is gone.
+- A project with neither a snapshot nor a backup should show its sandbox as failed, saying it was deleted outside onedrop and couldn't be replaced.
+- When user opens a pull request's task whose copy was deleted, its pull request's branch should be checked out again in a fresh sandbox, and the task's chat should say commits pushed to the pull request come back and unpushed changes are gone.
+- Any other task's deleted copy (or one whose agent is working, or whose Push or Pull is running) should show as failed with Try again, and the task's chat should say why.
+
 ## SBX-014: Sandboxes on E2B
 
 - An admin should be able to run sandboxes on E2B (e2b.dev) by setting its API key in Settings → Sandboxes (or `E2B_API_KEY`), as the provider for projects that run their own Docker Compose when Runtime Cloud can't: E2B's VMs run Docker inside with its fast storage driver, which Blaxel can't.
@@ -500,7 +508,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - A sandbox that stays suspended for a while (`SANDBOX_DOCKER_STOP_AFTER_MINUTES`, 5 by default; 0 turns it off) should be stopped, freeing its memory; it starts again by itself the same way, with its files, in a second or two, and should never be stopped while its agent is working or its project is published.
 - Task copies (TASK-003) should be suspended and woken the same way.
 - On Laravel Cloud, which has no Docker sandboxes, the idle check shouldn't be scheduled.
-- A sandbox whose container was removed outside the app should show as failed, with an error saying so.
+- A sandbox whose container was removed outside the app should be replaced when its project is opened (SBX-016).
 - A Docker sandbox stopped outside the app (Docker Desktop, a restart) should start again when its project is opened or its workspace is open, and its preview and shell links should keep working: each container keeps its host ports across restarts, and links are refreshed for containers made before that.
 - A Docker sandbox whose host folders (its App Storage, or its user's Claude sign-in) were deleted while it ran should mend itself the next time it's woken (its project opened, its workspace open): the folders are made again and the sandbox restarts so it can write to them, and its preview reloads. Otherwise a Claude sign-in there says "Login successful" but doesn't stick.
 

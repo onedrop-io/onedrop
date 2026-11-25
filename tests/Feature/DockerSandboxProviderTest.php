@@ -2,6 +2,7 @@
 
 use App\Sandbox\Providers\DockerSandboxProvider;
 use App\Sandbox\SandboxException;
+use App\Sandbox\SandboxGone;
 use App\Sandbox\SandboxSpec;
 use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\Process;
@@ -152,6 +153,27 @@ test('destroying a missing container is not an error', function () {
 
     Process::assertRan(fn (PendingProcess $process) => $process->command === ['docker', 'rm', '--force', '--volumes', 'abc123']);
 })->group('SBX-001', 'SBX-008');
+
+test('waking a container that was removed outside the app says it is gone', function (string $stderr) {
+    Process::fake(['*' => Process::result(errorOutput: $stderr, exitCode: 1)]);
+
+    expect(fn () => $this->docker->wake('abc123'))->toThrow(SandboxGone::class);
+})->with([
+    'newer docker' => 'error: no such object: abc123',
+    'older docker' => 'Error: No such object: abc123',
+    'daemon' => 'Error response from daemon: No such container: abc123',
+])->group('SBX-016');
+
+test('waking a container Docker can\'t reach is not taken for one that is gone', function () {
+    Process::fake(['*' => Process::result(errorOutput: 'Cannot connect to the Docker daemon at unix:///var/run/docker.sock.', exitCode: 1)]);
+
+    try {
+        $this->docker->wake('abc123');
+        $this->fail('Expected a SandboxException.');
+    } catch (SandboxException $e) {
+        expect($e)->not->toBeInstanceOf(SandboxGone::class);
+    }
+})->group('SBX-016');
 
 test('exec can run detached with env vars by name', function () {
     Process::fake(['*' => Process::result('done')]);

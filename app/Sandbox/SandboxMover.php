@@ -114,7 +114,8 @@ class SandboxMover
                     'keep_files' => $keepFiles,
                     'phase' => SandboxMovePhase::Starting,
                     'from_provider' => $sandbox->external_id ? $sandbox->provider : null,
-                    'from_external_id' => $sandbox->external_id,
+                    // A lost sandbox (SBX-016) has nothing to ask, snapshot, check on or delete.
+                    'from_external_id' => $reason === 'lost' ? null : $sandbox->external_id,
                     'to_provider' => $sandbox->project->sandboxProvider(),
                     'snapshot_id' => $from?->id,
                     'source' => $from ? MoveSource::Snapshot : null,
@@ -127,6 +128,49 @@ class SandboxMover
         }
 
         return $move;
+    }
+
+    /**
+     * Replace a sandbox its provider no longer has (removed outside the app, e.g. by `docker system prune`; SBX-016).
+     * The project's own sandbox moves to a new one with its latest snapshot, else its code backup. A pull request's
+     * task gets its branch checked out in a fresh one, as Try again would; any other task's copy (made from Main's) or
+     * a busy task's shows as failed, with Try again.
+     */
+    public function replaceLost(Sandbox $sandbox): void
+    {
+        $task = $sandbox->task;
+
+        if ($task === null) {
+            // Said at once: the move takes a minute or two, and the workspace shows nothing else meanwhile.
+            if (SandboxMove::query()->active()->where('sandbox_id', $sandbox->id)->doesntExist()) {
+                $sandbox->project->messages()->create([
+                    'role' => MessageRole::Activity,
+                    'content' => __('This project\'s sandbox was deleted outside onedrop. Rebuilding it from its latest snapshot (or code backup); this takes a minute or two.'),
+                ]);
+            }
+
+            $this->start($sandbox, 'lost');
+
+            return;
+        }
+
+        $lost = __("This task's sandbox was deleted outside onedrop (for example by `docker system prune`).");
+
+        if ($task->isPullRequest() && ! $task->isWorking() && $task->sync_status === null) {
+            $task->messages()->create([
+                'role' => MessageRole::Assistant,
+                'content' => $lost.' '.__('Checking out #:number again in a fresh one: commits pushed to the pull request come back, changes that weren\'t pushed are gone.', ['number' => $task->pull_request_number]),
+            ]);
+            app(PullRequestCheckouts::class)->makeCopy($task);
+
+            return;
+        }
+
+        $sandbox->update(['status' => SandboxStatus::Failed, 'external_id' => null, 'error' => __('its sandbox was deleted outside onedrop. Try again to make a new one.')]);
+        $task->messages()->create([
+            'role' => MessageRole::Assistant,
+            'content' => $lost.' '.__('Try again makes a new copy; changes that weren\'t pushed are gone.'),
+        ]);
     }
 
     /**
@@ -233,6 +277,11 @@ class SandboxMover
             'work' => null,
             'finished_at' => now(),
         ]);
+
+        // A lost sandbox (SBX-016) has no old one to stay on: the project shows its sandbox as failed, saying why.
+        if ($move->reason === 'lost') {
+            $move->sandbox->update(['status' => SandboxStatus::Failed, 'external_id' => null, 'error' => __('The sandbox was deleted outside onedrop and couldn\'t be replaced: :error', ['error' => $move->error])]);
+        }
 
         $this->runDeferredMessages($move);
     }
@@ -691,6 +740,10 @@ class SandboxMover
             }
         }
 
+        if ($move->reason === 'lost') {
+            $this->tellAboutLost($move);
+        }
+
         if ($move->source === MoveSource::Fresh && $move->snapshot?->task_id !== null) {
             $this->snapshots->forget($move->snapshot);
         }
@@ -735,6 +788,27 @@ class SandboxMover
                 'new' => $this->label($move->to_provider),
                 'from' => $from,
             ]),
+        ]);
+
+        if ($conversation->status === ProjectStatus::Working) {
+            app(AgentQueue::class)->finished($conversation);
+        }
+    }
+
+    /**
+     * The chat says the project's sandbox was deleted outside the app and what it came back with (SBX-016), and a turn
+     * that was running in it is over.
+     */
+    protected function tellAboutLost(SandboxMove $move): void
+    {
+        $conversation = $move->project;
+        $from = $move->source === MoveSource::Snapshot && $move->snapshot
+            ? __('its snapshot from :time', ['time' => $move->snapshot->created_at->toDayDateTimeString().' UTC'])
+            : __('its code backup (its other files couldn\'t be kept)');
+
+        $conversation->messages()->create([
+            'role' => MessageRole::Assistant,
+            'content' => __('This project\'s sandbox was deleted outside onedrop (for example by `docker system prune`), so it was rebuilt in a new one from :from. Anything changed after that is gone.', ['from' => $from]),
         ]);
 
         if ($conversation->status === ProjectStatus::Working) {

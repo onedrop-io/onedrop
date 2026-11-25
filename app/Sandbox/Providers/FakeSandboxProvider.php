@@ -4,6 +4,7 @@ namespace App\Sandbox\Providers;
 
 use App\Sandbox\ExecResult;
 use App\Sandbox\SandboxException;
+use App\Sandbox\SandboxGone;
 use App\Sandbox\SandboxProvider;
 use App\Sandbox\SandboxSpec;
 use Illuminate\Support\Facades\File;
@@ -74,8 +75,15 @@ class FakeSandboxProvider implements SandboxProvider
     /** What wake() answers: whether the sandbox had to be woken. */
     public bool $wakes = false;
 
+    /** @var list<string> ids the provider no longer has (removed outside the app): wake() says so */
+    public array $gone = [];
+
     public function wake(string $id): bool
     {
+        if (in_array($id, $this->gone, true)) {
+            throw new SandboxGone("The sandbox's container no longer exists in Docker.");
+        }
+
         $this->woken[] = $id;
 
         return $this->wakes;

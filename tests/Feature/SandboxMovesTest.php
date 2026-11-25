@@ -7,6 +7,7 @@ use App\Enums\ProjectStatus;
 use App\Enums\SandboxMovePhase;
 use App\Enums\SandboxStatus;
 use App\Jobs\FinishSnapshot;
+use App\Jobs\ForkTaskSandbox;
 use App\Jobs\MoveProjectSandbox;
 use App\Jobs\RecoverSandbox;
 use App\Jobs\RunAgentTask;
@@ -633,3 +634,76 @@ test('a move whose new sandbox couldn\'t be made fails before waking or snapshot
         ->and($this->runtime->executed)->toBe([])
         ->and($this->runtime->paused)->toBe([]);
 })->group('SBX-005');
+
+test('a sandbox deleted outside the app is replaced from its latest snapshot when its project is opened', function () {
+    $earlier = ProjectSnapshot::factory()->for($this->project)->create(['created_at' => now()->subHours(2)]);
+    $this->sandbox->forceFill(['suspended_at' => now()->subHour()])->save();
+    $this->runtime->gone = ['rt-1'];
+
+    expect($this->sandbox->fresh()->wake(app(SandboxProvider::class)))->toBeFalse();
+    sandboxesCallBack($this->runtime, $this->blaxel);
+
+    $move = $this->project->sandboxMoves()->sole();
+    $sandbox = $this->sandbox->fresh();
+
+    expect($move->reason)->toBe('lost')
+        ->and($move->phase)->toBe(SandboxMovePhase::Done)
+        ->and($move->source)->toBe(MoveSource::Snapshot)
+        ->and($move->snapshot_id)->toBe($earlier->id)
+        // Nothing left to ask, keep or check on.
+        ->and($move->from_external_id)->toBeNull()
+        ->and($move->old_status)->toBeNull()
+        ->and($this->runtime->executed)->toBe([])
+        ->and($sandbox->status)->toBe(SandboxStatus::Running)
+        ->and($sandbox->external_id)->not->toBe('rt-1')
+        ->and($this->blaxel->unpacked)->toBe([[$sandbox->external_id, ProjectSnapshots::LAYERS]])
+        ->and($this->project->messages()->get()->last()->content)->toContain('deleted outside onedrop')
+        ->and($this->project->messages()->get()->last()->content)->toContain('its snapshot from')
+        // Said as soon as it started, too: the move takes a while.
+        ->and($this->project->messages()->where('role', MessageRole::Activity)->sole()->content)->toContain('Rebuilding it');
+})->group('SBX-016');
+
+test('a deleted sandbox with no snapshot or backup shows as failed, saying why', function () {
+    $this->sandbox->forceFill(['suspended_at' => now()->subHour()])->save();
+    $this->runtime->gone = ['rt-1'];
+
+    $this->sandbox->fresh()->wake(app(SandboxProvider::class));
+
+    $sandbox = $this->sandbox->fresh();
+
+    expect($this->project->sandboxMoves()->sole()->phase)->toBe(SandboxMovePhase::Failed)
+        ->and($sandbox->status)->toBe(SandboxStatus::Failed)
+        ->and($sandbox->external_id)->toBeNull()
+        ->and($sandbox->error)->toContain('deleted outside onedrop')
+        ->and($this->blaxel->created)->toBe([]);
+})->group('SBX-016');
+
+test('a pull request task whose copy was deleted checks its branch out again in a fresh sandbox', function () {
+    Queue::fake([ForkTaskSandbox::class]);
+    $task = Task::factory()->for($this->project)->create(['pull_request_number' => 12, 'pull_request_branch' => 'fix', 'pull_request_base' => 'main']);
+    $copy = Sandbox::factory()->for($this->project)->create(['task_id' => $task->id, 'provider' => 'runtime', 'external_id' => 'rt-copy', 'suspended_at' => now()]);
+    $this->runtime->gone = ['rt-copy'];
+
+    $copy->wake(app(SandboxProvider::class));
+
+    expect($copy->fresh()->status)->toBe(SandboxStatus::Creating)
+        ->and($copy->fresh()->external_id)->toBeNull()
+        ->and($task->messages()->latest('id')->first()->content)->toContain('Checking out #12 again')
+        ->and($this->project->sandboxMoves()->count())->toBe(0);
+    Queue::assertPushed(ForkTaskSandbox::class, fn (ForkTaskSandbox $job) => $job->task->is($task) && $job->checkOutOnly);
+})->group('SBX-016');
+
+test('any other task whose copy was deleted shows it as failed, with Try again', function () {
+    Queue::fake([ForkTaskSandbox::class]);
+    $task = Task::factory()->for($this->project)->create();
+    $copy = Sandbox::factory()->for($this->project)->create(['task_id' => $task->id, 'provider' => 'runtime', 'external_id' => 'rt-copy', 'suspended_at' => now()]);
+    $this->runtime->gone = ['rt-copy'];
+
+    $copy->wake(app(SandboxProvider::class));
+
+    expect($copy->fresh()->status)->toBe(SandboxStatus::Failed)
+        ->and($copy->fresh()->external_id)->toBeNull()
+        ->and($copy->fresh()->error)->toContain('deleted outside onedrop')
+        ->and($task->messages()->latest('id')->first()->content)->toContain('Try again');
+    Queue::assertNotPushed(ForkTaskSandbox::class);
+})->group('SBX-016');

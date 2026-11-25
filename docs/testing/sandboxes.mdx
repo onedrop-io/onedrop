@@ -41,6 +41,15 @@ Run these against the provider you changed. Locally that's Docker; for Runtime C
 - [ ] SBX-007: with the workspace open and visible, `docker stop` its container (as the idle check does): within about 20 seconds, without touching the page, the container is running again and the preview reloads to the app.
 - [ ] SBX-007: leave a workspace open and visible without touching it for 15 minutes (no mouse over it): its 20-second pings to `/projects/{id}/sandbox/activity` stop (browser network tab) and the sandbox is suspended once idle (E2B: paused about 10 minutes later in its console). Click the page: the sandbox wakes and the preview reloads.
 
+## A container deleted outside the app (SBX-016)
+
+1. Let a project's sandbox and a pull request task's copy go idle until `docker ps -a` shows both containers exited (about 6 minutes), then `docker container prune -f`.
+
+- [ ] Opening the project starts a move: the chat says the sandbox was deleted outside onedrop and names the snapshot (or the code backup) it came back from, and the preview and Shell work again.
+- [ ] Opening the pull request's task says it's checking out the pull request again, and Source Control shows the PR's branch at its pushed commit.
+- [ ] A task without a pull request shows **Couldn't make this task's copy of the app: its sandbox was deleted outside onedrop…** and **Try again** makes a new copy.
+- [ ] A project with no snapshot and no backup shows its sandbox as failed, saying it was deleted outside onedrop.
+
 ## Updates
 
 ### Tool files

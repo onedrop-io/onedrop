@@ -66,6 +66,16 @@ A paused sandbox still holds its memory, so one left suspended for 5 minutes is 
 
 A container stopped outside the app (from Docker Desktop, or by a restart) starts again the same way. Each container keeps the host ports it was created with, so its preview and shell links still work after a restart.
 
+### A container deleted outside the app
+
+Stopped sandboxes are exactly what `docker system prune` and `docker container prune` delete, so running either removes every idle sandbox. Their Docker-in-sandbox volumes stay behind, but their files go with them. When a project whose container is gone is opened, the app replaces it:
+
+- **The project's own sandbox** moves to a new one with the project's latest [snapshot](#project-snapshots), or its [code backup](#code-backups) if it has no snapshot. This takes a minute or two; its chat says so when it starts, and what it came back with when it's done; anything changed after that is lost. A project with neither shows its sandbox as failed, saying why.
+- **A pull request's task** gets its branch checked out again in a fresh sandbox. Commits pushed to the pull request come back; unpushed changes are lost.
+- **Any other task's copy** shows as failed with **Try again**, which makes a new copy from the project's own sandbox. Commits the task pushed can be pulled back from Source Control.
+
+To free disk space without losing sandboxes, prune images instead (`docker image prune`), or run `docker container prune --filter "label!=onedrop.sandbox"` to skip them.
+
 If a sandbox's host folders under `SANDBOX_DOCKER_STORAGE_PATH` (its App Storage, or its user's Claude sign-in) are deleted while it runs, the container can no longer write to them: a Claude sign-in says **Login successful** but doesn't stick. The next time the sandbox is woken, the app makes the missing folders again and restarts the container so it picks them up. Its files and home folder are kept, and its preview reloads. Whatever was in a deleted folder is gone, so sign in to Claude again.
 
 The `sandbox:suspend-idle` command does the suspending, every 15 seconds, from Laravel's scheduler: `composer run dev` runs the scheduler locally, and the [server install](/install#install-on-a-server) runs it as the `drop-scheduler` service. Change the wait with `SANDBOX_DOCKER_IDLE_SECONDS`, or set it to `0` to never suspend.

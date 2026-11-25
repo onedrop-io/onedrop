@@ -4,10 +4,12 @@ namespace App\Sandbox\Providers;
 
 use App\Sandbox\ExecResult;
 use App\Sandbox\SandboxException;
+use App\Sandbox\SandboxGone;
 use App\Sandbox\SandboxProvider;
 use App\Sandbox\SandboxSpec;
 use Illuminate\Contracts\Process\ProcessResult;
 use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Str;
 
 /**
  * Local Docker containers, for development and laptop demos.
@@ -176,6 +178,11 @@ class DockerSandboxProvider implements SandboxProvider
         $state = Process::timeout(15)->run(['docker', 'inspect', '--format', '{{.State.Status}}', $id]);
 
         if ($state->failed()) {
+            // Removed outside the app (`docker system prune` deletes every stopped container): nothing left to start.
+            if (Str::contains($state->errorOutput(), ['No such object', 'No such container'], ignoreCase: true)) {
+                throw new SandboxGone("The sandbox's container no longer exists in Docker.");
+            }
+
             throw new SandboxException($this->explain($state));
         }
 
