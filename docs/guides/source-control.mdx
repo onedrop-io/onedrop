@@ -209,6 +209,7 @@ Every sandbox of a project you own, task copies too, then has your GitHub token 
 
 - If npm looks for a `@scope` package on npmjs.org, point the scope at GitHub once: `npm config set @scope:registry https://npm.pkg.github.com`. The agent does this when it needs to.
 - It downloads as you, so your GitHub account must be able to see the packages.
+- It's per login: a project uses its owner's connection. If you have a login for each organization, connect GitHub on each one (the same GitHub account works on all of them). The repository list comes from the organization's GitHub App, so it shows even when your login has no GitHub connection.
 - An organization secret or a project secret named `GITHUB_TOKEN` wins over yours, so an admin can share one token instead.
 - **Disconnect** in Settings → Security, or leaving the organization, takes it out of your projects' sandboxes.
 

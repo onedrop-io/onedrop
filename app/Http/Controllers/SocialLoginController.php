@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Actions\Auth\ResolveSocialUser;
 use App\Enums\SocialProvider;
-use App\Models\SocialAccount;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,10 +21,17 @@ use Throwable;
 /**
  * Log in, sign up, or connect an account with Google, Apple, Microsoft,
  * GitHub, GitLab, or an OIDC issuer. Signed-in users use the same flow to connect a
- * provider to their account.
+ * provider to their account. One provider account can be connected to several logins; signing in with it then asks
+ * which one to continue as (AUTH-003).
  */
 class SocialLoginController extends Controller
 {
+    /** The session key holding the logins a provider sign-in may continue as (AUTH-003). */
+    public const CHOICES = 'social.choices';
+
+    /** How long the choice is offered. */
+    public const CHOICE_MINUTES = 10;
+
     /**
      * Send the person to the provider to sign in.
      */
@@ -67,12 +73,86 @@ class SocialLoginController extends Controller
         }
 
         try {
-            $user = $resolve->handle($provider, $identity);
+            $users = $resolve->handle($provider, $identity);
         } catch (ValidationException $e) {
             return to_route('login')->withErrors($e->errors());
         }
 
-        return $this->logIn($request, $user, $provider);
+        if ($users->count() > 1) {
+            $request->session()->put(self::CHOICES, [
+                'provider' => $provider->value,
+                'users' => $users->modelKeys(),
+                'expires_at' => now()->addMinutes(self::CHOICE_MINUTES)->getTimestamp(),
+            ]);
+
+            return to_route('social.choose');
+        }
+
+        return $this->logIn($request, $users->sole(), $provider);
+    }
+
+    /**
+     * Ask which login to continue as, when the provider account is connected to several (AUTH-003).
+     */
+    public function choose(Request $request): Response
+    {
+        $choices = $this->choices($request);
+
+        if ($choices === null) {
+            return to_route('login');
+        }
+
+        return Inertia::render('auth/choose-account', [
+            'provider' => $choices['provider']->label(),
+            'accounts' => User::with('organizations:id,name')->whereKey($choices['users'])->orderBy('id')->get()
+                ->map(fn (User $user) => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'avatar' => $user->avatar,
+                    'organizations' => $user->organizations->pluck('name')->all(),
+                ]),
+        ])->toResponse($request);
+    }
+
+    /**
+     * Continue as the chosen login, one of those the provider account is connected to.
+     */
+    public function chosen(Request $request): RedirectResponse
+    {
+        $choices = $this->choices($request);
+
+        if ($choices === null) {
+            return $this->failed('login', __('That sign-in has expired. Try again.'));
+        }
+
+        $id = $request->integer('user');
+
+        abort_unless(in_array($id, $choices['users'], true), 403);
+
+        $request->session()->forget(self::CHOICES);
+
+        return $this->logIn($request, User::findOrFail($id), $choices['provider']);
+    }
+
+    /**
+     * The logins this session's provider sign-in may continue as, while it hasn't expired.
+     *
+     * @return array{provider: SocialProvider, users: list<int>}|null
+     */
+    protected function choices(Request $request): ?array
+    {
+        $choices = $request->session()->get(self::CHOICES);
+
+        if (! is_array($choices) || ($choices['expires_at'] ?? 0) < now()->getTimestamp()) {
+            $request->session()->forget(self::CHOICES);
+
+            return null;
+        }
+
+        $provider = SocialProvider::tryFrom((string) ($choices['provider'] ?? ''));
+
+        return $provider === null ? null : ['provider' => $provider, 'users' => array_map('intval', $choices['users'] ?? [])];
     }
 
     /**
@@ -91,14 +171,7 @@ class SocialLoginController extends Controller
      */
     protected function connect(User $user, SocialProvider $provider, SocialiteUser $identity, ResolveSocialUser $resolve): RedirectResponse
     {
-        $owner = SocialAccount::where('provider', $provider)
-            ->where('provider_id', (string) $identity->getId())
-            ->value('user_id');
-
-        if ($owner !== null && (int) $owner !== $user->id) {
-            return $this->failed('security.edit', __('That :provider account is already connected to another user.', ['provider' => $provider->label()]));
-        }
-
+        // The same provider account may be connected to the person's other logins too (AUTH-003).
         $resolve->link($user, $provider, $identity);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __(':provider connected.', ['provider' => $provider->label()])]);

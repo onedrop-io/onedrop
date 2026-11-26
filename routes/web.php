@@ -110,6 +110,11 @@ Route::get('branding/logo', [BrandingController::class, 'logo'])->name('branding
 
 // Log in with Google, GitHub, etc. Signed-in users use the same routes to connect a provider.
 Route::middleware('throttle:20,1')->group(function () {
+    // A provider account connected to several logins asks which one to continue as (AUTH-003).
+    Route::middleware('guest')->group(function () {
+        Route::get('login/choose', [SocialLoginController::class, 'choose'])->name('social.choose');
+        Route::post('login/choose', [SocialLoginController::class, 'chosen'])->name('social.chosen');
+    });
     Route::get('login/{provider}', [SocialLoginController::class, 'redirect'])->name('social.redirect');
     Route::get('login/{provider}/callback', [SocialLoginController::class, 'callback'])->name('social.callback');
 });

@@ -18,3 +18,14 @@ Set `APPLE_CLIENT_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID` and `APPLE_PRIVATE_KEY`, 
 - [ ] Signed in with a password, **Settings → Security → Apple → Connect** returns to Security with "Apple connected." and you're still signed in.
 - [ ] With two-factor on, signing in with Apple asks for the code.
 - [ ] Set `APPLE_PRIVATE_KEY` as one base64 line, then as one line with `\n` for newlines, running `php artisan config:cache` each time: sign-in works both ways.
+
+## AUTH-003: One GitHub account on two logins
+
+Needs two OneDrop logins with different emails (say one per organization) and one GitHub account.
+
+- [ ] Signed in as the first login, **Settings → Security → GitHub → Connect** says "GitHub connected."
+- [ ] Signed in as the second login, connecting the same GitHub account also says "GitHub connected." (no "already connected to another user").
+- [ ] Logged out, **Continue with GitHub** shows **Choose an account** listing both logins' emails and organizations; picking one logs in as it, and the other choice logs in as the other.
+- [ ] Waiting more than 10 minutes on **Choose an account** before picking goes back to **Log in** with "That sign-in has expired."
+- [ ] A project owned by the second login gets `GITHUB_TOKEN` (Tools → Secrets shows it from that login's GitHub), and `docker pull ghcr.io/<owner>/<private image>` works in its Shell.
+- [ ] Disconnecting GitHub from one login leaves the other connected, and sign-in with GitHub then goes straight in as the one still connected.

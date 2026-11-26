@@ -1,6 +1,8 @@
 <?php
 
+use App\Http\Controllers\SocialLoginController;
 use App\Models\Invitation;
+use App\Models\Organization;
 use App\Models\SocialAccount;
 use App\Models\User;
 use Firebase\JWT\JWT;
@@ -324,17 +326,80 @@ test('signed-in users can connect a provider', function () {
         ->email->toBe('ada@example.com');
 })->group('AUTH-003');
 
-test('a provider account connected to someone else cannot be connected again', function () {
-    SocialAccount::factory()->create(['provider' => 'google', 'provider_id' => 'provider-123']);
+test('a provider account connected to another login can be connected to this one too', function () {
+    $other = SocialAccount::factory()->create(['provider' => 'github', 'provider_id' => 'provider-123']);
     $user = User::factory()->create();
-    fakeIdentity('google');
+    fakeIdentity('github');
 
     $this->actingAs($user)
-        ->get(route('social.callback', ['provider' => 'google', 'code' => 'abc']))
+        ->get(route('social.callback', ['provider' => 'github', 'code' => 'abc']))
         ->assertRedirect(route('security.edit'))
-        ->assertSessionHasErrors(['social' => 'That Google account is already connected to another user.']);
+        ->assertSessionHasNoErrors();
 
-    expect($user->socialAccounts()->count())->toBe(0);
+    expect($user->socialAccounts()->sole()->provider_id)->toBe('provider-123')
+        ->and($other->fresh()->user_id)->toBe($other->user_id);
+})->group('AUTH-003');
+
+test('signing in with a provider account connected to several logins asks which one, and refreshes each', function () {
+    $work = User::factory()->create(['email' => 'jeff@work.example']);
+    $home = User::factory()->create(['email' => 'jeff@home.example']);
+    $organization = Organization::factory()->create(['name' => 'Pixwel']);
+    $work->organizations()->attach($organization, ['role' => 'member']);
+    SocialAccount::factory()->for($work)->create(['provider' => 'github', 'provider_id' => 'provider-123']);
+    SocialAccount::factory()->for($home)->create(['provider' => 'github', 'provider_id' => 'provider-123']);
+    Socialite::fake('github', tap(SocialiteUser::fake(['id' => 'provider-123', 'email' => 'ada@example.com']), function (SocialiteUser $identity) {
+        $identity->setToken('gho_new')->setApprovedScopes(['read:packages', 'user:email']);
+    }));
+
+    $this->get(route('social.callback', ['provider' => 'github', 'code' => 'abc']))
+        ->assertRedirect(route('social.choose'));
+
+    $this->assertGuest();
+    expect($work->socialAccounts()->sole()->token)->toBe('gho_new')
+        ->and($home->socialAccounts()->sole()->token)->toBe('gho_new');
+
+    $this->get(route('social.choose'))->assertInertia(fn (Assert $page) => $page
+        ->component('auth/choose-account')
+        ->where('provider', 'GitHub')
+        ->has('accounts', 2)
+        ->where('accounts.0.email', 'jeff@work.example')
+        ->where('accounts.0.organizations', fn ($names) => collect($names)->contains('Pixwel'))
+        ->where('accounts.1.email', 'jeff@home.example'));
+
+    $this->post(route('social.chosen'), ['user' => $home->id])->assertRedirect('/dashboard');
+
+    expect(Auth::id())->toBe($home->id);
+    $this->assertFalse(session()->has(SocialLoginController::CHOICES));
+})->group('AUTH-003');
+
+test('the choice only logs in as one of the offered logins, and not once it has expired', function () {
+    [$first, $second] = User::factory()->count(2)->create();
+    $stranger = User::factory()->create();
+    $offered = [SocialLoginController::CHOICES => ['provider' => 'github', 'users' => [$first->id, $second->id], 'expires_at' => now()->addMinutes(10)->getTimestamp()]];
+
+    $this->withSession($offered)->post(route('social.chosen'), ['user' => $stranger->id])->assertForbidden();
+    $this->assertGuest();
+
+    $this->travel(11)->minutes();
+
+    $this->withSession($offered)->post(route('social.chosen'), ['user' => $first->id])
+        ->assertRedirect(route('login'))
+        ->assertSessionHasErrors('social');
+    $this->assertGuest();
+
+    $this->get(route('social.choose'))->assertRedirect(route('login'));
+})->group('AUTH-003');
+
+test('choosing a login with two-factor on asks for its code', function () {
+    $user = User::factory()->withTwoFactor()->create();
+    $other = User::factory()->create();
+
+    $this->withSession([SocialLoginController::CHOICES => ['provider' => 'github', 'users' => [$user->id, $other->id], 'expires_at' => now()->addMinutes(10)->getTimestamp()]])
+        ->post(route('social.chosen'), ['user' => $user->id])
+        ->assertRedirect(route('two-factor.login'))
+        ->assertSessionHas('login.id', $user->id);
+
+    $this->assertGuest();
 })->group('AUTH-003');
 
 test('the security page lists providers and their connections', function () {

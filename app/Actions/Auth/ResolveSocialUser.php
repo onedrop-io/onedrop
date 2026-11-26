@@ -9,6 +9,7 @@ use App\Models\Invitation;
 use App\Models\SocialAccount;
 use App\Models\User;
 use Illuminate\Auth\Events\Registered;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Laravel\Fortify\Features;
@@ -18,24 +19,39 @@ use Laravel\Socialite\Two\User as TwoUser;
 class ResolveSocialUser
 {
     /**
-     * Find the user a provider sign-in belongs to: an account already linked
-     * to it, an existing user with the same (verified) email, or a new user
-     * when registration is open.
+     * Find the users a provider sign-in belongs to: every login already connected to that provider account (several
+     * when one person has a login per organization, AUTH-003), else an existing user with the same (verified) email,
+     * else a new user when registration is open. Each connected login's connection is refreshed.
+     *
+     * @return Collection<int, User>
      *
      * @throws ValidationException
      */
-    public function handle(SocialProvider $provider, SocialiteUser $identity): User
+    public function handle(SocialProvider $provider, SocialiteUser $identity): Collection
     {
-        $account = SocialAccount::with('user')
+        $connected = SocialAccount::with('user')
             ->where('provider', $provider)
             ->where('provider_id', (string) $identity->getId())
-            ->first();
+            ->orderBy('user_id')
+            ->get()
+            ->map(fn (SocialAccount $account) => $account->user);
 
-        if ($account) {
-            $this->link($account->user, $provider, $identity);
+        if ($connected->isNotEmpty()) {
+            $connected->each(fn (User $user) => $this->link($user, $provider, $identity));
 
-            return $account->user;
+            return $connected->values();
         }
+
+        return new Collection([$this->byEmail($provider, $identity)]);
+    }
+
+    /**
+     * The user with the provider's (verified) email, or a new user when registration is open.
+     *
+     * @throws ValidationException
+     */
+    protected function byEmail(SocialProvider $provider, SocialiteUser $identity): User
+    {
 
         $email = $identity->getEmail();
 
