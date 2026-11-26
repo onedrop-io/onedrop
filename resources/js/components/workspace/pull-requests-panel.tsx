@@ -197,6 +197,35 @@ function setPullInUrl(number: number | null, tab: PullTab | null = null): void {
     }
 }
 
+/**
+ * The pull request each page had open when its section closed (e.g. switching to the Preview tab), so coming back
+ * opens it again: the URL drops `pr` while the section is hidden.
+ */
+const pullsLeftOpen = new Map<string, OpenPull>();
+
+/** The pull request the URL asks for, or the one this page left open. */
+function initialPull(): OpenPull | null {
+    return (
+        pullFromUrl() ??
+        (typeof window === 'undefined'
+            ? null
+            : (pullsLeftOpen.get(window.location.pathname) ?? null))
+    );
+}
+
+/** Remember the open pull request for when the section comes back, then take it out of the URL. */
+function leavePull(): void {
+    const pull = pullFromUrl();
+
+    if (pull) {
+        pullsLeftOpen.set(window.location.pathname, pull);
+    } else {
+        pullsLeftOpen.delete(window.location.pathname);
+    }
+
+    setPullInUrl(null);
+}
+
 /** The pull request and tab a URL asks for. */
 function pullFromUrl(): OpenPull | null {
     if (typeof window === 'undefined') {
@@ -227,7 +256,7 @@ export default function PullRequestsPanel({
     /** Where "Open Source Control" goes: the workspace's, or the project's page from the Pull requests page (GIT-022). */
     onConnect?: () => void;
 }) {
-    const [open, setOpen] = useState<OpenPull | null>(pullFromUrl);
+    const [open, setOpen] = useState<OpenPull | null>(initialPull);
 
     useEffect(() => {
         const listener = (event: Event) =>
@@ -238,9 +267,10 @@ export default function PullRequestsPanel({
         return () => window.removeEventListener(OPEN_PULL_EVENT, listener);
     }, []);
 
-    // The URL follows the open pull request and its tab; leaving the section takes them out.
+    // The URL follows the open pull request and its tab; leaving the section takes them out, but they're
+    // remembered for this page so coming back to the section shows the same pull request.
     useEffect(() => setPullInUrl(open?.number ?? null, open?.tab), [open]);
-    useEffect(() => () => setPullInUrl(null), []);
+    useEffect(() => leavePull, []);
 
     return open ? (
         <PullRequestPage

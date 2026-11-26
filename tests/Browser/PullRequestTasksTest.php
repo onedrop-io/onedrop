@@ -106,9 +106,17 @@ test('the dev user opens the Pull requests page, reads a diff, opens a pull requ
         ->click('@pull-file')
         ->assertSeeIn('@pull-files', 'return true;');
 
+    // Switching to the Preview and back shows the same pull request and tab (GIT-013).
+    $page->click('@tab-preview')
+        ->assertScript('new URL(location.href).searchParams.get("pr")', null)
+        ->click('@tab-tools')
+        ->assertScript('new URL(location.href).searchParams.get("pr")', '12')
+        ->assertScript('new URL(location.href).searchParams.get("pr_tab")', 'files')
+        ->assertSeeIn('@pull-title', 'Fix login');
+
     // A merged pull request's task is in Done, marked merged (GIT-023).
     $page->navigate("/projects/{$project->id}/board")
         ->assertSeeIn('@board-column-done', '#9 Old header')
         ->assertSeeIn('@board-card-pull-request-state', 'Merged')
         ->assertNoJavaScriptErrors();
-})->group('GIT-022', 'GIT-023', 'GIT-024');
+})->group('GIT-013', 'GIT-022', 'GIT-023', 'GIT-024');

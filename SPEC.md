@@ -1424,7 +1424,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 - User should see a Pull requests section under Tools for a project connected to a GitHub repository (with the GitHub App or a token); without one, it says to connect a GitHub repository in Source Control.
 - User should see the open pull requests, newest activity first, and be able to switch to closed ones and search them by title, number, branch or author. Each shows its number, title, author, branch and base, draft, its checks (passing, failing or running), its review (approved, changes requested), how many comments, when it last changed, and whether it's checked out as a task.
-- User should be able to click a pull request to open its page (the URL keeps it, e.g. `?tab=tools&tool=pulls&pr=12`, so a reload or a link opens it again), with its title, state (open, draft, merged, closed), author, branch into base, whether it can be merged, a link to it on GitHub, and four tabs:
+- User should be able to click a pull request to open its page (the URL keeps it, e.g. `?tab=tools&tool=pulls&pr=12`, so a reload or a link opens it again, and switching to another tab, such as the Preview, and back shows the same pull request and tab), with its title, state (open, draft, merged, closed), author, branch into base, whether it can be merged, a link to it on GitHub, and four tabs:
     - **Conversation:** the description and the comments and reviews, oldest first, formatted.
     - **Commits:** each commit's message, author and when.
     - **Files changed:** each file with its state and lines added and removed, and its diff (as in GIT-012) when clicked; very large ones are cut short and say so.
