@@ -90,3 +90,19 @@ test('the proxy serves files on every provider\'s preview address', function (st
     'Runtime' => '8081-sbx-1.runtimehost.com',
     'E2B' => '8081-idmuz1cq9dh8686wfhmfa.e2b.app',
 ])->group('FILE-001', 'CMP-001');
+
+test('the proxy serves no files to a pull request preview or a published app reached at the provider\'s address', function (string $visitor) {
+    // OneDrop's Worker reaches every sandbox at the provider's address and names the one the visitor used.
+    expect(filesRequest($this->port, 'raw?path=media/clip.mp4', ['X-OneDrop-Host' => $visitor], '8081-sbx-1.runtimehost.com')->status())->toBe(404);
+})->with([
+    'a pull request preview' => 'pr-3602-platform-69.onedrop.dev',
+    'a published app' => 'platform-69.onedrop.dev',
+])->group('FILE-001', 'GIT-027');
+
+test('the proxy serves files to the workspace preview reached at the provider\'s address', function () {
+    expect(filesRequest($this->port, 'raw?path=media/clip.mp4', ['X-OneDrop-Host' => 'preview-59.onedrop.dev'], '8081-sbx-1.runtimehost.com')->status())->toBe(200);
+})->group('FILE-001');
+
+test('a visitor to a published address can\'t claim to be the preview', function () {
+    expect(filesRequest($this->port, 'raw?path=media/clip.mp4', ['X-OneDrop-Host' => 'preview-59.onedrop.dev'], 'my-app.example.ts.net')->status())->toBe(404);
+})->group('FILE-001');

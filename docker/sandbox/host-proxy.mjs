@@ -185,7 +185,7 @@ function rewrite(req, port = appPort) {
         headers.referer = localize(headers.referer, originalHost);
     }
 
-    if (isPreview(String(req.headers.host ?? ''))) {
+    if (isPreview(req)) {
         revalidateRewritten(req, headers);
     }
 
@@ -331,7 +331,7 @@ function relay(req, res, response) {
         headers.location = toVisitor(String(headers.location), req);
     }
 
-    if (isPreview(host)) {
+    if (isPreview(req)) {
         allowFraming(headers);
 
         // Cookies the app sets must survive in the workspace's cross-site frame (see preview-frame.mjs). Not on a
@@ -392,12 +392,12 @@ function relay(req, res, response) {
 
             const type = String(headers['content-type']);
 
-            if (isPreview(host) && /^text\/html/i.test(type)) {
+            if (isPreview(req) && /^text\/html/i.test(type)) {
                 text = withErrorReporter(
                     withoutFrameChecks(text),
                     response.statusCode ?? 502,
                 );
-            } else if (isPreview(host) && /javascript/i.test(type)) {
+            } else if (isPreview(req) && /javascript/i.test(type)) {
                 text = withoutFrameChecks(text);
             }
 
@@ -455,12 +455,27 @@ function isLocalHost(host) {
     return /^(127\.0\.0\.1|localhost)(:\d+)?$/.test(host);
 }
 
-/** Preview traffic comes from the workspace; anything else reached the published address. */
-function isPreview(host) {
+/** Whether an address is a workspace preview's: the gateway's, a provider's own, or local. */
+function isPreviewHost(host) {
     return (
         /^preview-\d+\./.test(host) ||
         /\.(preview\.bl\.run|runtimehost\.com|e2b\.app)$/.test(host) ||
         /^(127\.0\.0\.1|localhost)(:\d+)?$/.test(host)
+    );
+}
+
+/**
+ * Preview traffic comes from the workspace; anything else reached the published address. OneDrop's Worker reaches
+ * every sandbox at the provider's own address, so the address the visitor used (X-OneDrop-Host) decides: a pull
+ * request's preview link or a published app mustn't open the workspace's files or desktop. That header can only
+ * narrow it, never widen it, since a published address (a Tailscale one, say) passes on whatever the visitor sends.
+ */
+function isPreview(req) {
+    const visitor = String(req.headers['x-onedrop-host'] ?? '');
+
+    return (
+        isPreviewHost(String(req.headers.host ?? '')) &&
+        (visitor === '' || isPreviewHost(visitor))
     );
 }
 
@@ -476,7 +491,7 @@ function logRequest(req, status, startedAt) {
         s: status,
         d: Math.round(performance.now() - startedAt),
         ip: clientIp(req),
-        pub: !isPreview(host),
+        pub: !isPreview(req),
         // Growth analytics: which page, which site sent them, browser/device, and where they are.
         m: req.method,
         p: String(req.url ?? '/')
@@ -663,7 +678,6 @@ function readBody(req, max, done) {
 function recordEvent(req, res) {
     readBody(req, MAX_EVENT_BYTES, (body) => {
         const event = body === null ? null : parseEvent(body);
-        const host = String(req.headers.host ?? '');
 
         if (event) {
             record(EVENTS_LOG, {
@@ -673,7 +687,7 @@ function recordEvent(req, res) {
                     ? event.props
                     : undefined,
                 ip: clientIp(req),
-                pub: !isPreview(host),
+                pub: !isPreview(req),
             });
         }
 
@@ -793,7 +807,7 @@ function stopWatchingSoon() {
 
 /** An event stream that says "reload" when the preview's page is out of date; preview pages only. */
 function serveLive(req, res) {
-    if (!isPreview(String(req.headers.host ?? ''))) {
+    if (!isPreview(req)) {
         res.writeHead(404).end();
 
         return;
@@ -1258,7 +1272,7 @@ function recordError(req, entry, key, repeatMs = ERROR_REPEAT_MS) {
     record(ERRORS_LOG, {
         t: now,
         ...entry,
-        pub: !isPreview(String(req.headers.host ?? '')),
+        pub: !isPreview(req),
     });
 }
 
@@ -1352,9 +1366,7 @@ function parseBrowserError(body) {
 function recordBrowserError(req, res) {
     readBody(req, MAX_ERROR_REPORT_BYTES, (body) => {
         const error =
-            body !== null && isPreview(String(req.headers.host ?? ''))
-                ? parseBrowserError(body)
-                : null;
+            body !== null && isPreview(req) ? parseBrowserError(body) : null;
 
         if (error) {
             recordError(
@@ -1464,7 +1476,7 @@ function cookieValue(req, name) {
 function testsUiRefusal(req) {
     const token = testsUiToken();
 
-    if (!isPreview(String(req.headers.host ?? '')) || !token) {
+    if (!isPreview(req) || !token) {
         return [404, "The test runner isn't open. Open it from the Tests tab."];
     }
 
@@ -1513,7 +1525,7 @@ function serveTestsUi(req, res) {
     const token = testsUiToken();
 
     // Coming from the Tests tab: trade the token for a cookie and drop it from the address.
-    if (given !== null && token && isPreview(String(req.headers.host ?? ''))) {
+    if (given !== null && token && isPreview(req)) {
         if (!sameToken(given, token)) {
             res.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' });
             res.end(
@@ -1641,11 +1653,7 @@ function browserAllowed(req) {
         'http://preview',
     ).searchParams.get('token');
 
-    return (
-        !!token &&
-        isPreview(String(req.headers.host ?? '')) &&
-        sameToken(given, token)
-    );
+    return !!token && isPreview(req) && sameToken(given, token);
 }
 
 function browserHeaders(req) {
@@ -1673,7 +1681,7 @@ function isDesktop(path) {
 }
 
 function desktopAllowed(req) {
-    return existsSync(DESKTOP_PID) && isPreview(String(req.headers.host ?? ''));
+    return existsSync(DESKTOP_PID) && isPreview(req);
 }
 
 function desktopHeaders(req) {
@@ -1799,9 +1807,7 @@ function mediaType(file) {
 }
 
 function serveFiles(req, res, path) {
-    const file = isPreview(String(req.headers.host ?? ''))
-        ? workspaceFile(req)
-        : null;
+    const file = isPreview(req) ? workspaceFile(req) : null;
 
     if (!file) {
         res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });

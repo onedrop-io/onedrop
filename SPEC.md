@@ -1515,6 +1515,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 
 - Each pull request with a task should have its own address that stays the same while the pull request is open, even when its copy is made again: `https://pr-<number>-<project>-<project id>.<gateway domain>`.
 - Anyone with the pull request's preview link (the address with its key, `/__onedrop/enter?key=…`) should be able to open the app, without signing in to OneDrop, for 12 hours per visit; without the key, or with an old one, the address says to open the link from the pull request again.
+- The preview link should open only the app: never the workspace's files, desktop or other workspace pages, which stay on the project's own preview address for its people.
 - User should see the preview link with a copy button on the pull request's task bar and its page in Tools, and be able to make a new link, which stops the old one working at once.
 - The preview runs on the task's copy of Main's data, not production's; its page in OneDrop says so, and that anyone with the link can open it.
 - A sleeping copy should wake when its link is opened (SBX-007).
