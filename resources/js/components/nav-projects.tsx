@@ -577,11 +577,7 @@ function ProjectList({
                                                     working={task.working}
                                                 />
                                                 <span
-                                                    className={
-                                                        task.unread
-                                                            ? 'font-semibold'
-                                                            : ''
-                                                    }
+                                                    className={`min-w-0 truncate ${task.unread ? 'font-semibold' : ''}`}
                                                 >
                                                     {task.title}
                                                 </span>
