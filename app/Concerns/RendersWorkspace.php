@@ -68,7 +68,12 @@ trait RendersWorkspace
         $this->renewSandboxAddresses($project, app(SandboxProvider::class));
 
         // A task with its own copy of the app shows that copy's preview, shell and files (TASK-003).
-        $sandbox = $task && Task::getsCopies() ? $task->sandbox()->first() : $project->sandbox;
+        // A new task's (TASK-006) has none yet: it never shows Main's, which it might not even start from.
+        $sandbox = match (true) {
+            $newTask && Task::getsCopies() => null,
+            $task && Task::getsCopies() => $task->sandbox()->first(),
+            default => $project->sandbox,
+        };
         // Only a page load, or a reload that shows the sandbox, counts as using it (SBX-007): the sidebar's reloads
         // in a background tab would otherwise keep it from ever pausing. Nor does a reload from a tab nobody's looking
         // at, such as the one when a run ends in a hidden tab (SBX-014).
@@ -130,6 +135,8 @@ trait RendersWorkspace
                 ] : null,
             ] : null,
             'newTask' => $newTask,
+            // A new task gets its own copy of the app (TASK-003), so its workspace waits for that, not Main's.
+            'newTaskCopy' => $newTask && Task::getsCopies(),
             // With Auto (AGT-011), the provider and its default model, which a message runs on when Jev can't size it.
             'agent' => ($selection = $catalog->selectionFor($project)) ? [...$catalog->describe($selection, $catalog->harnessFor($project)), 'auto' => $project->agent_auto] : null,
             // The agent's own slash commands, for the chat box's "/" menu (AGT-016).

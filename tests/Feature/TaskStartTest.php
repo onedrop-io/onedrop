@@ -200,3 +200,69 @@ test('the remote\'s branches and default branch come from one ls-remote', functi
 
     expect(app(GitRemote::class)->heads($this->project))->toBe(['default' => '2.x', 'branches' => ['2.x', 'onedrop-dev']]);
 })->group('TASK-005');
+
+test('a new task can check out where it starts with no message: its copy is made and its app started, without the agent', function () {
+    Queue::fake();
+
+    $this->post(route('projects.tasks.store', $this->project), ['check_out' => '1', 'title' => 'onedrop-dev', 'start_from' => 'branch', 'start_branch' => 'onedrop-dev'])
+        ->assertRedirect(route('projects.tasks.show', [$this->project, $task = Task::query()->latest('id')->first()]));
+
+    expect($task->only('title', 'stage', 'status', 'sync_status', 'start_from', 'start_branch'))->toBe([
+        'title' => 'onedrop-dev',
+        'stage' => TaskStage::InProgress,
+        'status' => ProjectStatus::Working,
+        'sync_status' => TaskSyncStatus::Forking,
+        'start_from' => TaskStart::Branch,
+        'start_branch' => 'onedrop-dev',
+    ])
+        ->and($task->sandbox()->first()->status)->toBe(SandboxStatus::Creating)
+        ->and($task->messages()->count())->toBe(0);
+    Queue::assertPushed(ForkTaskSandbox::class, fn (ForkTaskSandbox $job) => $job->task->is($task) && $job->checkOutOnly);
+    Queue::assertNotPushed(RunAgentTask::class);
+
+    // Without a title, it's named after where it starts.
+    $other = Task::factory()->for($this->project)->create(['title' => 'Dark mode']);
+    $this->post(route('projects.tasks.store', $this->project), ['check_out' => '1', 'start_from' => 'main']);
+    $this->post(route('projects.tasks.store', $this->project), ['check_out' => '1', 'start_from' => 'task', 'start_task_id' => $other->id]);
+    $this->post(route('projects.tasks.store', $this->project), ['check_out' => '1']);
+
+    expect($this->project->tasks()->reorder()->latest('id')->take(3)->pluck('title')->all())->toBe(['Default branch', 'Copy of Dark mode', 'Copy of Main']);
+})->group('TASK-006');
+
+test('checking out a task runs no agent once its copy is made, and the agent waits for a message', function () {
+    Queue::fake([RunAgentTask::class]);
+    $task = startingTask($this->project, ['title' => 'onedrop-dev', 'start_from' => TaskStart::Branch, 'start_branch' => 'onedrop-dev']);
+    $this->remote->shouldReceive('checkOutBranchInSandbox')->once()->andReturn($this->sha);
+
+    (new ForkTaskSandbox($task, checkOutOnly: true))->handle(app(TaskCopies::class), app(AgentQueue::class));
+
+    expect($task->fresh()->only('status', 'sync_status', 'branch'))->toBe(['status' => ProjectStatus::Idle, 'sync_status' => null, 'branch' => 'onedrop-dev'])
+        ->and($task->sandbox()->first()->status)->toBe(SandboxStatus::Running)
+        // Its app's dev server (.onedrop/dev) is started.
+        ->and(collect($this->provider->executed)->pluck('command')->contains(['/opt/onedrop/restart']))->toBeTrue();
+    Queue::assertNotPushed(RunAgentTask::class);
+})->group('TASK-006');
+
+test('checking out is refused over the copy limit, and where tasks work in Main', function () {
+    Queue::fake();
+    config(['sandbox.max_task_copies' => 1]);
+    Task::factory()->for($this->project)->create()->sandbox()->create(['provider' => 'fake', 'status' => SandboxStatus::Running]);
+
+    $this->post(route('projects.tasks.store', $this->project), ['check_out' => '1'])->assertSessionHasErrors('content');
+
+    config(['sandbox.max_task_copies' => null, 'sandbox.task_copies' => false]);
+    $this->post(route('projects.tasks.store', $this->project), ['check_out' => '1'])->assertSessionHasErrors('check_out');
+
+    expect($this->project->tasks()->count())->toBe(1);
+    Queue::assertNothingPushed();
+})->group('TASK-006');
+
+test("the new task page shows no sandbox until the task's copy is made, never Main's", function () {
+    $this->get(route('projects.tasks.create', $this->project))
+        ->assertInertia(fn ($page) => $page->where('newTask', true)->where('newTaskCopy', true)->where('sandbox', null));
+
+    config(['sandbox.task_copies' => false]);
+
+    $this->get(route('projects.tasks.create', $this->project))
+        ->assertInertia(fn ($page) => $page->where('newTaskCopy', false)->where('sandbox.status', 'running'));
+})->group('TASK-006');

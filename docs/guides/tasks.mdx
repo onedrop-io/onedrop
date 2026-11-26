@@ -15,6 +15,12 @@ Under **Start from** in a new task's chat, pick where its copy of the app comes 
 
 A task started from a branch works on that branch, so its **Push** continues it. It gets a new branch of its own off it instead, named like `onedrop/task-12-dark-mode`, when you picked the repository's default branch or another open task already works on that branch; the picker says so before you start, and the task's chat says which branch it works on.
 
+## Check out a branch without a message
+
+To just run a branch (to try it, review it, or poke around before asking for anything), click **Check out** under the picker instead of writing a message. The task opens in **In progress**, named after the branch, and its copy of the app is made: the branch is cloned and your app sets itself up and starts (`.onedrop/dev`). Its preview appears once it's running. No agent runs until you send the task a message. With Main or another task picked, the button reads **Copy Main** or **Copy** and the task's name.
+
+Until a new task has its copy, its workspace says so rather than showing Main's app.
+
 ## Each task's own copy of the app
 
 When a task starts from Main (or another task), OneDrop copies that sandbox for it: the code, installed packages, and any databases, caches or uploaded files kept in the sandbox. It works for any stack, since everything is copied as it was at one instant, the way a database expects after a power cut. Main keeps running while it's copied; its processes, and any Docker containers it runs, pause for about a second. If your app runs on Docker Compose, the images Main built for it come along too, so the task's copy doesn't build them again. Images from a registry, like `postgres` or `redis`, are downloaded again in the copy.

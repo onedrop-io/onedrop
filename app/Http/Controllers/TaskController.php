@@ -81,15 +81,17 @@ class TaskController extends Controller
     }
 
     /**
-     * Start a task with a first message (it runs right away, alongside the project's other agents), or,
-     * with only a title, add a card to To do on the board without starting it.
+     * Start a task with a first message (it runs right away, alongside the project's other agents); check out where
+     * it starts with no message (its copy is made and its app started, no agent; TASK-006); or, with only a title,
+     * add a card to To do on the board without starting it.
      */
-    public function store(Request $request, Project $project, AgentQueue $queue): RedirectResponse
+    public function store(Request $request, Project $project, AgentQueue $queue, PullRequestCheckouts $checkouts): RedirectResponse
     {
         Gate::authorize('update', $project);
 
         $validated = $request->validate([
-            'title' => ['nullable', 'string', 'max:80', 'required_without_all:content,attachments'],
+            // Checking out (TASK-006) names the task after where it starts.
+            'title' => ['nullable', 'string', 'max:80', Rule::requiredIf(fn () => ! $request->boolean('check_out') && blank($request->input('content')) && ! $request->hasFile('attachments'))],
             'description' => ['nullable', 'string', 'max:5000'],
             'content' => ['nullable', 'string', 'max:5000'],
             'attachments' => ['nullable', 'array', 'max:'.Attachment::MAX_FILES],
@@ -98,8 +100,10 @@ class TaskController extends Controller
             'start_from' => ['nullable', Rule::enum(TaskStart::class)],
             'start_branch' => ['nullable', 'string', 'max:100', 'regex:'.self::BRANCH_PATTERN],
             'start_task_id' => ['nullable', 'required_if:start_from,task', Rule::exists('tasks', 'id')->where('project_id', $project->id)],
+            // Check out where it starts, with no message: its copy is made and its app started, no agent (TASK-006).
+            'check_out' => ['nullable', 'boolean'],
         ], [
-            'title.required_without_all' => __('Give the task a title.'),
+            'title.required' => __('Give the task a title.'),
             'start_task_id.required_if' => __('Pick the task to copy.'),
         ]);
 
@@ -113,20 +117,39 @@ class TaskController extends Controller
         $attachments = array_values(Arr::wrap($request->file('attachments')));
         $starting = $content !== '' || $attachments !== [];
         $title = Str::squish($validated['title'] ?? '');
+        $checkOut = ! $starting && $request->boolean('check_out');
 
-        if ($starting && Task::getsCopies() && $project->taskCopyLimitReached()) {
+        if ($checkOut && ! Task::getsCopies()) {
+            throw ValidationException::withMessages(['check_out' => __('Tasks here work in Main, so there\'s nothing to check out. Describe the task instead.')]);
+        }
+
+        if (($starting || $checkOut) && Task::getsCopies() && $project->taskCopyLimitReached()) {
             throw self::copyLimitError($project);
         }
 
+        $stage = $checkOut ? TaskStage::InProgress : TaskStage::Todo;
+        $startBranch = $start === TaskStart::Branch ? ($validated['start_branch'] ?? null) : null;
+        $startTask = $start === TaskStart::Task ? $project->tasks()->find($validated['start_task_id']) : null;
+
         $task = $project->tasks()->create([
-            'title' => $title !== '' ? $title : Task::titleFromPrompt($content),
+            'title' => match (true) {
+                $title !== '' => $title,
+                $checkOut => self::checkOutTitle($start, $startBranch, $startTask),
+                default => Task::titleFromPrompt($content),
+            },
             'description' => $validated['description'] ?? null,
-            'stage' => TaskStage::Todo,
-            'position' => $project->nextTaskPosition(TaskStage::Todo),
+            'stage' => $stage,
+            'position' => $project->nextTaskPosition($stage),
             'start_from' => $start,
-            'start_branch' => $start === TaskStart::Branch ? ($validated['start_branch'] ?? null) : null,
-            'start_task_id' => $start === TaskStart::Task ? $validated['start_task_id'] : null,
+            'start_branch' => $startBranch,
+            'start_task_id' => $startTask?->id,
         ]);
+
+        if ($checkOut) {
+            $checkouts->makeCopy($task);
+
+            return to_route('projects.tasks.show', [$project, $task]);
+        }
 
         if (! $starting) {
             return back();
@@ -357,6 +380,18 @@ class TaskController extends Controller
     /**
      * An error for a task that would need one copy of the app more than the project may run.
      */
+    /**
+     * A checked-out task's title (TASK-006): what it started from, until someone renames it.
+     */
+    protected static function checkOutTitle(TaskStart $start, ?string $branch, ?Task $from): string
+    {
+        return Str::limit(match ($start) {
+            TaskStart::Branch => $branch ?? __('Default branch'),
+            TaskStart::Task => __('Copy of :title', ['title' => $from?->title]),
+            TaskStart::Main => __('Copy of Main'),
+        }, 80, '');
+    }
+
     public static function copyLimitError(Project $project): ValidationException
     {
         return ValidationException::withMessages([

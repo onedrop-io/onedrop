@@ -1658,6 +1658,12 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - A task whose work was applied to Main makes its next copy from Main, which has the work.
 - A branch gone from the remote, or a task to copy without a running copy, should fail the copy with the reason in the task's chat and bar.
 
+## TASK-006: Check out a branch as a task, without a message
+
+- User should be able to click "Check out <branch>" (or "Copy Main", "Copy <task>") under "Start from" in a new task's chat, without writing a message: the task opens, named after where it starts, in In progress, and its copy of the app is made; a branch's app sets itself up and starts (`.onedrop/dev`). No agent runs until the user sends a message.
+- User should see the new task's own preview once its copy is made; until then the new task's workspace says the task gets its own copy, and never shows Main's app.
+- Checking out should be refused, saying why, when the project already runs as many task copies as it may, or where tasks work in Main (no task copies).
+
 ## TASK-004: Switching tasks keeps the workspace view
 
 - The page's URL should say what the workspace shows: its tab, the Tools section, and the open file (e.g. `?tab=tools&tool=database`), so a reload or a shared link opens the same view.

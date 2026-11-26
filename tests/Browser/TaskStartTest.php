@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\TaskStart;
+use App\Jobs\ForkTaskSandbox;
 use App\Models\AgentConnection;
 use App\Models\Project;
 use App\Models\Sandbox;
@@ -64,3 +65,18 @@ test("start a task as a copy of Main's sandbox", function () {
 
     expect(Task::sole()->start_from)->toBe(TaskStart::Main);
 })->group('TASK-005');
+
+test('check out a branch as a task without writing a message', function () {
+    visit("/projects/{$this->project->id}/tasks/new")
+        ->assertSeeIn('@sandbox-message', 'This task gets its own copy of the app when it starts')
+        ->click('@task-start')
+        ->click('@task-start-branch-onedrop-dev')
+        ->assertSeeIn('@task-check-out', 'Check out onedrop-dev')
+        ->click('@task-check-out')
+        ->assertSeeIn('@task-title', 'onedrop-dev')
+        ->assertNoJavaScriptErrors();
+
+    expect(Task::sole()->only('title', 'start_from', 'start_branch'))
+        ->toBe(['title' => 'onedrop-dev', 'start_from' => TaskStart::Branch, 'start_branch' => 'onedrop-dev']);
+    Queue::assertPushed(ForkTaskSandbox::class, fn (ForkTaskSandbox $job) => $job->checkOutOnly);
+})->group('TASK-006');

@@ -262,6 +262,7 @@ export default function ShowProject({
     project,
     task,
     newTask,
+    newTaskCopy,
     agent,
     agentCommands,
     sandbox,
@@ -277,6 +278,8 @@ export default function ShowProject({
     task: TaskDetail | null;
     /** An empty chat whose first message starts a new task. */
     newTask: boolean;
+    /** The new task gets its own copy of the app (TASK-003), so the workspace waits for it rather than show Main. */
+    newTaskCopy: boolean;
     agent: AgentSelection | null;
     /** The agent's own slash commands, for the chat box's "/" menu (AGT-016). */
     agentCommands: AgentCommand[];
@@ -536,7 +539,7 @@ export default function ShowProject({
                     sendMessage={routes.send.url}
                     publication={publication}
                     sandbox={sandbox}
-                    copy={task?.own_copy ?? false}
+                    copy={task?.own_copy ?? newTaskCopy}
                     working={working}
                     activity={messages.length}
                     claudeSignIns={claudeSignIns}
@@ -784,6 +787,15 @@ function ChatPanel({
                                     projectId={project.id}
                                     value={taskStart}
                                     onChange={setTaskStart}
+                                    onCheckOut={(branch) =>
+                                        router.post(routes.send.url, {
+                                            check_out: '1',
+                                            ...(branch
+                                                ? { title: branch }
+                                                : {}),
+                                            ...taskStartData(taskStart),
+                                        })
+                                    }
                                 />
                             )
                         }
@@ -2042,7 +2054,9 @@ function WorkspacePanel({
     const statusText = sandbox?.updating
         ? 'Updating sandbox…'
         : {
-              creating: copy ? 'Copying the app…' : 'Starting sandbox…',
+              creating: copy
+                  ? "Setting up the task's app…"
+                  : 'Starting sandbox…',
               running: url ?? 'Running',
               paused: 'Paused',
               failed: 'Sandbox failed to start',
@@ -3738,16 +3752,16 @@ function PreviewPlaceholder({
         : copy && !sandbox
           ? 'No copy of the app yet'
           : copy
-            ? 'Copying the app…'
+            ? "Setting up the task's app…"
             : sandbox?.updating
               ? 'Updating sandbox…'
               : 'Starting sandbox…';
     const detail = failed
         ? sandbox.error
         : copy && !sandbox
-          ? "This task gets its own copy of Main's app when its agent starts, so its changes don't touch Main until you apply them."
+          ? "This task gets its own copy of the app when it starts, so its changes don't touch Main until you apply them."
           : copy
-            ? 'Its files, packages and data, as Main has them now. Main keeps running.'
+            ? 'Setting up the app where this task starts. Main keeps running.'
             : sandbox?.updating
               ? 'Getting the latest tools. Your files are kept, and your app will be back in a moment.'
               : 'Your app will appear here in a moment.';

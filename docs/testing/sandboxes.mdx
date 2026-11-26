@@ -127,6 +127,17 @@ In a project connected to a GitHub repository (with the GitHub App), with Main a
 - [ ] Pick another task: the copy has that task's files and changes.
 - [ ] With a repository connected by token (e.g. GitLab), a branch start still checks out the branch (fetched on the platform).
 
+## Check out a branch without a message (TASK-006)
+
+In a project connected to a GitHub repository whose branch has a `.onedrop/dev`:
+
+- [ ] **New task**: the right side says the task gets its own copy of the app, not Main's preview.
+- [ ] Pick a branch and click **Check out** (it shows the branch's name): the task opens named after the branch, in In progress on the board, its chat says "Checking out" the branch "in a fresh sandbox", and no agent runs.
+- [ ] The preview shows "Setting up the task's app…", then the branch's app once `.onedrop/dev` has it up; Shell and Files are the task's copy.
+- [ ] Sending the task a message then runs the agent in that copy, without making another.
+- [ ] Pick **Main** and click **Copy Main**: the task is "Copy of Main" with Main's files and data.
+- [ ] With the task copy limit reached, Check out says why and makes no task.
+
 ## E2B (SBX-014)
 
 With `E2B_API_KEY` set and the template built (`SANDBOX_PROVIDER=e2b php artisan sandbox:build-image`), put E2B first in **Settings → Sandboxes**.

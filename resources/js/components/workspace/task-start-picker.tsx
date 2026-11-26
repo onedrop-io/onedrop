@@ -43,17 +43,22 @@ export function taskStartData(
 /**
  * "Start from" in a new task's chat box (TASK-005): a branch of the remote (a fresh clone; its default branch unless
  * picked), Main's copy, or another task's copy. A branch another open task works on is marked, and the task then gets
- * a branch of its own off it, which the line under the picker says.
+ * a branch of its own off it, which the line under the picker says. Check out (TASK-006) starts the task there
+ * with no message: its copy is made and its app started (.onedrop/dev), and the agent waits for one.
  */
 export default function TaskStartPicker({
     projectId,
     value,
     onChange,
+    onCheckOut,
 }: {
     projectId: number;
     value: TaskStart | null;
     onChange: (start: TaskStart | null) => void;
+    /** Start the task with no message; gets the branch's name, for its title. */
+    onCheckOut: (branch: string | null) => void;
 }) {
+    const [checkingOut, setCheckingOut] = useState(false);
     const [points, setPoints] = useState<StartPoints | null>(null);
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
@@ -293,6 +298,31 @@ export default function TaskStartPicker({
                         : 'A fresh clone, on its own branch off it.'}
                 </p>
             )}
+            <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-2 max-w-full gap-1.5"
+                disabled={checkingOut}
+                onClick={() => {
+                    setCheckingOut(true);
+                    onCheckOut(branch);
+                }}
+                title="Make this task's copy and start its app, without the agent"
+                data-test="task-check-out"
+            >
+                {branch ? (
+                    <GitBranch className="size-4 shrink-0" />
+                ) : (
+                    <Copy className="size-4 shrink-0" />
+                )}
+                <span className="truncate">
+                    {branch ? `Check out ${branch}` : `Copy ${label}`}
+                </span>
+            </Button>
+            <p className="text-xs text-muted-foreground">
+                Or describe the task below and the agent starts on it.
+            </p>
         </div>
     );
 }
