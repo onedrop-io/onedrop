@@ -64,6 +64,8 @@ class PullRequestCheckouts
             'pull_request_branch' => $pull['head'],
             'pull_request_base' => $pull['base'],
             'pull_request_fork' => $pull['fork'],
+            // Its review comments are addressed by themselves when the project says so (GIT-031).
+            'pull_request_address_reviews' => $project->address_review_comments !== 'off',
         ]);
     }
 

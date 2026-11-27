@@ -50,6 +50,24 @@ Set up also: a second branch with a commit Main doesn't have, and a tag.
 - [ ] With **Fix failing checks automatically** on and a test that can't pass, the agent tries 3 times, then the chat says it stopped.
 - [ ] The board's card shows the checks' state.
 
+## Review comments (GIT-031)
+
+Use a pull request on a repository with Copilot code review turned on, and the GitHub App subscribed to **Pull request review**. Ask Copilot to review a change that has an obvious typo and a missing doc update.
+
+- [ ] The list shows the pull request's unresolved review comments count; its page lists Copilot's threads under **Conversation** with their code, waiting first.
+- [ ] **Address N comments** checks it out (if needed) and the agent's prompt lists each thread as `T<number> · path:line`. When the turn ends, the fix is pushed and each thread shows the agent's draft reply marked Fixed, Declined or Needs you.
+- [ ] Edit a draft and **Post reply**: the edited text shows on GitHub, from the OneDrop app, ending "Fixed in" and the commit, and the thread is resolved on GitHub. A declined reply posts without resolving.
+- [ ] A Needs you reply shows in the task's chat and isn't posted by itself.
+- [ ] **Apply suggestion** on a Copilot suggestion: the file changes in the task's copy, "Pushed to #N" appears, and the thread gets "Applied in …" and is resolved.
+- [ ] Change those lines first, then **Apply suggestion**: it refuses and says to ask the agent.
+- [ ] **Reply**, **Resolve** and **Unresolve** by hand work and show on GitHub, signed with your name.
+- [ ] Set **Address review comments** to **From bots**, then ask Copilot for another review: within a minute or two the threads go to the task's agent by themselves. A person's comment on the same pull request doesn't go.
+- [ ] Reply as an outsider (an account without push access) on a Copilot thread: that thread no longer goes by itself, but **Address comments** still sends it.
+- [ ] With **Post the agent's replies without asking** on, the replies post and fixed threads resolve after the push, with no drafts left.
+- [ ] Copilot reviewing each push (**Review new pushes** on): after 3 rounds the chat says it stopped addressing review comments automatically.
+- [ ] A review on a pull request without a task, with the project set to **From bots**, checks it out and sends Copilot's threads; one from a fork doesn't.
+- [ ] Unsubscribe the app from **Pull request review**: Source Control tells admins to subscribe it.
+
 ## The Pull requests page (GIT-022)
 
 - [ ] The project's **⋮** menu has **Pull requests** under **Board** (**G** works with the menu open). Open the project from its menu: **Pull requests** is under **Board** in the sidebar too. A project without a GitHub repository lists it in neither.

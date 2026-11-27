@@ -104,6 +104,7 @@ class PullRequestTasks
             'pull_request_base' => $base,
             'pull_request_fork' => false,
             'pull_request_draft' => null,
+            'pull_request_address_reviews' => $task->project->address_review_comments !== 'off',
             'pull_request_checks' => $task->pull_request_head_sha !== null ? 'pending' : null,
             ...($toReview ? ['stage' => TaskStage::Review, 'position' => $task->project->nextTaskPosition(TaskStage::Review)] : []),
         ]);

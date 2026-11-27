@@ -9,6 +9,8 @@ import {
     GitPullRequest,
     GitPullRequestArrow,
     MessageSquare,
+    MessageSquareDot,
+    Sparkles,
     RefreshCw,
     Search,
     Wrench,
@@ -16,8 +18,10 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import ProjectPullRequestController from '@/actions/App/Http/Controllers/ProjectPullRequestController';
+import PullRequestReviewController from '@/actions/App/Http/Controllers/PullRequestReviewController';
 import Markdown from '@/components/markdown';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import {
     Select,
@@ -27,6 +31,8 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import PatchView from '@/components/workspace/patch-view';
+import ReviewThreads from '@/components/workspace/review-threads';
+import type { ReviewThread } from '@/components/workspace/review-threads';
 import { jsonRequest } from '@/lib/json-request';
 import { cn } from '@/lib/utils';
 import { openWorkspaceTool } from '@/lib/workspace-view';
@@ -46,6 +52,8 @@ type PullSummary = {
     author: Person;
     fork: boolean;
     comments: number;
+    /** Review threads nobody has resolved yet (GIT-031). */
+    open_threads: number;
     review: 'approved' | 'changes_requested' | 'review_required' | null;
     checks: ChecksState;
 };
@@ -58,6 +66,14 @@ const previewChoices: { value: PreviewChoice; label: string }[] = [
     { value: 'all', label: 'Every pull request' },
 ];
 
+type ReviewChoice = 'off' | 'bots' | 'trusted';
+
+const reviewChoices: { value: ReviewChoice; label: string }[] = [
+    { value: 'off', label: 'Only when asked' },
+    { value: 'bots', label: 'From bots' },
+    { value: 'trusted', label: 'From bots and people who can push' },
+];
+
 type ListData = {
     available: boolean;
     repository: string | null;
@@ -68,6 +84,10 @@ type ListData = {
     previews: Record<string, string>;
     /** Which pull requests from the repository's own branches are checked out with a preview by themselves (GIT-026). */
     preview_pull_requests: PreviewChoice;
+    /** Whose review comments go to the pull request's task's agent by themselves (GIT-031). */
+    address_review_comments: ReviewChoice;
+    /** Whether the agent's replies post without asking first (GIT-031). */
+    post_review_replies: boolean;
 };
 
 type Pull = {
@@ -120,6 +140,8 @@ type PullTask = {
     url: string;
     status: string;
     checks: ChecksState;
+    /** Its review comments go to its agent by themselves (GIT-031). */
+    address_reviews: boolean;
     /** Its preview link, for anyone (GIT-027). */
     preview_url: string | null;
     /** Why GitHub refused its Deployment or comment (GIT-028). */
@@ -129,6 +151,8 @@ type PullTask = {
 type PullData = {
     pull: Pull;
     conversation: Entry[];
+    /** Review threads, with what the task's agent said about each (GIT-031). */
+    threads: ReviewThread[];
     checks: Check[];
     checks_state: ChecksState;
     task: PullTask | null;
@@ -346,6 +370,20 @@ function PullRequestList({
         ).catch((e: Error) => setError(e.message));
     };
 
+    // Whose review comments are addressed by themselves, and whether replies post without asking (GIT-031).
+    const setReviews = (
+        choice: Partial<
+            Pick<ListData, 'address_review_comments' | 'post_review_replies'>
+        >,
+    ) => {
+        setData((current) => (current ? { ...current, ...choice } : current));
+        jsonRequest(
+            ProjectPullRequestController.settings.url(projectId),
+            choice,
+            'PATCH',
+        ).catch((e: Error) => setError(e.message));
+    };
+
     const shown = useMemo(() => {
         const words = query.trim().toLowerCase();
 
@@ -463,6 +501,55 @@ function PullRequestList({
                     </label>
                 </div>
             )}
+            {data?.repository && (
+                <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                    <label
+                        className="flex items-center gap-1.5"
+                        title="Send new review comments to the pull request's task's agent by themselves, checking it out first"
+                    >
+                        Address review comments
+                        <Select
+                            value={data.address_review_comments}
+                            onValueChange={(value) =>
+                                setReviews({
+                                    address_review_comments:
+                                        value as ReviewChoice,
+                                })
+                            }
+                        >
+                            <SelectTrigger
+                                className="h-7 w-auto text-xs"
+                                data-test="pulls-review-choice"
+                            >
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {reviewChoices.map((choice) => (
+                                    <SelectItem
+                                        key={choice.value}
+                                        value={choice.value}
+                                        data-test={`pulls-review-${choice.value}`}
+                                    >
+                                        {choice.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </label>
+                    <label className="flex items-center gap-1.5">
+                        <Checkbox
+                            checked={data.post_review_replies}
+                            onCheckedChange={(value) =>
+                                setReviews({
+                                    post_review_replies: value === true,
+                                })
+                            }
+                            data-test="pulls-post-replies"
+                        />
+                        Post the agent's replies without asking
+                    </label>
+                </div>
+            )}
             {data && data.preview_pull_requests !== 'off' && (
                 <p
                     className="text-xs text-muted-foreground"
@@ -528,6 +615,16 @@ function PullRequestList({
                                     </span>
                                 </span>
                                 <span className="flex shrink-0 items-center gap-3 text-xs text-muted-foreground">
+                                    {pull.open_threads > 0 && (
+                                        <span
+                                            className="flex items-center gap-1 text-amber-700 dark:text-amber-400"
+                                            title={`${pull.open_threads} unresolved review ${pull.open_threads === 1 ? 'comment' : 'comments'}`}
+                                            data-test="pull-row-open-threads"
+                                        >
+                                            <MessageSquareDot className="size-3.5" />
+                                            {pull.open_threads}
+                                        </span>
+                                    )}
                                     {pull.comments > 0 && (
                                         <span
                                             className="flex items-center gap-1"
@@ -582,14 +679,22 @@ function PullRequestPage({
         setTabState(next);
         onTab(next);
     };
-    const [busy, setBusy] = useState<'check-out' | 'fix' | null>(null);
+    const [busy, setBusy] = useState<'check-out' | 'fix' | 'address' | null>(
+        null,
+    );
 
-    useEffect(() => {
-        jsonRequest<PullData>(ProjectPullRequestController.show.url(ids))
+    const load = useCallback(() => {
+        jsonRequest<PullData>(
+            ProjectPullRequestController.show.url({
+                project: projectId,
+                number,
+            }),
+        )
             .then(setData)
             .catch((e: Error) => setError(e.message));
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [projectId, number]);
+
+    useEffect(load, [load]);
 
     // Running checks are looked at again while the page is open.
     const pending = data?.checks_state === 'pending';
@@ -615,14 +720,19 @@ function PullRequestPage({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [pending, projectId, number]);
 
-    const go = (action: 'check-out' | 'fix') => {
+    const go = (
+        action: 'check-out' | 'fix' | 'address',
+        threads?: string[],
+    ) => {
         setBusy(action);
         setError(null);
         jsonRequest<{ url: string }>(
             action === 'fix'
                 ? ProjectPullRequestController.fix.url(ids)
-                : ProjectPullRequestController.checkOut.url(ids),
-            {},
+                : action === 'address'
+                  ? PullRequestReviewController.address.url(ids)
+                  : ProjectPullRequestController.checkOut.url(ids),
+            threads ? { threads } : {},
         )
             // The task's page opens on this pull request's page in Tools, beside its chat.
             .then(({ url }) =>
@@ -661,6 +771,7 @@ function PullRequestPage({
 
     const { pull, task } = data;
     const failed = data.checks_state === 'failure';
+    const waiting = data.threads.filter((thread) => thread.waiting);
 
     return (
         <div className="max-w-3xl space-y-4" data-test="pull-page">
@@ -748,6 +859,25 @@ function PullRequestPage({
                         {busy === 'fix' ? 'Sending…' : 'Fix failing checks'}
                     </Button>
                 )}
+                {waiting.length > 0 && (
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => go('address')}
+                        disabled={
+                            busy !== null || (!task && !!data.check_out_problem)
+                        }
+                        title="Send the review comments waiting on someone to the task's agent to fix or answer"
+                        data-test="pull-address"
+                    >
+                        <Sparkles />
+                        {busy === 'address'
+                            ? 'Sending…'
+                            : waiting.length === 1
+                              ? 'Address 1 comment'
+                              : `Address ${waiting.length} comments`}
+                    </Button>
+                )}
                 {task?.preview_url && (
                     <Button size="sm" variant="outline" asChild>
                         <a
@@ -826,7 +956,18 @@ function PullRequestPage({
             </div>
 
             {tab === 'conversation' ? (
-                <Conversation pull={pull} entries={data.conversation} />
+                <div className="space-y-4">
+                    <ReviewThreads
+                        projectId={projectId}
+                        number={number}
+                        threads={data.threads}
+                        hasTask={!!task}
+                        canAddress={!!task || !data.check_out_problem}
+                        onAddress={(threads) => go('address', threads)}
+                        onChanged={load}
+                    />
+                    <Conversation pull={pull} entries={data.conversation} />
+                </div>
             ) : tab === 'commits' ? (
                 <Commits projectId={projectId} number={number} />
             ) : tab === 'files' ? (
@@ -858,29 +999,32 @@ function Conversation({ pull, entries }: { pull: Pull; entries: Entry[] }) {
                     </p>
                 )}
             </ConversationEntry>
-            {entries.map((entry, index) => (
-                <ConversationEntry
-                    key={index}
-                    author={entry.author}
-                    at={entry.created_at}
-                    label={
-                        entry.kind === 'review'
-                            ? (REVIEW_STATES[entry.state ?? ''] ?? 'reviewed')
-                            : entry.kind === 'line'
-                              ? `commented on ${entry.path}${entry.line ? `:${entry.line}` : ''}`
-                              : 'commented'
-                    }
-                    tone={
-                        entry.state === 'approved'
-                            ? 'green'
-                            : entry.state === 'changes_requested'
-                              ? 'red'
-                              : undefined
-                    }
-                >
-                    {entry.body.trim() && <Markdown content={entry.body} />}
-                </ConversationEntry>
-            ))}
+            {entries
+                .filter((entry) => entry.kind !== 'line')
+                .map((entry, index) => (
+                    <ConversationEntry
+                        key={index}
+                        author={entry.author}
+                        at={entry.created_at}
+                        label={
+                            entry.kind === 'review'
+                                ? (REVIEW_STATES[entry.state ?? ''] ??
+                                  'reviewed')
+                                : entry.kind === 'line'
+                                  ? `commented on ${entry.path}${entry.line ? `:${entry.line}` : ''}`
+                                  : 'commented'
+                        }
+                        tone={
+                            entry.state === 'approved'
+                                ? 'green'
+                                : entry.state === 'changes_requested'
+                                  ? 'red'
+                                  : undefined
+                        }
+                    >
+                        {entry.body.trim() && <Markdown content={entry.body} />}
+                    </ConversationEntry>
+                ))}
         </ol>
     );
 }

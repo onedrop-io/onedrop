@@ -4181,7 +4181,12 @@ function PullRequestBar({
     const post = (url: string) =>
         router.post(url, {}, { preserveScroll: true });
     const set =
-        (field: 'pull_request_push' | 'pull_request_autofix') =>
+        (
+            field:
+                | 'pull_request_push'
+                | 'pull_request_autofix'
+                | 'pull_request_address_reviews',
+        ) =>
         (value: boolean) =>
             router.patch(
                 TaskController.update.url(ids),
@@ -4334,6 +4339,36 @@ function PullRequestBar({
                     />
                     Fix failing checks automatically
                 </label>
+                <label
+                    className="flex items-center gap-1.5"
+                    title="Send new review comments to the agent to fix or answer, as they arrive"
+                >
+                    <Checkbox
+                        checked={pullRequest.address_reviews}
+                        onCheckedChange={(value) =>
+                            set('pull_request_address_reviews')(value === true)
+                        }
+                        data-test="task-pull-request-address-reviews"
+                    />
+                    Address review comments automatically
+                </label>
+                {(pullRequest.review_drafts > 0 ||
+                    (pullRequest.open_threads ?? 0) > 0) && (
+                    <button
+                        type="button"
+                        onClick={() => openPullRequest(pullRequest.number)}
+                        className="text-amber-700 hover:underline dark:text-amber-400"
+                        data-test="task-pull-request-reviews"
+                    >
+                        {pullRequest.review_drafts > 0
+                            ? pullRequest.review_drafts === 1
+                                ? '1 reply to post'
+                                : `${pullRequest.review_drafts} replies to post`
+                            : pullRequest.open_threads === 1
+                              ? '1 review comment waiting'
+                              : `${pullRequest.open_threads} review comments waiting`}
+                    </button>
+                )}
             </div>
             {task.sync_error && (
                 <span

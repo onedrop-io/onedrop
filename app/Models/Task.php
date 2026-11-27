@@ -57,6 +57,10 @@ use Illuminate\Support\Str;
  * @property string|null $pull_request_base
  * @property bool $pull_request_fork Its branch is in a fork, so it can't be pushed to.
  * @property bool $pull_request_push Push the agent's work to the pull request after each turn.
+ * @property bool $pull_request_address_reviews Hand new review comments to the agent by themselves (GIT-031).
+ * @property int $pull_request_review_rounds Review comments handed over by themselves in a row (GIT-031).
+ * @property array<string, array{thread_id: string, comment_id: int, path: ?string, line: ?int}>|null $pull_request_review_batch Review threads handed to the agent and not yet answered, by the key the agent knows them by (GIT-031).
+ * @property int|null $pull_request_open_threads Its pull request's review threads waiting on someone, as last seen (GIT-031).
  * @property bool $pull_request_autofix Send failed checks to the agent after each push (GIT-015).
  * @property int $pull_request_fix_attempts Fixes sent in a row without the checks passing.
  * @property string|null $pull_request_head_sha The newest commit pushed or checked out, whose checks are watched.
@@ -76,7 +80,7 @@ use Illuminate\Support\Str;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['title', 'description', 'stage', 'position', 'status', 'agent_session_id', 'agent_harness', 'agent_provider', 'agent_model', 'agent_variant', 'agent_auto', 'sign_in_retry_message_id', 'events_token_hash', 'base_commit', 'sync_status', 'sync_error', 'applied_at', 'read_at', 'turn_outcome', 'pull_request_number', 'pull_request_branch', 'pull_request_base', 'pull_request_fork', 'pull_request_push', 'pull_request_autofix', 'pull_request_fix_attempts', 'pull_request_head_sha', 'pull_request_checks', 'pull_request_state', 'pull_request_draft', 'preview_key', 'preview_deployment_id', 'preview_deployment_sha', 'preview_comment_id', 'preview_error', 'start_from', 'start_branch', 'start_task_id', 'branch'])]
+#[Fillable(['title', 'description', 'stage', 'position', 'status', 'agent_session_id', 'agent_harness', 'agent_provider', 'agent_model', 'agent_variant', 'agent_auto', 'sign_in_retry_message_id', 'events_token_hash', 'base_commit', 'sync_status', 'sync_error', 'applied_at', 'read_at', 'turn_outcome', 'pull_request_number', 'pull_request_branch', 'pull_request_base', 'pull_request_fork', 'pull_request_push', 'pull_request_autofix', 'pull_request_fix_attempts', 'pull_request_address_reviews', 'pull_request_review_rounds', 'pull_request_review_batch', 'pull_request_open_threads', 'pull_request_head_sha', 'pull_request_checks', 'pull_request_state', 'pull_request_draft', 'preview_key', 'preview_deployment_id', 'preview_deployment_sha', 'preview_comment_id', 'preview_error', 'start_from', 'start_branch', 'start_task_id', 'branch'])]
 #[Hidden(['events_token_hash', 'preview_key'])]
 class Task extends Model implements Conversation
 {
@@ -88,7 +92,7 @@ class Task extends Model implements Conversation
     /**
      * @var array<string, mixed>
      */
-    protected $attributes = ['stage' => 'todo', 'status' => 'idle', 'position' => 0, 'pull_request_fork' => false, 'pull_request_push' => true, 'pull_request_autofix' => false, 'pull_request_fix_attempts' => 0];
+    protected $attributes = ['stage' => 'todo', 'status' => 'idle', 'position' => 0, 'pull_request_fork' => false, 'pull_request_push' => true, 'pull_request_autofix' => false, 'pull_request_fix_attempts' => 0, 'pull_request_address_reviews' => false, 'pull_request_review_rounds' => 0];
 
     /**
      * Get the attributes that should be cast.
@@ -113,6 +117,10 @@ class Task extends Model implements Conversation
             'pull_request_push' => 'boolean',
             'pull_request_autofix' => 'boolean',
             'pull_request_fix_attempts' => 'integer',
+            'pull_request_address_reviews' => 'boolean',
+            'pull_request_review_rounds' => 'integer',
+            'pull_request_review_batch' => 'array',
+            'pull_request_open_threads' => 'integer',
             'pull_request_draft' => 'array',
             'preview_deployment_id' => 'integer',
             'preview_comment_id' => 'integer',
@@ -274,6 +282,16 @@ class Task extends Model implements Conversation
     /**
      * @return HasMany<Message, $this>
      */
+    /**
+     * What its agent said about the review threads it was handed (GIT-031).
+     *
+     * @return HasMany<ReviewReply, $this>
+     */
+    public function reviewReplies(): HasMany
+    {
+        return $this->hasMany(ReviewReply::class);
+    }
+
     public function messages(): HasMany
     {
         return $this->hasMany(Message::class)->where('queued', false)->orderBy('id');

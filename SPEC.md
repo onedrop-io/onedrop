@@ -1434,7 +1434,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see a Pull requests section under Tools for a project connected to a GitHub repository (with the GitHub App or a token); without one, it says to connect a GitHub repository in Source Control.
 - User should see the open pull requests, newest activity first, and be able to switch to closed ones and search them by title, number, branch or author. Each shows its number, title, author, branch and base, draft, its checks (passing, failing or running), its review (approved, changes requested), how many comments, when it last changed, and whether it's checked out as a task.
 - User should be able to click a pull request to open its page (the URL keeps it, e.g. `?tab=tools&tool=pulls&pr=12`, so a reload or a link opens it again, and switching to another tab, such as the Preview, and back shows the same pull request and tab), with its title, state (open, draft, merged, closed), author, branch into base, whether it can be merged, a link to it on GitHub, and four tabs:
-    - **Conversation:** the description and the comments and reviews, oldest first, formatted.
+    - **Conversation:** the review comments on its lines, as threads (GIT-031), then the description and the comments and reviews, oldest first, formatted.
     - **Commits:** each commit's message, author and when.
     - **Files changed:** each file with its state and lines added and removed, and its diff (as in GIT-012) when clicked; very large ones are cut short and say so.
     - **Checks:** each check and commit status on the newest commit, with its state, how long it took, and a link to its details; a failed check shows the end of its log when opened.
@@ -1545,6 +1545,21 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - The run on credits should be a conversation of its own: the task's own agent keeps its conversation, and the user's next message goes back to it.
 - Messages the user sends never move to AI credits: they wait for the user to sign in again, as before (AI-005).
 - Where AI credits are off or none are left, the work should wait for the sign-in, as before.
+
+## GIT-031: Fix and resolve pull request review comments
+
+- User should see on a pull request's page, in Conversation, its review comments (each thread on its lines with the code it's on, its comments, and whether it's resolved or outdated), the ones waiting on someone first; resolved ones are hidden behind "Show N resolved". A thread waits on someone while it's unresolved and its newest comment isn't OneDrop's own reply.
+- User should see how many review comments are unresolved on each pull request in the list, and on a pull request's task's bar how many are waiting or how many of the agent's replies are waiting to be posted.
+- User should be able to click "Address N comments" on a pull request (or tick some threads and address just those): the threads go to the pull request's task's agent (checking it out first when it has none), with each thread's file, line, code and comments, asking it to fix each one or decline it and say why, or ask the user when only they can decide. The work is pushed when its turn ends (GIT-014). Comments from anyone count when a person chooses them.
+- After the turn, what the agent said about each thread should become a draft reply on the pull request's page: fixed, declined or needs you, which the user can edit, post or discard. Posting a fix replies on the thread with the commit it's in and resolves the thread; posting a declined one only replies. A question for the user also shows in the task's chat. The agent never posts or resolves on GitHub itself.
+- User should be able to choose "Post the agent's replies without asking" on the Pull requests page: declined replies then post as soon as the turn ends, and fixes once the push that carries them names its commit. Questions are never posted. Off by default.
+- User should be able to click "Apply suggestion" on a thread with a GitHub suggestion, on a pull request checked out as a task: the suggested lines replace the ones it was made on in the task's copy (where they moved to, if they moved and appear once), the change is pushed, and once pushed the thread gets "Applied in <commit>" and is resolved. When those lines changed since, it's refused and the user is told to ask the agent instead.
+- User should be able to reply on a thread and resolve or unresolve it from its page; OneDrop's app posts the reply, signed with the user's name.
+- User should be able to choose on the Pull requests page whose review comments are addressed by themselves: "Only when asked" (the default), "From bots" (Copilot and other review bots), or "From bots and people who can push". New pull request tasks take it as "Address review comments automatically" on their bar, which the user can turn on or off per task; turning it on hands over what's waiting now.
+- With it on, when a review is submitted on GitHub the threads waiting on someone go to the task's agent by themselves, but only threads whose every comment is from someone the project trusts: anyone else's text could steer the agent beside the organization's secrets. A pull request without a task is checked out for it first (never one from a fork); if nothing it trusts is waiting, no task is made. A thread already handed over, or with a reply waiting for the user, isn't sent again until someone comments on it again.
+- It should stop after 3 rounds in a row, saying so once in the task's chat; a review that leaves nothing waiting, turning it on again, or addressing comments by hand starts the count over.
+- OneDrop should hear about reviews from the GitHub App's webhook (`pull_request_review` submitted); admins should be told in Source Control when the app isn't subscribed to that event. Replying and resolving need the Pull requests: Read and write permission, and GitHub's refusals are shown on the reply, which stays a draft.
+- Only people who can change the project should address, reply, resolve, apply suggestions or post replies.
 
 ## SCM-001: Source Control tab
 

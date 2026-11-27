@@ -839,6 +839,18 @@ class TaskCopies
     /**
      * @throws SandboxException
      */
+    /**
+     * Run a command in the task's running copy, waking it first.
+     *
+     * @param  list<string>  $command
+     *
+     * @throws SandboxException
+     */
+    public function execInCopy(Task $task, array $command): ExecResult
+    {
+        return $this->provider->exec($this->copySandbox($task)->external_id, $command);
+    }
+
     protected function copySandbox(Task $task): Sandbox
     {
         $copy = $task->sandbox()->first();

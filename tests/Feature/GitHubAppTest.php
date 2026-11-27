@@ -67,7 +67,7 @@ beforeEach(function () {
             'api.github.com/app/installations/*/access_tokens' => fn (HttpRequest $request) => JWT::decode(substr($request->header('Authorization')[0], 7), new Key($this->publicKey, 'RS256'))->iss === '12345'
                 ? Http::response(['token' => 'ghs_installation'], 201)
                 : Http::response(['message' => 'Bad JWT'], 401),
-            'api.github.com/app' => fn () => Http::response(['owner' => ['login' => 'onedrop-io', 'type' => 'Organization'], 'permissions' => $this->permissions, 'installations_count' => $this->installationsCount ?? 1]),
+            'api.github.com/app' => fn () => Http::response(['owner' => ['login' => 'onedrop-io', 'type' => 'Organization'], 'permissions' => $this->permissions, 'installations_count' => $this->installationsCount ?? 1, ...(isset($this->events) ? ['events' => $this->events] : [])]),
             'api.github.com/user/installations/777/repositories*' => fn (HttpRequest $request) => $request->hasHeader('Authorization', 'Bearer ghu_user')
                 ? Http::response(['repositories' => [
                     ($this->repository)('dev/old-site', ['pushed_at' => '2025-01-01T00:00:00Z']),
@@ -136,10 +136,16 @@ test('admins are told what the GitHub App setup is missing; others are not', fun
         // And pull request previews on GitHub (GIT-028).
         ->toContain('Deployments, Pull requests: Read and write');
 
+    // Reviews need their own webhook event (GIT-031).
+    $this->events = ['pull_request'];
+    cache()->flush();
+    expect(implode(' ', $this->getJson(route('projects.git.index', $this->project))->json('github.problems')))
+        ->toContain('Pull request review event');
+
     config(['services.github_app.webhook_secret' => null]);
     expect(implode(' ', $this->getJson(route('projects.git.index', $this->project))->json('github.problems')))
         ->toContain('GITHUB_WEBHOOK_SECRET')->toContain(route('github.webhook'));
-})->group('GIT-005', 'GIT-013', 'GIT-026', 'GIT-028');
+})->group('GIT-005', 'GIT-013', 'GIT-026', 'GIT-028', 'GIT-031');
 
 test('admins are told which GitHub App settings are missing', function () {
     config(['services.github_app.client_id' => null, 'services.github_app.client_secret' => null]);

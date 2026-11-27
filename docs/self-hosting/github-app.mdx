@@ -30,7 +30,7 @@ With a GitHub App set up, **Source Control** shows **Connect to GitHub**. People
         | Setup URL | `https://your-domain/github/callback`, with **Redirect on update** on |
         | Webhook | **Active**, with the Webhook URL `https://your-domain/github/webhook` and a long random **Webhook secret** (for [pull request previews](/guides/pull-requests#previews-for-every-pull-request); optional) |
         | Repository permissions | **Contents:** Read and write. **Metadata:** Read-only (set automatically). **Administration:** Read and write, to create organization repositories from OneDrop (optional). **Checks**, **Commit statuses** and **Actions:** Read-only, and **Pull requests** and **Deployments:** Read and write, for [pull requests](/guides/pull-requests) and their previews (optional). |
-        | Subscribe to events | **Pull request** (needs the webhook) |
+        | Subscribe to events | **Pull request** and **Pull request review** (need the webhook; reviews are for [addressing review comments](/guides/pull-requests#fix-and-resolve-review-comments) as they arrive) |
         | Expire user authorization tokens | On (OneDrop refreshes them) |
         | Where can this GitHub App be installed? | **Any account**, so people can install it on their own accounts and organizations |
     </Step>

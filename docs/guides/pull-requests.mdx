@@ -149,6 +149,52 @@ After each push, the task's chat says how the checks went, such as "Checks passe
 
 The agent is asked to fix the code, not the checks: it doesn't skip, delete or loosen tests, or add sleeps or longer timeouts. If a check fails for a reason outside the code, such as a missing secret, it says so instead of changing anything.
 
+## Fix and resolve review comments
+
+Review comments, from Copilot or from people, show on a pull request's page under **Conversation**. Each thread shows its file and line, the code it's on, and its comments. Threads waiting on someone come first. A thread is waiting while it's unresolved and its newest comment isn't OneDrop's own reply. Resolved threads are hidden behind **Show N resolved**. In the list, each pull request shows how many review comments are unresolved, so one whose checks all pass but still has open comments doesn't look done.
+
+### Address comments
+
+Click **Address N comments** to send every waiting thread to the pull request's task. If it has no task yet, it's checked out first. To send only some threads, untick the others and click **Address** above them. The agent reads each one and:
+
+- **fixes** it, when the comment is right,
+- **declines** it and says why, when it's wrong, already handled, or outside the pull request,
+- or **asks you**, when only you can decide.
+
+When its turn ends, the fixes are pushed (with **Push after each turn** on), and what the agent said about each thread shows under it as a reply you haven't posted yet. Edit it if you like, then **Post reply**. Posting a fix replies on the thread with the commit it's in, such as "Fixed in 3f2a1c9", and resolves the thread. Posting a declined reply only replies, so the reviewer can answer. A question for you also shows in the task's chat. **Discard** throws a reply away.
+
+The agent never posts or resolves anything on GitHub itself. OneDrop's GitHub App does it once you post.
+
+<Tip>
+  Turn on **Post the agent's replies without asking** on the Pull requests page to skip the drafts. Declined replies then post as soon as the turn ends, and fixes post once they're pushed. Questions are never posted.
+</Tip>
+
+### Apply a suggestion
+
+When a comment has a GitHub suggestion, click **Apply suggestion** on a pull request checked out as a task. The suggested lines replace the original ones in the task's copy, with no agent involved. The change is pushed, and the thread gets "Applied in …" and is resolved. If those lines changed since the suggestion was made, OneDrop doesn't apply it and asks you to have the agent address it instead.
+
+You can also **Reply** on a thread, and **Resolve** or **Unresolve** it, from its page. OneDrop's GitHub App posts your reply, signed with your name.
+
+### Address them automatically
+
+On the Pull requests page, **Address review comments** chooses whose comments go to the agent by themselves when a review is submitted:
+
+| Choice | What goes to the agent |
+| --- | --- |
+| **Only when asked** (default) | Nothing, until you click **Address comments**. |
+| **From bots** | Threads from Copilot and other review bots. |
+| **From bots and people who can push** | Also threads from the repository's owners, members and collaborators. |
+
+A thread goes by itself only when every comment in it is from someone on that list. Anyone else's comment could try to steer the agent while it runs next to your organization's secrets, so those threads wait for you to choose them. When you click **Address comments**, every thread you pick is sent.
+
+New pull request tasks take the project's choice as **Address review comments automatically** on their bar, which you can turn on or off for each task. Turning it on sends what's already waiting. A review on a pull request without a task checks it out first, except for pull requests from forks.
+
+A thread isn't sent again until someone comments on it again. If 3 reviews in a row each send the agent more to do, it stops and says so in the task's chat. A review with nothing left waiting starts the count over, and so does turning the switch on again or clicking **Address comments**.
+
+<Note>
+  OneDrop doesn't ask Copilot to review again after a push. To have Copilot review each push, turn on **Review new pushes** in the repository's Copilot code review settings on GitHub.
+</Note>
+
 ## When the task's AI is signed out
 
 Bringing in new commits and fixing failing checks run without you, so a signed-out AI shouldn't hold them up. If the task's agent can't run one of them because your Claude or ChatGPT sign-in has run out, it runs on your organization's [AI credits](/guides/set-up-ai) instead, on OpenCode with DeepSeek Flash. The task's chat says so and names the model, and the [Usage](/guides/usage) page shows the run as paid by AI credits. A hand-off costs a cent or two.
@@ -157,4 +203,4 @@ That run is a conversation of its own: the task's own agent keeps its conversati
 
 ## What GitHub needs to allow
 
-With the GitHub App, its admin gives it the **Pull requests**, **Checks**, **Commit statuses** and **Actions** read permissions (see [GitHub App](/self-hosting/github-app)); admins see in Source Control which are missing. With an access token, the token needs the same read access to the repository. When GitHub refuses, the section says which permission it needs.
+With the GitHub App, its admin gives it the **Pull requests**, **Checks**, **Commit statuses** and **Actions** read permissions (see [GitHub App](/self-hosting/github-app)); admins see in Source Control which are missing. Replying to review comments and resolving them needs **Pull requests: Read and write**, and addressing them as reviews arrive needs the app's webhook subscribed to the **Pull request review** event. With an access token, the token needs the same read access to the repository. When GitHub refuses, the section says which permission it needs.

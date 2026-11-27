@@ -87,6 +87,8 @@ use Laravel\Sanctum\PersonalAccessToken;
  * @property bool $commit_turns Whether the agent commits each turn to the branch, or leaves its changes for the user to commit (SCM-003)
  * @property bool $preview_pull_requests Check out every pull request from the repository's own branches as a task, with a preview (GIT-026)
  * @property Carbon|null $preview_pull_requests_since Only those opened from then on, when set (GIT-026)
+ * @property string $address_review_comments Whose review comments its pull requests' tasks address by themselves: off, bots or trusted (GIT-031)
+ * @property bool $post_review_replies Post the agent's replies to review comments without asking first (GIT-031)
  * @property string|null $hosting_sqlite_import The hosted SQLite file a Move to Postgres copies into the app's new Postgres, until it has (HOST-009)
  * @property string|null $hosting_size The hosted app's machine size; null is the install's default (HOST-010)
  * @property string|null $hosting_platform Where it's hosted: "vercel" or "fly-cloudflare"; null is the organization's default (HOST-011)
@@ -96,7 +98,7 @@ use Laravel\Sanctum\PersonalAccessToken;
  * @property bool $apps_listed Whether the organization's Apps page lists it once it's published (APPS-003)
  * @property Carbon|null $apps_featured_at When an organization admin featured it on the Apps page (APPS-003)
  */
-#[Fillable(['organization_id', 'kind', 'name', 'prompt', 'status', 'agent_session_id', 'sign_in_retry_message_id', 'agent_harness', 'agent_provider', 'agent_model', 'agent_variant', 'agent_auto', 'publish_status', 'publish_visibility', 'publish_target', 'published_url', 'published_at', 'published_by', 'publish_error', 'publish_login_url', 'publish_waiting_for', 'onedrop_enabled', 'onedrop_client_id', 'onedrop_client_secret', 'onedrop_callback_path', 'onedrop_group_ids', 'pinned_at', 'read_at', 'archived_at', 'sidebar_position', 'backup_commit', 'backed_up_at', 'icon_path', 'icon_mime', 'icon_hash', 'git_remote_url', 'git_remote_username', 'git_remote_token', 'git_sync_status', 'git_sync_error', 'git_synced_at', 'github_installation_id', 'autofix', 'track_requirements', 'turn_outcome', 'hosting_changes', 'auto_deploy', 'commit_turns', 'hosting_sqlite_import', 'hosting_size', 'hosting_platform', 'published_default_url', 'device_id', 'network_hosts', 'agent_commands', 'apps_listed', 'apps_featured_at', 'preview_pull_requests', 'preview_pull_requests_since'])]
+#[Fillable(['organization_id', 'kind', 'name', 'prompt', 'status', 'agent_session_id', 'sign_in_retry_message_id', 'agent_harness', 'agent_provider', 'agent_model', 'agent_variant', 'agent_auto', 'publish_status', 'publish_visibility', 'publish_target', 'published_url', 'published_at', 'published_by', 'publish_error', 'publish_login_url', 'publish_waiting_for', 'onedrop_enabled', 'onedrop_client_id', 'onedrop_client_secret', 'onedrop_callback_path', 'onedrop_group_ids', 'pinned_at', 'read_at', 'archived_at', 'sidebar_position', 'backup_commit', 'backed_up_at', 'icon_path', 'icon_mime', 'icon_hash', 'git_remote_url', 'git_remote_username', 'git_remote_token', 'git_sync_status', 'git_sync_error', 'git_synced_at', 'github_installation_id', 'autofix', 'track_requirements', 'turn_outcome', 'hosting_changes', 'auto_deploy', 'commit_turns', 'hosting_sqlite_import', 'hosting_size', 'hosting_platform', 'published_default_url', 'device_id', 'network_hosts', 'agent_commands', 'apps_listed', 'apps_featured_at', 'preview_pull_requests', 'preview_pull_requests_since', 'address_review_comments', 'post_review_replies'])]
 #[Hidden(['onedrop_client_secret', 'git_remote_token'])]
 class Project extends Model implements Conversation
 {
@@ -112,7 +114,7 @@ class Project extends Model implements Conversation
      *
      * @var array<string, mixed>
      */
-    protected $attributes = ['kind' => 'app', 'autofix' => true, 'track_requirements' => true, 'auto_deploy' => false, 'commit_turns' => true, 'apps_listed' => true, 'preview_pull_requests' => false];
+    protected $attributes = ['kind' => 'app', 'autofix' => true, 'track_requirements' => true, 'auto_deploy' => false, 'commit_turns' => true, 'apps_listed' => true, 'preview_pull_requests' => false, 'address_review_comments' => 'off', 'post_review_replies' => false];
 
     /**
      * Connecting a repository (or importing one) stops the agent committing each turn (SCM-003): the user's
@@ -167,6 +169,7 @@ class Project extends Model implements Conversation
             'commit_turns' => 'boolean',
             'preview_pull_requests' => 'boolean',
             'preview_pull_requests_since' => 'datetime',
+            'post_review_replies' => 'boolean',
             'track_requirements' => 'boolean',
             'agent_auto' => 'boolean',
             'agent_harness' => AgentHarness::class,

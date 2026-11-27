@@ -117,6 +117,10 @@ trait RendersWorkspace
                     'fork' => $task->pull_request_fork,
                     'push' => $task->pull_request_push,
                     'autofix' => $task->pull_request_autofix,
+                    // Review comments (GIT-031): addressed by themselves, waiting on someone, and draft replies to post.
+                    'address_reviews' => $task->pull_request_address_reviews,
+                    'open_threads' => $task->pull_request_open_threads,
+                    'review_drafts' => $task->reviewReplies()->where('status', 'draft')->count(),
                     'checks' => $task->pull_request_checks,
                     'head_sha' => $task->pull_request_head_sha,
                     // merged or closed on GitHub (GIT-023).

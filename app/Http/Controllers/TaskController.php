@@ -24,6 +24,7 @@ use App\Sandbox\GitException;
 use App\Sandbox\GitRemote;
 use App\Sandbox\PullRequestCheckouts;
 use App\Sandbox\PullRequestFixes;
+use App\Sandbox\PullRequestReviews;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -226,9 +227,9 @@ class TaskController extends Controller
 
     /**
      * Rename the task, change its notes, or move it to another column; for a pull request's task, whether to push after
-     * each turn and fix failed checks automatically.
+     * each turn, fix failed checks automatically and address review comments automatically (GIT-031).
      */
-    public function update(Request $request, Project $project, Task $task, PullRequestFixes $fixes): RedirectResponse
+    public function update(Request $request, Project $project, Task $task, PullRequestFixes $fixes, PullRequestReviews $reviews): RedirectResponse
     {
         Gate::authorize('update', $project);
 
@@ -239,6 +240,7 @@ class TaskController extends Controller
             // A pull request's task (GIT-014, GIT-015).
             'pull_request_push' => ['sometimes', 'boolean'],
             'pull_request_autofix' => ['sometimes', 'boolean'],
+            'pull_request_address_reviews' => ['sometimes', 'boolean'],
         ], [
             'title.required' => __('Give the task a title.'),
         ]);
@@ -252,13 +254,27 @@ class TaskController extends Controller
         }
 
         if (! $task->isPullRequest()) {
-            unset($validated['pull_request_push'], $validated['pull_request_autofix']);
+            unset($validated['pull_request_push'], $validated['pull_request_autofix'], $validated['pull_request_address_reviews']);
         }
 
         $fixingNow = ($validated['pull_request_autofix'] ?? false) && ! $task->pull_request_autofix;
+        $addressingNow = ($validated['pull_request_address_reviews'] ?? false) && ! $task->pull_request_address_reviews;
 
-        // Turned on again: the count of tries in a row starts over.
-        $task->update([...$validated, ...($fixingNow ? ['pull_request_fix_attempts' => 0] : [])]);
+        // Turned on again: the count of tries (or rounds) in a row starts over.
+        $task->update([
+            ...$validated,
+            ...($fixingNow ? ['pull_request_fix_attempts' => 0] : []),
+            ...($addressingNow ? ['pull_request_review_rounds' => 0] : []),
+        ]);
+
+        // Turned on: review comments already waiting go to the agent now rather than at the next review (GIT-031).
+        if ($addressingNow) {
+            try {
+                $reviews->addressAutomatically($task);
+            } catch (GitException $e) {
+                Inertia::flash('toast', ['type' => 'error', 'message' => $e->getMessage()]);
+            }
+        }
 
         // Turned on while the checks are failing: start fixing them now rather than after the next push.
         if ($fixingNow && $task->pull_request_checks === 'failure' && ! $task->isWorking()) {

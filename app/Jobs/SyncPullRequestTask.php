@@ -9,6 +9,7 @@ use App\Models\Task;
 use App\Sandbox\Agents\AgentQueue;
 use App\Sandbox\Agents\CreditsFallback;
 use App\Sandbox\GitException;
+use App\Sandbox\PullRequestReviews;
 use App\Sandbox\SandboxException;
 use App\Sandbox\TaskCopies;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -129,6 +130,9 @@ class SyncPullRequestTask implements ShouldQueue
 
         $pushed = $sha !== $task->pull_request_head_sha;
         $task->update(['sync_status' => null, 'sync_error' => null, 'pull_request_head_sha' => $sha, ...($pushed ? ['pull_request_checks' => 'pending'] : [])]);
+
+        // Replies about fixes in this push name its commit, and post when they should (GIT-031).
+        app(PullRequestReviews::class)->pushed($task, $sha);
 
         if ($pushed) {
             $task->messages()->create(['role' => MessageRole::Activity, 'content' => "Pushed to #{$number} (".substr($sha, 0, 7).')']);

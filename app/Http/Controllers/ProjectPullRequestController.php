@@ -11,6 +11,7 @@ use App\Sandbox\GitHubPulls;
 use App\Sandbox\PullRequestCheckouts;
 use App\Sandbox\PullRequestFixes;
 use App\Sandbox\PullRequestPreviews;
+use App\Sandbox\PullRequestReviews;
 use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -46,7 +47,7 @@ class ProjectPullRequestController extends Controller
         Gate::authorize('view', $project);
 
         if (! GitHubPulls::available($project)) {
-            return response()->json(['available' => false, 'repository' => null, 'pulls' => [], 'tasks' => (object) [], 'previews' => (object) [], 'preview_pull_requests' => $project->pullRequestPreviews()]);
+            return response()->json(['available' => false, 'repository' => null, 'pulls' => [], 'tasks' => (object) [], 'previews' => (object) [], ...$this->choices($project)]);
         }
 
         return $this->fromGitHub(function () use ($request, $project, $pulls, $previews, $gateway) {
@@ -66,49 +67,81 @@ class ProjectPullRequestController extends Controller
                 'tasks' => (object) $tasks->pluck('id', 'pull_request_number')->all(),
                 // Each preview's link, for those that have one (GIT-027).
                 'previews' => (object) $tasks->mapWithKeys(fn (Task $task) => [$task->pull_request_number => $gateway->pullRequestLink($task)])->filter()->all(),
-                'preview_pull_requests' => $project->pullRequestPreviews(),
+                ...$this->choices($project),
             ]);
         });
     }
 
     /**
      * Preview no pull requests, only new ones, or every one (GIT-026). Every one checks out the open ones at once; new
-     * ones counts from now, unless it was already counting.
+     * ones counts from now, unless it was already counting. Whose review comments are addressed by themselves, and
+     * whether the agent's replies post without asking (GIT-031).
      */
     public function settings(Request $request, Project $project): JsonResponse
     {
         Gate::authorize('update', $project);
 
-        $choice = $request->validate(['preview_pull_requests' => ['required', Rule::in(['off', 'new', 'all'])]])['preview_pull_requests'];
-
-        $project->update([
-            'preview_pull_requests' => $choice !== 'off',
-            'preview_pull_requests_since' => $choice === 'new' ? ($project->pullRequestPreviews() === 'new' ? $project->preview_pull_requests_since : now()) : null,
+        $validated = $request->validate([
+            'preview_pull_requests' => ['sometimes', Rule::in(['off', 'new', 'all'])],
+            'address_review_comments' => ['sometimes', Rule::in(['off', 'bots', 'trusted'])],
+            'post_review_replies' => ['sometimes', 'boolean'],
         ]);
 
-        if ($choice === 'all' && GitHubPulls::available($project)) {
-            CatchUpPullRequests::dispatch($project);
+        if (isset($validated['preview_pull_requests'])) {
+            $choice = $validated['preview_pull_requests'];
+
+            $project->update([
+                'preview_pull_requests' => $choice !== 'off',
+                'preview_pull_requests_since' => $choice === 'new' ? ($project->pullRequestPreviews() === 'new' ? $project->preview_pull_requests_since : now()) : null,
+            ]);
+
+            if ($choice === 'all' && GitHubPulls::available($project)) {
+                CatchUpPullRequests::dispatch($project);
+            }
         }
 
-        return response()->json(['preview_pull_requests' => $project->pullRequestPreviews()]);
+        $project->update(array_intersect_key($validated, array_flip(['address_review_comments', 'post_review_replies'])));
+
+        return response()->json($this->choices($project));
+    }
+
+    /**
+     * The project's choices for its pull requests.
+     *
+     * @return array{preview_pull_requests: string, address_review_comments: string, post_review_replies: bool}
+     */
+    protected function choices(Project $project): array
+    {
+        return [
+            'preview_pull_requests' => $project->pullRequestPreviews(),
+            'address_review_comments' => $project->address_review_comments,
+            'post_review_replies' => $project->post_review_replies,
+        ];
     }
 
     /**
      * One pull request with its conversation and checks, its task, and why it can't be checked out (if it can't).
      */
-    public function show(Project $project, int $number, GitHubPulls $pulls): JsonResponse
+    public function show(Project $project, int $number, GitHubPulls $pulls, PullRequestReviews $reviews): JsonResponse
     {
         Gate::authorize('view', $project);
 
-        return $this->fromGitHub(function () use ($project, $number, $pulls) {
+        return $this->fromGitHub(function () use ($project, $number, $pulls, $reviews) {
             $pull = $pulls->find($project, $number);
             $checks = $pulls->checks($project, $pull['head_sha']);
             $task = app(PullRequestCheckouts::class)->taskFor($project, $number);
             $this->remember($task, $pull['head_sha'], $checks);
+            $threads = $pulls->threads($project, $number);
+
+            if ($task !== null) {
+                $reviews->remember($task, $threads);
+            }
 
             return response()->json([
                 'pull' => $pull,
                 'conversation' => $pulls->conversation($project, $number),
+                // Review threads, with what the task's agent said about each (GIT-031).
+                'threads' => PullRequestReviewController::present($task, $threads, $reviews),
                 'checks' => $checks,
                 'checks_state' => GitHubPulls::summarize($checks),
                 'task' => $task ? $this->describeTask($project, $task) : null,
@@ -220,7 +253,7 @@ class ProjectPullRequestController extends Controller
     }
 
     /**
-     * @return array{id: int, title: string, url: string, status: mixed, checks: ?string, preview_url: ?string, preview_error: ?string}
+     * @return array{id: int, title: string, url: string, status: mixed, checks: ?string, address_reviews: bool, preview_url: ?string, preview_error: ?string}
      */
     protected function describeTask(Project $project, Task $task): array
     {
@@ -230,6 +263,7 @@ class ProjectPullRequestController extends Controller
             'url' => route('projects.tasks.show', [$project, $task]),
             'status' => $task->status,
             'checks' => $task->pull_request_checks,
+            'address_reviews' => $task->pull_request_address_reviews,
             // Its preview link (GIT-027), and why GitHub refused its Deployment or comment (GIT-028).
             'preview_url' => app(Gateway::class)->pullRequestLink($task),
             'preview_error' => $task->preview_error,

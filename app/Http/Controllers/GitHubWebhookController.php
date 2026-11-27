@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\HandlePullRequestEvent;
+use App\Jobs\HandlePullRequestReview;
 use App\Models\Project;
 use App\Sandbox\GitHubPulls;
 use App\Sandbox\GitRemote;
@@ -10,8 +11,9 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
 /**
- * The GitHub App's webhook (GIT-026): pull requests opened, given commits, reopened, merged or closed, for the projects
- * connected to their repository through the app. Signed with GITHUB_WEBHOOK_SECRET; the work is queued.
+ * The GitHub App's webhook (GIT-026): pull requests opened, given commits, reopened, merged or closed, and reviews
+ * submitted on them (GIT-031), for the projects connected to their repository through the app. Signed with
+ * GITHUB_WEBHOOK_SECRET; the work is queued.
  */
 class GitHubWebhookController extends Controller
 {
@@ -29,7 +31,9 @@ class GitHubWebhookController extends Controller
 
         $event = $request->header('X-GitHub-Event');
 
-        if ($event !== 'pull_request' || ! in_array($request->input('action'), self::ACTIONS, true)) {
+        $review = $event === 'pull_request_review' && $request->input('action') === 'submitted';
+
+        if (! $review && ($event !== 'pull_request' || ! in_array($request->input('action'), self::ACTIONS, true))) {
             return response('Ignored', 202);
         }
 
@@ -42,7 +46,9 @@ class GitHubWebhookController extends Controller
             ->whereNotNull('git_remote_url')
             ->get()
             ->filter(fn (Project $project) => strcasecmp((string) GitRemote::gitHubRepository((string) $project->git_remote_url), $repository) === 0)
-            ->each(fn (Project $project) => HandlePullRequestEvent::dispatch($project, $pull));
+            ->each(fn (Project $project) => $review
+                ? HandlePullRequestReview::dispatch($project, $pull)
+                : HandlePullRequestEvent::dispatch($project, $pull));
 
         return response('Queued', 202);
     }

@@ -23,6 +23,7 @@ use App\Models\Project;
 use App\Models\Task;
 use App\Sandbox\AbuseCheck;
 use App\Sandbox\ProjectIcons;
+use App\Sandbox\PullRequestReviews;
 use Illuminate\Support\Str;
 
 /**
@@ -308,6 +309,12 @@ abstract class AgentEvents
         // Before it goes idle, so the sidebar holds its notification until the outcome is known (PRJ-011).
         if ($conversation instanceof Project || $conversation instanceof Task) {
             CheckTurnOutcome::afterTurn($conversation);
+        }
+
+        // What the agent answered about the review threads it was handed becomes draft replies, before the push
+        // that carries its fixes (GIT-031).
+        if ($conversation instanceof Task && $conversation->isPullRequest() && filled($conversation->pull_request_review_batch)) {
+            app(PullRequestReviews::class)->collect($conversation);
         }
 
         // A pull request's task sends the agent's work to the pull request (GIT-014).

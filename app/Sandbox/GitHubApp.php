@@ -118,7 +118,10 @@ class GitHubApp
         }
 
         if (blank(config('services.github_app.webhook_secret'))) {
-            $problems[] = __('Turn on the GitHub App\'s webhook (:url, with the Pull request event) and set GITHUB_WEBHOOK_SECRET to its secret, so pull requests get their previews within moments.', ['url' => route('github.webhook')]);
+            $problems[] = __('Turn on the GitHub App\'s webhook (:url, with the Pull request and Pull request review events) and set GITHUB_WEBHOOK_SECRET to its secret, so pull requests get their previews within moments.', ['url' => route('github.webhook')]);
+        } elseif (isset($app['events']) && ! in_array('pull_request_review', (array) $app['events'], true)) {
+            // Review comments addressed as they arrive (GIT-031).
+            $problems[] = __('Subscribe the GitHub App to the Pull request review event, so review comments are addressed as they arrive.');
         }
 
         // Installed on GitHub, yet nobody ever came back: GitHub isn't sending people to OneDrop after installing.

@@ -63,35 +63,22 @@ class GitHubPulls
         [$owner, $name] = explode('/', $this->repositoryOf($project), 2);
 
         return $this->cached($project, 'list:'.($closed ? 'closed' : 'open'), function () use ($project, $owner, $name, $closed) {
-            $response = $this->api($project)->post(self::API.'/graphql', [
-                'query' => <<<'GRAPHQL'
-                    query($owner: String!, $name: String!, $states: [PullRequestState!]) {
-                      repository(owner: $owner, name: $name) {
-                        pullRequests(states: $states, first: 50, orderBy: {field: UPDATED_AT, direction: DESC}) {
-                          nodes {
-                            number title state isDraft url createdAt updatedAt headRefName baseRefName reviewDecision
-                            author { login avatarUrl }
-                            headRepository { nameWithOwner }
-                            comments { totalCount }
-                            commits(last: 1) { nodes { commit { oid statusCheckRollup { state } } } }
-                          }
-                        }
+            $data = $this->graphql($project, <<<'GRAPHQL'
+                query($owner: String!, $name: String!, $states: [PullRequestState!]) {
+                  repository(owner: $owner, name: $name) {
+                    pullRequests(states: $states, first: 50, orderBy: {field: UPDATED_AT, direction: DESC}) {
+                      nodes {
+                        number title state isDraft url createdAt updatedAt headRefName baseRefName reviewDecision
+                        author { login avatarUrl }
+                        headRepository { nameWithOwner }
+                        comments { totalCount }
+                        reviewThreads(first: 100) { nodes { isResolved } }
+                        commits(last: 1) { nodes { commit { oid statusCheckRollup { state } } } }
                       }
                     }
-                    GRAPHQL,
-                'variables' => ['owner' => $owner, 'name' => $name, 'states' => $closed ? ['CLOSED', 'MERGED'] : ['OPEN']],
-            ]);
-
-            $this->check($response, 'Pull requests');
-
-            if (($errors = $response->json('errors')) !== null) {
-                // GraphQL answers a missing permission with 200 and this error, rather than a 403.
-                if (($errors[0]['type'] ?? null) === 'FORBIDDEN' || Str::contains((string) ($errors[0]['message'] ?? ''), 'not accessible by integration')) {
-                    throw new GitException(__('GitHub refused to show this: the app or token needs the :permission: Read permission. (:message)', ['permission' => 'Pull requests', 'message' => $errors[0]['message'] ?? 'Forbidden']));
+                  }
                 }
-
-                throw new GitException(__('GitHub couldn\'t list the pull requests: :message', ['message' => $errors[0]['message'] ?? 'unknown error']));
-            }
+                GRAPHQL, ['owner' => $owner, 'name' => $name, 'states' => $closed ? ['CLOSED', 'MERGED'] : ['OPEN']], __('GitHub couldn\'t list the pull requests: :message'));
 
             return array_values(array_map(fn (array $pull): array => [
                 'number' => (int) $pull['number'],
@@ -107,6 +94,8 @@ class GitHubPulls
                 'author' => $this->person($pull['author'] ?? null, 'avatarUrl'),
                 'fork' => ($pull['headRepository']['nameWithOwner'] ?? null) !== "{$owner}/{$name}",
                 'comments' => (int) ($pull['comments']['totalCount'] ?? 0),
+                // Review threads nobody has resolved yet (GIT-031).
+                'open_threads' => count(array_filter($pull['reviewThreads']['nodes'] ?? [], fn (array $thread) => ! ($thread['isResolved'] ?? false))),
                 'review' => match ($pull['reviewDecision'] ?? null) {
                     'APPROVED' => 'approved',
                     'CHANGES_REQUESTED' => 'changes_requested',
@@ -119,7 +108,7 @@ class GitHubPulls
                     'PENDING', 'EXPECTED' => 'pending',
                     default => null,
                 },
-            ], $response->json('data.repository.pullRequests.nodes') ?? []));
+            ], $data['repository']['pullRequests']['nodes'] ?? []));
         });
     }
 
@@ -276,6 +265,124 @@ class GitHubPulls
 
             return $entries;
         });
+    }
+
+    /**
+     * The review threads on its lines (GIT-031), oldest first: whether each is resolved or outdated, where it is, the
+     * code it's on, and its comments, each with whether its author is a bot and how they're related to the repository.
+     *
+     * @return list<array{id: string, key: string, resolved: bool, outdated: bool, path: ?string, line: ?int, start_line: ?int, diff_hunk: string, comments: list<array{id: int, author: ?array{login: string, avatar_url: ?string, bot: bool}, association: ?string, body: string, created_at: ?string, url: ?string}>}>
+     *
+     * @throws GitException
+     */
+    public function threads(Project $project, int $number, bool $fresh = false): array
+    {
+        [$owner, $name] = explode('/', $this->repositoryOf($project), 2);
+
+        if ($fresh) {
+            Cache::forget($this->cacheKey($project, "threads:{$number}"));
+        }
+
+        return $this->cached($project, "threads:{$number}", function () use ($project, $owner, $name, $number) {
+            $data = $this->graphql($project, <<<'GRAPHQL'
+                query($owner: String!, $name: String!, $number: Int!) {
+                  repository(owner: $owner, name: $name) {
+                    pullRequest(number: $number) {
+                      reviewThreads(first: 100) {
+                        nodes {
+                          id isResolved isOutdated path line startLine originalLine originalStartLine
+                          comments(first: 50) {
+                            nodes { databaseId body createdAt url diffHunk authorAssociation author { __typename login avatarUrl } }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+                GRAPHQL, ['owner' => $owner, 'name' => $name, 'number' => $number], __('GitHub couldn\'t show the review comments: :message'));
+
+            $threads = [];
+
+            foreach ($data['repository']['pullRequest']['reviewThreads']['nodes'] ?? [] as $thread) {
+                $comments = array_map(fn (array $comment) => [
+                    'id' => (int) $comment['databaseId'],
+                    'author' => isset($comment['author']) ? [
+                        'login' => (string) $comment['author']['login'],
+                        'avatar_url' => $comment['author']['avatarUrl'] ?? null,
+                        'bot' => ($comment['author']['__typename'] ?? null) === 'Bot',
+                    ] : null,
+                    'association' => $comment['authorAssociation'] ?? null,
+                    'body' => (string) ($comment['body'] ?? ''),
+                    'created_at' => $comment['createdAt'] ?? null,
+                    'url' => $comment['url'] ?? null,
+                ], $thread['comments']['nodes'] ?? []);
+
+                if ($comments === []) {
+                    continue;
+                }
+
+                $threads[] = [
+                    'id' => (string) $thread['id'],
+                    // What the agent calls it: its first comment's number, short and stable.
+                    'key' => 'T'.$comments[0]['id'],
+                    'resolved' => (bool) $thread['isResolved'],
+                    'outdated' => (bool) $thread['isOutdated'],
+                    'path' => $thread['path'] ?? null,
+                    'line' => isset($thread['line']) ? (int) $thread['line'] : (isset($thread['originalLine']) ? (int) $thread['originalLine'] : null),
+                    'start_line' => isset($thread['startLine']) ? (int) $thread['startLine'] : (isset($thread['originalStartLine']) ? (int) $thread['originalStartLine'] : null),
+                    'diff_hunk' => (string) ($thread['comments']['nodes'][0]['diffHunk'] ?? ''),
+                    'comments' => $comments,
+                ];
+            }
+
+            usort($threads, fn (array $a, array $b) => strcmp((string) $a['comments'][0]['created_at'], (string) $b['comments'][0]['created_at']));
+
+            return $threads;
+        });
+    }
+
+    /**
+     * Reply on a review thread (GIT-031); returns the reply's comment id.
+     *
+     * @throws GitException
+     */
+    public function reply(Project $project, int $number, string $threadId, string $body): int
+    {
+        $data = $this->graphql($project, <<<'GRAPHQL'
+            mutation($thread: ID!, $body: String!) {
+              addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: $thread, body: $body}) { comment { databaseId } }
+            }
+            GRAPHQL, ['thread' => $threadId, 'body' => $body], __('GitHub didn\'t take the reply: :message'), 'Read and write');
+
+        $this->forgetConversation($project, $number);
+
+        return (int) ($data['addPullRequestReviewThreadReply']['comment']['databaseId'] ?? 0);
+    }
+
+    /**
+     * Resolve a review thread, or mark it unresolved again (GIT-031).
+     *
+     * @throws GitException
+     */
+    public function resolve(Project $project, int $number, string $threadId, bool $resolved = true): void
+    {
+        $mutation = $resolved ? 'resolveReviewThread' : 'unresolveReviewThread';
+
+        $this->graphql($project, "mutation(\$thread: ID!) { {$mutation}(input: {threadId: \$thread}) { thread { id isResolved } } }", ['thread' => $threadId], $resolved
+            ? __('GitHub didn\'t resolve the comment: :message')
+            : __('GitHub didn\'t mark the comment unresolved: :message'), 'Read and write');
+
+        $this->forgetConversation($project, $number);
+    }
+
+    /**
+     * Forget what was read of a pull request's conversation and threads, after changing them.
+     */
+    protected function forgetConversation(Project $project, int $number): void
+    {
+        foreach (["threads:{$number}", "conversation:{$number}", 'list:open'] as $key) {
+            Cache::forget($this->cacheKey($project, $key));
+        }
     }
 
     /**
@@ -495,6 +602,33 @@ class GitHubPulls
         }
 
         return $items;
+    }
+
+    /**
+     * Ask GitHub's GraphQL API, returning its data. GraphQL answers a missing permission with 200 and an error, not a 403.
+     *
+     * @param  array<string, mixed>  $variables
+     * @return array<string, mixed>
+     *
+     * @throws GitException
+     */
+    protected function graphql(Project $project, string $query, array $variables, string $failure, string $access = 'Read'): array
+    {
+        $response = $this->check($this->api($project)->post(self::API.'/graphql', ['query' => $query, 'variables' => $variables]), 'Pull requests', $access);
+
+        if (($errors = $response->json('errors')) !== null) {
+            $message = (string) ($errors[0]['message'] ?? 'unknown error');
+
+            if (($errors[0]['type'] ?? null) === 'FORBIDDEN' || Str::contains($message, 'not accessible by integration')) {
+                throw new GitException($access === 'Read'
+                    ? __('GitHub refused to show this: the app or token needs the :permission: Read permission. (:message)', ['permission' => 'Pull requests', 'message' => $message])
+                    : __('GitHub refused: the app or token needs the :permission: :access permission. (:message)', ['permission' => 'Pull requests', 'access' => $access, 'message' => $message]));
+            }
+
+            throw new GitException(__($failure, ['message' => $message]));
+        }
+
+        return (array) $response->json('data');
     }
 
     /**

@@ -75,6 +75,12 @@ export type TaskPullRequest = {
     push: boolean;
     /** Send failed checks to the agent after each push. */
     autofix: boolean;
+    /** Send new review comments to the agent by themselves (GIT-031). */
+    address_reviews: boolean;
+    /** Review comments waiting on someone, as last seen; null before they've been looked at. */
+    open_threads: number | null;
+    /** The agent's replies to review comments, not posted yet. */
+    review_drafts: number;
     checks: 'success' | 'failure' | 'pending' | null;
     head_sha: string | null;
     url: string | null;

@@ -65,6 +65,7 @@ use App\Http\Controllers\ProjectShareController;
 use App\Http\Controllers\ProjectSkillController;
 use App\Http\Controllers\ProjectStorageController;
 use App\Http\Controllers\ProjectTestController;
+use App\Http\Controllers\PullRequestReviewController;
 use App\Http\Controllers\SandboxActivityController;
 use App\Http\Controllers\SandboxAiController;
 use App\Http\Controllers\SandboxEventController;
@@ -370,6 +371,14 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
         Route::get('projects/{project}/pulls/{number}/checks/{check}/log', [ProjectPullRequestController::class, 'log'])->whereNumber('number')->where('check', '(run|status)-\d+')->name('projects.pulls.log');
         Route::post('projects/{project}/pulls/{number}/task', [ProjectPullRequestController::class, 'checkOut'])->whereNumber('number')->name('projects.pulls.check-out');
         Route::post('projects/{project}/pulls/{number}/fix', [ProjectPullRequestController::class, 'fix'])->whereNumber('number')->name('projects.pulls.fix');
+        // Review comments (GIT-031).
+        Route::post('projects/{project}/pulls/{number}/address', [PullRequestReviewController::class, 'address'])->whereNumber('number')->name('projects.pulls.address');
+        Route::post('projects/{project}/pulls/{number}/threads/apply', [PullRequestReviewController::class, 'apply'])->whereNumber('number')->name('projects.pulls.threads.apply');
+        Route::post('projects/{project}/pulls/{number}/threads/reply', [PullRequestReviewController::class, 'reply'])->whereNumber('number')->name('projects.pulls.threads.reply');
+        Route::post('projects/{project}/pulls/{number}/threads/resolve', [PullRequestReviewController::class, 'resolve'])->whereNumber('number')->name('projects.pulls.threads.resolve');
+        Route::patch('projects/{project}/review-replies/{reply}', [PullRequestReviewController::class, 'update'])->name('projects.review-replies.update');
+        Route::post('projects/{project}/review-replies/{reply}/post', [PullRequestReviewController::class, 'post'])->name('projects.review-replies.post');
+        Route::delete('projects/{project}/review-replies/{reply}', [PullRequestReviewController::class, 'discard'])->name('projects.review-replies.discard');
         Route::get('projects/{project}/secrets', [ProjectSecretController::class, 'index'])->name('projects.secrets.index');
         Route::get('projects/{project}/secrets/value', [ProjectSecretController::class, 'show'])->name('projects.secrets.show');
         Route::post('projects/{project}/secrets', [ProjectSecretController::class, 'store'])->name('projects.secrets.store');
