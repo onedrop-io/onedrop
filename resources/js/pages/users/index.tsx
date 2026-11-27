@@ -11,7 +11,40 @@ type UserRow = {
     is_admin: boolean;
     groups_count: number;
     created_at: string | null;
+    last_active_at: string | null;
 };
+
+/**
+ * "Active now", "12 min ago", "3 h ago", "5 days ago", then the date. Activity is recorded at most every
+ * 5 minutes (USR-004), so anything newer reads as now.
+ */
+function formatActive(iso: string): string {
+    const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
+
+    if (minutes < 5) {
+        return 'Active now';
+    }
+
+    if (minutes < 60) {
+        return `${minutes} min ago`;
+    }
+
+    if (minutes < 24 * 60) {
+        return `${Math.floor(minutes / 60)} h ago`;
+    }
+
+    const days = Math.floor(minutes / (24 * 60));
+
+    if (days < 30) {
+        return days === 1 ? 'Yesterday' : `${days} days ago`;
+    }
+
+    return new Date(iso).toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+    });
+}
 
 export default function UsersIndex({ users }: { users: UserRow[] }) {
     const { auth } = usePage().props;
@@ -21,7 +54,10 @@ export default function UsersIndex({ users }: { users: UserRow[] }) {
             <Head title="Users" />
 
             <div className="flex flex-1 flex-col gap-8">
-                <Heading title="Users" description="Everyone with an account" />
+                <Heading
+                    title="Users"
+                    description="Everyone with an account, most recently active first"
+                />
 
                 <div className="overflow-x-auto rounded-xl border border-sidebar-border/70 dark:border-sidebar-border">
                     <table className="w-full text-left text-sm">
@@ -31,6 +67,7 @@ export default function UsersIndex({ users }: { users: UserRow[] }) {
                                 <th className="p-3 font-medium">Email</th>
                                 <th className="p-3 font-medium">Groups</th>
                                 <th className="p-3 font-medium">Joined</th>
+                                <th className="p-3 font-medium">Last active</th>
                                 <th className="p-3 font-medium">Access</th>
                             </tr>
                         </thead>
@@ -48,6 +85,27 @@ export default function UsersIndex({ users }: { users: UserRow[] }) {
                                     <td className="p-3">{user.email}</td>
                                     <td className="p-3">{user.groups_count}</td>
                                     <td className="p-3">{user.created_at}</td>
+                                    <td
+                                        className="p-3 whitespace-nowrap"
+                                        data-testid="last-active"
+                                    >
+                                        {user.last_active_at ? (
+                                            <time
+                                                dateTime={user.last_active_at}
+                                                title={new Date(
+                                                    user.last_active_at,
+                                                ).toLocaleString()}
+                                            >
+                                                {formatActive(
+                                                    user.last_active_at,
+                                                )}
+                                            </time>
+                                        ) : (
+                                            <span className="text-muted-foreground">
+                                                Never
+                                            </span>
+                                        )}
+                                    </td>
                                     <td className="p-3">
                                         <div className="flex items-center gap-3">
                                             {user.is_admin && (

@@ -25,13 +25,15 @@ use Inertia\Response;
 class UserController extends Controller
 {
     /**
-     * List every user (admins only).
+     * List every user (admins only), most recently active first (USR-004).
      */
     public function index(): Response
     {
         return Inertia::render('users/index', [
             'users' => User::query()
                 ->withCount('groups')
+                ->orderByRaw('last_active_at is null')
+                ->orderByDesc('last_active_at')
                 ->orderBy('name')
                 ->get()
                 ->map(fn (User $user): array => [
@@ -41,6 +43,7 @@ class UserController extends Controller
                     'is_admin' => $user->is_admin,
                     'groups_count' => $user->groups_count,
                     'created_at' => $user->created_at?->toDateString(),
+                    'last_active_at' => $user->last_active_at?->toIso8601String(),
                 ]),
         ]);
     }
@@ -78,6 +81,7 @@ class UserController extends Controller
                 'two_factor_enabled' => $user->two_factor_confirmed_at !== null,
                 'passkeys_count' => $user->passkeys()->count(),
                 'last_login_at' => $user->last_login_at?->toIso8601String(),
+                'last_active_at' => $user->last_active_at?->toIso8601String(),
                 'last_login_method' => $user->last_login_method,
                 'created_at' => $user->created_at?->toIso8601String(),
                 'updated_at' => $user->updated_at?->toIso8601String(),

@@ -89,6 +89,15 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Every impersonation should be recorded (admin, IP address, when it started and ended) and listed on the user's page; signing out while impersonating ends it.
 - Non-admins should not be able to impersonate anyone.
 
+## USR-004: See who's using the app (admin)
+
+- Admin should see, for each user in Settings → Users, when they were last active ("Active now", "3 h ago", "5 days ago", then the date), with the exact time on hover, and "Never" for someone with no recorded activity.
+- Admin should see the users list ordered by most recently active first, then never-active users by name.
+- Admin should see when the user was last active on their user page.
+- Opening a page or doing something in the app (sending a message, saving a file, using a project) should count as activity; background refreshes (polling, live reloads, prefetching, JSON reads) should not, so a tab left open doesn't look like someone working.
+- Activity should be recorded at most every 5 minutes per user.
+- An admin impersonating the user should not count as the user's activity.
+
 ## ORG-001: Organizations
 
 - Every project, group, invite and skill should belong to one organization.

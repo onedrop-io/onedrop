@@ -7,6 +7,7 @@ use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\LimitSandboxWaits;
 use App\Http\Middleware\OnlySandboxCallsThroughTunnel;
 use App\Http\Middleware\PreventRequestForgery;
+use App\Http\Middleware\RecordUserActivity;
 use App\Http\Middleware\ResolveOrganization;
 use App\Http\Middleware\UseBuiltAssetsForRemoteRequests;
 use App\Http\Middleware\UseDesktopToken;
@@ -77,6 +78,7 @@ return Application::configure(basePath: dirname(__DIR__))
             HandleAppearance::class,
             HandleInertiaRequests::class,
             BlockWhileImpersonating::class,
+            RecordUserActivity::class,
             UseTaskSandbox::class,
             AddLinkHeadersForPreloadedAssets::class,
         ]);

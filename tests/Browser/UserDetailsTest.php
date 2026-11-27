@@ -22,6 +22,8 @@ test('an admin can open a user from the users list and see their details', funct
         ->click('@sidebar-menu-button')
         ->click('@settings-link')
         ->click('[data-test="settings-modal"] a:has-text("Users")')
+        ->assertSeeIn('[data-test="settings-modal"] tbody tr:first-child', 'Active now')
+        ->assertSeeIn('[data-test="settings-modal"] tbody tr:has-text("sam@example.com")', 'Never')
         ->click('[data-test="settings-modal"] a:has-text("'.$sam->name.'")')
         ->assertPathIs("/users/{$sam->id}")
         ->assertSeeIn('@user-details', 'sam@example.com')
@@ -32,4 +34,4 @@ test('an admin can open a user from the users list and see their details', funct
         ->click('@sign-out-everywhere-confirm')
         ->assertSee("{$sam->name} was signed out everywhere.")
         ->assertNoJavaScriptErrors();
-})->group('USR-002');
+})->group('USR-002', 'USR-004');

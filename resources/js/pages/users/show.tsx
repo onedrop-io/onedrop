@@ -36,6 +36,7 @@ type User = {
     two_factor_enabled: boolean;
     passkeys_count: number;
     last_login_at: string | null;
+    last_active_at: string | null;
     last_login_method: string | null;
     created_at: string | null;
     updated_at: string | null;
@@ -412,6 +413,12 @@ export default function UserShow({
                                 'Last sign-in',
                                 user.last_login_at
                                     ? `${formatDate(user.last_login_at)}${user.last_login_method ? ` · ${SIGN_IN_METHODS[user.last_login_method] ?? user.last_login_method}` : ''}`
+                                    : 'Not recorded yet',
+                            ],
+                            [
+                                'Last active',
+                                user.last_active_at
+                                    ? formatDate(user.last_active_at)
                                     : 'Not recorded yet',
                             ],
                             [

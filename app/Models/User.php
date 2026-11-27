@@ -39,6 +39,7 @@ use Laravel\Sanctum\HasApiTokens;
  * @property ProjectSort $project_sort How the sidebar orders their projects (PRJ-010)
  * @property Carbon|null $last_login_at When they last signed in (USR-002)
  * @property string|null $last_login_method How: password, passkey, or a sign-in provider (google, github, ...)
+ * @property Carbon|null $last_active_at When they last opened a page or did something in the app, to the 5 minutes (USR-004)
  * @property string|null $two_factor_secret
  * @property string|null $two_factor_recovery_codes
  * @property Carbon|null $two_factor_confirmed_at
@@ -96,6 +97,7 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
             'build_mode' => BuildMode::class,
             'two_factor_confirmed_at' => 'datetime',
             'last_login_at' => 'datetime',
+            'last_active_at' => 'datetime',
         ];
     }
 
