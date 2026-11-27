@@ -122,7 +122,7 @@ class ChatGptAuth
             if ($response->clientError()) {
                 $connection->update(['verified_at' => null]);
 
-                throw new ChatGptSignInFailed(__('Your ChatGPT sign-in has expired. Sign in with ChatGPT again in Settings → AI.'));
+                throw ChatGptSignInFailed::expired(__('Your ChatGPT sign-in has expired. Sign in with ChatGPT again in Settings → AI.'));
             }
 
             if ($response->failed() || ! $response->json('access_token')) {

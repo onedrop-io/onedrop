@@ -19,6 +19,7 @@ use App\Models\Task;
 use App\Models\User;
 use App\Sandbox\Agents\AgentQueue;
 use App\Sandbox\Agents\AgentRunner;
+use App\Sandbox\Agents\CreditsFallback;
 use App\Sandbox\Agents\FakeAgentRunner;
 use App\Sandbox\ExecResult;
 use App\Sandbox\GitException;
@@ -470,8 +471,10 @@ test("pulling merges the pull request's new commits and hands follow-up to the a
     $task->refresh();
     expect($task->pull_request_head_sha)->toBe($this->remoteSha)
         ->and($task->messages()->where('role', MessageRole::Activity)->pluck('content')->last())->toBe('Brought in the latest from #12, with conflicts')
-        ->and($task->messages()->where('role', MessageRole::User)->value('content'))->toContain('Commits pushed to pull request #12')->toContain('app/Login.php');
-})->group('GIT-014');
+        ->and($task->messages()->where('role', MessageRole::User)->value('content'))->toContain('Commits pushed to pull request #12')->toContain('app/Login.php')
+        // OneDrop's own work, which AI credits run when the task's AI can't (GIT-029).
+        ->and($task->messages()->where('role', MessageRole::User)->sole()->meta)->toBe([CreditsFallback::AUTOMATIC => true]);
+})->group('GIT-014', 'GIT-029');
 
 test("a pull request's task can't be applied to Main or updated from it", function () {
     $task = pullRequestTask($this->project);
@@ -552,9 +555,10 @@ test('failed checks are reported, and with automatic fixing sent to the agent wi
         ->toContain('Expected 200, got 500')
         ->not->toContain('lint')
         ->toContain('don\'t skip, delete or loosen tests')
-        ->toContain('pushed to the pull request when this turn ends');
+        ->toContain('pushed to the pull request when this turn ends')
+        ->and($task->messages()->where('role', MessageRole::User)->sole()->meta)->toBe([CreditsFallback::AUTOMATIC => true]);
     Queue::assertPushed(RunAgentTask::class);
-})->group('GIT-015');
+})->group('GIT-015', 'GIT-029');
 
 test('automatic fixing stops after three tries in a row that fail', function () {
     Queue::fake();

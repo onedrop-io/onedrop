@@ -149,6 +149,12 @@ After each push, the task's chat says how the checks went, such as "Checks passe
 
 The agent is asked to fix the code, not the checks: it doesn't skip, delete or loosen tests, or add sleeps or longer timeouts. If a check fails for a reason outside the code, such as a missing secret, it says so instead of changing anything.
 
+## When the task's AI is signed out
+
+Bringing in new commits and fixing failing checks run without you, so a signed-out AI shouldn't hold them up. If the task's agent can't run one of them because your Claude or ChatGPT sign-in has run out, it runs on your organization's [AI credits](/guides/set-up-ai) instead, on OpenCode with DeepSeek Flash. The task's chat says so and names the model, and the [Usage](/guides/usage) page shows the run as paid by AI credits. A hand-off costs a cent or two.
+
+That run is a conversation of its own: the task's own agent keeps its conversation, and your next message goes back to it. Messages you send yourself never move to AI credits; they wait until you sign in again. Where AI credits are off, or none are left, the work waits for your sign-in too.
+
 ## What GitHub needs to allow
 
 With the GitHub App, its admin gives it the **Pull requests**, **Checks**, **Commit statuses** and **Actions** read permissions (see [GitHub App](/self-hosting/github-app)); admins see in Source Control which are missing. With an access token, the token needs the same read access to the repository. When GitHub refuses, the section says which permission it needs.

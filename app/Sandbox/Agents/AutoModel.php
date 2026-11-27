@@ -3,7 +3,6 @@
 namespace App\Sandbox\Agents;
 
 use App\Enums\AgentProvider;
-use App\Models\Project;
 
 /**
  * Auto model and reasoning (AGT-011): the platform picks the model and reasoning level for each message from how
@@ -36,14 +35,16 @@ class AutoModel
     public function __construct(protected ModelCatalog $catalog) {}
 
     /**
-     * What to run a message of this size with (0 is a tiny tweak), on the project's provider. Without a size (Jev
-     * couldn't say), the provider's default model; the same when the configured model isn't one the user can run.
+     * What to run a message of this size with (0 is a tiny tweak), on the chat's provider (the project's main chat, or a
+     * task's own: TASK-007). Without a size (Jev couldn't say), the provider's default model; the same when the
+     * configured model isn't one the user can run.
      *
      * @return array{provider: AgentProvider, model: string, variant: string|null}|null
      */
-    public function pick(Project $project, ?int $size): ?array
+    public function pick(Conversation $conversation, ?int $size): ?array
     {
-        $provider = $this->catalog->selectionFor($project)['provider'] ?? null;
+        $project = $conversation->ownerProject();
+        $provider = $this->catalog->selectionFor($conversation)['provider'] ?? null;
 
         if ($provider === null) {
             return null;

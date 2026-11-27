@@ -361,6 +361,11 @@ class Project extends Model implements Conversation
         return $this;
     }
 
+    public function agentChoice(): Project|Task
+    {
+        return $this;
+    }
+
     public function runKey(): string
     {
         return 'main';

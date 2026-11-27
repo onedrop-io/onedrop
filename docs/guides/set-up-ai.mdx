@@ -148,7 +148,7 @@ Keys are encrypted in the database, never sent back to your browser, and only pa
 
 ## Choose the agent
 
-Each project runs one of three agents in its sandbox. The agent picker sits under the chat box, left of the model picker, in both the new-project prompt and the project chat.
+Each project runs one of three agents in its sandbox. The agent picker sits under the chat box, left of the model picker, in both the new-project prompt and the project chat. Each [task](/guides/tasks#each-tasks-agent-and-model) has its own agent and model, picked under its own chat box.
 
 | Agent           | Runs                                                                      | Best for                                          |
 | --------------- | ------------------------------------------------------------------------- | ------------------------------------------------- |
@@ -159,7 +159,7 @@ Each project runs one of three agents in its sandbox. The agent picker sits unde
 - New projects start on whatever agent and model you picked last. Until you pick one, they start on your AI subscription: Claude Code for a Claude subscription, or OpenCode with Codex for a ChatGPT sign-in. Without a subscription, they start on OpenCode (or Claude Code, if that's the only agent your connections can run).
 - Claude Code only shows up once you've connected Claude. While it's chosen, the model picker only lists Claude models.
 - Codex only shows up once you've connected Codex. While it's chosen, the model picker only lists OpenAI models (on a ChatGPT plan, the ones OpenAI includes with Codex).
-- Switching agents starts a fresh conversation: the new agent can't read the old one's history, but your app's files stay as they are. The chat notes the switch.
+- Switching agents starts a fresh conversation in that chat only (Main or one task): the new agent can't read the old one's history, but your app's files stay as they are. The chat notes the switch.
 - You can't switch while the agent is working. Stop it or wait for it to finish first.
 
 ## Choose a model

@@ -76,6 +76,7 @@ use App\Http\Controllers\SkillController;
 use App\Http\Controllers\SocialLoginController;
 use App\Http\Controllers\SshKeyController;
 use App\Http\Controllers\StartController;
+use App\Http\Controllers\TaskAgentController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TaskMessageController;
 use App\Http\Controllers\TemplateScreenshotController;
@@ -416,6 +417,7 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
         Route::post('projects/{project}/tasks/{task}/stop', [TaskMessageController::class, 'stop'])->scopeBindings()->name('projects.tasks.stop');
         Route::post('projects/{project}/tasks/{task}/apply', [TaskController::class, 'apply'])->scopeBindings()->name('projects.tasks.apply');
         Route::post('projects/{project}/tasks/{task}/update-from-main', [TaskController::class, 'updateFromMain'])->scopeBindings()->name('projects.tasks.update-from-main');
+        Route::patch('projects/{project}/tasks/{task}/agent', [TaskAgentController::class, 'update'])->scopeBindings()->name('projects.tasks.agent.update');
         Route::post('projects/{project}/tasks/{task}/pull-request/push', [TaskController::class, 'pushPullRequest'])->scopeBindings()->name('projects.tasks.pull-request.push');
         Route::post('projects/{project}/tasks/{task}/pull-request/pull', [TaskController::class, 'pullPullRequest'])->scopeBindings()->name('projects.tasks.pull-request.pull');
         Route::post('projects/{project}/tasks/{task}/pull-request', [TaskController::class, 'openPullRequest'])->scopeBindings()->name('projects.tasks.pull-request.open');

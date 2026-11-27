@@ -245,10 +245,11 @@ abstract class SandboxAgentRunner implements AgentRunner
         }
 
         $env = [
+            // A run on AI credits for the task's agent (GIT-029) starts a conversation of its own.
+            'APP_SESSION_ID' => $conversation->agent_session_id ?? '',
             ...$env,
             'APP_EVENTS_URL' => $callback->url($sandbox->provider).$route,
             'APP_EVENTS_TOKEN' => $conversation->issueEventsToken(),
-            'APP_SESSION_ID' => $conversation->agent_session_id ?? '',
             'APP_RUN' => $conversation->runKey(),
             'APP_REQUIREMENTS' => $conversation->ownerProject()->track_requirements && ! $conversation->ownerProject()->isComputer() ? '1' : '',
             // On a computer the agent works the desktop for its owner, not on an app (CMP-002).

@@ -135,6 +135,17 @@ Needs a Claude Pro or Max account. Disconnect Claude first if `DEV_CLAUDE_CREDEN
 - [ ] Switching is refused while the agent is working.
 - [ ] Repeat for each pair you changed: OpenCode ↔ Claude Code ↔ Codex.
 
+## Each task's own agent (TASK-007)
+
+1. In a project on OpenCode with a task copy running, open a task and switch it to Claude Code and a different model.
+
+- [ ] The page stays on the task; the task's chat notes the switch; Main's picker still shows OpenCode and its model.
+- [ ] A message to the task runs on Claude Code (its steps and replies show), while Main's next message still runs on OpenCode.
+- [ ] Main and the task can work at the same time on different agents.
+- [ ] On **New task**, pick Codex before the first message: the task starts on Codex, and Main's picker is unchanged.
+- [ ] Changing Main's model leaves an existing task's picker as it was.
+- [ ] On a pull request task set to a different agent than Main, push a commit to the pull request on GitHub: the hand-off runs on the task's agent.
+
 ## AI credits
 
 Only on installs with AI credits on.

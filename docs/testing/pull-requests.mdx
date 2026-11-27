@@ -90,3 +90,17 @@ Set up also: the GitHub App with its webhook on (`https://<install>/github/webho
 - [ ] With the webhook turned off on GitHub, a new pull request is still checked out within 5 minutes on a server (hourly on Laravel Cloud), or right away when the Pull requests list is opened.
 - [ ] Remove the Deployments permission from the installation: the task's bar says GitHub refused, and the preview link still works.
 - [ ] Sleeping copy: leave a preview unused for 20 minutes, then open its link: it wakes and loads.
+
+## Hand-offs on AI credits (GIT-029)
+
+Only on installs with AI credits on. Use a pull request task on Claude Code with a Claude subscription.
+
+1. Sign Claude Code out in the task's Shell (`claude auth logout`).
+2. Push a commit to the pull request on GitHub.
+
+- [ ] The task brings in the commits; its chat says Claude isn't signed in, so this runs on AI credits (DeepSeek Flash).
+- [ ] The hand-off runs on OpenCode (its steps show) and does what it was asked: installs, migrates, restarts, resolves any conflicts.
+- [ ] The Usage page shows the run as paid by AI credits, and the credits balance goes down.
+- [ ] After signing in again, a message you send runs on Claude Code and remembers the conversation from before the hand-off.
+- [ ] A message you send while signed out still asks you to sign in, and doesn't run on credits.
+- [ ] With **Fix failing checks automatically** on and a failing check, the fix also runs on AI credits while signed out.

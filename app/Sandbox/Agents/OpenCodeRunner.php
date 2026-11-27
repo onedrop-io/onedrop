@@ -26,7 +26,7 @@ class OpenCodeRunner extends SandboxAgentRunner
     {
         $conversation = $message->conversation();
         $sandbox = $conversation->agentSandbox();
-        $selection = $this->catalog->selectionFor($project, $message);
+        $selection = $this->catalog->selectionFor($conversation, $message);
         // The connection for the chosen model's provider; the default one only explains why nothing is usable.
         $connection = $selection
             ? $project->user->agentConnections()->firstWhere('provider', $selection['provider'])
@@ -60,6 +60,13 @@ class OpenCodeRunner extends SandboxAgentRunner
             try {
                 $connection = $this->chatGpt->ensureFresh($connection);
             } catch (ChatGptSignInFailed $e) {
+                // OneDrop's own work for a pull request's task runs on AI credits instead (GIT-029).
+                if ($e->expired && app(CreditsFallback::class)->move($conversation, $message, 'Your ChatGPT sign-in has expired')) {
+                    $this->start($project, $message);
+
+                    return;
+                }
+
                 $this->fail($conversation, $e->getMessage());
 
                 return;
@@ -84,7 +91,7 @@ class OpenCodeRunner extends SandboxAgentRunner
         }
 
         // One of OpenCode's commands (AGT-016) runs as `opencode run --command`, with its details as the message.
-        [$command, $details] = app(AgentCommands::class)->parse($project, $message->content) ?? [null, null];
+        [$command, $details] = app(AgentCommands::class)->parse($conversation, $message->content) ?? [null, null];
 
         $this->launch($conversation, $sandbox, [
             ...($onCredits ? $environment : $connection->sandboxEnvironment()),
@@ -94,6 +101,8 @@ class OpenCodeRunner extends SandboxAgentRunner
             'APP_FILES' => json_encode($images, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES),
             'APP_MODEL' => $this->catalog->opencodeId($selection['provider'], $selection['model']),
             'APP_VARIANT' => $selection['variant'] ?? '',
+            // On AI credits for the task's own agent (GIT-029): a conversation of its own.
+            ...(CreditsFallback::moved($message) ? ['APP_SESSION_ID' => ''] : []),
         ]);
     }
 }

@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Concerns\BroadcastsProjectChanges;
+use App\Enums\AgentHarness;
+use App\Enums\AgentProvider;
 use App\Enums\MessageRole;
 use App\Enums\ProjectStatus;
 use App\Enums\SandboxStatus;
@@ -37,6 +39,11 @@ use Illuminate\Support\Str;
  * @property int $position
  * @property ProjectStatus $status
  * @property string|null $agent_session_id
+ * @property AgentHarness|null $agent_harness Its own agent, model and reasoning level (TASK-007), copied from the project's when it's made.
+ * @property AgentProvider|null $agent_provider
+ * @property string|null $agent_model
+ * @property string|null $agent_variant
+ * @property bool $agent_auto
  * @property int|null $sign_in_retry_message_id
  * @property string|null $events_token_hash
  * @property string|null $base_commit
@@ -69,7 +76,7 @@ use Illuminate\Support\Str;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['title', 'description', 'stage', 'position', 'status', 'agent_session_id', 'sign_in_retry_message_id', 'events_token_hash', 'base_commit', 'sync_status', 'sync_error', 'applied_at', 'read_at', 'turn_outcome', 'pull_request_number', 'pull_request_branch', 'pull_request_base', 'pull_request_fork', 'pull_request_push', 'pull_request_autofix', 'pull_request_fix_attempts', 'pull_request_head_sha', 'pull_request_checks', 'pull_request_state', 'pull_request_draft', 'preview_key', 'preview_deployment_id', 'preview_deployment_sha', 'preview_comment_id', 'preview_error', 'start_from', 'start_branch', 'start_task_id', 'branch'])]
+#[Fillable(['title', 'description', 'stage', 'position', 'status', 'agent_session_id', 'agent_harness', 'agent_provider', 'agent_model', 'agent_variant', 'agent_auto', 'sign_in_retry_message_id', 'events_token_hash', 'base_commit', 'sync_status', 'sync_error', 'applied_at', 'read_at', 'turn_outcome', 'pull_request_number', 'pull_request_branch', 'pull_request_base', 'pull_request_fork', 'pull_request_push', 'pull_request_autofix', 'pull_request_fix_attempts', 'pull_request_head_sha', 'pull_request_checks', 'pull_request_state', 'pull_request_draft', 'preview_key', 'preview_deployment_id', 'preview_deployment_sha', 'preview_comment_id', 'preview_error', 'start_from', 'start_branch', 'start_task_id', 'branch'])]
 #[Hidden(['events_token_hash', 'preview_key'])]
 class Task extends Model implements Conversation
 {
@@ -93,6 +100,9 @@ class Task extends Model implements Conversation
         return [
             'stage' => TaskStage::class,
             'status' => ProjectStatus::class,
+            'agent_harness' => AgentHarness::class,
+            'agent_provider' => AgentProvider::class,
+            'agent_auto' => 'boolean',
             'position' => 'integer',
             'sync_status' => TaskSyncStatus::class,
             'applied_at' => 'datetime',
@@ -117,6 +127,13 @@ class Task extends Model implements Conversation
      */
     protected static function booted(): void
     {
+        // A new task starts on the agent and model Main uses (TASK-007), unless it was given its own.
+        static::creating(function (self $task) {
+            if ($task->agent_harness === null && $task->agent_provider === null) {
+                $task->fill($task->project->only(['agent_harness', 'agent_provider', 'agent_model', 'agent_variant', 'agent_auto']));
+            }
+        });
+
         static::deleting(function (self $task) {
             $task->hasMany(Message::class)->get()->each->delete();
             $task->destroyCopy();
@@ -146,6 +163,14 @@ class Task extends Model implements Conversation
     public function ownerProject(): Project
     {
         return $this->project;
+    }
+
+    /**
+     * Its own choice (TASK-007); the project's for a task made without one, which only a project that had none could do.
+     */
+    public function agentChoice(): Project|self
+    {
+        return $this->agent_harness !== null || $this->agent_provider !== null ? $this : $this->project;
     }
 
     /**

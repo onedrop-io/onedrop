@@ -27,7 +27,7 @@ class CodexRunner extends SandboxAgentRunner
     {
         $conversation = $message->conversation();
         $sandbox = $conversation->agentSandbox();
-        $selection = $this->catalog->selectionFor($project, $message);
+        $selection = $this->catalog->selectionFor($conversation, $message);
         $connection = $project->user->agentConnections()->firstWhere('provider', AgentProvider::Codex);
 
         $problem = match (true) {
@@ -46,6 +46,13 @@ class CodexRunner extends SandboxAgentRunner
             try {
                 $connection = $this->chatGpt->ensureFresh($connection, needsIdToken: true);
             } catch (ChatGptSignInFailed $e) {
+                // OneDrop's own work for a pull request's task runs on AI credits instead (GIT-029).
+                if ($e->expired && app(CreditsFallback::class)->move($conversation, $message, 'Your ChatGPT sign-in has expired')) {
+                    app(OpenCodeRunner::class)->start($project, $message);
+
+                    return;
+                }
+
                 $this->fail($conversation, $e->getMessage());
 
                 return;
@@ -71,7 +78,7 @@ class CodexRunner extends SandboxAgentRunner
 
         // Codex run this way has no slash commands: one of its commands (AGT-016) goes as the prompt it stands for.
         $commands = app(AgentCommands::class);
-        $command = $commands->parse($project, $message->content);
+        $command = $commands->parse($conversation, $message->content);
 
         $this->launch($conversation, $sandbox, [
             'APP_AGENT' => AgentHarness::Codex->value,

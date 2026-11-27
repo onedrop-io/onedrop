@@ -1008,7 +1008,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should see the models they chose most recently at the top of each provider's list, above the featured ones.
 - User should be able to choose a reasoning level supported by the chosen model (e.g. Low, Medium, High, Extra high, Max), or leave it on the default.
 - User should be able to choose Auto instead of a model in the project chat, so the model and reasoning level are picked for each message (AGT-011).
-- User should be able to pick the model when starting a new project, and change it in the project's chat at any time; the next message uses the new choice.
+- User should be able to pick the model when starting a new project, and change it in the project's chat at any time; the next message uses the new choice. Each task has its own choice (TASK-007).
 - User should see the agent, model, reasoning and Autofix controls fit a narrow chat: the model name shortens and labels drop to icons instead of running under the send button.
 - The agent should use the key for the chosen model's provider, not just the default connection.
 - The model list should come from the models.dev catalog (the one OpenCode uses), cached, and still work with the configured defaults if the catalog is unreachable.
@@ -1529,6 +1529,14 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - OneDrop should keep one comment on the pull request up to date (edited, not posted again): the preview link, the commit it runs, its state, and that anyone with the link can open it and it runs on a copy of Main's data.
 - These need the GitHub App's Deployments and Pull requests write permissions; admins should be told in Source Control when they're missing, and the pull request's task says when GitHub refused, while the preview itself still works.
 
+## GIT-029: Pull request hand-offs run on AI credits when the task's own AI can't
+
+- When OneDrop sends a pull request's task's agent work by itself (bringing in new commits, GIT-014, or fixing failing checks, GIT-015) and the task's own AI can't run it because the owner's Claude or ChatGPT sign-in has run out, the work should run on the organization's AI credits instead: OpenCode on the credits' default model (DeepSeek Flash).
+- User should see in the task's chat why it moved to AI credits and which model ran it, and the run on the Usage page as paid by AI credits.
+- The run on credits should be a conversation of its own: the task's own agent keeps its conversation, and the user's next message goes back to it.
+- Messages the user sends never move to AI credits: they wait for the user to sign in again, as before (AI-005).
+- Where AI credits are off or none are left, the work should wait for the sign-in, as before.
+
 ## SCM-001: Source Control tab
 
 - User should be able to open a Source Control tab (from "+", the header's Commit button, or Tools → Source Control) that can fill the workspace or sit beside other tabs, like VS Code's; old `?tool=git` links open it.
@@ -1666,6 +1674,15 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be able to click "Check out <branch>" (or "Copy Main", "Copy <task>") under "Start from" in a new task's chat, without writing a message: the task opens, named after where it starts, in In progress, and its copy of the app is made; a branch's app sets itself up and starts (`.onedrop/dev`). No agent runs until the user sends a message.
 - User should see the new task's own preview once its copy is made; until then the new task's workspace says the task gets its own copy, and never shows Main's app.
 - Checking out should be refused, saying why, when the project already runs as many task copies as it may, or where tasks work in Main (no task copies).
+
+## TASK-007: Each task has its own agent and model
+
+- User should be able to choose a task's agent, model and reasoning level (or Auto) under its chat box; the choice applies to that task only, never to Main or the project's other tasks.
+- A new task should start on the agent and model Main's chat uses, and the user should be able to change them under the new task's chat box before its first message or checkout.
+- Changing Main's agent or model should leave existing tasks on theirs.
+- Switching a task's agent should start a fresh conversation for that task only (its copy's files are kept), say so in the task's chat, and be refused while the task's agent is working.
+- Choosing a model or agent on a task's page should keep the user on that task.
+- Work sent to a task's agent without the user (new pull request commits, failing checks) should run on that task's agent and model.
 
 ## TASK-004: Switching tasks keeps the workspace view
 

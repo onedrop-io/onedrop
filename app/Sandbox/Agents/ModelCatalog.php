@@ -7,7 +7,6 @@ use App\Enums\AgentProvider;
 use App\Enums\CredentialType;
 use App\Models\AgentConnection;
 use App\Models\Message;
-use App\Models\Project;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -198,37 +197,47 @@ class ModelCatalog
     }
 
     /**
-     * The agent a project runs: its saved choice while the owner can still run it, otherwise their default.
+     * The agent a project's main chat or a task (TASK-007) runs: its saved choice while the owner can still run it,
+     * otherwise their default. A $message moved to AI credits (GIT-029) runs on OpenCode whatever the chat uses.
      */
-    public function harnessFor(Project $project): AgentHarness
+    public function harnessFor(Conversation $conversation, ?Message $message = null): AgentHarness
     {
-        return $project->agent_harness && in_array($project->agent_harness, $this->harnesses($project->user), true)
-            ? $project->agent_harness
-            : $this->defaultHarness($project->user);
+        if (CreditsFallback::moved($message)) {
+            return AgentHarness::OpenCode;
+        }
+
+        $choice = $conversation->agentChoice();
+        $user = $conversation->ownerProject()->user;
+
+        return $choice->agent_harness && in_array($choice->agent_harness, $this->harnesses($user), true)
+            ? $choice->agent_harness
+            : $this->defaultHarness($user);
     }
 
     /**
-     * What the agent will run for a project: its saved choice, or the owner's default provider's default model.
+     * What the agent will run for a main chat or a task: its saved choice, or the owner's default provider's default model.
      * For a $message Auto picked a model for (AGT-011), that model, while the owner can still run its provider.
      *
      * @return array{provider: AgentProvider, model: string, variant: string|null}|null
      */
-    public function selectionFor(Project $project, ?Message $message = null): ?array
+    public function selectionFor(Conversation $conversation, ?Message $message = null): ?array
     {
-        $harness = $this->harnessFor($project);
-        $usable = $this->usableProviders($project->user, $harness);
+        $choice = $conversation->agentChoice();
+        $user = $conversation->ownerProject()->user;
+        $harness = $this->harnessFor($conversation, $message);
+        $usable = $this->usableProviders($user, $harness);
         $picked = $message?->meta['selection'] ?? null;
 
         if (is_array($picked) && ($provider = AgentProvider::tryFrom($picked['provider'] ?? '')) && in_array($provider, $usable, true) && is_string($picked['model'] ?? null)) {
             return ['provider' => $provider, 'model' => $picked['model'], 'variant' => $picked['variant'] ?? null];
         }
 
-        if ($project->agent_provider && in_array($project->agent_provider, $usable, true) && $project->agent_model
-            && (! $this->signedInWithChatGpt($project->agent_provider, $project->user) || $this->includedWithChatGpt($project->agent_model, $project->user))) {
-            return ['provider' => $project->agent_provider, 'model' => $project->agent_model, 'variant' => $project->agent_variant];
+        if ($choice->agent_provider && in_array($choice->agent_provider, $usable, true) && $choice->agent_model
+            && (! $this->signedInWithChatGpt($choice->agent_provider, $user) || $this->includedWithChatGpt($choice->agent_model, $user))) {
+            return ['provider' => $choice->agent_provider, 'model' => $choice->agent_model, 'variant' => $choice->agent_variant];
         }
 
-        return $this->defaultSelection($project->user, $harness);
+        return $this->defaultSelection($user, $harness);
     }
 
     /**

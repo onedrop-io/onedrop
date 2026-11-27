@@ -138,9 +138,10 @@ trait RendersWorkspace
             // A new task gets its own copy of the app (TASK-003), so its workspace waits for that, not Main's.
             'newTaskCopy' => $newTask && Task::getsCopies(),
             // With Auto (AGT-011), the provider and its default model, which a message runs on when Jev can't size it.
-            'agent' => ($selection = $catalog->selectionFor($project)) ? [...$catalog->describe($selection, $catalog->harnessFor($project)), 'auto' => $project->agent_auto] : null,
+            // The chat's own: a task has its own (TASK-007), and a new task starts on Main's.
+            'agent' => ($selection = $catalog->selectionFor($conversation)) ? [...$catalog->describe($selection, $catalog->harnessFor($conversation)), 'auto' => $conversation->agentChoice()->agent_auto] : null,
             // The agent's own slash commands, for the chat box's "/" menu (AGT-016).
-            'agentCommands' => fn () => app(AgentCommands::class)->for($project),
+            'agentCommands' => fn () => app(AgentCommands::class)->for($conversation),
             // Claude Code runs on the owner's own Claude sign-in in the sandbox (AI-005).
             'claudeSubscription' => $project->user->agentConnections()
                 ->where('provider', AgentProvider::Claude)

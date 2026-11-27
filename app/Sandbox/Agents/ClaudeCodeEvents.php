@@ -184,14 +184,23 @@ class ClaudeCodeEvents extends AgentEvents
         }
 
         [$explanation, $signedOut] = $this->explainResult($conversation, $event);
+        $message = $signedOut ? $conversation->messages()->find($messageId) : null;
+
+        if ($signedOut && $rejected) {
+            $this->clearRejectedLogin($conversation);
+        }
+
+        // OneDrop's own work for a pull request's task runs again on AI credits as soon as this run ends (GIT-029).
+        if ($message && app(CreditsFallback::class)->move($conversation, $message, "Claude isn't signed in")) {
+            $conversation->update(['sign_in_retry_message_id' => $messageId]);
+
+            return;
+        }
+
         $this->sayFailure($conversation, $explanation);
 
         // Run the message again once the user signs in (AI-005).
         if ($signedOut) {
-            if ($rejected) {
-                $this->clearRejectedLogin($conversation);
-            }
-
             $conversation->update(['sign_in_retry_message_id' => $messageId]);
         }
     }
@@ -201,8 +210,10 @@ class ClaudeCodeEvents extends AgentEvents
      */
     protected function finish(Conversation $conversation, int $code, string $stderr, bool $reported = false): void
     {
-        $retrying = $conversation->getAttribute('sign_in_retry_message_id') !== null
-            && $conversation->messages()->reorder()->latest('id')->value('content') === self::RETRYING_SIGN_IN;
+        $retryId = $conversation->getAttribute('sign_in_retry_message_id');
+        $retrying = $retryId !== null
+            && ($conversation->messages()->reorder()->latest('id')->value('content') === self::RETRYING_SIGN_IN
+                || CreditsFallback::moved($conversation->messages()->find($retryId)));
 
         parent::finish($conversation, $code, $stderr, $reported);
 

@@ -108,20 +108,23 @@ class OpenCodeEvents extends AgentEvents
     /**
      * Record a finished step's tokens and cost (USAGE-001). OpenCode doesn't say which model ran it, so the
      * forwarder adds the one it started OpenCode with ("anthropic/claude-sonnet-5"); older forwarders don't,
-     * and then it's the project's current one.
+     * and then it's the chat's current one.
      *
      * @param  array<string, mixed>  $part
      */
     protected function stepFinished(Conversation $conversation, array $part, mixed $model): void
     {
         $tokens = is_array($part['tokens'] ?? null) ? $part['tokens'] : [];
-        $project = $conversation->ownerProject();
+        $choice = $conversation->agentChoice();
         [$catalogId, $id] = is_string($model) && str_contains($model, '/')
             ? explode('/', $model, 2)
-            : [$project->agent_provider?->catalogId(), $project->agent_model ?? 'unknown'];
+            : [$choice->agent_provider?->catalogId(), $choice->agent_model ?? 'unknown'];
 
-        // AI credits and OpenRouter share OpenCode's "openrouter" provider; the project's choice says which ran.
-        $chosen = app(ModelCatalog::class)->selectionFor($project)['provider'] ?? null;
+        // AI credits and OpenRouter share OpenCode's "openrouter" provider; the chat's choice says which ran, unless the
+        // run moved to AI credits (GIT-029).
+        $chosen = $this->runningOnCredits($conversation)
+            ? AgentProvider::Credits
+            : app(ModelCatalog::class)->selectionFor($conversation)['provider'] ?? null;
         $provider = $chosen?->catalogId() === $catalogId
             ? $chosen
             : collect(AgentProvider::cases())->first(fn (AgentProvider $provider) => $provider->catalogId() === $catalogId);
@@ -161,9 +164,9 @@ class OpenCodeEvents extends AgentEvents
      */
     protected function outOfCredits(Conversation $conversation): string
     {
-        $selection = app(ModelCatalog::class)->selectionFor($conversation->ownerProject());
+        $selection = app(ModelCatalog::class)->selectionFor($conversation);
 
-        return ($selection['provider'] ?? null) === AgentProvider::Credits
+        return ($selection['provider'] ?? null) === AgentProvider::Credits || $this->runningOnCredits($conversation)
             ? AiCredits::ranOutMessage(null)
             : 'Your AI provider says your balance is too low for this request. Try again in a minute, or add credits (for OpenRouter: openrouter.ai/settings/credits).';
     }

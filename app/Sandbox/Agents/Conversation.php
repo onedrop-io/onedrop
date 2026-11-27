@@ -6,6 +6,7 @@ use App\Enums\ProjectStatus;
 use App\Models\Message;
 use App\Models\Project;
 use App\Models\Sandbox;
+use App\Models\Task;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
@@ -20,6 +21,12 @@ interface Conversation
      * The project whose sandbox, AI and settings the conversation uses.
      */
     public function ownerProject(): Project;
+
+    /**
+     * Whose agent, model and reasoning level the conversation runs on (`agent_harness`, `agent_provider`,
+     * `agent_model`, `agent_variant`, `agent_auto`): the project for its main chat, the task for a task (TASK-007).
+     */
+    public function agentChoice(): Project|Task;
 
     /**
      * The sandbox the conversation's agent works in: the project's main one, or a task's own copy (TASK-003).

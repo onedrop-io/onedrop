@@ -65,6 +65,14 @@ On a task's page, **Source Control** shows and changes the task's own copy. Its 
 
 While a task's agent works, you can keep messaging it (messages wait in that task's queue), switch to another task, or go back to the main chat. **Stop** in a task's chat stops only that task's agent.
 
+## Each task's agent and model
+
+Every task has its own [agent and model](/guides/set-up-ai#choose-the-agent), picked under its chat box like Main's. A new task starts on whatever Main uses; change the pickers under the new task's chat box before sending its first message (or clicking **Check out**) to start it on something else.
+
+Changing a task's agent or model changes that task only. Main and the other tasks keep theirs, and changing Main's later doesn't change any task. Switching a task's agent starts a fresh conversation for that task alone, and you can't switch while its agent is working.
+
+Work OneDrop sends a task's agent by itself, such as new commits on its [pull request](/guides/pull-requests) or failing checks, runs on that task's agent and model.
+
 ## Open a project
 
 Choose **Open** from a project's **⋮** menu. The sidebar then shows only that project:

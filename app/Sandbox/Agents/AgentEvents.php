@@ -44,13 +44,24 @@ abstract class AgentEvents
     abstract public function apply(Conversation $conversation, array $event): void;
 
     /**
-     * Keep the agent's session id so the next run continues the conversation.
+     * Keep the agent's session id so the next run continues the conversation. A run moved to AI credits (GIT-029) is a
+     * conversation of its own, so the chat's agent keeps its.
      */
     protected function rememberSession(Conversation $conversation, mixed $sessionId): void
     {
-        if (is_string($sessionId) && $sessionId !== '' && $conversation->getAttribute('agent_session_id') !== $sessionId) {
+        if (is_string($sessionId) && $sessionId !== '' && $conversation->getAttribute('agent_session_id') !== $sessionId
+            && ! $this->runningOnCredits($conversation)) {
             $conversation->update(['agent_session_id' => $sessionId]);
         }
+    }
+
+    /**
+     * Whether the run is OneDrop's own work for a task moved to AI credits (GIT-029): the run is for the newest
+     * message the user's side of the chat has.
+     */
+    protected function runningOnCredits(Conversation $conversation): bool
+    {
+        return CreditsFallback::moved($conversation->messages()->reorder()->where('role', MessageRole::User)->latest('id')->first());
     }
 
     /**

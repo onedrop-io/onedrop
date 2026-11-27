@@ -184,7 +184,7 @@ class CodexEvents extends AgentEvents
      */
     protected function turnCompleted(Conversation $conversation, array $usage, mixed $model): void
     {
-        $model = is_string($model) && $model !== '' ? $model : ($conversation->ownerProject()->agent_model ?? 'unknown');
+        $model = is_string($model) && $model !== '' ? $model : ($conversation->agentChoice()->agent_model ?? 'unknown');
         $cached = (int) ($usage['cached_input_tokens'] ?? 0);
         $cacheWrite = (int) ($usage['cache_write_input_tokens'] ?? 0);
         $input = max(0, (int) ($usage['input_tokens'] ?? 0) - $cached - $cacheWrite);

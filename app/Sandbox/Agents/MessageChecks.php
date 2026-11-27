@@ -132,7 +132,7 @@ class MessageChecks
             $meta['changes_decision'] = $answers['decision'];
         }
 
-        if ($conversation->ownerProject()->agent_auto && ($selection = $this->auto->pick($conversation->ownerProject(), $answers['size'])) !== null) {
+        if ($conversation->agentChoice()->agent_auto && ($selection = $this->auto->pick($conversation, $answers['size'])) !== null) {
             $meta['selection'] = [...$selection, 'provider' => $selection['provider']->value];
             $meta['auto_note'] = $this->auto->note($selection, $answers['size']);
         }
@@ -161,7 +161,7 @@ class MessageChecks
         $answers = ['secret' => null, 'decision' => null, 'interrupt' => false, 'size' => null];
         $project = $conversation->ownerProject();
 
-        if (trim($content) === '' || (! $interactive && ! $project->agent_auto) || ($endpoint = $this->jev->endpointFor($project)) === null) {
+        if (trim($content) === '' || (! $interactive && ! $conversation->agentChoice()->agent_auto) || ($endpoint = $this->jev->endpointFor($project)) === null) {
             return $answers;
         }
 
@@ -209,7 +209,7 @@ class MessageChecks
             );
         }
 
-        if ($project->agent_auto) {
+        if ($conversation->agentChoice()->agent_auto) {
             $questions['size'] = Jev::scoreQuestion('How much work is the new message for a coding agent?', AutoModel::SCALE);
         }
 

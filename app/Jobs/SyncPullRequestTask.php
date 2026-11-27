@@ -7,6 +7,7 @@ use App\Enums\SandboxStatus;
 use App\Enums\TaskSyncStatus;
 use App\Models\Task;
 use App\Sandbox\Agents\AgentQueue;
+use App\Sandbox\Agents\CreditsFallback;
 use App\Sandbox\GitException;
 use App\Sandbox\SandboxException;
 use App\Sandbox\TaskCopies;
@@ -111,7 +112,8 @@ class SyncPullRequestTask implements ShouldQueue
 
                 WatchPullRequestChecks::dispatch($task, $sha);
                 $task->messages()->create(['role' => MessageRole::Activity, 'content' => $conflicts === [] ? "Brought in the latest from #{$number}" : "Brought in the latest from #{$number}, with conflicts"]);
-                $queue->send($task, SyncTask::handOff("#{$number}", $conflicts, fromMain: false, what: "Commits pushed to pull request #{$number} since this copy last had it were just merged in here."));
+                // OneDrop's own work: AI credits run it if the task's AI can't (GIT-029).
+                $queue->send($task, SyncTask::handOff("#{$number}", $conflicts, fromMain: false, what: "Commits pushed to pull request #{$number} since this copy last had it were just merged in here."), meta: [CreditsFallback::AUTOMATIC => true]);
 
                 return;
             }

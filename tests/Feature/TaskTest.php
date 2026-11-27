@@ -237,17 +237,14 @@ test("a task can't be reached through another project", function () {
     $this->patch(route('projects.tasks.update', [$other, $task]), ['title' => 'x'])->assertNotFound();
 })->group('TASK-001');
 
-test('switching agents while a task works is refused, and starts every task fresh otherwise', function () {
-    $task = Task::factory()->for($this->project)->working()->create(['agent_session_id' => 'ses_1']);
+test("switching Main's agent starts only Main's conversation fresh; tasks keep theirs (TASK-007)", function () {
+    $task = Task::factory()->for($this->project)->create(['agent_session_id' => 'ses_1']);
+    $this->project->update(['agent_session_id' => 'ses_main']);
 
-    $switch = fn () => $this->patch(route('projects.agent.update', $this->project), [
+    $this->patch(route('projects.agent.update', $this->project), [
         'agent_harness' => 'claude_code', 'agent_provider' => 'claude', 'agent_model' => 'claude-sonnet-5',
-    ]);
+    ])->assertSessionHasNoErrors();
 
-    $switch()->assertSessionHasErrors('agent_harness');
-
-    $task->update(['status' => ProjectStatus::Idle]);
-    $switch()->assertSessionHasNoErrors();
-
-    expect($task->fresh()->agent_session_id)->toBeNull();
-})->group('TASK-001');
+    expect($task->fresh()->agent_session_id)->toBe('ses_1')
+        ->and($this->project->fresh()->agent_session_id)->toBeNull();
+})->group('TASK-001', 'TASK-007');

@@ -64,6 +64,7 @@ import { createPortal } from 'react-dom';
 import type { CSSProperties } from 'react';
 import ProjectAgentController from '@/actions/App/Http/Controllers/ProjectAgentController';
 import ProjectMessageController from '@/actions/App/Http/Controllers/ProjectMessageController';
+import TaskAgentController from '@/actions/App/Http/Controllers/TaskAgentController';
 import TaskController from '@/actions/App/Http/Controllers/TaskController';
 import TaskMessageController from '@/actions/App/Http/Controllers/TaskMessageController';
 import AgentModelPicker from '@/components/agent-model-picker';
@@ -222,6 +223,19 @@ type ChatRoutes = {
     stop: string | null;
     removeQueued: (messageId: number) => string;
 };
+
+/**
+ * The picker's choice as the agent fields the server takes.
+ */
+function agentData(selection: AgentSelection): Record<string, string | null> {
+    return {
+        agent_harness: selection.harness,
+        agent_provider: selection.provider,
+        agent_model: selection.model,
+        agent_variant: selection.variant,
+        agent_auto: selection.auto ? '1' : '0',
+    };
+}
 
 function chatRoutes(
     project: Project,
@@ -622,6 +636,15 @@ function ChatPanel({
     const [draft, setDraft] = useState<string | undefined>(undefined);
     // Where a new task's copy of the app starts (TASK-005); null is the default.
     const [taskStart, setTaskStart] = useState<TaskStart | null>(null);
+    // A new task's own agent and model (TASK-007), sent with its first message or checkout; it starts on Main's.
+    const [newTaskAgent, setNewTaskAgent] = useState<AgentSelection | null>(
+        null,
+    );
+    const shownAgent = newTask ? (newTaskAgent ?? agent) : agent;
+    const newTaskData = {
+        ...taskStartData(taskStart),
+        ...(newTaskAgent ? agentData(newTaskAgent) : {}),
+    };
     const chat = task ? `task-${task.id}` : newTask ? 'new' : 'main';
     // A reload brings back the half-typed message and, if it was scrolled up, where the chat was (LAYOUT-005).
     const keptScroll = useRef(false);
@@ -793,7 +816,7 @@ function ChatPanel({
                                             ...(branch
                                                 ? { title: branch }
                                                 : {}),
-                                            ...taskStartData(taskStart),
+                                            ...newTaskData,
                                         })
                                     }
                                 />
@@ -802,7 +825,7 @@ function ChatPanel({
                         onStart={(content) =>
                             router.post(
                                 routes.send.url,
-                                { content },
+                                { content, ...(newTask ? newTaskData : {}) },
                                 { preserveScroll: true },
                             )
                         }
@@ -909,9 +932,7 @@ function ChatPanel({
                     value={draft}
                     onValueChange={(next) => setDraft(next)}
                     // Jev's checks as it's sent: a secret, an earlier decision, queue or send now (SECRET-002, REQ-003, AGT-012).
-                    extraData={
-                        newTask ? taskStartData(taskStart) : { checks: '1' }
-                    }
+                    extraData={newTask ? newTaskData : { checks: '1' }}
                     renderHeld={(held, actions) => (
                         <HeldMessagePrompt held={held} actions={actions} />
                     )}
@@ -927,30 +948,38 @@ function ChatPanel({
                     }
                     footer={
                         <>
-                            {agent && (
+                            {shownAgent && (
                                 <AgentModelPicker
-                                    selection={agent}
+                                    selection={shownAgent}
                                     allowAuto
                                     harnessLocked={
                                         working
                                             ? 'Stop the agent or wait for it to finish to switch agents'
                                             : null
                                     }
-                                    onChange={(next) =>
+                                    onChange={(next) => {
+                                        // Each task has its own (TASK-007); a new one's goes with its first message.
+                                        if (newTask) {
+                                            setNewTaskAgent(next);
+
+                                            return;
+                                        }
+
                                         router.patch(
-                                            ProjectAgentController.update.url(
-                                                project.id,
-                                            ),
-                                            {
-                                                agent_harness: next.harness,
-                                                agent_provider: next.provider,
-                                                agent_model: next.model,
-                                                agent_variant: next.variant,
-                                                agent_auto: next.auto ?? false,
-                                            },
+                                            task
+                                                ? TaskAgentController.update.url(
+                                                      {
+                                                          project: project.id,
+                                                          task: task.id,
+                                                      },
+                                                  )
+                                                : ProjectAgentController.update.url(
+                                                      project.id,
+                                                  ),
+                                            agentData(next),
                                             { preserveScroll: true },
-                                        )
-                                    }
+                                        );
+                                    }}
                                 />
                             )}
                             {!project.computer && (

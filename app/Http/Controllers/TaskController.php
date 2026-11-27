@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Concerns\RendersWorkspace;
+use App\Concerns\ValidatesAgentSelection;
 use App\Enums\ProjectStatus;
 use App\Enums\SandboxStatus;
 use App\Enums\TaskStage;
@@ -18,6 +19,7 @@ use App\Models\Attachment;
 use App\Models\Project;
 use App\Models\Task;
 use App\Sandbox\Agents\AgentQueue;
+use App\Sandbox\Agents\ModelCatalog;
 use App\Sandbox\GitException;
 use App\Sandbox\GitRemote;
 use App\Sandbox\PullRequestCheckouts;
@@ -39,6 +41,7 @@ use Inertia\Response;
 class TaskController extends Controller
 {
     use RendersWorkspace;
+    use ValidatesAgentSelection;
 
     /** The branch names the sandbox's git tool accepts (BRANCH_PATTERN in docker/sandbox/git.php). */
     public const BRANCH_PATTERN = '/^(?!-)(?!.*\.\.)(?!.*\/\/)(?!.*@\{)[A-Za-z0-9._\/-]{1,100}(?<!\.lock)(?<![\/.])$/';
@@ -85,7 +88,7 @@ class TaskController extends Controller
      * it starts with no message (its copy is made and its app started, no agent; TASK-006); or, with only a title,
      * add a card to To do on the board without starting it.
      */
-    public function store(Request $request, Project $project, AgentQueue $queue, PullRequestCheckouts $checkouts): RedirectResponse
+    public function store(Request $request, Project $project, AgentQueue $queue, PullRequestCheckouts $checkouts, ModelCatalog $catalog): RedirectResponse
     {
         Gate::authorize('update', $project);
 
@@ -102,11 +105,14 @@ class TaskController extends Controller
             'start_task_id' => ['nullable', 'required_if:start_from,task', Rule::exists('tasks', 'id')->where('project_id', $project->id)],
             // Check out where it starts, with no message: its copy is made and its app started, no agent (TASK-006).
             'check_out' => ['nullable', 'boolean'],
+            'agent_auto' => ['sometimes', 'boolean'],
         ], [
             'title.required' => __('Give the task a title.'),
             'start_task_id.required_if' => __('Pick the task to copy.'),
         ]);
 
+        // Its own agent and model, picked under the new task's chat box (TASK-007); without one, Main's.
+        $agent = $this->validatedAgentSelection($request, $request->user(), $catalog);
         $start = TaskStart::tryFrom($validated['start_from'] ?? '') ?? ($project->git_remote_url !== null ? TaskStart::Branch : TaskStart::Main);
 
         if ($start === TaskStart::Branch && $project->git_remote_url === null) {
@@ -143,6 +149,7 @@ class TaskController extends Controller
             'start_from' => $start,
             'start_branch' => $startBranch,
             'start_task_id' => $startTask?->id,
+            ...($agent ? [...$agent, 'agent_auto' => $request->boolean('agent_auto')] : []),
         ]);
 
         if ($checkOut) {

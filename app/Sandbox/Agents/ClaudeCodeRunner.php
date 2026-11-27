@@ -20,7 +20,7 @@ class ClaudeCodeRunner extends SandboxAgentRunner
     {
         $conversation = $message->conversation();
         $sandbox = $conversation->agentSandbox();
-        $selection = $this->catalog->selectionFor($project, $message);
+        $selection = $this->catalog->selectionFor($conversation, $message);
         $connection = $project->user->agentConnections()->firstWhere('provider', AgentProvider::Claude);
 
         $problem = match (true) {

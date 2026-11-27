@@ -4,6 +4,7 @@ namespace App\Sandbox;
 
 use App\Models\Task;
 use App\Sandbox\Agents\AgentQueue;
+use App\Sandbox\Agents\CreditsFallback;
 use Illuminate\Support\Str;
 
 /**
@@ -35,7 +36,8 @@ class PullRequestFixes
             return false;
         }
 
-        $this->queue->send($task, $this->prompt($task, $failed, $sha));
+        // OneDrop's own work: AI credits run it if the task's AI can't (GIT-029).
+        $this->queue->send($task, $this->prompt($task, $failed, $sha), meta: [CreditsFallback::AUTOMATIC => true]);
 
         return true;
     }

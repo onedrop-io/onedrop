@@ -55,13 +55,14 @@ class AgentCommands
     public function __construct(protected ModelCatalog $catalog) {}
 
     /**
-     * The commands the chat offers for the project's agent, built-ins first.
+     * The commands a chat offers for its agent (the main chat's, or a task's own: TASK-007), built-ins first.
      *
      * @return list<array{name: string, description: string, hint: string}>
      */
-    public function for(Project $project): array
+    public function for(Conversation $conversation): array
     {
-        $harness = $this->catalog->harnessFor($project);
+        $project = $conversation->ownerProject();
+        $harness = $this->catalog->harnessFor($conversation);
         $reported = $project->agent_commands[$harness->value] ?? null;
 
         $commands = collect(self::BUILT_INS[$harness->value])
@@ -116,13 +117,13 @@ class AgentCommands
      *
      * @return array{0: string, 1: string}|null
      */
-    public function parse(Project $project, string $content): ?array
+    public function parse(Conversation $conversation, string $content): ?array
     {
         if (! preg_match('/^\/([\w:.-]+)(?:\s+(.*))?$/s', trim($content), $match)) {
             return null;
         }
 
-        $names = array_column($this->for($project), 'name');
+        $names = array_column($this->for($conversation), 'name');
 
         return in_array($match[1], $names, true) ? [$match[1], trim($match[2] ?? '')] : null;
     }
