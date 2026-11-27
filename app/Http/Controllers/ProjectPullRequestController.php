@@ -15,6 +15,7 @@ use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -45,7 +46,7 @@ class ProjectPullRequestController extends Controller
         Gate::authorize('view', $project);
 
         if (! GitHubPulls::available($project)) {
-            return response()->json(['available' => false, 'repository' => null, 'pulls' => [], 'tasks' => (object) [], 'previews' => (object) [], 'preview_pull_requests' => $project->preview_pull_requests]);
+            return response()->json(['available' => false, 'repository' => null, 'pulls' => [], 'tasks' => (object) [], 'previews' => (object) [], 'preview_pull_requests' => $project->pullRequestPreviews()]);
         }
 
         return $this->fromGitHub(function () use ($request, $project, $pulls, $previews, $gateway) {
@@ -65,25 +66,31 @@ class ProjectPullRequestController extends Controller
                 'tasks' => (object) $tasks->pluck('id', 'pull_request_number')->all(),
                 // Each preview's link, for those that have one (GIT-027).
                 'previews' => (object) $tasks->mapWithKeys(fn (Task $task) => [$task->pull_request_number => $gateway->pullRequestLink($task)])->filter()->all(),
-                'preview_pull_requests' => $project->preview_pull_requests,
+                'preview_pull_requests' => $project->pullRequestPreviews(),
             ]);
         });
     }
 
     /**
-     * Turn previewing every pull request on or off (GIT-026); turning it on checks out the open ones.
+     * Preview no pull requests, only new ones, or every one (GIT-026). Every one checks out the open ones at once; new
+     * ones counts from now, unless it was already counting.
      */
     public function settings(Request $request, Project $project): JsonResponse
     {
         Gate::authorize('update', $project);
 
-        $project->update($request->validate(['preview_pull_requests' => ['required', 'boolean']]));
+        $choice = $request->validate(['preview_pull_requests' => ['required', Rule::in(['off', 'new', 'all'])]])['preview_pull_requests'];
 
-        if ($project->preview_pull_requests && GitHubPulls::available($project)) {
+        $project->update([
+            'preview_pull_requests' => $choice !== 'off',
+            'preview_pull_requests_since' => $choice === 'new' ? ($project->pullRequestPreviews() === 'new' ? $project->preview_pull_requests_since : now()) : null,
+        ]);
+
+        if ($choice === 'all' && GitHubPulls::available($project)) {
             CatchUpPullRequests::dispatch($project);
         }
 
-        return response()->json(['preview_pull_requests' => $project->preview_pull_requests]);
+        return response()->json(['preview_pull_requests' => $project->pullRequestPreviews()]);
     }
 
     /**

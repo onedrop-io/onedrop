@@ -18,8 +18,14 @@ import type { ReactNode } from 'react';
 import ProjectPullRequestController from '@/actions/App/Http/Controllers/ProjectPullRequestController';
 import Markdown from '@/components/markdown';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import PatchView from '@/components/workspace/patch-view';
 import { jsonRequest } from '@/lib/json-request';
 import { cn } from '@/lib/utils';
@@ -44,6 +50,14 @@ type PullSummary = {
     checks: ChecksState;
 };
 
+type PreviewChoice = 'off' | 'new' | 'all';
+
+const previewChoices: { value: PreviewChoice; label: string }[] = [
+    { value: 'off', label: 'No pull requests' },
+    { value: 'new', label: 'New pull requests' },
+    { value: 'all', label: 'Every pull request' },
+];
+
 type ListData = {
     available: boolean;
     repository: string | null;
@@ -52,8 +66,8 @@ type ListData = {
     tasks: Record<string, number>;
     /** Preview links by pull request number, for anyone to open (GIT-027). */
     previews: Record<string, string>;
-    /** Every pull request from the repository's own branches is checked out with a preview (GIT-026). */
-    preview_pull_requests: boolean;
+    /** Which pull requests from the repository's own branches are checked out with a preview by themselves (GIT-026). */
+    preview_pull_requests: PreviewChoice;
 };
 
 type Pull = {
@@ -320,8 +334,8 @@ function PullRequestList({
 
     useEffect(load, [load]);
 
-    // Every pull request gets a preview, or only those checked out by hand (GIT-026); turning it on checks them out.
-    const setPreviewEvery = (value: boolean) => {
+    // Every pull request gets a preview, only those opened from now on, or only those checked out by hand (GIT-026).
+    const setPreviews = (value: PreviewChoice) => {
         setData((current) =>
             current ? { ...current, preview_pull_requests: value } : current,
         );
@@ -419,24 +433,43 @@ function PullRequestList({
                     <span>{data.repository}</span>
                     <label
                         className="flex items-center gap-1.5"
-                        title="Check out each pull request from the repository's own branches as a task, with a preview link for anyone, shown on the pull request"
+                        title="Check out pull requests from the repository's own branches as tasks, with a preview link for anyone, shown on the pull request"
                     >
-                        <Checkbox
-                            checked={data.preview_pull_requests}
-                            onCheckedChange={(value) =>
-                                setPreviewEvery(value === true)
+                        Preview
+                        <Select
+                            value={data.preview_pull_requests}
+                            onValueChange={(value) =>
+                                setPreviews(value as PreviewChoice)
                             }
-                            data-test="pulls-preview-every"
-                        />
-                        Preview every pull request
+                        >
+                            <SelectTrigger
+                                className="h-7 w-auto text-xs"
+                                data-test="pulls-preview-choice"
+                            >
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {previewChoices.map((choice) => (
+                                    <SelectItem
+                                        key={choice.value}
+                                        value={choice.value}
+                                        data-test={`pulls-preview-${choice.value}`}
+                                    >
+                                        {choice.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </label>
                 </div>
             )}
-            {data?.preview_pull_requests && (
+            {data && data.preview_pull_requests !== 'off' && (
                 <p
                     className="text-xs text-muted-foreground"
                     data-test="pulls-preview-note"
                 >
+                    {data.preview_pull_requests === 'new' &&
+                        'Only pull requests opened since this was chosen are checked out by themselves. '}
                     Anyone with a preview link can open the app. Previews run on
                     a copy of Main's data, not production. Pull requests from
                     forks are only checked out by hand.

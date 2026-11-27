@@ -40,7 +40,7 @@ beforeEach(function () {
     Sandbox::factory()->for($this->project)->create(['external_id' => 'main-1', 'status' => SandboxStatus::Running]);
     $this->actingAs($this->user);
     $this->sha = str_repeat('a', 40);
-    $this->pull = ['number' => 12, 'title' => 'Fix login', 'state' => 'open', 'head' => 'fix-login', 'head_sha' => $this->sha, 'base' => 'main', 'fork' => false];
+    $this->pull = ['number' => 12, 'title' => 'Fix login', 'state' => 'open', 'head' => 'fix-login', 'head_sha' => $this->sha, 'base' => 'main', 'fork' => false, 'created_at' => '2026-11-24T10:00:00Z'];
 });
 
 /**
@@ -80,7 +80,7 @@ function webhookPayload(string $action = 'opened', array $pull = [], int $instal
         'pull_request' => [
             'number' => 12, 'title' => 'Fix login', 'state' => 'open', 'draft' => false, 'merged' => false,
             'head' => ['ref' => 'fix-login', 'sha' => str_repeat('a', 40), 'repo' => ['full_name' => 'acme/app']],
-            'base' => ['ref' => 'main'], ...$pull,
+            'base' => ['ref' => 'main'], 'created_at' => '2026-11-24T10:00:00Z', ...$pull,
         ],
     ];
 }
@@ -161,6 +161,35 @@ test('an opened pull request is checked out as a task by itself, unless it comes
     expect(Task::count())->toBe(1);
 })->group('GIT-026');
 
+test('previewing new pull requests checks out only those opened since it was chosen, and keeps counting from then', function () {
+    $this->project->update(['preview_pull_requests' => false]);
+    $this->travelTo('2026-11-27 12:00:00');
+
+    $this->patchJson(route('projects.pulls.settings', $this->project), ['preview_pull_requests' => 'new'])
+        ->assertOk()->assertJsonPath('preview_pull_requests', 'new');
+    Queue::assertNotPushed(CatchUpPullRequests::class);
+
+    $project = $this->project->fresh();
+    expect($project->pullRequestPreviews())->toBe('new')
+        ->and($project->preview_pull_requests_since->toIso8601String())->toBe('2026-11-27T12:00:00+00:00');
+
+    // Opened before it was chosen, or with no opening time: left alone. Opened after: checked out.
+    app(PullRequestPreviews::class)->opened($project, [...$this->pull, 'number' => 11, 'created_at' => '2026-11-27T11:59:00Z']);
+    app(PullRequestPreviews::class)->opened($project, [...$this->pull, 'number' => 10]);
+    app(PullRequestPreviews::class)->opened($project, [...$this->pull, 'created_at' => '2026-11-27T12:01:00Z']);
+    expect(Task::sole()->pull_request_number)->toBe(12);
+
+    // Choosing it again doesn't move the start; Every pull request clears it.
+    $this->travelTo('2026-11-28 12:00:00');
+    $this->patchJson(route('projects.pulls.settings', $this->project), ['preview_pull_requests' => 'new'])->assertOk();
+    expect($this->project->fresh()->preview_pull_requests_since->toIso8601String())->toBe('2026-11-27T12:00:00+00:00');
+
+    $this->patchJson(route('projects.pulls.settings', $this->project), ['preview_pull_requests' => 'all'])->assertOk();
+    expect($this->project->fresh()->preview_pull_requests_since)->toBeNull();
+    app(PullRequestPreviews::class)->opened($this->project->fresh(), [...$this->pull, 'number' => 11, 'created_at' => '2026-11-27T11:59:00Z']);
+    expect(Task::count())->toBe(2);
+})->group('GIT-026');
+
 test('new commits on GitHub are brought into the copy, unless the agent is working', function () {
     $task = previewTask($this->project);
     $newer = [...$this->pull, 'head_sha' => str_repeat('b', 40)];
@@ -214,19 +243,20 @@ test('listing the pull requests catches up on ones no webhook told about, and tu
 
     $this->getJson(route('projects.pulls.index', $this->project))
         ->assertOk()
-        ->assertJsonPath('preview_pull_requests', true)
+        ->assertJsonPath('preview_pull_requests', 'all')
         ->assertJsonPath('pulls.0.head_sha', $this->sha)
         ->assertJsonPath('tasks.12', Task::sole()->id);
 
-    $this->patchJson(route('projects.pulls.settings', $this->project), ['preview_pull_requests' => false])->assertOk();
+    $this->patchJson(route('projects.pulls.settings', $this->project), ['preview_pull_requests' => 'off'])->assertOk()->assertJsonPath('preview_pull_requests', 'off');
     expect($this->project->fresh()->preview_pull_requests)->toBeFalse();
     Queue::assertNotPushed(CatchUpPullRequests::class);
 
-    $this->patchJson(route('projects.pulls.settings', $this->project), ['preview_pull_requests' => true])->assertOk();
+    $this->patchJson(route('projects.pulls.settings', $this->project), ['preview_pull_requests' => 'all'])->assertOk()->assertJsonPath('preview_pull_requests', 'all');
     Queue::assertPushed(CatchUpPullRequests::class);
 
+    $this->patchJson(route('projects.pulls.settings', $this->project), ['preview_pull_requests' => true])->assertUnprocessable();
     $this->actingAs(User::factory()->has(AgentConnection::factory())->create())
-        ->patchJson(route('projects.pulls.settings', $this->project), ['preview_pull_requests' => false])->assertForbidden();
+        ->patchJson(route('projects.pulls.settings', $this->project), ['preview_pull_requests' => 'off'])->assertForbidden();
 })->group('GIT-026');
 
 test('the catch-up runs hourly for every previewing project, and every 5 minutes for those the webhook can\'t reach', function () {

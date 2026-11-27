@@ -1502,9 +1502,11 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Uncommitted changes should come along to the new branch; when the other branch changed the same files, switching should be refused with "Commit or discard them first", and nothing is lost.
 - Switching should wait while the agent is working, a push or pull is running, or the sandbox isn't running; the button says why. Source Control's branch menu should work the same way (GIT-002).
 
-## GIT-026: Preview every pull request
+## GIT-026: Preview pull requests
 
-- A project connected to a GitHub repository should have "Preview every pull request", off until the user turns it on (for existing and new projects alike), on the Pull requests page and in Tools → Pull requests. Turning it on checks out the open pull requests at once. With it on, each open pull request from the repository's own branches is checked out as a task (GIT-014) by itself, without anyone clicking, within moments of being opened or reopened.
+- A project connected to a GitHub repository should have a "Preview" choice on the Pull requests page and in Tools → Pull requests: "No pull requests" (for existing and new projects alike, until the user chooses otherwise), "New pull requests" or "Every pull request".
+- With "Every pull request", each open pull request from the repository's own branches is checked out as a task (GIT-014) by itself, without anyone clicking, within moments of being opened or reopened; choosing it checks out the open pull requests at once.
+- With "New pull requests", only pull requests opened after the user chose it are checked out by themselves; the ones already open are left alone (they can still be checked out by hand), and the page says so. Choosing it again doesn't move that moment.
 - Pull requests from forks should never be checked out by themselves: their code would run beside the organization's secrets. They can still be checked out by hand.
 - When a pull request gets new commits on GitHub, its task's copy should bring them in by itself (Pull, GIT-014), unless its agent is working or the task is pushing or pulling; it's caught up once that ends.
 - OneDrop should hear about pull requests from the GitHub App's webhook (`pull_request` events, signed with `GITHUB_WEBHOOK_SECRET`; a webhook with a wrong or missing signature is refused). Anything a webhook missed should be caught up when the Pull requests list is opened and at least once an hour; repositories connected with a token, and installs without a webhook, are caught up every 5 minutes (hourly on Laravel Cloud).

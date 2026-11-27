@@ -21,7 +21,7 @@ class HandlePullRequestEvent implements ShouldQueue
     public int $tries = 1;
 
     /**
-     * @param  array{number: int, title: string, state: string, head: string, head_sha: string, base: string, fork: bool}  $pull
+     * @param  array{number: int, title: string, state: string, head: string, head_sha: string, base: string, fork: bool, created_at: ?string}  $pull
      */
     public function __construct(public Project $project, public array $pull) {}
 

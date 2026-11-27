@@ -44,26 +44,32 @@ test('the dev user turns on previewing every pull request, copies a preview link
     $this->actingAs($user);
     $link = app(Gateway::class)->pullRequestLink($task);
 
-    // The Pull requests page: previewing every pull request is on, and the pull request's preview is a click away (GIT-026, GIT-027).
+    // The Pull requests page: previewing pull requests is off until chosen, and the pull request's preview is a click away (GIT-026, GIT-027).
     $page = visit("/projects/{$project->id}/pull-requests")
         ->resize(1500, 1000)
         ->assertSee('Fix login')
         // Off until turned on (GIT-026).
-        ->assertNotChecked('@pulls-preview-every')
+        ->assertSeeIn('@pulls-preview-choice', 'No pull requests')
         ->assertDontSee('Anyone with a preview link can open the app')
         ->assertAttribute('@pull-row-preview', 'href', $link)
-        ->click('@pulls-preview-every')
-        ->assertChecked('@pulls-preview-every')
+        ->click('@pulls-preview-choice')
+        ->click('@pulls-preview-new')
+        ->assertSeeIn('@pulls-preview-choice', 'New pull requests')
+        ->assertSeeIn('@pulls-preview-note', 'Only pull requests opened since this was chosen')
+        ->click('@pulls-preview-choice')
+        ->click('@pulls-preview-all')
+        ->assertSeeIn('@pulls-preview-choice', 'Every pull request')
+        ->assertDontSee('Only pull requests opened since this was chosen')
         ->assertSeeIn('@pulls-preview-note', 'Anyone with a preview link can open the app')
         ->assertNoJavaScriptErrors();
 
-    // The checkbox shows the change at once and saves it in the background; wait for the save (the page's wait
+    // The choice shows at once and saves in the background and saves it in the background; wait for the save (the page's wait
     // keeps the test's server answering, where a sleep wouldn't).
-    for ($i = 0; $i < 50 && ! $project->fresh()->preview_pull_requests; $i++) {
+    for ($i = 0; $i < 50 && $project->fresh()->pullRequestPreviews() !== 'all'; $i++) {
         $page->wait(0.1);
     }
 
-    expect($project->fresh()->preview_pull_requests)->toBeTrue();
+    expect($project->fresh()->pullRequestPreviews())->toBe('all');
     Queue::assertPushed(CatchUpPullRequests::class);
 
     // The task's bar: the link, copied, and a new one that stops the old.

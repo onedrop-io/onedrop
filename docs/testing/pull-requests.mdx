@@ -85,7 +85,8 @@ Set up also: the GitHub App with its webhook on (`https://<install>/github/webho
 - [ ] Merge the pull request: the deployment goes inactive, the comment says it was removed, and the task is in Done. A day later its copy is gone (or set `RemovePullRequestCopy::AFTER_HOURS` lower on a test install).
 - [ ] Reopen a closed pull request within a day: the task leaves Done's "merged" state and the preview works again; after its copy was removed, a new copy is made.
 - [ ] A pull request from a fork gets no task, deployment or comment until checked out by hand.
-- [ ] Turn **Preview every pull request** off: new pull requests aren't checked out. Turn it on: open ones are checked out within moments.
+- [ ] Set **Preview** to **No pull requests**: new pull requests aren't checked out. Set it to **Every pull request**: open ones are checked out within moments.
+- [ ] With an open pull request that has no task, set **Preview** to **New pull requests**: it isn't checked out, and the note says only new ones are. Open a new pull request: it's checked out within moments.
 - [ ] With the webhook turned off on GitHub, a new pull request is still checked out within 5 minutes on a server (hourly on Laravel Cloud), or right away when the Pull requests list is opened.
 - [ ] Remove the Deployments permission from the installation: the task's bar says GitHub refused, and the preview link still works.
 - [ ] Sleeping copy: leave a preview unused for 20 minutes, then open its link: it wakes and loads.

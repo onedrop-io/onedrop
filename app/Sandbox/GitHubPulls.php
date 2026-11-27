@@ -69,7 +69,7 @@ class GitHubPulls
                       repository(owner: $owner, name: $name) {
                         pullRequests(states: $states, first: 50, orderBy: {field: UPDATED_AT, direction: DESC}) {
                           nodes {
-                            number title state isDraft url updatedAt headRefName baseRefName reviewDecision
+                            number title state isDraft url createdAt updatedAt headRefName baseRefName reviewDecision
                             author { login avatarUrl }
                             headRepository { nameWithOwner }
                             comments { totalCount }
@@ -98,6 +98,7 @@ class GitHubPulls
                 'title' => (string) $pull['title'],
                 'state' => $pull['state'] === 'OPEN' && $pull['isDraft'] ? 'draft' : strtolower((string) $pull['state']),
                 'url' => (string) $pull['url'],
+                'created_at' => $pull['createdAt'] ?? null,
                 'updated_at' => $pull['updatedAt'],
                 'head' => (string) $pull['headRefName'],
                 // Its newest commit, which its preview should run (GIT-026).
@@ -126,7 +127,7 @@ class GitHubPulls
      * A pull request as a webhook names it (GIT-026), in the shape list() gives.
      *
      * @param  array<string, mixed>  $pull  the payload's pull_request
-     * @return array{number: int, title: string, state: string, head: string, head_sha: string, base: string, fork: bool}
+     * @return array{number: int, title: string, state: string, head: string, head_sha: string, base: string, fork: bool, created_at: ?string}
      */
     public static function fromWebhook(array $pull, string $repository): array
     {
@@ -143,6 +144,7 @@ class GitHubPulls
             'base' => (string) $pull['base']['ref'],
             // A deleted fork has no repository: it's still not ours.
             'fork' => strcasecmp((string) ($pull['head']['repo']['full_name'] ?? ''), $repository) !== 0,
+            'created_at' => $pull['created_at'] ?? null,
         ];
     }
 

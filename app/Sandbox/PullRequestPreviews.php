@@ -7,6 +7,7 @@ use App\Jobs\SyncPullRequestTask;
 use App\Jobs\UpdatePullRequestPreview;
 use App\Models\Project;
 use App\Models\Task;
+use Illuminate\Support\Carbon;
 
 /**
  * Every pull request gets a running preview (GIT-026): checked out as a task by itself when it's opened, brought up to
@@ -30,6 +31,21 @@ class PullRequestPreviews
     }
 
     /**
+     * Whether the project previews this pull request by itself: every one, or only those opened since it chose "New
+     * pull requests". One whose opening time isn't known is left alone then.
+     *
+     * @param  array<string, mixed>  $pull
+     */
+    public static function wants(Project $project, array $pull): bool
+    {
+        if ($project->preview_pull_requests_since === null) {
+            return true;
+        }
+
+        return filled($pull['created_at'] ?? null) && Carbon::parse($pull['created_at'])->gte($project->preview_pull_requests_since);
+    }
+
+    /**
      * A pull request was opened, reopened or got commits: check it out, or bring its task's copy up to date.
      *
      * @param  array<string, mixed>  $pull  as GitHubPulls::list() or fromWebhook() give it
@@ -44,7 +60,7 @@ class PullRequestPreviews
 
         // A fork's code never runs by itself beside the organization's secrets.
         if ($task === null) {
-            if (self::enabled($project) && ! $pull['fork'] && $this->checkouts->problem($project, $pull) === null) {
+            if (self::enabled($project) && ! $pull['fork'] && self::wants($project, $pull) && $this->checkouts->problem($project, $pull) === null) {
                 UpdatePullRequestPreview::for($this->checkouts->checkOut($project, $pull));
             }
 
