@@ -1672,6 +1672,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - Messages sent to a task while its own agent is working should wait in that task's queue; stopping a task stops only that task's agent.
 - User should see a project's open tasks under it in the sidebar, each showing when its agent is working, and a "+" to start a new task.
 - User should be able to "Open" a project: the sidebar then shows just that project (Back, Main, Board, New task and its tasks by column) until they go back.
+- With the sidebar collapsed to icons, user should be able to click a project's icon to open a menu beside it with Main, its tasks by column (each showing when its agent is working, waiting or has an unread reply) and New task, and pick one. A project without tasks opens its Main chat straight away. In an opened project, a Tasks icon opens the same menu of its tasks.
 - User should be able to rename or delete a task; deleting a working task stops its agent first.
 
 ## TASK-002: Kanban board

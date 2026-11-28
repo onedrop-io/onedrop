@@ -3,6 +3,7 @@ import {
     Archive,
     ArrowUpDown,
     ChevronRight,
+    CircleDot,
     Clock,
     Folder,
     Pin,
@@ -17,9 +18,12 @@ import { TaskStatusIcon } from '@/components/task-status-icon';
 import {
     DropdownMenu,
     DropdownMenuContent,
+    DropdownMenuGroup,
+    DropdownMenuItem,
     DropdownMenuLabel,
     DropdownMenuRadioGroup,
     DropdownMenuRadioItem,
+    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Spinner } from '@/components/ui/spinner';
@@ -34,7 +38,13 @@ import {
     SidebarMenuSub,
     SidebarMenuSubButton,
     SidebarMenuSubItem,
+    useSidebar,
 } from '@/components/ui/sidebar';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import { desktopNotificationStatus } from '@/hooks/use-desktop-notifications';
 import { useOrganization } from '@/hooks/use-organization';
@@ -53,6 +63,8 @@ import type {
     ProjectSort,
     SidebarProject,
     SidebarProjects,
+    SidebarTask,
+    TaskStage,
     WaitingFor,
 } from '@/types';
 
@@ -444,6 +456,8 @@ function ProjectList({
 }) {
     const { isCurrentUrl, currentUrl } = useCurrentUrl();
     const [expanded, toggle] = useExpandedProjects();
+    const { state, isMobile } = useSidebar();
+    const iconOnly = state === 'collapsed' && !isMobile;
     // Moving between a project's chats keeps the workspace on the same tab and tool (TASK-004).
     const link = useWorkspaceLinks();
     const { shown, dragging, listProps, itemProps } = useDragOrder(
@@ -489,42 +503,74 @@ function ProjectList({
                                 />
                             </button>
                         )}
-                        <SidebarMenuButton
-                            asChild
-                            isActive={isCurrentUrl(show(project.id))}
-                            tooltip={{ children: project.name }}
-                            className={`group-data-[collapsible=icon]:p-1.5! md:group-focus-within/menu-item:pr-14 md:group-hover/menu-item:pr-14 touch:pr-14 ${subtitle ? 'h-auto min-h-8 py-1.5' : ''}`}
-                        >
-                            <Link href={link(project.id, show(project.id).url)}>
-                                <ProjectAvatar project={project} />
-                                <span className="flex min-w-0 flex-1 flex-col group-data-[collapsible=icon]:hidden">
-                                    <span
-                                        className={`truncate ${project.unread ? 'font-semibold' : ''}`}
-                                    >
-                                        {project.name}
-                                    </span>
-                                    {subtitle && (
-                                        <span
-                                            className={`truncate text-xs ${project.failed ? 'text-red-600 dark:text-red-400' : !project.working && project.waiting_for ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}
-                                            data-test="sidebar-project-activity"
-                                        >
-                                            {subtitle}
-                                        </span>
+                        {iconOnly && project.tasks.length > 0 ? (
+                            // Collapsed to icons, the tasks can't show under it: the tile opens Main and its tasks
+                            // in a menu instead (TASK-001).
+                            <CollapsedTasksMenu
+                                projectId={project.id}
+                                label={project.name}
+                                main={{
+                                    working: project.working,
+                                    unread: false,
+                                    waitingFor: null,
+                                }}
+                                tasks={project.tasks}
+                            >
+                                <SidebarMenuButton
+                                    isActive={isProjectPath(
+                                        currentUrl,
+                                        project.id,
                                     )}
-                                </span>
-                                {project.naming ? (
-                                    <Spinner
-                                        className="ml-auto size-3 shrink-0 text-muted-foreground"
-                                        aria-label="Coming up with a title"
-                                        data-test="sidebar-project-naming"
-                                    />
-                                ) : (
-                                    project.unread && (
-                                        <UnreadDot data-test="sidebar-project-unread" />
-                                    )
-                                )}
-                            </Link>
-                        </SidebarMenuButton>
+                                    aria-label={`Main and tasks in ${project.name}`}
+                                    className="group-data-[collapsible=icon]:p-1.5!"
+                                    data-test="sidebar-project-tasks-menu"
+                                >
+                                    <ProjectAvatar project={project} />
+                                </SidebarMenuButton>
+                            </CollapsedTasksMenu>
+                        ) : (
+                            <SidebarMenuButton
+                                asChild
+                                isActive={isCurrentUrl(show(project.id))}
+                                tooltip={{ children: project.name }}
+                                className={`group-data-[collapsible=icon]:p-1.5! md:group-focus-within/menu-item:pr-14 md:group-hover/menu-item:pr-14 touch:pr-14 ${subtitle ? 'h-auto min-h-8 py-1.5' : ''}`}
+                            >
+                                <Link
+                                    href={link(
+                                        project.id,
+                                        show(project.id).url,
+                                    )}
+                                >
+                                    <ProjectAvatar project={project} />
+                                    <span className="flex min-w-0 flex-1 flex-col group-data-[collapsible=icon]:hidden">
+                                        <span
+                                            className={`truncate ${project.unread ? 'font-semibold' : ''}`}
+                                        >
+                                            {project.name}
+                                        </span>
+                                        {subtitle && (
+                                            <span
+                                                className={`truncate text-xs ${project.failed ? 'text-red-600 dark:text-red-400' : !project.working && project.waiting_for ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}
+                                                data-test="sidebar-project-activity"
+                                            >
+                                                {subtitle}
+                                            </span>
+                                        )}
+                                    </span>
+                                    {project.naming ? (
+                                        <Spinner
+                                            className="ml-auto size-3 shrink-0 text-muted-foreground"
+                                            aria-label="Coming up with a title"
+                                            data-test="sidebar-project-naming"
+                                        />
+                                    ) : (
+                                        project.unread && (
+                                            <UnreadDot data-test="sidebar-project-unread" />
+                                        )
+                                    )}
+                                </Link>
+                            </SidebarMenuButton>
+                        )}
                         <SidebarMenuAction
                             asChild
                             showOnHover
@@ -650,6 +696,162 @@ function isExpanded(
     return (
         project.tasks.length > 0 &&
         (expanded[project.id] ?? isProjectPath(currentUrl, project.id))
+    );
+}
+
+/** The order a collapsed sidebar's menu lists a project's tasks in, like an opened project's sidebar. */
+const STAGE_GROUPS: { stage: TaskStage; label: string }[] = [
+    { stage: 'in_progress', label: 'In progress' },
+    { stage: 'review', label: 'Review' },
+    { stage: 'todo', label: 'To do' },
+    { stage: 'done', label: 'Done' },
+];
+
+/**
+ * With the sidebar collapsed to icons, a project's Main and its tasks open in a menu beside its icon (TASK-001),
+ * each with the same working, waiting and unread signs as the full sidebar, and New task at the bottom.
+ */
+export function CollapsedTasksMenu({
+    projectId,
+    label,
+    main,
+    tasks,
+    tooltip = label,
+    children,
+}: {
+    projectId: number;
+    label: string;
+    /** Shows Main first; left out where the sidebar already has its own Main button. */
+    main?: { working: boolean; unread: boolean; waitingFor: WaitingFor | null };
+    tasks: SidebarTask[];
+    tooltip?: string;
+    children: ReactNode;
+}) {
+    const { isCurrentUrl } = useCurrentUrl();
+    // Switching between Main and tasks keeps the workspace on the same tab and tool (TASK-004).
+    const link = useWorkspaceLinks();
+
+    return (
+        <DropdownMenu>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <DropdownMenuTrigger asChild>
+                        {children}
+                    </DropdownMenuTrigger>
+                </TooltipTrigger>
+                <TooltipContent side="right" align="center">
+                    {tooltip}
+                </TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent
+                side="right"
+                align="start"
+                className="w-64"
+                data-test="collapsed-tasks-menu"
+            >
+                <DropdownMenuLabel className="truncate">
+                    {label}
+                </DropdownMenuLabel>
+                {main && (
+                    <DropdownMenuItem
+                        asChild
+                        className={
+                            isCurrentUrl(show(projectId)) ? 'bg-accent' : ''
+                        }
+                    >
+                        <Link
+                            href={link(projectId, show(projectId).url)}
+                            data-test="collapsed-tasks-menu-main"
+                        >
+                            {main.working ? (
+                                <TaskStatusIcon stage="in_progress" working />
+                            ) : (
+                                <CircleDot />
+                            )}
+                            <span
+                                className={`truncate ${main.unread ? 'font-semibold' : ''}`}
+                            >
+                                Main
+                            </span>
+                            {!main.working && main.waitingFor && (
+                                <WaitingLabel waitingFor={main.waitingFor} />
+                            )}
+                            {main.unread && <UnreadDot />}
+                        </Link>
+                    </DropdownMenuItem>
+                )}
+                {STAGE_GROUPS.map(({ stage, label: groupLabel }) => {
+                    const inStage = tasks.filter(
+                        (task) => task.stage === stage,
+                    );
+
+                    if (inStage.length === 0) {
+                        return null;
+                    }
+
+                    return (
+                        <DropdownMenuGroup key={stage}>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                                {groupLabel}
+                            </DropdownMenuLabel>
+                            {inStage.map((task) => {
+                                const href = showTask({
+                                    project: projectId,
+                                    task: task.id,
+                                });
+
+                                return (
+                                    <DropdownMenuItem
+                                        key={task.id}
+                                        asChild
+                                        className={
+                                            isCurrentUrl(href)
+                                                ? 'bg-accent'
+                                                : ''
+                                        }
+                                    >
+                                        <Link
+                                            href={link(projectId, href.url)}
+                                            title={task.activity ?? task.title}
+                                            data-test="collapsed-tasks-menu-task"
+                                        >
+                                            <TaskStatusIcon
+                                                stage={task.stage}
+                                                working={task.working}
+                                            />
+                                            <span
+                                                className={`min-w-0 truncate ${task.unread ? 'font-semibold' : ''}`}
+                                            >
+                                                {task.title}
+                                            </span>
+                                            {task.waiting_for && (
+                                                <WaitingLabel
+                                                    waitingFor={
+                                                        task.waiting_for
+                                                    }
+                                                />
+                                            )}
+                                            {task.unread && <UnreadDot />}
+                                        </Link>
+                                    </DropdownMenuItem>
+                                );
+                            })}
+                        </DropdownMenuGroup>
+                    );
+                })}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                    <Link
+                        href={link(projectId, createTask(projectId).url)}
+                        data-test="collapsed-tasks-menu-new-task"
+                    >
+                        <Plus />
+                        New task
+                    </Link>
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
     );
 }
 

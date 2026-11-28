@@ -79,6 +79,51 @@ test("a project's open tasks show under it in the sidebar", function () {
         ->assertNoJavaScriptErrors();
 })->group('TASK-001');
 
+test('with the sidebar collapsed, a project\'s icon opens a menu of Main and its tasks', function () {
+    $task = Task::factory()->for($this->project)->create(['title' => 'Write the docs', 'stage' => TaskStage::InProgress]);
+    Task::factory()->for($this->project)->create(['title' => 'Plan the launch', 'stage' => TaskStage::Todo]);
+    $task->messages()->create(['project_id' => $this->project->id, 'role' => MessageRole::Assistant, 'content' => 'Done.']);
+    $empty = Project::factory()->for($this->user)->create(['name' => 'Blog', 'read_at' => now()]);
+
+    $page = visit("/projects/{$empty->id}")
+        ->click('[data-sidebar="trigger"]')
+        ->assertMissing('@sidebar-tasks')
+        ->click('@sidebar-project-tasks-menu')
+        ->assertSeeIn('@collapsed-tasks-menu', 'Time Tracker')
+        ->assertSeeIn('@collapsed-tasks-menu', 'In progress')
+        ->assertSeeIn('@collapsed-tasks-menu', 'Plan the launch')
+        ->assertVisible('@collapsed-tasks-menu-new-task')
+        ->assertVisible('@sidebar-task-unread')
+        ->click('@collapsed-tasks-menu-task')
+        ->assertSeeIn('@task-title', 'Write the docs')
+        ->assertMissing('@collapsed-tasks-menu')
+        ->click('@sidebar-project-tasks-menu')
+        ->click('@collapsed-tasks-menu-main')
+        ->assertPathIs("/projects/{$this->project->id}");
+
+    // A project without tasks has no menu: its icon goes straight to Main.
+    $page->assertCount('@sidebar-project-tasks-menu', 1)
+        ->assertNoJavaScriptErrors();
+})->group('TASK-001');
+
+test('an opened project collapsed to icons lists its tasks in a menu', function () {
+    Task::factory()->for($this->project)->create(['title' => 'Write the docs', 'stage' => TaskStage::Review]);
+
+    visit("/projects/{$this->project->id}")
+        ->click('@project-menu')
+        ->click('@project-menu-open')
+        ->assertVisible('@open-project-back')
+        ->assertMissing('@open-project-tasks-menu')
+        ->click('[data-sidebar="trigger"]')
+        ->assertMissing('@open-project-task')
+        ->click('@open-project-tasks-menu')
+        ->assertSeeIn('@collapsed-tasks-menu', 'Review')
+        ->assertMissing('@collapsed-tasks-menu-main')
+        ->click('@collapsed-tasks-menu-task')
+        ->assertSeeIn('@task-title', 'Write the docs')
+        ->assertNoJavaScriptErrors();
+})->group('TASK-001');
+
 test("a task with its own copy shows it, and brings in Main's work", function () {
     config(['sandbox.task_copies' => true]);
     $provider = new FakeSandboxProvider;

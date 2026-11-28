@@ -4,9 +4,14 @@ import {
     CircleDot,
     GitPullRequest,
     Kanban,
+    ListTodo,
     Plus,
 } from 'lucide-react';
-import { UnreadDot, WaitingLabel } from '@/components/nav-projects';
+import {
+    CollapsedTasksMenu,
+    UnreadDot,
+    WaitingLabel,
+} from '@/components/nav-projects';
 import { TaskStatusIcon } from '@/components/task-status-icon';
 import {
     SidebarGroup,
@@ -14,6 +19,7 @@ import {
     SidebarMenu,
     SidebarMenuButton,
     SidebarMenuItem,
+    useSidebar,
 } from '@/components/ui/sidebar';
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import { closeProject } from '@/lib/open-project';
@@ -41,6 +47,8 @@ export function NavOpenProject({ project }: { project: OpenProject }) {
     const { isCurrentUrl } = useCurrentUrl();
     // Switching between Main and tasks keeps the workspace on the same tab and tool (TASK-004).
     const link = useWorkspaceLinks();
+    const { state, isMobile } = useSidebar();
+    const iconOnly = state === 'collapsed' && !isMobile;
 
     return (
         <>
@@ -147,6 +155,44 @@ export function NavOpenProject({ project }: { project: OpenProject }) {
                             </Link>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
+                    {iconOnly &&
+                        project.tasks.length > 0 && (
+                            // Collapsed to icons, the task list below is hidden: its tasks open in a menu (TASK-001).
+                            <SidebarMenuItem>
+                                <CollapsedTasksMenu
+                                    projectId={project.id}
+                                    label={`Tasks in ${project.name}`}
+                                    tooltip="Tasks"
+                                    tasks={project.tasks}
+                                >
+                                    <SidebarMenuButton
+                                        aria-label="Tasks"
+                                        className="relative"
+                                        data-test="open-project-tasks-menu"
+                                    >
+                                        {project.tasks.some(
+                                            (task) => task.working,
+                                        ) ? (
+                                            <TaskStatusIcon
+                                                stage="in_progress"
+                                                working
+                                            />
+                                        ) : (
+                                            <ListTodo />
+                                        )}
+                                        {project.tasks.some(
+                                            (task) => task.unread,
+                                        ) && (
+                                            <span
+                                                className="absolute top-1 right-1 size-2 rounded-full bg-sky-500"
+                                                aria-label="Unread"
+                                                data-test="open-project-tasks-unread"
+                                            />
+                                        )}
+                                    </SidebarMenuButton>
+                                </CollapsedTasksMenu>
+                            </SidebarMenuItem>
+                        )}
                 </SidebarMenu>
             </SidebarGroup>
 
