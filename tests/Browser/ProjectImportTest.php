@@ -85,3 +85,24 @@ test('once GitHub is connected, the repository field suggests their repositories
         ->assertSeeIn('@repository-options', 'dev/timer')
         ->assertNoJavaScriptErrors();
 })->group('PRJ-009');
+
+test('without connecting GitHub, typing in the repository field suggests public repositories', function () {
+    Http::fake([
+        'api.github.com/users/pixwel/repos*' => Http::response([[
+            'full_name' => 'Pixwel/platform', 'private' => false, 'size' => 10,
+            'html_url' => 'https://github.com/Pixwel/platform', 'pushed_at' => now()->toIso8601String(),
+        ]]),
+        'api.github.com/search/repositories*' => Http::response(['items' => []]),
+    ]);
+
+    visit('/login')
+        ->fill('email', 'dev@example.com')
+        ->fill('password', 'password')
+        ->press('@login-button')
+        ->click('@way-existing')
+        ->type('@repository-input', 'pixwel')
+        ->assertSeeIn('@repository-options', 'Pixwel/platform')
+        ->click('Pixwel/platform')
+        ->assertValue('@repository-input', 'Pixwel/platform')
+        ->assertNoJavaScriptErrors();
+})->group('PRJ-009');

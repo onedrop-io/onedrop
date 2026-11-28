@@ -20,6 +20,7 @@ use App\Http\Controllers\DesktopSignInController;
 use App\Http\Controllers\DriveController;
 use App\Http\Controllers\DriveSyncController;
 use App\Http\Controllers\GitHubAppController;
+use App\Http\Controllers\GitHubRepositorySearchController;
 use App\Http\Controllers\GitHubWebhookController;
 use App\Http\Controllers\GroupController;
 use App\Http\Controllers\GroupMemberController;
@@ -334,6 +335,7 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
         Route::put('projects/{project}/git/github-app/remote', [GitHubAppController::class, 'connect'])->name('projects.git.github-app.connect');
         Route::get('github/install', [GitHubAppController::class, 'installForImport'])->name('github-app.install');
         Route::get('github/repositories', [GitHubAppController::class, 'importable'])->name('github-app.repositories');
+        Route::get('github/search', GitHubRepositorySearchController::class)->middleware('throttle:60,1')->name('github.search');
         Route::get('github/callback', [GitHubAppController::class, 'callback'])->name('github-app.callback');
         Route::get('projects/{project}/git', [ProjectGitController::class, 'index'])->name('projects.git.index');
         Route::get('projects/{project}/git/commits', [ProjectGitController::class, 'log'])->name('projects.git.log');

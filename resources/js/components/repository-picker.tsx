@@ -1,6 +1,7 @@
 import { Lock, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import GitHubAppController from '@/actions/App/Http/Controllers/GitHubAppController';
+import GitHubRepositorySearchController from '@/actions/App/Http/Controllers/GitHubRepositorySearchController';
 import SocialProviderIcon from '@/components/social-provider-icon';
 import { jsonRequest } from '@/lib/json-request';
 
@@ -21,7 +22,7 @@ type Repository = {
 
 /**
  * Where the repository to import is typed or picked: any "owner/name" or HTTPS git URL, with the user's own
- * GitHub repositories suggested when they've connected GitHub.
+ * GitHub repositories suggested when they've connected GitHub, then public GitHub repositories matching what's typed.
  */
 export default function RepositoryPicker({
     value,
@@ -37,6 +38,9 @@ export default function RepositoryPicker({
     const [repositories, setRepositories] = useState<Repository[] | null>(null);
     const [loadError, setLoadError] = useState<string | null>(null);
     const [open, setOpen] = useState(false);
+    const [found, setFound] = useState<{ repositories: Repository[] } | null>(
+        null,
+    );
 
     useEffect(() => {
         if (!github.signed_in) {
@@ -59,15 +63,60 @@ export default function RepositoryPicker({
         };
     }, [github.signed_in]);
 
-    const matches = useMemo(() => {
-        const query = value.trim().toLowerCase();
+    // Public repositories on GitHub, once typing pauses; a GitHub link or "owner/name" is searched as typed.
+    useEffect(() => {
+        const query = value.trim();
 
-        return (repositories ?? [])
-            .filter((repository) =>
-                repository.full_name.toLowerCase().includes(query),
+        if (
+            query.length < 2 ||
+            /^(?!https?:\/\/(www\.)?github\.com)[a-z]+:/i.test(query)
+        ) {
+            return;
+        }
+
+        let cancelled = false;
+        const timer = setTimeout(() => {
+            jsonRequest<{ repositories: Repository[] }>(
+                GitHubRepositorySearchController.url({ query: { q: query } }),
+            )
+                .then(
+                    ({ repositories }) =>
+                        !cancelled && setFound({ repositories }),
+                )
+                .catch(() => {});
+        }, 300);
+
+        return () => {
+            cancelled = true;
+            clearTimeout(timer);
+        };
+    }, [value]);
+
+    const matches = useMemo(() => {
+        const query = value
+            .trim()
+            .toLowerCase()
+            .replace(/^(https?:\/\/)?(www\.)?github\.com\//, '')
+            .replace(/(\.git|\/tree\/.*)$/, '');
+        const own = (repositories ?? []).filter((repository) =>
+            repository.full_name.toLowerCase().includes(query),
+        );
+        const seen = new Set(
+            own.map((repository) => repository.full_name.toLowerCase()),
+        );
+        // The last search's results stay while the next is on its way, narrowed to what's typed now.
+        const publicOnes = (found?.repositories ?? []).filter(
+            (repository) =>
+                repository.full_name.toLowerCase().includes(query) &&
+                !seen.has(repository.full_name.toLowerCase()),
+        );
+
+        return [...own, ...publicOnes]
+            .filter(
+                (repository) => repository.full_name.toLowerCase() !== query,
             )
             .slice(0, 8);
-    }, [repositories, value]);
+    }, [repositories, found, value]);
 
     const error = github.returned?.error ?? loadError;
 

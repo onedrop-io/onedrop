@@ -52,14 +52,16 @@ class GitHubAppController extends Controller
     }
 
     /**
-     * Off to GitHub. Someone with no installations remembered signs in first, since the app may already be on an
-     * account they're in (an organization a teammate installed it on), and GitHub's install page only shows its
-     * settings then, without sending them back; the callback sends them on to install it if none turn up.
+     * Off to GitHub. Someone with no installations remembered, or no sign-in token to use them with, signs in first,
+     * since the app may already be on an account they're in (an organization a teammate installed it on), and
+     * GitHub's install page only shows its settings then, without sending them back; the callback sends them on to
+     * install it if none turn up.
      */
     protected function toGitHub(Request $request, GitHubApp $github, ?int $projectId): RedirectResponse
     {
         $state = Str::random(40);
-        $signInFirst = ! $request->boolean('reconnect') && $request->user()->githubInstallations()->doesntExist();
+        $signInFirst = ! $request->boolean('reconnect')
+            && ($request->user()->githubInstallations()->doesntExist() || $github->userToken($request->user()) === null);
         $request->session()->put('github_app', ['state' => $state, 'project' => $projectId, 'install_if_none' => $signInFirst]);
 
         return redirect()->away($request->boolean('reconnect') || $signInFirst ? $github->authorizeUrl($state) : $github->installUrl($state));

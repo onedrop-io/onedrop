@@ -66,6 +66,8 @@ To work on an app you already have, switch to Advanced mode and click **Somethin
 - A GitHub link, such as `https://github.com/acme/website`. A link to a branch (`…/tree/redesign`) imports that branch instead of the default one.
 - Any HTTPS git URL, such as a GitLab or Forgejo repository anyone can read
 
+As you type, public GitHub repositories are suggested: type an owner (`acme`) to see their repositories, or `acme/web` to narrow them down by name, and pick one from the list.
+
 The message box becomes optional: say what you want done, like "add dark mode", or leave it empty and the agent gets the app running in the preview. Press Enter to start.
 
 OneDrop checks it can reach the repository first, and tells you if it can't. It then creates a project named after the repository, brings the branch into the project's sandbox, connects the repository in [Source Control](/guides/source-control) so you can pull and push later, and starts the agent. The agent's changes stay uncommitted until you commit them.

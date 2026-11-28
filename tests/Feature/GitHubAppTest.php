@@ -426,6 +426,13 @@ test('someone with no installations signs in first, and picks up the app already
     expect($this->user->githubInstallations()->pluck('account_login')->all())->toBe(['acme']);
 })->group('PRJ-009', 'GIT-005');
 
+test('someone with installations remembered but no sign-in token signs in, not to GitHub\'s install page', function () {
+    $this->user->githubAuthorization()->delete();
+
+    $this->get(route('github-app.install'))
+        ->assertRedirect('https://github.com/login/oauth/authorize?'.http_build_query(['client_id' => 'Iv1.client', 'state' => session('github_app.state')]));
+})->group('PRJ-009', 'GIT-005');
+
 test('someone whose sign-in finds the app on no account is sent on to install it, once', function () {
     $this->user->githubInstallations()->delete();
 
