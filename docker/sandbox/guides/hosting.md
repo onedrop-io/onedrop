@@ -1,7 +1,8 @@
 # Hosting
 
 Follow this when the app is (or will be) published to Hosting, and whenever you set up its database, cache or file
-storage: written this way, the same code runs in the preview and hosted.
+storage: written this way, the same code runs in the preview and hosted. For what to tell the user about deploying
+and where it can go, see guides/publishing.md.
 
 Published to Hosting, the app runs on its own, off this sandbox: a front end is served from Cloudflare; an app with a
 server runs on a Fly.io machine with this sandbox's tools, a copy of /workspace and its own data. Deploying again

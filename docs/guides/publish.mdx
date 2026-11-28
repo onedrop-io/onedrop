@@ -59,6 +59,12 @@ Once published, the button says **Republish**. Use it to switch between Private 
 
 The **Tools → Publishing** section shows the same status, URL, and who published it.
 
+## Ask the agent how to deploy
+
+You can ask the agent things like "how do I put this online?", "can this go on Vercel?" or "how do I use my own domain?". It answers with what OneDrop can do for this project: where the **Publish** button can put it, [Share](/guides/share), [Hosting](/guides/hosting) and its platforms, [your own domain](/guides/domains), and whether your organization has connected its own hosting accounts. It knows which of these are set up on your install, so it only suggests what you can use.
+
+The agent doesn't deploy anything itself: you press **Publish**. If you ask for a host OneDrop doesn't deploy to (AWS, Heroku, your own server), it says so and suggests what covers your reason. If you still want it, it can prepare the app for your own pipeline.
+
 ## Works with any framework
 
 Published URLs reach your app as `localhost`, so frameworks that block unknown hostnames (such as Vite and Next.js dev servers) work without extra configuration.

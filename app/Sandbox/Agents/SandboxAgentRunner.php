@@ -13,6 +13,7 @@ use App\Models\Sandbox;
 use App\Models\Task;
 use App\Sandbox\GitOrigin;
 use App\Sandbox\OrganizationSecrets;
+use App\Sandbox\Publishing\PublishingSummary;
 use App\Sandbox\SandboxCallback;
 use App\Sandbox\SandboxException;
 use App\Sandbox\SandboxProvider;
@@ -257,6 +258,8 @@ abstract class SandboxAgentRunner implements AgentRunner
             // Main commits each turn unless the project leaves its changes for the user (SCM-003); a task's own copy
             // always does, since its branch only reaches Main through Apply to Main.
             'APP_COMMIT_TURNS' => $sandbox->task_id === null && ! $conversation->ownerProject()->commit_turns ? '0' : '1',
+            // What OneDrop can publish this project to, so the agent steers deploy questions there (PUB-004).
+            'APP_PUBLISHING' => $conversation->ownerProject()->isComputer() ? '' : app(PublishingSummary::class)->json($conversation->ownerProject()),
         ];
 
         try {

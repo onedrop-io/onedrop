@@ -1805,6 +1805,14 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 ## HOST-003: Use your own hosting accounts
 
 - Organization owners and admins should be able to connect the organization's own account for each hosting provider (Fly.io, Cloudflare, Neon, Upstash, Vercel) in Settings → Organization → Hosting accounts, with its keys stored encrypted and never shown again (blank keeps the saved key).
+## PUB-004: The agent points deploy questions at OneDrop's publishing
+
+- User should get an answer built on what OneDrop offers this project when they ask the agent how to deploy, host, launch or share the app, give it a domain, or put it on a particular host: the Publish button's targets (Your domain, Hosting, Tailscale), Share, custom domains in Tools → Domains, Hosting's platforms (Fly.io & Cloudflare, Vercel) and the organization's own hosting accounts.
+- The agent should only offer what this install and organization have: which targets are on offer and why one can't be used now, whether Hosting is set up, its platforms, and for each hosting provider whether it uses the organization's own account, OneDrop's, or none. It gets this each run, without any keys or account details.
+- When Hosting isn't set up, the agent should say who can set it up (an admin in Admin → Hosting, or an organization owner or admin in Settings → Organization → Hosting accounts) and offer Your domain or Tailscale meanwhile.
+- When the user asks for a host OneDrop doesn't deploy to (AWS, Heroku, a VPS…), the agent should say so and offer what covers the reason; only if they still want it, it prepares the app for their own pipeline.
+- The agent should never deploy with a provider's CLI, sign in to one, or ask the user for a provider token to deploy.
+
 - When the organization connected its own account for a provider, new things for its apps should be made there and billed to it by the provider; otherwise they use the install's account (ADMIN-007), if it's turned on. Things already made stay in the account they were made in.
 - User should see for each provider whether it's connected, uses OneDrop's account, or isn't set up, and how many things of its apps are in its own account.
 - User should see each provider's logo beside its name, here and in Admin → Hosting.

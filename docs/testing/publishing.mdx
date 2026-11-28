@@ -77,6 +77,15 @@ Turn on Vercel in **Settings → Hosting** (a token, and the team ID for a team)
 - [ ] **Unpublish** deletes the Vercel project; the Neon database stays.
 - [ ] An organization that connected only its own Vercel account publishes there by default, billed to it.
 
+## The agent answers deploy questions (PUB-004)
+
+- [ ] Ask the agent "how do I deploy this?" on an install without Hosting: it reads `guides/publishing.md`, offers only the targets the Publish panel shows (Your domain and/or Tailscale) and Share, and says who can set up Hosting (Admin → Hosting, or Settings → Organization → Hosting accounts). It doesn't run a deploy CLI or write a deployment pipeline.
+- [ ] With Hosting turned on, ask again: it suggests Publish → Hosting, names the platforms on offer, and makes `/opt/onedrop/hosting check` pass before saying the app is ready.
+- [ ] Connect the organization's own Fly.io account, then ask "can this run in our own cloud account?": it says the organization's account is already used for servers. `jq . /home/sandbox/.onedrop/publishing.json` in the Shell shows `"Fly.io": "organization"` and no keys.
+- [ ] Ask "deploy it to AWS": it says OneDrop doesn't deploy there, offers what covers the reason, and only writes config for your own pipeline once you insist.
+- [ ] Ask "use my domain example.com": it points to **Tools → Domains** (or says to publish to Your domain or Hosting first when on Tailscale).
+- [ ] Try it with Claude Code, OpenCode and Codex.
+
 ## Review before going public
 
 Only on the hosted service.

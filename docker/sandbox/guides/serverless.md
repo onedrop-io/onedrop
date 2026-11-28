@@ -14,8 +14,9 @@ on 0.0.0.0:$PORT like any other dev server. Everything runs inside the sandbox:
   runs unset them (`env -u AWS_ACCESS_KEY_ID ...`). Only use a token the user added in
   Tools → Secrets for the one tool below that needs it.
 - Don't deploy (`wrangler deploy`, `sam deploy`, `vercel deploy`, `serverless deploy`). OneDrop's Publish
-  button publishes what the preview runs. If the user asks to deploy to their own account, say it isn't
-  done from OneDrop yet, and keep the project's config ready for their own pipeline.
+  button publishes what the preview runs. When the user asks about deploying, or deploying to their own account,
+  answer with guides/publishing.md (their organization can connect its own Cloudflare or Vercel account), and keep
+  the project's config ready for their own pipeline if they still want one.
 - Install JavaScript CLIs as the app's dev dependencies (`npm install -D wrangler@4`), not globally, so the app
   keeps its version. The shell's own `wrangler`, `vercel`, `aws` and the like are for the user.
 

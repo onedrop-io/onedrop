@@ -16,6 +16,8 @@
 // guides join the instructions. APP_MODE is "computer" on a person's computer (CMP-002): the agent works its desktop
 // with the computer guide instead of building an app, and there's no checkpoint to commit. APP_COMMIT_TURNS is "0"
 // when the turn's changes are left for the user to commit (SCM-003): the checkpoint is private.
+// APP_PUBLISHING is what OneDrop can publish the project to (PUB-004), as JSON: written to /home/sandbox/.onedrop/publishing.json
+// for guides/publishing.md, so the agent answers deploy questions with what's on offer here.
 // Provider keys (ANTHROPIC_API_KEY, OPENAI_API_KEY, ...) are read by the agent; a Claude subscription is Claude Code's own sign-in.
 import { spawn, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
@@ -73,11 +75,23 @@ const {
     APP_REQUIREMENTS,
     APP_MODE = 'app',
     APP_COMMIT_TURNS = '1',
+    APP_PUBLISHING,
     CODEX_AUTH_CONTENT,
 } = process.env;
 
 const computer = APP_MODE === 'computer';
 const requirements = APP_REQUIREMENTS === '1' && !computer;
+
+// The project's publishing options (PUB-004), kept fresh each run; an older platform sends none and the file stays.
+if (APP_PUBLISHING) {
+    try {
+        const dir = '/home/sandbox/.onedrop';
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(`${dir}/publishing.json`, APP_PUBLISHING);
+    } catch {
+        // Never stops a run.
+    }
+}
 
 // The agent's instructions: the platform's (or, on a computer, the computer guide), plus the requirements and tests
 // guides when that's on.
