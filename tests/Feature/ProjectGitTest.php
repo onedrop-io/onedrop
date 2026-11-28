@@ -3,11 +3,13 @@
 use App\Enums\GitSyncStatus;
 use App\Enums\ProjectStatus;
 use App\Enums\SandboxStatus;
+use App\Enums\TaskStart;
 use App\Jobs\BackupProject;
 use App\Jobs\SyncGitRemote;
 use App\Models\AgentConnection;
 use App\Models\Project;
 use App\Models\Sandbox;
+use App\Models\Task;
 use App\Models\User;
 use App\Sandbox\Agents\OneOffPrompt;
 use App\Sandbox\ExecResult;
@@ -49,6 +51,9 @@ beforeEach(function () {
             'log' => ['commits' => $this->commits, 'more' => true],
             'changes_diff' => ['patch' => "-color: black;\n+color: blue;\n", 'new_files' => [], 'truncated' => false],
             'combine_preview' => ['commits' => $this->compared, 'patch' => "+plans\n", 'truncated' => false],
+            'task_changes' => isset($request['path'])
+                ? ['path' => $request['path'], 'patch' => "@@ -1 +1 @@\n-a\n+b\n", 'truncated' => false, 'binary' => false]
+                : ['base' => $request['base'], 'against' => $request['branch'], 'commits' => 2, 'additions' => 1, 'deletions' => 1, 'files' => [['path' => 'index.html', 'status' => 'M', 'additions' => 1, 'deletions' => 1, 'binary' => false, 'patch' => "@@ -1 +1 @@\n-a\n+b\n", 'truncated' => false]], 'more_files' => false],
             'compare' => ['base' => $request['base'], 'commits' => $this->compared, 'more' => false, 'patch' => "+plans\n", 'truncated' => false],
             'change_diff' => ['path' => $request['path'], 'staged' => $request['staged'], 'patch' => "@@ -1 +1 @@\n-a\n+b\n", 'truncated' => false, 'binary' => false, 'files' => null],
             'checkpoints' => ['checkpoints' => [['sha' => str_repeat('d', 40), 'subject' => 'Build a timer', 'date' => '2026-09-28T10:00:00+00:00', 'kind' => 'turn', 'files' => 1, 'additions' => 3, 'deletions' => 0, 'restorable_before' => true]], 'more' => false],
@@ -530,3 +535,38 @@ test('the last commit is undone as the user asked, waiting for the agent and for
     $this->project->update(['git_sync_status' => null, 'status' => ProjectStatus::Working]);
     $this->postJson(route('projects.git.undo-commit', $this->project), ['sha' => $sha])->assertStatus(409);
 })->group('GIT-010');
+
+test("a task's changes come from its own copy, against where it started or its pull request's base", function () {
+    $task = Task::factory()->for($this->project)->create(['base_commit' => str_repeat('e', 40)]);
+    Sandbox::factory()->for($this->project)->create(['task_id' => $task->id, 'external_id' => 'copy-1']);
+
+    $this->getJson(route('projects.git.task-changes', [$this->project, 'task' => $task->id]))
+        ->assertOk()
+        ->assertJsonPath('since', 'Against Main')
+        ->assertJsonPath('files.0.path', 'index.html');
+
+    expect(end($this->provider->executed)['id'])->toBe('copy-1')
+        ->and(end($this->requests))->toBe(['op' => 'task_changes', 'base' => str_repeat('e', 40), 'branch' => null]);
+
+    $task->update(['start_from' => TaskStart::Branch, 'start_branch' => 'develop']);
+    $this->getJson(route('projects.git.task-changes', [$this->project, 'task' => $task->id]))->assertJsonPath('since', 'Since it started from develop');
+
+    $task->update(['pull_request_number' => 12, 'pull_request_branch' => 'fix-login', 'pull_request_base' => 'main']);
+    $this->getJson(route('projects.git.task-changes', [$this->project, 'task' => $task->id]))->assertJsonPath('since', 'Against main');
+    expect(end($this->requests)['branch'])->toBe('main');
+
+    $this->getJson(route('projects.git.task-changes', [$this->project, 'task' => $task->id, 'path' => 'index.html']))
+        ->assertOk()
+        ->assertJsonPath('patch', "@@ -1 +1 @@\n-a\n+b\n");
+    expect(end($this->requests))->toMatchArray(['op' => 'task_changes', 'path' => 'index.html']);
+})->group('GIT-030');
+
+test("only a task's copy has changes to show, and only to people who can see the project", function () {
+    $this->getJson(route('projects.git.task-changes', $this->project))->assertUnprocessable();
+
+    $task = Task::factory()->for($this->project)->create(['base_commit' => str_repeat('e', 40)]);
+    Sandbox::factory()->for($this->project)->create(['task_id' => $task->id, 'external_id' => 'copy-1']);
+    $this->actingAs(User::factory()->has(AgentConnection::factory())->create());
+
+    $this->getJson(route('projects.git.task-changes', [$this->project, 'task' => $task->id]))->assertForbidden();
+})->group('GIT-030');

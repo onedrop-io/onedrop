@@ -25,7 +25,7 @@ class UseTaskSandbox
         'projects.git.stage', 'projects.git.unstage', 'projects.git.stage-lines', 'projects.git.discard',
         'projects.git.discard-hunk', 'projects.git.switch', 'projects.git.restore', 'projects.git.undo-commit',
         'projects.git.combine', 'projects.git.combine-draft', 'projects.git.pull-request', 'projects.git.push',
-        'projects.git.pull',
+        'projects.git.pull', 'projects.git.task-changes',
     ];
 
     /** The request attribute holding the task whose copy the page shows. */

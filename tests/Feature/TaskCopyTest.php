@@ -47,6 +47,7 @@ beforeEach(function () {
         $command[0] === '/opt/onedrop/fork' && $command[1] === 'merge' => $this->mergeResult,
         $command[0] === '/opt/onedrop/fork' && $command[1] === 'services' => new ExecResult(0, $this->services),
         $command[0] === '/opt/onedrop/fork' && $command[1] === 'images' => new ExecResult(0, $this->images),
+        $command[0] === '/opt/onedrop/fork' && $command[1] === 'incoming' => new ExecResult(0, str_repeat('f', 40)."\n"),
         default => new ExecResult(0, ''),
     };
     app()->instance(SandboxProvider::class, $this->provider);
@@ -465,6 +466,16 @@ test("updating from Main merges Main into the copy and hands it to the task's ag
         ->and($task->messages()->where('role', MessageRole::User)->sole()->content)->toContain('latest work from Main')
         ->and($task->sandbox()->exists())->toBeTrue();
 })->group('TASK-003');
+
+test("updating from Main shows the task's changes against Main as it was brought in", function () {
+    Queue::fake();
+    $task = Task::factory()->for($this->project)->create(['base_commit' => str_repeat('a', 40)]);
+    $task->sandbox()->create(['provider' => 'fake', 'external_id' => 'copy-1', 'status' => SandboxStatus::Running]);
+
+    (new SyncTask($task, TaskSyncStatus::Updating))->handle(app(TaskCopies::class), app(AgentQueue::class));
+
+    expect($task->fresh()->base_commit)->toBe(str_repeat('f', 40));
+})->group('GIT-030');
 
 test("a task can't be applied while an agent works, or without its own copy", function (Closure $setup, string $message) {
     Queue::fake();

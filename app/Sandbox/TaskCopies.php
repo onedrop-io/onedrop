@@ -338,7 +338,17 @@ class TaskCopies
      */
     public function updateFromMain(Task $task): array
     {
-        return $this->merge($this->mainSandbox($task->project), $this->copySandbox($task), 'Checkpoint', 'Update from Main');
+        $copy = $this->copySandbox($task);
+        $conflicts = $this->merge($this->mainSandbox($task->project), $copy, 'Checkpoint', 'Update from Main');
+
+        // The task's changes are now shown against Main as it brought it in, not Main's work as the task's (GIT-030).
+        $incoming = $this->provider->exec($copy->external_id, ['/opt/onedrop/fork', 'incoming']);
+
+        if ($incoming->successful() && preg_match('/^[0-9a-f]{40}$/', trim($incoming->output))) {
+            $task->update(['base_commit' => trim($incoming->output)]);
+        }
+
+        return $conflicts;
     }
 
     /**

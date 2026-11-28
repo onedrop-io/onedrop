@@ -99,3 +99,20 @@ Needs a GitHub repository connected to the project.
 1. Open a project whose sandbox was made before this change, and leave it unused for 10 minutes (or run `php artisan sandbox:update`).
 
 - [ ] Source Control loads its changes and Timeline, and the next agent turn adds a Timeline entry.
+
+## A task's changes in one diff (GIT-030)
+
+Needs a project with task copies on and a real Docker sandbox. The sandbox's Git and fork tools must be current (open the task after changing `docker/sandbox/git.php` or `fork`).
+
+1. Start a task from Main and ask its agent for a change across a few files, including a new file.
+2. In the task's Shell, edit one more file without committing, and `git add` another.
+
+- [ ] **Changes** on the task's bar opens the Changes tab beside the chat; the address has `?tab=changes`, and a reload keeps it.
+- [ ] It says **Against Main**, with the number of files and commits and the lines added and removed, and lists every file: the agent's commits, the uncommitted edit, the staged file and the new file. `git diff --cached` in the Shell still shows only what you staged.
+- [ ] Every diff is open one after another; each file's header stays in view while you scroll through it, and clicking a file in the list scrolls to it. In a narrow pane, **Jump to file** does the same.
+- [ ] Clicking a file's path opens it in the editor; **Ask** on a part puts it in the chat box.
+- [ ] Run `npm install some-package` in the Shell: `package-lock.json` is listed but folded, and opening it loads its diff. `node_modules` and `.env` aren't listed.
+- [ ] Ask the agent for another change: the tab refreshes on its own when the turn ends.
+- [ ] Make and commit a change on Main, then **Update from Main** on the task: the tab doesn't show Main's change as the task's.
+- [ ] On a pull request's task, **Changes** says **Against** the base branch and matches GitHub's Files changed; after a local edit that isn't pushed, it shows that too.
+- [ ] On Main, **+** doesn't offer Changes.

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\GitSyncStatus;
 use App\Enums\SandboxStatus;
+use App\Enums\TaskStart;
 use App\Enums\TaskSyncStatus;
 use App\Http\Middleware\UseTaskSandbox;
 use App\Jobs\BackupProject;
@@ -224,6 +225,43 @@ class ProjectGitController extends Controller
         ]);
 
         return $this->fromSandbox($project, fn (Sandbox $sandbox) => $git->changeDiff($sandbox, $validated['path'], $request->boolean('staged')));
+    }
+
+    /**
+     * Everything the task whose page this is changed, in one diff (GIT-030): its commits and its uncommitted and new
+     * files, against its pull request's base, or else where it started (or Main as it last brought it in). `path` asks
+     * for one file's diff, for a file that came without one.
+     */
+    public function taskChanges(Request $request, Project $project, WorkspaceGit $git): JsonResponse
+    {
+        Gate::authorize('view', $project);
+
+        $path = $request->validate(['path' => ['sometimes', 'string', 'max:1000']])['path'] ?? null;
+        $task = self::taskCopy($request);
+
+        if ($task === null) {
+            return response()->json(['message' => __('Only a task with its own copy of the app has changes to show.')], 422);
+        }
+
+        return $this->fromSandbox($project, function (Sandbox $sandbox) use ($git, $task, $path) {
+            $changes = $git->taskChanges($sandbox, $task->base_commit, $task->pull_request_base, $path);
+
+            return $path === null ? [...$changes, 'since' => self::changesSince($task, $changes['against'])] : $changes;
+        });
+    }
+
+    /**
+     * What a task's changes are shown against, as the Changes tab says it.
+     */
+    protected static function changesSince(Task $task, ?string $against): string
+    {
+        return match (true) {
+            $against !== null => __('Against :branch', ['branch' => $against]),
+            $task->isPullRequest() => __('Since it was checked out'),
+            $task->startsFrom() === TaskStart::Branch => __('Since it started from :branch', ['branch' => $task->start_branch ?? $task->branch ?? __('the default branch')]),
+            $task->startsFrom() === TaskStart::Task => __('Since it started from another task'),
+            default => __('Against Main'),
+        };
     }
 
     /**

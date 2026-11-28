@@ -14,6 +14,7 @@ export type PaneTab =
     | 'tests'
     | 'browser'
     | 'source-control'
+    | 'changes'
     | ShellTab;
 
 export type Pane = { id: number; tabs: PaneTab[]; active: PaneTab };
@@ -90,6 +91,7 @@ const TABS: PaneTab[] = [
     'tests',
     'browser',
     'source-control',
+    'changes',
 ];
 
 function isPaneTab(value: unknown): value is PaneTab {

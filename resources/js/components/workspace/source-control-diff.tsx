@@ -42,13 +42,17 @@ export const STATUS_STYLES: Record<
 };
 
 /** The chat message asking the agent about one hunk of a file (GIT-011), before the user's question. */
-export function askAbout(path: string, hunk: Hunk): string {
+export function askAbout(
+    path: string,
+    hunk: Hunk,
+    what = 'uncommitted change',
+): string {
     const lines = [hunk.header, ...hunk.lines.map((line) => line.text)]
         .join('\n')
         .replaceAll('```', "'''");
     const excerpt = lines.length > 4000 ? `${lines.slice(0, 4000)}\n…` : lines;
 
-    return `About this uncommitted change to \`${path}\`:\n\n\`\`\`diff\n${excerpt}\n\`\`\`\n\n`;
+    return `About this ${what} to \`${path}\`:\n\n\`\`\`diff\n${excerpt}\n\`\`\`\n\n`;
 }
 
 /**

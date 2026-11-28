@@ -190,6 +190,20 @@ class WorkspaceGit
     }
 
     /**
+     * Everything a task's copy changed (GIT-030): its commits and uncommitted and new files together, against where its
+     * branch parted from $branch when the copy has that branch, or else the commit $base. Each file comes with its diff
+     * while there's room; $path asks for just that file's.
+     *
+     * @return array<string, mixed>
+     *
+     * @throws SandboxException|GitException
+     */
+    public function taskChanges(Sandbox $sandbox, ?string $base, ?string $branch = null, ?string $path = null): array
+    {
+        return $this->call($sandbox, ['op' => 'task_changes', 'base' => $base, 'branch' => $branch, ...($path === null ? [] : ['path' => $path])]);
+    }
+
+    /**
      * The commits no remote has yet (newest first) and the diff they make together, cut short.
      *
      * @return array{commits: list<array{sha: string, subject: string, author: string, email: string, date: string, agent: bool}>, patch: string, truncated: bool}

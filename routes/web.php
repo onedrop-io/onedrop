@@ -340,6 +340,7 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
         Route::get('projects/{project}/git/commits/{sha}', [ProjectGitController::class, 'show'])->where('sha', '[0-9a-f]{7,40}')->name('projects.git.show');
         Route::get('projects/{project}/git/commits/{sha}/diff', [ProjectGitController::class, 'diff'])->where('sha', '[0-9a-f]{7,40}')->name('projects.git.diff');
         Route::get('projects/{project}/git/changes/diff', [ProjectGitController::class, 'changeDiff'])->name('projects.git.change-diff');
+        Route::get('projects/{project}/git/task-changes', [ProjectGitController::class, 'taskChanges'])->name('projects.git.task-changes');
         Route::post('projects/{project}/git/commit', [ProjectGitController::class, 'commit'])->name('projects.git.commit');
         Route::post('projects/{project}/git/commit/draft', [ProjectGitController::class, 'draftMessage'])->name('projects.git.draft-message');
         Route::post('projects/{project}/git/stage', [ProjectGitController::class, 'stage'])->name('projects.git.stage');

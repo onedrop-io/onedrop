@@ -733,3 +733,72 @@ test('a checkpoint is restored, or the files as they were before it, without com
         ->and(File::get("{$this->workspace}/c.txt"))->toBe("sea\n")
         ->and(($this->tool)(['op' => 'restore_checkpoint', 'sha' => ($this->git)('rev-parse', 'HEAD')])['error'])->toBe("That isn't one of the project's checkpoints.");
 })->group('SCM-002');
+
+test('a task\'s changes are its commits, staged, unstaged and new files together, against where it started', function () {
+    ($this->write)('kept.txt', "a\nb\n");
+    ($this->write)('gone.txt', "a\n");
+    ($this->write)('.gitignore', "node_modules\n");
+    ($this->data)(['op' => 'commit', 'message' => 'Start']);
+    $start = ($this->git)('rev-parse', 'HEAD');
+
+    ($this->write)('kept.txt', "a\nc\n");
+    ($this->data)(['op' => 'commit', 'message' => 'Edit']);
+    File::delete("{$this->workspace}/gone.txt");
+    ($this->write)('staged.txt', "s\n");
+    ($this->data)(['op' => 'stage', 'paths' => ['staged.txt']]);
+    ($this->write)('new.txt', "one\ntwo\n");
+    File::ensureDirectoryExists("{$this->workspace}/node_modules");
+    ($this->write)('node_modules/dep.js', 'x');
+
+    $changes = ($this->data)(['op' => 'task_changes', 'base' => $start]);
+    $files = collect($changes['files'])->keyBy('path');
+
+    expect($changes)->toMatchArray(['base' => $start, 'against' => null, 'commits' => 1, 'additions' => 4, 'deletions' => 2, 'more_files' => false])
+        ->and($files->keys()->all())->toBe(['gone.txt', 'kept.txt', 'new.txt', 'staged.txt'])
+        ->and($files['kept.txt'])->toMatchArray(['status' => 'M', 'additions' => 1, 'deletions' => 1, 'binary' => false, 'truncated' => false])
+        ->and($files['kept.txt']['patch'])->toContain('-b')->toContain('+c')->not->toContain('new.txt')
+        ->and($files['gone.txt'])->toMatchArray(['status' => 'D', 'deletions' => 1])
+        ->and($files['new.txt'])->toMatchArray(['status' => 'A', 'additions' => 2])
+        ->and($files['new.txt']['patch'])->toContain('+one')
+        // What's staged is left as the user had it, and new files stay untracked.
+        ->and(($this->git)('diff', '--cached', '--name-only'))->toBe('staged.txt')
+        ->and(($this->git)('status', '--porcelain', '--', 'new.txt'))->toBe('?? new.txt');
+})->group('GIT-030');
+
+test('a task\'s changes are against its branch\'s base when the copy has it, and one file\'s diff can be asked for', function () {
+    ($this->write)('a.txt', "a\n");
+    ($this->data)(['op' => 'commit', 'message' => 'Start']);
+    ($this->git)('update-ref', 'refs/remotes/origin/main', 'HEAD');
+    ($this->git)('switch', '-c', 'feature');
+    ($this->write)('a.txt', "a\nb\n");
+    ($this->data)(['op' => 'commit', 'message' => 'Feature']);
+    $checkedOut = ($this->git)('rev-parse', 'HEAD');
+    ($this->write)('a.txt', "a\nb\nc\n");
+
+    $againstBase = ($this->data)(['op' => 'task_changes', 'base' => $checkedOut, 'branch' => 'main']);
+    $sinceCheckout = ($this->data)(['op' => 'task_changes', 'base' => $checkedOut, 'branch' => 'nowhere']);
+    $one = ($this->data)(['op' => 'task_changes', 'base' => $checkedOut, 'branch' => 'main', 'path' => 'a.txt']);
+
+    expect($againstBase)->toMatchArray(['against' => 'main', 'commits' => 1, 'additions' => 2])
+        ->and($sinceCheckout)->toMatchArray(['against' => null, 'commits' => 0, 'additions' => 1])
+        ->and($one)->toMatchArray(['path' => 'a.txt', 'truncated' => false, 'binary' => false])
+        ->and($one['patch'])->toContain('+b')->toContain('+c')
+        ->and(($this->tool)(['op' => 'task_changes', 'base' => str_repeat('0', 40)]))
+        ->toBe(['ok' => false, 'error' => "This copy doesn't have the commit the task started from."]);
+})->group('GIT-030');
+
+test('a task\'s binary and very large files come without a diff, until asked for', function () {
+    ($this->write)('a.txt', "a\n");
+    ($this->data)(['op' => 'commit', 'message' => 'Start']);
+    $start = ($this->git)('rev-parse', 'HEAD');
+    ($this->write)('logo.png', "\x89PNG\0");
+    ($this->write)('package-lock.json', str_repeat("line\n", 3_001));
+    ($this->write)('small.txt', "s\n");
+
+    $files = collect(($this->data)(['op' => 'task_changes', 'base' => $start])['files'])->keyBy('path');
+
+    expect($files['logo.png'])->toMatchArray(['binary' => true, 'patch' => null])
+        ->and($files['package-lock.json'])->toMatchArray(['additions' => 3_001, 'patch' => null])
+        ->and($files['small.txt']['patch'])->toContain('+s')
+        ->and(($this->data)(['op' => 'task_changes', 'base' => $start, 'path' => 'package-lock.json'])['patch'])->toContain('+line');
+})->group('GIT-030');

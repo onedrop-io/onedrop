@@ -29,6 +29,8 @@ const NEW_FILE_BYTES_MAX = 1_000_000;
 const CHANGES_DIFF_BYTES_MAX = 30_000;
 const COMPARE_COMMITS_MAX = 100;
 const COMBINE_COMMITS_MAX = 200;
+const TASK_CHANGES_LINES_MAX = 20_000;
+const TASK_FILE_LINES_MAX = 3_000;
 const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
 const AGENT_NAME = 'OneDrop';
 const CHECKPOINTS = 'refs/onedrop/checkpoints';
@@ -1131,6 +1133,183 @@ function changesDiff(): array
 }
 
 /**
+ * Everything a task changed (GIT-030): its commits, staged, unstaged and new files together, against "branch" (where
+ * the current branch parted from it, as on GitHub: a pull request's base) when the copy has it, or else the commit
+ * "base" (where the task started, or Main as it last brought it in). Files come with their lines added and removed
+ * and their diff, until TASK_CHANGES_LINES_MAX lines are shown; bigger files, and those after, come without one, and
+ * "path" asks for just that file's. Dependencies and secrets stay out, as when committing.
+ *
+ * @return array<string, mixed>
+ */
+function taskChanges(array $request): array
+{
+    if (! isRepository()) {
+        throw new ToolError('There are no changes yet.');
+    }
+
+    prepare();
+    [$base, $against] = taskBase($request);
+    $own = trim(gitOrFail(['rev-parse', '--git-path', 'index']));
+    $own = str_starts_with($own, '/') ? $own : workspace().'/'.$own;
+    $index = (string) tempnam(sys_get_temp_dir(), 'onedrop-index-');
+
+    try {
+        // A copy of the index, so what's staged stays as the user left it, with the new files added too.
+        is_file($own) ? copy($own, $index) : @unlink($index);
+        $env = ['GIT_INDEX_FILE' => $index];
+        gitOrFail(['add', '-A', '--', '.'], $env);
+        $diff = ['diff', '--cached', '--no-color', '--no-ext-diff', '--no-renames', $base];
+
+        if (isset($request['path'])) {
+            $path = validPath($request['path']);
+            $patch = gitOrFail([...$diff, '--', ":(literal){$path}"], $env);
+
+            return [
+                'path' => $path,
+                'patch' => substr($patch, 0, DIFF_BYTES_MAX),
+                'truncated' => strlen($patch) > DIFF_BYTES_MAX,
+                'binary' => preg_match('/^Binary files /m', $patch) === 1,
+            ];
+        }
+
+        $files = taskChangedFiles($diff, $env);
+        $shown = array_slice($files, 0, FILES_MAX);
+        $lines = 0;
+        $included = [];
+
+        foreach ($shown as $file) {
+            $size = ($file['additions'] ?? 0) + ($file['deletions'] ?? 0);
+
+            if (! $file['binary'] && $size <= TASK_FILE_LINES_MAX && $lines + $size <= TASK_CHANGES_LINES_MAX) {
+                $included[] = $file['path'];
+                $lines += $size;
+            }
+        }
+
+        $patches = taskPatches($diff, $env, $included);
+
+        return [
+            'base' => $base,
+            'against' => $against,
+            'commits' => (int) trim(git(['rev-list', '--count', "{$base}..HEAD"])[1]),
+            'additions' => array_sum(array_column($files, 'additions')),
+            'deletions' => array_sum(array_column($files, 'deletions')),
+            'files' => array_map(function (array $file) use ($patches) {
+                $patch = $patches[$file['path']] ?? null;
+
+                return [
+                    ...$file,
+                    'patch' => $patch === null ? null : substr($patch, 0, DIFF_BYTES_MAX),
+                    'truncated' => $patch !== null && strlen($patch) > DIFF_BYTES_MAX,
+                ];
+            }, $shown),
+            'more_files' => count($files) > FILES_MAX,
+        ];
+    } finally {
+        @unlink($index);
+    }
+}
+
+/**
+ * The commit a task's changes are shown against, and the branch it is when that's what they're against.
+ *
+ * @return array{string, ?string}
+ */
+function taskBase(array $request): array
+{
+    $branch = $request['branch'] ?? null;
+
+    if (is_string($branch) && $branch !== '' && head() !== null) {
+        $branch = validBranch($branch);
+
+        foreach (["refs/remotes/origin/{$branch}", "refs/heads/{$branch}"] as $ref) {
+            [$code, $output] = git(['merge-base', 'HEAD', $ref]);
+
+            if ($code === 0 && trim($output) !== '') {
+                return [trim($output), $branch];
+            }
+        }
+    }
+
+    $sha = $request['base'] ?? null;
+
+    if (is_string($sha) && preg_match('/^[0-9a-f]{7,40}$/', $sha) && git(['cat-file', '-e', "{$sha}^{commit}"])[0] === 0) {
+        return [$sha, null];
+    }
+
+    throw new ToolError('This copy doesn\'t have the commit the task started from.');
+}
+
+/**
+ * The files $diff changes, in git's order, with their state and lines added and removed (null for binary files).
+ *
+ * @param  list<string>  $diff
+ * @param  array<string, string>  $env
+ * @return list<array{path: string, status: string, additions: ?int, deletions: ?int, binary: bool}>
+ */
+function taskChangedFiles(array $diff, array $env): array
+{
+    $counts = [];
+
+    foreach (array_filter(explode("\0", gitOrFail([...$diff, '--numstat', '-z'], $env))) as $line) {
+        [$added, $removed, $path] = array_pad(explode("\t", $line, 3), 3, '');
+        $counts[$path] = $added === '-' ? [null, null, true] : [(int) $added, (int) $removed, false];
+    }
+
+    $entries = explode("\0", rtrim(gitOrFail([...$diff, '--name-status', '-z'], $env), "\0"));
+    $files = [];
+
+    for ($i = 0; $i + 1 < count($entries); $i += 2) {
+        $path = $entries[$i + 1];
+        [$additions, $deletions, $binary] = $counts[$path] ?? [null, null, false];
+        $files[] = [
+            'path' => $path,
+            'status' => match ($entries[$i][0] ?? 'M') {
+                'A' => 'A',
+                'D' => 'D',
+                default => 'M',
+            },
+            'additions' => $additions,
+            'deletions' => $deletions,
+            'binary' => $binary,
+        ];
+    }
+
+    return $files;
+}
+
+/**
+ * Each of $paths' diff, from one run of git.
+ *
+ * @param  list<string>  $diff
+ * @param  array<string, string>  $env
+ * @param  list<string>  $paths
+ * @return array<string, string>
+ */
+function taskPatches(array $diff, array $env, array $paths): array
+{
+    if ($paths === []) {
+        return [];
+    }
+
+    $output = gitOrFail([...$diff, '--', ...array_map(fn (string $path) => ":(literal){$path}", $paths)], $env);
+    // Each file's diff starts with "diff --git"; a line of a hunk can't (it starts with a space, + or -).
+    $blocks = preg_split('/^(?=diff --git )/m', $output, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+    if (count($blocks) === count($paths)) {
+        return array_combine($paths, $blocks);
+    }
+
+    $patches = [];
+
+    foreach ($paths as $path) {
+        $patches[$path] = gitOrFail([...$diff, '--', ":(literal){$path}"], $env);
+    }
+
+    return $patches;
+}
+
+/**
  * Throw away unstaged changes, to the files at "paths" or every one: each goes back to how it's staged (or to the last
  * commit), and new files are deleted. Staged changes and ignored files (node_modules, .env) stay. The files as they
  * were are saved as a checkpoint first.
@@ -1542,6 +1721,7 @@ try {
         'change_diff' => changeDiff($request),
         'discard_hunk' => discardHunk($request),
         'compare' => compare($request),
+        'task_changes' => taskChanges($request),
         'combine_preview' => combinePreview(),
         'combine' => combine($request),
         'undo_commit' => undoCommit($request),

@@ -17,6 +17,8 @@
 #                               With ONEDROP_COMMIT_TURNS=0 nothing is committed: the merged files land as uncommitted
 #                               changes (saved as a private checkpoint before and after), conflicts as conflict markers.
 #                               Exits 0 when merged (or nothing to merge), 3 on conflicts (left for the agent to resolve).
+#   fork incoming               Print the commit the last merge brought in (what a task's changes are shown against after
+#                               Update from Main, GIT-030).
 #   fork images                 List the images the app's Docker built itself, which no registry has: "ID TAG..." per line.
 #   fork save-image DIR FILE TAG...
 #                               Save the image with those tags, compressed, to FILE, then upload it to $ONEDROP_IMAGE_URL
@@ -333,6 +335,10 @@ case "${1:-}" in
         fi
 
         exit 1
+        ;;
+    incoming)
+        cd "$WORKSPACE" || exit 1
+        git rev-parse -q --verify refs/onedrop/incoming
         ;;
     images)
         images

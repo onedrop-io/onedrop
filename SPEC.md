@@ -1452,7 +1452,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
     - **Push after each turn** (on by default): the agent's work is pushed to the pull request when each of its turns ends.
 - A pull request from a fork should check out and run, but can't be pushed to; the task says so.
 - Messages to the task's agent should work on the pull request's branch; the agent doesn't push itself.
-- User should be able to click "Files changed" on the task's pull request bar to see the pull request's diff, file by file, in Tools beside the chat, while the preview shows its code running (`?tab=tools&tool=pulls&pr=12&pr_tab=files`).
+- User should be able to click "Changes" on the task's pull request bar to see everything the task changed against the pull request's base, unpushed work included (GIT-030), and click its number to see the pull request on GitHub's side, with its Files changed, in Tools beside the chat (`?tab=tools&tool=pulls&pr=12&pr_tab=files`).
 - Deleting the task removes its copy; the pull request is untouched.
 
 ## GIT-015: Fix a pull request's failing checks
@@ -1545,6 +1545,15 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - The run on credits should be a conversation of its own: the task's own agent keeps its conversation, and the user's next message goes back to it.
 - Messages the user sends never move to AI credits: they wait for the user to sign in again, as before (AI-005).
 - Where AI credits are off or none are left, the work should wait for the sign-in, as before.
+
+## GIT-030: See everything a task changed
+
+- User should be able to click "Changes" on a task's bar (a task with its own copy, or a pull request's task) to open a Changes tab beside the chat (`?tab=changes`), also offered under "+" on a task's page.
+- The tab should show everything the task's copy changed in one diff: its commits, staged and unstaged changes, and new files together (dependencies and secrets left out, as when committing), so it's what Apply to Main or Push would send.
+- A pull request's task should be shown against where its branch parted from the pull request's base ("Against main"), as on GitHub, unpushed work included; when the copy doesn't have the base branch, since it was checked out. Other tasks should be shown against where they started (Main, a branch, or another task), and after Update from Main against Main as it was brought in, so Main's newer work isn't shown as the task's.
+- User should see what it's against, how many files and commits, and the lines added and removed, then every file's diff open one after another (as in GIT-012), each under a header that stays in view with its state, path (click to open the file) and lines added and removed.
+- User should be able to jump to a file from a list beside the diffs (a "Jump to file" menu in a narrow pane), fold or open any file, hide whitespace-only changes, refresh, and pick "Ask" on a hunk to put it in the chat box (GIT-011). The tab refreshes itself when the agent or the files change.
+- Lockfiles and built files (`package-lock.json`, `*.min.js`, …), binary files, and very large diffs (over 3,000 changed lines, or once 20,000 lines are shown) should start folded; opening one loads its diff.
 
 ## GIT-031: Fix and resolve pull request review comments
 

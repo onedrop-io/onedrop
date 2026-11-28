@@ -101,7 +101,8 @@ test('the dev user opens the Pull requests page, reads a diff, opens a pull requ
     $task->update(['pull_request_number' => 12, 'pull_request_draft' => null]);
     $page->refresh()
         ->assertSeeIn('@task-pull-request-bar', '#12')
-        ->click('@task-pull-request-files')
+        ->click('@task-pull-request-open')
+        ->click('@pull-tab-files')
         ->assertScript('new URL(location.href).searchParams.get("pr_tab")', 'files')
         ->click('@pull-file')
         ->assertSeeIn('@pull-files', 'return true;');

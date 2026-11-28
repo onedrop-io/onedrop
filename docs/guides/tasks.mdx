@@ -32,6 +32,17 @@ The task's page shows its copy: its own preview, files, console, shell and tools
 | **Apply to Main**    | Merges the task's code into Main with git. Main's agent then does what your app needs, such as installing new packages or running database migrations, resolves any conflicts, and checks the preview. The task moves to **Done** and its copy is removed. With [Commit after each agent turn](/guides/source-control#commit-after-each-agent-turn) off, the task's changes land on Main uncommitted, with conflict markers where they clash, and no merge commit. |
 | **Update from Main** | Merges Main's newer work into the task's copy, and the task's agent brings its copy up to date. Use it when Main moved on while the task worked.                                                                                                                                                                                                                                                                                                                   |
 
+## See what a task changed
+
+Click **Changes** on the task's bar to open the **Changes** tab beside the chat. It shows everything the task changed as one diff, with every file open one after another, the way GitHub shows a pull request's files. That includes the task's commits, its uncommitted edits and its new files, so it's what **Apply to Main** or **Push** would send.
+
+- The top line says what the changes are compared with, then the number of files and commits and the lines added and removed. A task that started from Main is compared with Main as it was copied, or as **Update from Main** last brought it in, so Main's newer work isn't shown as the task's. A pull request's task is compared with the pull request's base branch.
+- Click a file in the list beside the diffs (or **Jump to file** in a narrow pane) to scroll to it, and click a file's path to open it.
+- Lockfiles, built files, binary files and very large diffs start folded; click the arrow to open one.
+- **Hide whitespace** hides changes that only touch spacing. **Ask** on a part of a diff puts it in the chat box, so you can ask the agent about it.
+
+The tab refreshes itself as the agent works. You can also add it from **+** on a task's page.
+
 A task checked out from a GitHub pull request has **Push** and **Pull** instead, which go through the pull request; see [Pull requests](/guides/pull-requests). In a project connected to GitHub, any task's work can also become a pull request with **Open pull request**.
 
 Only code merges. Rows added to a database in a task's copy stay there, while schema changes come to Main as migrations, which Main's agent runs.

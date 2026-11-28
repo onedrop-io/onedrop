@@ -130,6 +130,7 @@ import {
 } from '@/components/workspace/preview-errors';
 import EditorMenu from '@/components/workspace/editor-menu';
 import GitActionsMenu from '@/components/workspace/git-actions-menu';
+import ChangesView from '@/components/workspace/changes-view';
 import SourceControlView from '@/components/workspace/source-control-view';
 import PublishMenu from '@/components/workspace/publish-menu';
 import { ComputerMenu, DesktopView } from '@/components/workspace/desktop-view';
@@ -188,6 +189,7 @@ import {
     askAgent,
     onAskAgent,
     onOpenWorkspaceTool,
+    openWorkspaceTool,
     setWorkspaceView,
     viewFromUrl,
 } from '@/lib/workspace-view';
@@ -1122,7 +1124,10 @@ function WorkspacePanel({
     // The owner's computer (CMP-001): its desktop is the pinned tab, and it has no app tools.
     const computer = project.computer ?? null;
     const toolTabs = (Object.keys(TOOL_TABS) as ToolTab[]).filter(
-        (kind) => !computer || kind === 'shell',
+        (kind) =>
+            (!computer || kind === 'shell') &&
+            // A task's changes (GIT-030) are only on its own copy.
+            (kind !== 'changes' || copy),
     );
     const isRemoteBrowser = useIsRemote();
     // A 127.0.0.1 preview (laptop) can't be reached from another machine; servers use gateway URLs instead.
@@ -1312,6 +1317,13 @@ function WorkspacePanel({
                     setLayout((current) =>
                         panes.showTab(current, 'source-control'),
                     );
+
+                    return;
+                }
+
+                // The task bar's Changes (GIT-030).
+                if (section === 'changes') {
+                    setLayout((current) => panes.showTab(current, 'changes'));
 
                     return;
                 }
@@ -2113,6 +2125,7 @@ function WorkspacePanel({
             tests: '',
             browser: '',
             'source-control': '',
+            changes: '',
         }[kind];
     };
 
@@ -3096,6 +3109,17 @@ function WorkspacePanel({
                     ),
                 )}
                 {content(
+                    'changes',
+                    shown('changes') && (
+                        <ChangesView
+                            projectId={project.id}
+                            running={running}
+                            refreshSignal={`${activity}-${working}-${filesChanges}`}
+                            onOpenFile={(path) => openFile(path)}
+                        />
+                    ),
+                )}
+                {content(
                     'requirements',
                     shown('requirements') && (
                         <RequirementsView
@@ -3407,6 +3431,7 @@ type ToolTab =
     | 'services'
     | 'shell'
     | 'source-control'
+    | 'changes'
     | 'requirements'
     | 'tests'
     | 'browser';
@@ -3419,6 +3444,7 @@ const ACTIVE_TABS: PaneTab[] = [
     'services',
     'shell',
     'source-control',
+    'changes',
     'requirements',
     'tests',
     'browser',
@@ -3487,6 +3513,7 @@ const TOOL_TABS: Record<ToolTab, { label: string; icon: React.ReactNode }> = {
         label: 'Source Control',
         icon: <GitBranch className="size-4" />,
     },
+    changes: { label: 'Changes', icon: <FileDiff className="size-4" /> },
     requirements: {
         label: 'Requirements',
         icon: <ClipboardList className="size-4" />,
@@ -4070,6 +4097,7 @@ function TaskCopyBar({
             )}
             {task.has_copy && (
                 <>
+                    <ChangesButton />
                     <button
                         type="button"
                         onClick={() =>
@@ -4159,6 +4187,23 @@ function TaskCopyBar({
     );
 }
 
+/** Opens the Changes tab beside the chat: everything the task changed, in one diff (GIT-030). */
+function ChangesButton({ disabled = false }: { disabled?: boolean }) {
+    return (
+        <button
+            type="button"
+            onClick={() => openWorkspaceTool('changes')}
+            disabled={disabled}
+            title="See everything this task changed, in one diff"
+            className="flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-muted disabled:opacity-50"
+            data-test="task-changes"
+        >
+            <FileDiff className="size-3.5" />
+            Changes
+        </button>
+    );
+}
+
 /**
  * Under a pull request's task's title (GIT-014): the pull request, its checks, Push and Pull, and whether the agent's
  * work is pushed after each turn and failed checks are fixed automatically (GIT-015).
@@ -4237,16 +4282,7 @@ function PullRequestBar({
                                       ? 'Checks passed'
                                       : ''}
                 </span>
-                <button
-                    type="button"
-                    onClick={() => openPullRequest(pullRequest.number, 'files')}
-                    title="See the pull request's diff in Tools, beside the chat"
-                    className="flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-muted"
-                    data-test="task-pull-request-files"
-                >
-                    <FileDiff className="size-3.5" />
-                    Files changed
-                </button>
+                <ChangesButton disabled={!task.has_copy} />
                 <button
                     type="button"
                     onClick={() =>
