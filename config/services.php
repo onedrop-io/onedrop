@@ -131,6 +131,11 @@ return [
         'url' => env('AUTUMN_URL', 'https://api.useautumn.com/v1'),
     ],
 
+    // The public skills directory that Tools → Agent Skills → Browse searches (SKILL-005).
+    'skills_sh' => [
+        'url' => env('SKILLS_SH_URL', 'https://skills.sh'),
+    ],
+
     'github_app' => [
         'id' => env('GITHUB_APP_ID'),
         'slug' => env('GITHUB_APP_SLUG'),

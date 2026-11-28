@@ -7,6 +7,7 @@ import {
     List,
     PenLine,
     Plus,
+    Search,
     Sparkles,
     Upload,
     WandSparkles,
@@ -26,6 +27,7 @@ import {
 import { Switch } from '@/components/ui/switch';
 import RequirementsToggle from '@/components/workspace/requirements-toggle';
 import {
+    BrowseSkillsDialog,
     CreateWithAgentDialog,
     DeleteSkillDialog,
     ImportSkillDialog,
@@ -60,13 +62,13 @@ type Item =
     | { kind: 'project'; skill: ProjectSkill };
 
 type Open =
-    | { dialog: 'write' | 'agent' | 'import' | 'upload' }
+    | { dialog: 'write' | 'agent' | 'browse' | 'import' | 'upload' }
     | { dialog: 'edit' | 'delete'; skill: LibrarySkill }
     | { dialog: 'view'; item: Item }
     | null;
 
 /**
- * Tools → Agent Skills (SKILL-001..003): the user's skills and shared ones, turned on per project, plus the
+ * Tools → Agent Skills (SKILL-001..003, SKILL-005): the user's skills and shared ones, turned on per project, plus the
  * skills in the project's repository. The agent gets the ones that are on before each run (SKILL-004).
  */
 export default function SkillsPanel({
@@ -325,6 +327,12 @@ export default function SkillsPanel({
                                 <WandSparkles /> Create with agent
                             </DropdownMenuItem>
                             <DropdownMenuItem
+                                onSelect={() => setOpen({ dialog: 'browse' })}
+                                data-test="skills-add-browse"
+                            >
+                                <Search /> Browse skills.sh
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
                                 onSelect={() => setOpen({ dialog: 'import' })}
                                 data-test="skills-add-import"
                             >
@@ -417,6 +425,9 @@ export default function SkillsPanel({
                             );
                         }}
                     />
+                )}
+                {open?.dialog === 'browse' && (
+                    <BrowseSkillsDialog projectId={projectId} onAdded={added} />
                 )}
                 {open?.dialog === 'import' && (
                     <ImportSkillDialog projectId={projectId} onAdded={added} />

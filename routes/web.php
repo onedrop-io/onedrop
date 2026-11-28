@@ -318,6 +318,9 @@ Route::middleware(['auth', 'verified', 'organization'])->group(function () {
         Route::get('projects/{project}/skills', [ProjectSkillController::class, 'index'])->name('projects.skills.index');
         Route::post('projects/{project}/skills', [ProjectSkillController::class, 'store'])->name('projects.skills.store');
         Route::post('projects/{project}/skills/import', [ProjectSkillController::class, 'import'])->name('projects.skills.import');
+        Route::get('projects/{project}/skills/browse', [ProjectSkillController::class, 'browse'])->middleware('throttle:120,1')->name('projects.skills.browse');
+        Route::get('projects/{project}/skills/browse/show', [ProjectSkillController::class, 'browseShow'])->name('projects.skills.browse.show');
+        Route::post('projects/{project}/skills/browse', [ProjectSkillController::class, 'browseAdd'])->name('projects.skills.browse.add');
         Route::post('projects/{project}/skills/upload', [ProjectSkillController::class, 'upload'])->name('projects.skills.upload');
         Route::post('projects/{project}/skills/agent', [ProjectSkillController::class, 'create'])->name('projects.skills.create');
         Route::put('projects/{project}/skills/{skill}/enabled', [ProjectSkillController::class, 'toggle'])->name('projects.skills.toggle');

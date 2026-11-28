@@ -15,6 +15,7 @@ use App\Sandbox\SandboxSkills;
 use App\Sandbox\SkillDocument;
 use App\Sandbox\SkillException;
 use App\Sandbox\SkillPackage;
+use App\Sandbox\SkillsDirectory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -22,7 +23,7 @@ use Illuminate\Support\Facades\Gate;
 use ZipArchive;
 
 /**
- * Tools → Agent Skills (SKILL-001..003): the skills the user can turn on in a project, adding them, and the project's own.
+ * Tools → Agent Skills (SKILL-001..003, SKILL-005): the skills the user can turn on in a project, adding them, and the project's own.
  */
 class ProjectSkillController extends Controller
 {
@@ -81,6 +82,77 @@ class ProjectSkillController extends Controller
         return $this->add($request->user(), $project, [
             ...collect($skill)->except('url')->all(),
             'source' => SkillSource::GitHub,
+            'source_url' => $skill['url'],
+        ]);
+    }
+
+    /**
+     * Search skills.sh; each result says whether the user already has a skill with its name.
+     */
+    public function browse(Request $request, Project $project, SkillsDirectory $directory): JsonResponse
+    {
+        Gate::authorize('view', $project);
+
+        $query = (string) $request->validate(['q' => ['required', 'string', 'max:100']])['q'];
+
+        try {
+            $results = $directory->search($query);
+        } catch (SkillException $e) {
+            return response()->json(['message' => $e->getMessage()], 502);
+        }
+
+        $taken = $request->user()->skills()->inOrganization($project->organization)
+            ->whereIn('name', array_column($results, 'name'))->pluck('name')->all();
+
+        return response()->json(['skills' => array_map(
+            fn (array $result) => $result + ['added' => in_array($result['name'], $taken, true)],
+            $results,
+        )]);
+    }
+
+    /**
+     * One skill on skills.sh, to read before adding it.
+     */
+    public function browseShow(Request $request, Project $project, SkillsDirectory $directory): JsonResponse
+    {
+        Gate::authorize('view', $project);
+
+        $id = (string) $request->validate(['id' => ['required', 'string', 'max:300']])['id'];
+
+        try {
+            $skill = $directory->fetch($id);
+        } catch (SkillException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json(['skill' => [
+            'name' => $skill['name'],
+            'description' => $skill['description'],
+            'content' => SkillDocument::parse($skill['content'])['body'],
+            'files' => array_column($skill['files'], 'path'),
+            'url' => $skill['url'],
+            'added' => $this->nameTaken($request->user(), $project, $skill['name']) !== null,
+        ]]);
+    }
+
+    /**
+     * Add a skill from skills.sh; it's turned on in the project.
+     */
+    public function browseAdd(Request $request, Project $project, SkillsDirectory $directory): JsonResponse
+    {
+        Gate::authorize('update', $project);
+
+        $id = (string) $request->validate(['id' => ['required', 'string', 'max:300']])['id'];
+
+        try {
+            $skill = $directory->fetch($id);
+        } catch (SkillException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return $this->add($request->user(), $project, [
+            ...collect($skill)->except('url')->all(),
+            'source' => SkillSource::SkillsSh,
             'source_url' => $skill['url'],
         ]);
     }

@@ -2028,6 +2028,15 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be able to run all the tests, one requirement's tests, or a single test; the tab shows they're running and updates when they finish. Only one run goes at a time.
 - User should be able to pick a test to watch the video of its last run, read why it failed, and download its Playwright trace.
 - User should see a short explanation when there are no tests yet, the reason when the tests can't be listed or started (e.g. a syntax error, or Playwright missing), and a notice when the sandbox isn't running.
+## SKILL-005: Browse skills.sh
+
+- User should be able to pick "Browse skills.sh" from the Add menu and search the public skills directory at skills.sh as they type (from two characters).
+- User should see each result's name, the GitHub repository it comes from, and how many times it's been installed, most relevant first.
+- User should be able to open a result to read its description and instructions and see its other files before adding it, with a link to its page on skills.sh.
+- User should be able to add a result with one click. It's added to their skills and turned on in this project, like an imported skill, and remembers where it came from.
+- Results the user already has (same name) should say so instead of offering Add.
+- User should see a clear message when skills.sh can't be reached, a search finds nothing, or a skill isn't valid or is too big (over 50 files or 1 MB).
+
 - Recordings stay in the sandbox and are never committed; only the latest run of each test is kept.
 
 ## TEST-002: The agent writes and runs tests for each requirement

@@ -72,3 +72,29 @@ test('the dev user writes a skill, turns a shared one on, shares theirs, and see
         ->and($user->skills()->where('name', 'release-notes')->value('shared'))->toBeTrue()
         ->and($project->skills()->pluck('name')->sort()->values()->all())->toBe(['code-review', 'release-notes']);
 })->group('SKILL-001', 'SKILL-002', 'SKILL-003');
+
+test('a skill with many files and long instructions opens in a dialog that fits the window', function () {
+    $user = User::factory()->has(AgentConnection::factory())->create(['email' => 'dev@example.com']);
+    $project = Project::factory()->for($user)->create();
+    Sandbox::factory()->for($project)->create(['preview_url' => null]);
+    $skill = Skill::factory()->for($user)->create([
+        'name' => 'big-skill',
+        'content' => SkillDocument::compose('big-skill', 'Lots of files.', str_repeat("A long paragraph of instructions.\n\n", 80)),
+        'files' => collect(range(1, 40))->map(fn (int $i) => ['path' => "playbooks/file-{$i}.md", 'data' => base64_encode('x')])->all(),
+    ]);
+    $project->skills()->attach($skill);
+    $this->actingAs($user);
+
+    $page = visit("/projects/{$project->id}?tool=skills")
+        ->resize(1500, 800)
+        ->click('@tab-tools')
+        ->click('@tool-skills')
+        ->click('@skill-menu-big-skill')
+        ->click('View')
+        ->assertVisible('@skill-view-files');
+
+    $bottom = $page->script("document.querySelector('[data-test=skill-view]').getBoundingClientRect().bottom");
+
+    expect($bottom)->toBeLessThanOrEqual(800);
+    $page->assertNoJavaScriptErrors();
+})->group('SKILL-001');

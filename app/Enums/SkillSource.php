@@ -3,7 +3,7 @@
 namespace App\Enums;
 
 /**
- * Where one of a user's agent skills came from (SKILL-002, SKILL-003).
+ * Where one of a user's agent skills came from (SKILL-002, SKILL-003, SKILL-005).
  */
 enum SkillSource: string
 {
@@ -11,4 +11,5 @@ enum SkillSource: string
     case GitHub = 'github';
     case Upload = 'upload';
     case Project = 'project';
+    case SkillsSh = 'skills.sh';
 }

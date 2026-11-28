@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import ProjectSkillController from '@/actions/App/Http/Controllers/ProjectSkillController';
 import SkillController from '@/actions/App/Http/Controllers/SkillController';
@@ -23,7 +23,7 @@ export type LibrarySkill = {
     name: string;
     description: string;
     shared: boolean;
-    source: 'written' | 'github' | 'upload' | 'project';
+    source: 'written' | 'github' | 'upload' | 'project' | 'skills.sh';
     source_url: string | null;
     owner: string | null;
     mine: boolean;
@@ -332,6 +332,303 @@ export function ImportSkillDialog({
     );
 }
 
+/** A search result from skills.sh (SKILL-005). */
+type DirectorySkill = {
+    id: string;
+    name: string;
+    source: string;
+    installs: number;
+    url: string;
+    added: boolean;
+};
+
+type DirectoryDetail = {
+    name: string;
+    description: string;
+    content: string;
+    files: string[];
+    url: string;
+    added: boolean;
+};
+
+const installs = new Intl.NumberFormat(undefined, {
+    notation: 'compact',
+    maximumFractionDigits: 1,
+});
+
+/**
+ * Search skills.sh as you type, read a skill, and add it (SKILL-005).
+ */
+export function BrowseSkillsDialog({
+    projectId,
+    onAdded,
+}: {
+    projectId: number;
+    onAdded: (changed: Changed) => void;
+}) {
+    const [query, setQuery] = useState('');
+    const [results, setResults] = useState<DirectorySkill[] | null>(null);
+    const [searching, setSearching] = useState(false);
+    const [selected, setSelected] = useState<DirectorySkill | null>(null);
+    const [detail, setDetail] = useState<DirectoryDetail | null>(null);
+    const [adding, setAdding] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const searchCount = useRef(0);
+
+    useEffect(() => {
+        const q = query.trim();
+        const count = ++searchCount.current;
+
+        if (q.length < 2) {
+            setResults(null);
+            setSearching(false);
+
+            return;
+        }
+
+        setSearching(true);
+        const timer = setTimeout(() => {
+            jsonRequest<{ skills: DirectorySkill[] }>(
+                ProjectSkillController.browse.url(projectId, { query: { q } }),
+            )
+                .then(({ skills }) => {
+                    if (count === searchCount.current) {
+                        setResults(skills);
+                        setError(null);
+                    }
+                })
+                .catch((e: Error) => {
+                    if (count === searchCount.current) {
+                        setError(e.message);
+                    }
+                })
+                .finally(() => {
+                    if (count === searchCount.current) {
+                        setSearching(false);
+                    }
+                });
+        }, 300);
+
+        return () => clearTimeout(timer);
+    }, [projectId, query]);
+
+    useEffect(() => {
+        setDetail(null);
+
+        if (!selected) {
+            return;
+        }
+
+        let current = true;
+        jsonRequest<{ skill: DirectoryDetail }>(
+            ProjectSkillController.browseShow.url(projectId, {
+                query: { id: selected.id },
+            }),
+        )
+            .then(({ skill }) => current && setDetail(skill))
+            .catch((e: Error) => current && setError(e.message));
+
+        return () => {
+            current = false;
+        };
+    }, [projectId, selected]);
+
+    const add = (skill: DirectorySkill) => {
+        setAdding(skill.id);
+        setError(null);
+
+        jsonRequest<Changed>(ProjectSkillController.browseAdd.url(projectId), {
+            id: skill.id,
+        })
+            .then(onAdded)
+            .catch((e: Error) => setError(e.message))
+            .finally(() => setAdding(null));
+    };
+
+    const addButton = (skill: DirectorySkill, added: boolean) =>
+        added ? (
+            <span className="shrink-0 text-xs text-muted-foreground">
+                Added
+            </span>
+        ) : (
+            <Button
+                size="sm"
+                variant="outline"
+                className="shrink-0"
+                disabled={adding !== null}
+                onClick={(event) => {
+                    event.stopPropagation();
+                    add(skill);
+                }}
+                data-test="skill-browse-add"
+            >
+                {adding === skill.id ? 'Adding…' : 'Add'}
+            </Button>
+        );
+
+    return (
+        <DialogContent
+            className="flex max-h-[calc(100dvh-2rem)] flex-col sm:max-w-2xl"
+            data-test="skill-browse-dialog"
+        >
+            <DialogHeader>
+                <DialogTitle>
+                    {selected ? (
+                        <span className="font-mono">{selected.name}</span>
+                    ) : (
+                        'Browse skills.sh'
+                    )}
+                </DialogTitle>
+                <DialogDescription>
+                    {selected ? (
+                        <>
+                            From {selected.source} ·{' '}
+                            <a
+                                href={selected.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="underline underline-offset-2"
+                            >
+                                View on skills.sh
+                            </a>
+                        </>
+                    ) : (
+                        'Public skills from GitHub, ranked by installs. Read one before you add it: the agent follows its instructions.'
+                    )}
+                </DialogDescription>
+            </DialogHeader>
+
+            {selected ? (
+                <>
+                    <div className="min-h-0 flex-1 space-y-3 overflow-y-auto rounded-lg border p-4 text-sm">
+                        {detail ? (
+                            <>
+                                <p
+                                    className="text-muted-foreground"
+                                    data-test="skill-browse-description"
+                                >
+                                    {detail.description}
+                                </p>
+                                <Markdown content={detail.content} />
+                            </>
+                        ) : error ? null : (
+                            <p className="text-muted-foreground">Loading…</p>
+                        )}
+                    </div>
+                    {detail && detail.files.length > 0 && (
+                        <div className="text-sm">
+                            <p className="mb-1 text-muted-foreground">
+                                Other files
+                            </p>
+                            <ul className="max-h-32 overflow-y-auto font-mono text-xs">
+                                {detail.files.map((file) => (
+                                    <li key={file}>{file}</li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                    {error && (
+                        <p
+                            className="text-sm text-red-600"
+                            data-test="skill-error"
+                        >
+                            {error}
+                        </p>
+                    )}
+                    <DialogFooter>
+                        <Button
+                            variant="ghost"
+                            onClick={() => {
+                                setSelected(null);
+                                setError(null);
+                            }}
+                        >
+                            Back
+                        </Button>
+                        {detail &&
+                            (detail.added ? (
+                                <Button disabled>Already added</Button>
+                            ) : (
+                                <Button
+                                    disabled={adding !== null}
+                                    onClick={() => add(selected)}
+                                    data-test="skill-browse-add-detail"
+                                >
+                                    {adding ? 'Adding…' : 'Add skill'}
+                                </Button>
+                            ))}
+                    </DialogFooter>
+                </>
+            ) : (
+                <>
+                    <Input
+                        autoFocus
+                        value={query}
+                        onChange={(event) => setQuery(event.target.value)}
+                        placeholder="Search: pdf, stripe, testing…"
+                        maxLength={100}
+                        data-test="skill-browse-search"
+                    />
+                    {error && (
+                        <p
+                            className="text-sm text-red-600"
+                            data-test="skill-error"
+                        >
+                            {error}
+                        </p>
+                    )}
+                    <div className="min-h-32 flex-1 overflow-y-auto">
+                        {results === null ? (
+                            <p className="py-8 text-center text-sm text-muted-foreground">
+                                {searching
+                                    ? 'Searching…'
+                                    : 'Type at least two characters to search.'}
+                            </p>
+                        ) : results.length === 0 ? (
+                            <p className="py-8 text-center text-sm text-muted-foreground">
+                                {searching
+                                    ? 'Searching…'
+                                    : `No skills match “${query.trim()}”.`}
+                            </p>
+                        ) : (
+                            <ul
+                                className="divide-y"
+                                data-test="skill-browse-results"
+                            >
+                                {results.map((skill) => (
+                                    <li
+                                        key={skill.id}
+                                        className="flex cursor-pointer items-center gap-3 px-1 py-2 hover:bg-muted/50"
+                                        onClick={() => {
+                                            setError(null);
+                                            setSelected(skill);
+                                        }}
+                                        data-test="skill-browse-result"
+                                    >
+                                        <div className="min-w-0 flex-1">
+                                            <p className="truncate font-mono text-sm">
+                                                {skill.name}
+                                            </p>
+                                            <p className="truncate text-xs text-muted-foreground">
+                                                {skill.source} ·{' '}
+                                                {installs.format(
+                                                    skill.installs,
+                                                )}{' '}
+                                                installs
+                                            </p>
+                                        </div>
+                                        {addButton(skill, skill.added)}
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                </>
+            )}
+        </DialogContent>
+    );
+}
+
 /** Upload a SKILL.md or a zip of a skill folder. */
 export function UploadSkillDialog({
     projectId,
@@ -433,12 +730,15 @@ export function ViewSkillDialog({
     }, [projectId, key]);
 
     return (
-        <DialogContent className="sm:max-w-3xl" data-test="skill-view">
+        <DialogContent
+            className="flex max-h-[calc(100dvh-2rem)] flex-col sm:max-w-3xl"
+            data-test="skill-view"
+        >
             <DialogHeader>
                 <DialogTitle className="font-mono">{title}</DialogTitle>
                 <DialogDescription>{subtitle}</DialogDescription>
             </DialogHeader>
-            <div className="max-h-[60vh] overflow-y-auto rounded-lg border p-4 text-sm">
+            <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border p-4 text-sm">
                 {error ? (
                     <p className="text-red-600">{error}</p>
                 ) : detail ? (
@@ -454,7 +754,7 @@ export function ViewSkillDialog({
                 <div className="text-sm">
                     <p className="mb-1 text-muted-foreground">Other files</p>
                     <ul
-                        className="font-mono text-xs"
+                        className="max-h-32 overflow-y-auto font-mono text-xs"
                         data-test="skill-view-files"
                     >
                         {detail.files.map((file) => (
