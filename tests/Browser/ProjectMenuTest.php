@@ -60,7 +60,9 @@ test('the sidebar menu pins, renames, marks unread, archives, and deletes projec
     $page->click('[aria-label="Actions for Blog"]')
         ->click('@project-menu-delete')
         ->assertSee('Delete Blog?')
-        ->click('@project-delete-confirm')
+        // Enter confirms: Delete has the focus, not Cancel.
+        ->assertScript('document.activeElement?.dataset.test', 'project-delete-confirm')
+        ->keys('@project-delete-confirm', 'Enter')
         ->assertSee('Deleted “Blog”.')
         ->assertDontSeeIn($sidebar, 'Blog')
         ->assertNoJavaScriptErrors();

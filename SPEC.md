@@ -273,7 +273,7 @@ What users should be able to do. Each entry has an ID; tests reference it with `
 - User should be able to share a project: see and copy the published app's link, or be told to publish it first.
 - User should be able to copy the project's link (C).
 - User should be able to archive a project (A), which moves it to a collapsed "Archived" section, and unarchive it from there.
-- User should be able to delete a project (D) after confirming; this takes the app offline and removes its chat, attachments, and sandbox. Deleting the open project takes them to the new-project page. Any other tab still open on a deleted project moves to the new-project page too, never a "not found" page.
+- User should be able to delete a project (D) after confirming (Enter confirms); this takes the app offline and removes its chat, attachments, and sandbox. Deleting the open project takes them to the new-project page. Any other tab still open on a deleted project moves to the new-project page too, never a "not found" page.
 - Background work still queued for a deleted project (or its tasks and sandboxes) should be dropped quietly, not run or recorded as failed jobs.
 - User should still land on the next page when its code can't be fetched (a new build was deployed, or the dev server restarted): the app loads that page in full instead of staying on the old one, so deleting the open project never leaves them on its "not found" address.
 - A deleted project's sandbox is removed from the provider it was created on, even if the configured provider has changed since.

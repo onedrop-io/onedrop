@@ -472,6 +472,8 @@ function DeleteDialog({ project, open, onClose }: DialogProps) {
                         type="button"
                         variant="destructive"
                         disabled={deleting}
+                        // Enter confirms: Radix would focus Cancel first.
+                        autoFocus
                         onClick={() =>
                             router.delete(destroy(project.id).url, {
                                 preserveScroll: true,
